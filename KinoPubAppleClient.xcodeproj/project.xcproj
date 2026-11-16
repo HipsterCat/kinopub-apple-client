@@ -127,6 +127,7 @@
                 { "path": "HLSAssetDownloadManager.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "HLSDownloadsStore.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SeasonDownloadManager.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DownloadsCenter.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "Providers.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             },
@@ -386,9 +387,8 @@
                     { "path": "DownloadMeta.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                   ],
                 },
-                { "path": "DownloadsCatalog.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "DownloadsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
-                { "path": "DownloadedItemView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DownloadsActivityView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",

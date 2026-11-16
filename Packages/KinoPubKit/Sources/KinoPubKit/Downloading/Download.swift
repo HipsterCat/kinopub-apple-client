@@ -23,8 +23,8 @@ public class Download<Meta: Codable & Equatable>: ObservableObject {
   /// URL for the download
   public let url: URL
 
-  /// The current state of the download.
-  public internal(set) var state: State = .notStarted
+  /// The current state of the download. Published so a pause / resume redraws its row.
+  @Published public internal(set) var state: State = .notStarted
 
   /// Progress value
   @Published public private(set) var progress: Float = 0.0
@@ -81,22 +81,41 @@ public class Download<Meta: Codable & Equatable>: ObservableObject {
     Logger.kit.debug("[DOWNLOAD] Download for url: \(url) is \(self.state.rawValue)")
   }
 
-  /// Pauses the download. If the download is already paused or not in progress, this method has no effect.
+  /// Pauses the download, keeping resume data so `resume()` picks up where it stopped.
+  /// The state flips at once: the session's "cancelled" completion that follows must find
+  /// a paused download, not a failed one (it used to drop the row from the list).
   public func pause() {
-    task?.cancel(byProducingResumeData: { [weak self] data in
-      guard let self else { return }
-      self.resumeData = data
-      self.state = .paused
-      Logger.kit.debug("[DOWNLOAD] Download for url: \(self.url.absoluteString) is paused")
-      self.onStateChange?(self)
-    })
+    guard state != .paused else { return }
+    state = .paused
+    speed = 0
+    let pausing = task
     task = nil
+    pausing?.cancel(byProducingResumeData: { [weak self] data in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        if let data { self.resumeData = data }
+        Logger.kit.debug("[DOWNLOAD] Download for url: \(self.url.absoluteString) is paused (resume data: \(data != nil))")
+        self.onStateChange?(self)
+      }
+    })
+    onStateChange?(self)
+  }
+
+  /// Stops the download for good: no resume data, nothing persisted afterwards.
+  public func cancel() {
+    onStateChange = nil
+    task?.cancel()
+    task = nil
+    resumeData = nil
+    state = .notStarted
   }
 
   /// Resumes the download. If the download is already in progress, this method has no effect.
   public func resume() {
+    if task != nil, state == .inProgress { return }
     if let resumeData = self.resumeData {
       task = manager.session.downloadTask(withResumeData: resumeData)
+      self.resumeData = nil
     } else {
       task = manager.session.downloadTask(with: URLRequest(url: url))
     }
@@ -105,6 +124,27 @@ public class Download<Meta: Codable & Equatable>: ObservableObject {
     task?.resume()
     onStateChange?(self)
   }
+
+  /// A task the background session kept running while the app was gone (or suspended):
+  /// adopt it instead of starting a second copy of the same file.
+  internal func attach(_ task: URLSessionDownloadTask) {
+    self.task = task
+    state = task.state == .running ? .inProgress : .paused
+    if task.state == .suspended { task.resume(); state = .inProgress }
+  }
+
+  /// The session stopped the transfer (network, the system) and left resume data: the row
+  /// stays, paused, so a tap continues it.
+  internal func interrupted(resumeData: Data?) {
+    task = nil
+    if let resumeData { self.resumeData = resumeData }
+    state = .paused
+    speed = 0
+    onStateChange?(self)
+  }
+
+  /// True while this download has a live session task.
+  public var hasTask: Bool { task != nil }
 
   internal func updateProgress(_ progress: Float) {
     self.progress = progress

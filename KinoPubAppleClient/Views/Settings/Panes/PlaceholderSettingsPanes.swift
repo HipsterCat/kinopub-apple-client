@@ -10,24 +10,18 @@ import KinoPubUI
 
 #if !os(tvOS)
 
+/// Downloads settings that do something: the switches here were a demo that saved nothing
+/// (Wi‑Fi only, quality, delete after watching). Quality follows Playback › Quality —
+/// the HLS download asks for that rung (`HLSAssetDownloadManager`).
 struct DownloadsSettingsPane: View {
-  @State private var wifiOnly = true
-  @State private var qualityRaw = "1080"
-  @State private var deleteAfterWatch = false
+  @ObservedObject private var center = AppContext.shared.downloadsCenter
 
   var body: some View {
     Form {
       Section {
-        Toggle("Wi‑Fi only", isOn: $wifiOnly)
-        Picker("Download quality", selection: $qualityRaw) {
-          Text("720p").tag("720")
-          Text("1080p").tag("1080")
-          Text("4K").tag("4k")
-        }
-        .pickerStyle(.menu)
-        Toggle("Delete after watching", isOn: $deleteAfterWatch)
+        Toggle("Simultaneous Downloads", isOn: $center.simultaneous)
       } footer: {
-        Text("Demo controls — not saved yet.")
+        Text("Off: one download at a time, the rest wait their turn.")
       }
     }
     .formStyle(.grouped)

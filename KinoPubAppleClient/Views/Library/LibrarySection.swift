@@ -70,7 +70,7 @@ enum LibrarySection: Hashable, Codable {
   }
 
   /// Where this section's first page lives in `ContentStore`. `nil` for Downloads —
-  /// those are local files owned by `DownloadsCatalog`, nothing to cache from network.
+  /// those are local files owned by `DownloadsCenter`, nothing to cache from network.
   var rowKey: RowKey? {
     switch self {
     case .watchlist: return .watchlist

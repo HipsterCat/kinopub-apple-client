@@ -2,8 +2,8 @@
 //  SeasonDownloadManager.swift
 //  KinoPubAppleClient
 //
-//  Downloads an entire season in one action by enqueuing each episode through the shared
-//  DownloadManager. Tracks per-season group progress and posts a single "season downloaded"
+//  Downloads an entire season in one action, each episode through `DownloadsCenter`
+//  (HLS on iPhone and iPad, mp4 on the Mac). Tracks per-season group progress and posts a single "season downloaded"
 //  notification when the last episode of a group finishes.
 //
 
@@ -24,7 +24,9 @@ final class SeasonDownloadManager: ObservableObject {
     let seasonNumber: Int
     let total: Int
     var completed: Int
-    var pendingURLs: Set<URL>
+    /// `HLSDownloadKey`s of the episodes still downloading — the same key for either
+    /// engine, so a season finishes whichever one fetched its episodes.
+    var pendingKeys: Set<String>
 
     var progress: Double { total > 0 ? Double(completed) / Double(total) : 0 }
     var isComplete: Bool { completed >= total }
@@ -32,20 +34,16 @@ final class SeasonDownloadManager: ObservableObject {
 
   @Published private(set) var groups: [String: Group] = [:]
 
-  private let downloadManager: DownloadManager<DownloadMeta>
   private let notifications: DownloadNotificationManager
+  /// Set once `AppContext` has built the center (it needs the library store, built later).
+  var center: DownloadsCenter?
 
-  init(downloadManager: DownloadManager<DownloadMeta>, notifications: DownloadNotificationManager) {
-    self.downloadManager = downloadManager
+  init(notifications: DownloadNotificationManager) {
     self.notifications = notifications
   }
 
   /// Distinct quality labels available across a season's episodes, best (highest resolution) first.
-  ///
-  /// TODO(downloads): a series detail page now fetches with `nolinks=1`, so episodes have
-  /// no files until `MediaLinksResolver` fills them one at a time. When downloads come out
-  /// from behind `FeatureFlags.downloadsEnabled`, resolve every episode of the season here
-  /// (and in `downloadSeason`) before reading `episode.files`, or both quietly do nothing.
+  /// A `nolinks=1` payload still lists the ladder, so this reads without resolving links.
   static func availableQualities(in season: Season) -> [String] {
     var seen = Set<String>()
     var result: [(label: String, resolution: Int)] = []
@@ -58,46 +56,56 @@ final class SeasonDownloadManager: ObservableObject {
     return result.sorted { $0.resolution > $1.resolution }.map { $0.label }
   }
 
-  /// Enqueues every episode of `season` at `quality` (falls back to the best available file per
-  /// episode). Episodes already downloading are skipped. Returns the number of episodes queued.
+  /// Downloads every episode of `season` at `quality` (or each episode's best file).
+  /// A series page is fetched with `nolinks=1`, so an episode has no links until
+  /// `MediaLinksResolver` fills it — without that this quietly did nothing. Episodes
+  /// already downloaded or downloading are skipped by the engines. Returns how many
+  /// episodes were handed over.
   @discardableResult
   func downloadSeason(mediaId: Int,
                       seriesTitle: String,
                       season: Season,
-                      quality: String?) -> Int {
-    var queued = Set<URL>()
+                      quality: String?,
+                      using service: VideoContentService) async -> Int {
+    guard let center else { return 0 }
+    var keys = Set<String>()
     for episode in season.episodes {
-      guard let file = pickFile(from: episode.files, quality: quality),
-            let url = URL(string: file.url.http) else { continue }
-      if downloadManager.activeDownloads[url] != nil { continue }
-      let meta = downloadMeta(mediaId: mediaId, season: season, episode: episode, quality: file.quality)
-      _ = downloadManager.startDownload(url: url, withMetadata: meta)
-      queued.insert(url)
+      await MediaLinksResolver.shared.fill(episode, using: service)
+      guard let file = pickFile(from: episode.files, quality: quality), file.hasPlayableURL else {
+        Logger.app.error("[SEASON DL] no links for S\(season.number)E\(episode.number) of \(mediaId)")
+        continue
+      }
+      let meta = downloadMeta(mediaId: mediaId, seriesTitle: seriesTitle, season: season,
+                              episode: episode, quality: file.quality)
+      center.start(meta: meta, file: file)
+      keys.insert(HLSDownloadKey.make(for: meta))
     }
-    guard !queued.isEmpty else { return 0 }
+    guard !keys.isEmpty else { return 0 }
     let id = groupID(mediaId: mediaId, seasonNumber: season.number)
     groups[id] = Group(id: id,
                        seriesTitle: seriesTitle,
                        seasonNumber: season.number,
-                       total: queued.count,
+                       total: keys.count,
                        completed: 0,
-                       pendingURLs: queued)
-    Logger.app.info("[SEASON DL] Queued \(queued.count) episodes for \(id)")
-    return queued.count
+                       pendingKeys: keys)
+    Logger.app.info("[SEASON DL] Queued \(keys.count) episodes for \(id)")
+    return keys.count
   }
 
-  /// Advances the season group a finished download belongs to. Returns `true` when the URL was part
-  /// of a group, so the caller can suppress the per-episode "download complete" notification.
+  /// Advances the season group a finished download belongs to. Returns `true` when it was
+  /// part of a group, so the caller can suppress the per-episode "download complete" notification.
   @discardableResult
-  func handleFinished(url: URL) -> Bool {
-    guard let key = groups.first(where: { $0.value.pendingURLs.contains(url) })?.key else { return false }
-    groups[key]?.pendingURLs.remove(url)
-    groups[key]?.completed += 1
-    if let group = groups[key], group.isComplete {
+  func handleFinished(meta: DownloadMeta) -> Bool {
+    let key = HLSDownloadKey.make(for: meta)
+    guard let id = groups.first(where: { $0.value.pendingKeys.contains(key) })?.key else { return false }
+    groups[id]?.pendingKeys.remove(key)
+    groups[id]?.completed += 1
+    if let group = groups[id], group.isComplete {
       notifications.notifySeasonFinished(
         title: "\(group.seriesTitle) — \(seasonLabel(group.seasonNumber))",
         identifier: group.id)
       Logger.app.info("[SEASON DL] Completed group \(group.id)")
+      groups[id] = nil
     }
     return true
   }
@@ -118,14 +126,16 @@ final class SeasonDownloadManager: ObservableObject {
     return files.max(by: { $0.resolution < $1.resolution })
   }
 
-  /// Mirrors `SeasonModel.downloadMeta` but also records quality + episode marker so the Downloads
-  /// list can show "S1E3 · 1080p".
-  private func downloadMeta(mediaId: Int, season: Season, episode: Episode, quality: String) -> DownloadMeta {
+  /// The same shape the title page's own Download gives an episode (`DownloadMeta.make`):
+  /// the series' id and title, the episode in `metadata` and the marker — so the hero's
+  /// circle, the player's offline lookup and the Downloads list all find it.
+  private func downloadMeta(mediaId: Int, seriesTitle: String, season: Season, episode: Episode,
+                            quality: String) -> DownloadMeta {
     let name = "S\(season.number)E\(episode.number)"
-    return DownloadMeta(id: episode.id,
+    return DownloadMeta(id: mediaId,
                         files: episode.files,
-                        originalTitle: name,
-                        localizedTitle: episode.fixedTitle,
+                        originalTitle: episode.fixedTitle,
+                        localizedTitle: seriesTitle,
                         imageUrl: episode.thumbnail,
                         metadata: WatchingMetadata(id: mediaId, video: episode.number, season: season.number),
                         quality: quality,

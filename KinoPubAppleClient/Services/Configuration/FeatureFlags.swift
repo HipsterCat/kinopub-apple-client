@@ -29,9 +29,19 @@ enum FeatureFlags {
   /// downloads-facing UI. `KinoPubKit`'s `DownloadManager` / `DownloadedFilesDatabase`
   /// machinery stays compiled and available either way — this only hides entry points.
   ///
-  /// TODO(downloads): when this flips on, add Download to `MediaCardContextMenus`
+  /// Never on tvOS: an Apple TV has no storage to keep a film on (the system purges it),
+  /// and the switch is not offered there — but its default is on everywhere, so the TV's
+  /// «Моё» showed a Downloads row that could never hold anything (Sasha, 2026-11-16).
+  ///
+  /// TODO(downloads): add Download to `MediaCardContextMenus`
   /// (single source — do not hand-roll per shelf / banner / rail).
-  static var downloadsEnabled: Bool { FeatureFlag.downloads.isEnabled }
+  static var downloadsEnabled: Bool {
+#if os(tvOS)
+    false
+#else
+    FeatureFlag.downloads.isEnabled
+#endif
+  }
 
   /// "All Bookmarks" overview tab (folder shelves). Off while History / Watchlist /
   /// per-folder tabs carry browsing; when false the tab is omitted and the overview

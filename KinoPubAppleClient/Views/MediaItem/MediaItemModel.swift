@@ -1422,42 +1422,27 @@ class MediaItemModel: ObservableObject {
     }
   }
   
+  /// Hands one playable to `DownloadsCenter` (HLS where the platform has it, else mp4).
   func startDownload(item: DownloadableMediaItem, file: FileInfo) {
     guard FeatureFlags.downloadsEnabled else { return }
     let meta = DownloadMeta.make(from: item, quality: file.quality)
-#if os(iOS)
-    // Prefer offline HLS (.movpkg) — full quality + all dubs/subs. Fall back to mp4.
-    if let hls = URL(string: file.url.hls4), !file.url.hls4.isEmpty {
-      Task { @MainActor in
-        let result = await AppContext.shared.hlsDownloadManager.startDownload(meta: meta, hlsURL: hls)
-        switch result {
-        case .started, .alreadyDownloading, .alreadyDownloaded:
-          return
-        case .failed:
-          guard let url = URL(string: file.url.http), !file.url.http.isEmpty else { return }
-          _ = self.downloadManager.startDownload(url: url, withMetadata: meta)
-        }
-      }
-      return
-    }
-#endif
-    guard let url = URL(string: file.url.http), !file.url.http.isEmpty else { return }
-    _ = downloadManager.startDownload(url: url, withMetadata: meta)
+    AppContext.shared.downloadsCenter.start(meta: meta, file: file)
   }
 
-  /// Enqueues every episode of a season at `quality` (mp4 path). Non-TV only.
-  @discardableResult
-  func startSeasonDownload(mediaId: Int, seriesTitle: String, season: Season, quality: String?) -> Int {
-#if os(tvOS)
-    return 0
-#else
-    guard FeatureFlags.downloadsEnabled else { return 0 }
-    return AppContext.shared.seasonDownloadManager.downloadSeason(
-      mediaId: mediaId,
-      seriesTitle: seriesTitle,
-      season: season,
-      quality: quality
-    )
+  /// Downloads every episode of a season (links resolved first). Non-TV only.
+  func startSeasonDownload(mediaId: Int, seriesTitle: String, season: Season, quality: String?) {
+#if !os(tvOS)
+    guard FeatureFlags.downloadsEnabled else { return }
+    let service = itemsService
+    Task { @MainActor in
+      await AppContext.shared.seasonDownloadManager.downloadSeason(
+        mediaId: mediaId,
+        seriesTitle: seriesTitle,
+        season: season,
+        quality: quality,
+        using: service
+      )
+    }
 #endif
   }
 
@@ -1546,18 +1531,24 @@ class MediaItemModel: ObservableObject {
 #else
     guard FeatureFlags.downloadsEnabled else { return }
     if let (season, episode) = mediaItem.primaryEpisode {
-      let item = DownloadableMediaItem(
-        name: "S\(season.number)E\(episode.number)",
-        files: episode.files,
-        mediaItem: mediaItem,
-        watchingMetadata: WatchingMetadata(
-          id: mediaItemId,
-          video: episode.number,
-          season: season.number
+      // A series page comes without links (`nolinks=1`): this used to find no link in
+      // the episode and quietly do nothing.
+      let service = itemsService
+      Task { @MainActor in
+        await MediaLinksResolver.shared.fill(episode, using: service)
+        let item = DownloadableMediaItem(
+          name: "S\(season.number)E\(episode.number)",
+          files: episode.files,
+          mediaItem: self.mediaItem,
+          watchingMetadata: WatchingMetadata(
+            id: self.mediaItemId,
+            video: episode.number,
+            season: season.number
+          )
         )
-      )
-      guard let file = Self.preferredDownloadFile(in: episode.files) else { return }
-      startDownload(item: item, file: file)
+        guard let file = Self.preferredDownloadFile(in: episode.files) else { return }
+        self.startDownload(item: item, file: file)
+      }
       return
     }
     guard let video = mediaItem.primaryVideo,
@@ -1577,27 +1568,18 @@ class MediaItemModel: ObservableObject {
     return
 #else
     let target = currentDownloadTarget
-#if os(iOS)
-    if let active = AppContext.shared.hlsDownloadManager.activeDownloads.first(where: {
+    let center = AppContext.shared.downloadsCenter
+    guard let activity = center.activities.first(where: {
       $0.meta.id == mediaItemId
         && $0.meta.metadata.video == target.video
         && $0.meta.metadata.season == target.season
-    }) {
-      // HLS has no pause API — cancel leaves a restartable idle circle.
-      AppContext.shared.hlsDownloadManager.cancelDownload(key: active.id)
-      return
-    }
-#endif
-    if let (url, download) = downloadManager.activeDownloads.first(where: {
-      $0.value.metadata.id == mediaItemId
-        && $0.value.metadata.metadata.video == target.video
-        && $0.value.metadata.metadata.season == target.season
-    }) {
-      if download.state == .inProgress {
-        download.pause()
-      } else {
-        downloadManager.removeDownload(for: url)
-      }
+    }) else { return }
+    // A pause keeps what was fetched (HLS suspends its task, mp4 keeps resume data);
+    // tapping a paused circle continues it.
+    if activity.isActive {
+      center.pause(activity)
+    } else {
+      center.resume(activity)
     }
 #endif
   }
@@ -1616,7 +1598,7 @@ class MediaItemModel: ObservableObject {
   }
 
   func downloadSeason(_ season: Season) {
-    _ = startSeasonDownload(
+    startSeasonDownload(
       mediaId: mediaItemId,
       seriesTitle: mediaItem.localizedTitle,
       season: season,

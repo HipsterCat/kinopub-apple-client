@@ -213,6 +213,15 @@ struct KinoPubAppleClientApp: App {
     .defaultSize(width: 720, height: 520)
     .commandsRemoved()
 
+    // Window › Activity ⌥⌘L, as the TV app on the Mac has it: what is downloading, with
+    // pause and Simultaneous Downloads. The scene lists itself in the Window menu.
+    Window("Activity", id: ActivityWindow.id) {
+      DownloadsActivityView(center: AppContext.shared.downloadsCenter)
+    }
+    .keyboardShortcut("l", modifiers: [.command, .option])
+    .defaultSize(width: 420, height: 420)
+    .restorationBehavior(.disabled)
+
     Window("About Kinopub", id: AboutWindow.id) {
       AboutView()
 //        // .preferredColorScheme(.dark)

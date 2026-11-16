@@ -30,13 +30,20 @@ public struct HLSActiveDownload: Identifiable, Equatable {
   public var speed: Double
   /// Estimated time remaining, derived from the progress rate.
   public var remaining: TimeInterval?
+  /// The viewer paused it (its task is suspended).
+  public var isPaused: Bool
+  /// kino.pub answered 429; the next attempt is scheduled (`earliestBeginDate`).
+  public var isWaitingToRetry: Bool
 
-  public init(id: String, meta: DownloadMeta, progress: Float, speed: Double = 0, remaining: TimeInterval? = nil) {
+  public init(id: String, meta: DownloadMeta, progress: Float, speed: Double = 0, remaining: TimeInterval? = nil,
+              isPaused: Bool = false, isWaitingToRetry: Bool = false) {
     self.id = id
     self.meta = meta
     self.progress = progress
     self.speed = speed
     self.remaining = remaining
+    self.isPaused = isPaused
+    self.isWaitingToRetry = isWaitingToRetry
   }
 }
 
@@ -69,6 +76,26 @@ enum HLSDownloadKey {
 }
 
 #if os(iOS)
+import UIKit
+
+/// A few seconds of background execution for work that must finish before the system
+/// suspends the app again (`beginBackgroundTask`). `end()` gives them back.
+@MainActor
+final class BackgroundWork {
+  private var identifier = UIBackgroundTaskIdentifier.invalid
+
+  init(_ name: String) {
+    identifier = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+      MainActor.assumeIsolated { self?.end() }
+    }
+  }
+
+  func end() {
+    guard identifier != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(identifier)
+    identifier = .invalid
+  }
+}
 
 public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetDownloadDelegate {
 
@@ -112,6 +139,16 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     var remaining: TimeInterval?
   }
   private var contexts: [Int: TaskContext] = [:]   // keyed by task.taskIdentifier
+  /// The live task of each download, by `HLSDownloadKey` — what pause / resume act on.
+  private var tasks: [String: AVAggregateAssetDownloadTask] = [:]
+
+  /// The background session's identifier, for the app delegate to route its wake-up here.
+  public static let sessionIdentifier = "com.kinopub.hlsDownloadSession"
+
+  /// Stored by the app delegate when the system wakes the app for this session's events
+  /// (`application(_:handleEventsForBackgroundURLSession:completionHandler:)`); called once
+  /// the session says it delivered them all.
+  public var backgroundCompletionHandler: (() -> Void)?
   /// kino.pub rate-limits (HTTP 429) aggressive HLS downloads; we retry with backoff this many times.
   private let maxRetries = 5
 
@@ -126,6 +163,8 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     /// Relative path of the partial `.movpkg` (once the system hands us a location) so we can delete
     /// it on cleanup.
     var partialRelativePath: String?
+    /// The viewer paused it. Optional so older entries decode.
+    var isPaused: Bool?
   }
 
   private let pendingFileURL: URL = {
@@ -157,6 +196,13 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     if items.count != before { writePending(items) }
   }
 
+  private func updatePendingPaused(key: String, paused: Bool) {
+    var items = readPending()
+    guard let idx = items.firstIndex(where: { $0.key == key }) else { return }
+    items[idx].isPaused = paused
+    writePending(items)
+  }
+
   private func updatePendingPartial(key: String, relativePath: String) {
     var items = readPending()
     guard let idx = items.firstIndex(where: { $0.key == key }) else { return }
@@ -185,18 +231,31 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   }
 
   private lazy var session: AVAssetDownloadURLSession = {
-    let config = URLSessionConfiguration.background(withIdentifier: "com.kinopub.hlsDownloadSession")
+    let config = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
+    // Not discretionary: a download the viewer asked for runs now, not when the system
+    // finds the phone on Wi‑Fi and power. Launch events: the app is woken (relaunched if
+    // the system had ended it) to hear a download finished, so the asset is recorded and
+    // the next queued one starts while the app stays in the background.
+    config.isDiscretionary = false
+    config.sessionSendsLaunchEvents = true
+    config.allowsCellularAccess = true
     return AVAssetDownloadURLSession(configuration: config,
                                      assetDownloadDelegate: self,
                                      delegateQueue: .main)
   }()
+
+  /// Reconnects to the background session so the system delivers its pending events —
+  /// what Apple asks of an app woken by `handleEventsForBackgroundURLSession`.
+  public func connect() {
+    _ = session
+  }
 
   // MARK: - Public API
 
   /// Starts (or no-ops if already running) an HLS download of `hlsURL` for `meta`, returning what
   /// happened so the caller can tell the user (including *why* it didn't start).
   @discardableResult
-  public func startDownload(meta: DownloadMeta, hlsURL: URL) async -> HLSDownloadStartResult {
+  public func startDownload(meta: DownloadMeta, hlsURL: URL, startPaused: Bool = false) async -> HLSDownloadStartResult {
     let key = HLSDownloadKey.make(for: meta)
 
     // Already downloading?
@@ -209,7 +268,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
       Logger.kit.debug("[HLS] asset already downloaded for key \(key)")
       return .alreadyDownloaded
     }
-    return await launch(meta: meta, hlsURL: hlsURL, retryCount: 0)
+    return await launch(meta: meta, hlsURL: hlsURL, retryCount: 0, startPaused: startPaused)
       ? .started
       : .failed(lastError ?? "Couldn't start download".localized)
   }
@@ -218,7 +277,8 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   /// subtitle track; the final attempt narrows to the preferred selection (video + default audio) so
   /// a heavily rate-limited title can still complete rather than failing outright.
   @discardableResult
-  private func launch(meta: DownloadMeta, hlsURL: URL, retryCount: Int) async -> Bool {
+  private func launch(meta: DownloadMeta, hlsURL: URL, retryCount: Int,
+                      after delay: TimeInterval = 0, startPaused: Bool = false) async -> Bool {
     let key = HLSDownloadKey.make(for: meta)
     let asset = AVURLAsset(url: hlsURL)
     let narrow = retryCount >= maxRetries - 1
@@ -271,6 +331,10 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     }
 
     task.taskDescription = key
+    // A retry after 429 waits in the session, not in the app: a `Task.sleep` here never
+    // woke up once the app was suspended in the background, and the download stalled.
+    if delay > 0 { task.earliestBeginDate = Date().addingTimeInterval(delay) }
+    tasks[key] = task
     var context = TaskContext(meta: meta, hlsURL: hlsURL, retryCount: retryCount)
     context.totalSelections = max(1, mediaSelections.count)
     context.audibleGroup = audibleGroup
@@ -278,28 +342,70 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     contexts[task.taskIdentifier] = context
     // Persist so a relaunch can resume (task survived) or re-offer (force-quit) this download.
     savePending(PendingHLSDownload(key: key, meta: meta, hlsURLString: hlsURL.absoluteString,
-                                   retryCount: retryCount, partialRelativePath: nil))
+                                   retryCount: retryCount, partialRelativePath: nil,
+                                   isPaused: startPaused))
     interrupted.removeAll { $0.id == key }
     if let idx = activeDownloads.firstIndex(where: { $0.id == key }) {
       activeDownloads[idx].progress = 0   // keep the row visible across retries
+      activeDownloads[idx].isWaitingToRetry = delay > 0
+      activeDownloads[idx].isPaused = startPaused
     } else {
-      activeDownloads.append(HLSActiveDownload(id: key, meta: meta, progress: 0))
+      activeDownloads.append(HLSActiveDownload(id: key, meta: meta, progress: 0,
+                                               isPaused: startPaused, isWaitingToRetry: delay > 0))
     }
-    task.resume()
+    // A created task is suspended until resumed: a queued download (one at a time) waits so.
+    if !startPaused { task.resume() }
     lastError = nil
     Logger.kit.debug("[HLS] started download for key \(key) (attempt \(retryCount + 1), narrow: \(narrow))")
     return true
   }
 
-  /// Cancels an in-flight download for the given key.
+  /// Cancels an in-flight download for the given key and deletes what it fetched.
   public func cancelDownload(key: String) {
+    tasks[key] = nil
     session.getAllTasks { [weak self] tasks in
       for task in tasks where task.taskDescription == key {
         task.cancel()
       }
       DispatchQueue.main.async {
-        self?.activeDownloads.removeAll(where: { $0.id == key })
+        guard let self else { return }
+        self.activeDownloads.removeAll(where: { $0.id == key })
+        if let entry = self.readPending().first(where: { $0.key == key }) { self.deletePartial(entry) }
+        self.removePending(key: key)
       }
+    }
+  }
+
+  /// Pauses a download: its task is suspended, keeping everything fetched so far.
+  public func pauseDownload(key: String) {
+    guard let idx = activeDownloads.firstIndex(where: { $0.id == key }) else { return }
+    tasks[key]?.suspend()
+    activeDownloads[idx].isPaused = true
+    activeDownloads[idx].speed = 0
+    activeDownloads[idx].remaining = nil
+    updatePendingPaused(key: key, paused: true)
+  }
+
+  /// Continues a paused (or queued) download.
+  public func resumeDownload(key: String) {
+    guard let idx = activeDownloads.firstIndex(where: { $0.id == key }) else { return }
+    if let task = tasks[key] {
+      task.resume()
+    } else if let entry = readPending().first(where: { $0.key == key }), let url = URL(string: entry.hlsURLString) {
+      // No task to resume (it did not survive): fetch again.
+      deletePartial(entry)
+      Task { @MainActor [weak self] in
+        _ = await self?.launch(meta: entry.meta, hlsURL: url, retryCount: 0)
+      }
+    }
+    activeDownloads[idx].isPaused = false
+    updatePendingPaused(key: key, paused: false)
+  }
+
+  /// Pauses every running download.
+  public func pauseAll() {
+    for download in activeDownloads where !download.isPaused {
+      pauseDownload(key: download.id)
     }
   }
 
@@ -338,10 +444,15 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
           }
           if let task = liveTasksByKey[entry.key], let url = URL(string: entry.hlsURLString) {
             // Background task survived → rebuild context so progress + completion resume.
-            self.contexts[task.taskIdentifier] = TaskContext(meta: entry.meta, hlsURL: url,
-                                                             retryCount: entry.retryCount)
+            if self.contexts[task.taskIdentifier] == nil {
+              self.contexts[task.taskIdentifier] = Self.context(from: entry, url: url)
+            }
+            self.tasks[entry.key] = task
+            let paused = entry.isPaused == true
+            if !paused, task.state == .suspended { task.resume() }
             if !self.activeDownloads.contains(where: { $0.id == entry.key }) {
-              self.activeDownloads.append(HLSActiveDownload(id: entry.key, meta: entry.meta, progress: 0))
+              self.activeDownloads.append(HLSActiveDownload(id: entry.key, meta: entry.meta, progress: 0,
+                                                            isPaused: paused))
             }
           } else {
             // No live task (force-quit) → can't resume; offer a re-download.
@@ -351,6 +462,33 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
         self.interrupted = interruptedNow
       }
     }
+  }
+
+  /// A task's context rebuilt from its persisted record — after the system relaunched the
+  /// app for this session's events, the in-memory one is gone. Without the `.movpkg`
+  /// location (handed over only once, when the download began) a finished download was
+  /// reported as "no file produced" and never saved.
+  private static func context(from entry: PendingHLSDownload, url: URL) -> TaskContext {
+    var context = TaskContext(meta: entry.meta, hlsURL: url, retryCount: entry.retryCount)
+    if let relative = entry.partialRelativePath {
+      context.downloadURL = URL(fileURLWithPath: NSHomeDirectory() + "/" + relative)
+    }
+    return context
+  }
+
+  /// The task's context: in memory, or rebuilt from the pending record by its key.
+  private func context(for task: URLSessionTask) -> TaskContext? {
+    if let context = contexts[task.taskIdentifier] { return context }
+    guard let key = task.taskDescription,
+          let entry = readPending().first(where: { $0.key == key }),
+          let url = URL(string: entry.hlsURLString) else { return nil }
+    let context = Self.context(from: entry, url: url)
+    contexts[task.taskIdentifier] = context
+    if let aggregate = task as? AVAggregateAssetDownloadTask { tasks[key] = aggregate }
+    if !activeDownloads.contains(where: { $0.id == key }) {
+      activeDownloads.append(HLSActiveDownload(id: key, meta: entry.meta, progress: 0, isPaused: entry.isPaused == true))
+    }
+    return context
   }
 
   /// A stable identifier for a media selection (its chosen audio + subtitle options), so progress
@@ -371,6 +509,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
                          aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
                          willDownloadTo location: URL) {
     Logger.kit.debug("[HLS] willDownloadTo \(location.relativePath)")
+    _ = context(for: aggregateAssetDownloadTask)
     contexts[aggregateAssetDownloadTask.taskIdentifier]?.downloadURL = location
     if let key = aggregateAssetDownloadTask.taskDescription {
       updatePendingPartial(key: key, relativePath: location.relativePath)
@@ -385,7 +524,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
                          timeRangeExpectedToLoad: CMTimeRange,
                          for mediaSelection: AVMediaSelection) {
     let id = aggregateAssetDownloadTask.taskIdentifier
-    guard var ctx = contexts[id] else { return }
+    guard var ctx = context(for: aggregateAssetDownloadTask) else { return }
 
     var loadedSeconds = 0.0
     for value in loadedTimeRanges {
@@ -434,15 +573,17 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
       activeDownloads[idx].progress = progress
       activeDownloads[idx].speed = ctx.speed
       activeDownloads[idx].remaining = ctx.remaining
+      activeDownloads[idx].isWaitingToRetry = false
     }
   }
 
   /// Completion. On success persist a record (relative path); on failure notify.
   public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
     let id = task.taskIdentifier
-    guard let ctx = contexts[id] else { return }
+    guard let ctx = context(for: task) else { return }
     let key = task.taskDescription ?? HLSDownloadKey.make(for: ctx.meta)
     contexts[id] = nil
+    if tasks[key]?.taskIdentifier == id { tasks[key] = nil }
 
     if let error = error as NSError? {
       // Cancellation isn't a "failure" worth notifying about.
@@ -466,9 +607,13 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
           try? FileManager.default.removeItem(at: partial)
         }
         Logger.kit.error("[HLS] rate-limited (429) for key \(key); retry \(next + 1) in \(seconds)s")
+        // The next task is created now and told when to begin, so the session waits — not
+        // the app, which the system suspends in the background. A short background task
+        // covers loading the playlist the new task needs.
         Task { @MainActor [weak self] in
-          try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-          _ = await self?.launch(meta: ctx.meta, hlsURL: ctx.hlsURL, retryCount: next)
+          let work = BackgroundWork("HLS retry")
+          _ = await self?.launch(meta: ctx.meta, hlsURL: ctx.hlsURL, retryCount: next, after: TimeInterval(seconds))
+          work.end()
         }
         return  // keep the active row visible while we wait
       }
@@ -498,6 +643,14 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     removePending(key: key)
     Logger.kit.info("[HLS] download finished for key \(key)")
     onDownloadFinished?(ctx.meta)
+  }
+
+  /// The session delivered every event it held for the app; the system may suspend it again.
+  public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    Logger.kit.debug("[HLS] background session finished events")
+    let handler = backgroundCompletionHandler
+    backgroundCompletionHandler = nil
+    handler?()
   }
 
   // MARK: - Resume / re-download after relaunch
@@ -543,12 +696,23 @@ public final class HLSAssetDownloadManager: ObservableObject {
               maxResolutionProvider: @escaping () -> Int? = { nil }) {}
 
   @discardableResult
-  public func startDownload(meta: DownloadMeta, hlsURL: URL) async -> HLSDownloadStartResult {
+  public func startDownload(meta: DownloadMeta, hlsURL: URL, startPaused: Bool = false) async -> HLSDownloadStartResult {
     Logger.kit.debug("[HLS] HLS downloads are not supported on this platform; ignoring.")
     return .failed("HLS downloads are not supported on this platform.")
   }
 
+  public var backgroundCompletionHandler: (() -> Void)?
+  public static let sessionIdentifier = "com.kinopub.hlsDownloadSession"
+
+  public func connect() {}
+
   public func cancelDownload(key: String) {}
+
+  public func pauseDownload(key: String) {}
+
+  public func resumeDownload(key: String) {}
+
+  public func pauseAll() {}
 
   public func restorePendingDownloads() {}
 

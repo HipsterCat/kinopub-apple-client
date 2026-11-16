@@ -73,12 +73,14 @@ public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDow
     return download
   }
 
+  /// Cancels the download for good. Not `pause()`: a pause's resume data arrives later and
+  /// was written back to the control database, so a removed download came back on relaunch.
   public func removeDownload(for url: URL) {
     guard let download = activeDownloads[url] else {
       return
     }
 
-    download.pause()
+    download.cancel()
     activeDownloads[url] = nil
     controlDatabase?.remove(url: url)
   }
@@ -100,8 +102,8 @@ public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDow
     }
   }
 
-  /// Rebuilds `activeDownloads` from persisted control info as paused `Download` objects so the user
-  /// can resume them after relaunching the app. Resume data may be `nil`, which is handled gracefully.
+  /// Rebuilds `activeDownloads` from persisted control info. Each comes back paused; the
+  /// ones the viewer did not pause are picked up again by `reattachBackgroundTasks()`.
   public func restoreDownloads() {
     guard let stored = controlDatabase?.readData(), !stored.isEmpty else { return }
     for info in stored {
@@ -110,9 +112,53 @@ public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDow
                               manager: self,
                               resumeData: info.resumeData,
                               progress: info.progress)
+      download.state = .paused
+      if info.isPaused != true { resumeOnReattach.insert(info.originalURL) }
       observeStateChanges(of: download)
       activeDownloads[info.originalURL] = download
-      Logger.kit.debug("[DOWNLOAD] restored paused download for: \(info.originalURL)")
+      Logger.kit.debug("[DOWNLOAD] restored download for: \(info.originalURL) (paused by viewer: \(info.isPaused == true))")
+    }
+  }
+
+  /// Restored downloads the viewer had not paused: running when the app went away.
+  private var resumeOnReattach: Set<URL> = []
+
+  /// After a launch: the background session may still be running (or have finished) the
+  /// transfers of a previous run. Creating the session reconnects it — its events are then
+  /// delivered — and each live task is adopted by its download instead of a second copy
+  /// being started. A download that was running and has no live task (force quit, reboot)
+  /// starts again from its resume data. Deferred by the caller: creating a background
+  /// session is an XPC round trip.
+  public func reattachBackgroundTasks() {
+    session.getAllTasks { [weak self] tasks in
+      let live = tasks.compactMap { $0 as? URLSessionDownloadTask }
+      DispatchQueue.main.async {
+        guard let self else { return }
+        var adopted = Set<URL>()
+        for task in live {
+          guard let url = task.originalRequest?.url, let download = self.activeDownloads[url] else { continue }
+          download.attach(task)
+          adopted.insert(url)
+          Logger.kit.debug("[DOWNLOAD] reattached live task for: \(url)")
+        }
+        let toResume = self.resumeOnReattach.subtracting(adopted)
+        self.resumeOnReattach = []
+        // A beat later: a task the system cancelled while the app was gone reports in with
+        // its resume data once the session exists, and resuming from that beats starting over.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+          for url in toResume {
+            guard let download = self.activeDownloads[url], !download.hasTask else { continue }
+            download.resume()
+          }
+        }
+      }
+    }
+  }
+
+  /// Pauses every running download.
+  public func pauseAll() {
+    for download in activeDownloads.values where download.state == .inProgress {
+      download.pause()
     }
   }
 
@@ -128,7 +174,8 @@ public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDow
     let info = DownloadControlInfo(originalURL: download.url,
                                    resumeData: download.resumeData,
                                    progress: download.progress,
-                                   metadata: download.metadata)
+                                   metadata: download.metadata,
+                                   isPaused: download.state == .paused)
     controlDatabase?.save(controlInfo: info)
   }
 
@@ -206,14 +253,34 @@ public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDow
   }
 
   public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-    if let error = error, let url = task.originalRequest?.url {
-      Logger.kit.debug("[DOWNLOAD] Download error for \(url): \(error)")
-      // A cancellation that produced resume data is a pause, not a failure — don't notify the user.
-      let isPause = (error as NSError).code == NSURLErrorCancelled
-      if !isPause, let metadata = activeDownloads[url]?.metadata {
-        onMain { self.onDownloadFailed?(url, metadata, error) }
+    guard let error = error, let url = task.originalRequest?.url else { return }
+    Logger.kit.debug("[DOWNLOAD] Download error for \(url): \(error)")
+    let nsError = error as NSError
+    let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+    onMain {
+      guard let download = self.activeDownloads[url] else { return }
+      // The viewer's pause, or a download restored paused whose old task reports in after
+      // a force quit: the row stays paused, and keeps the resume data the session handed over.
+      if download.state == .paused, nsError.code == NSURLErrorCancelled {
+        if let resumeData { download.interrupted(resumeData: resumeData) }
+        return
       }
-      completeDownload(url)
+      // A stale callback for a task this download no longer runs (it was resumed since).
+      if download.state == .inProgress, download.hasTask, nsError.code == NSURLErrorCancelled { return }
+      // The session gave up but left resume data (lost network, the app was force quit):
+      // keep the row, paused, so it continues from where it stopped instead of vanishing.
+      if resumeData != nil {
+        download.interrupted(resumeData: resumeData)
+        if nsError.code != NSURLErrorCancelled {
+          self.onDownloadFailed?(url, download.metadata, error)
+        }
+        return
+      }
+      if nsError.code != NSURLErrorCancelled {
+        self.onDownloadFailed?(url, download.metadata, error)
+      }
+      self.activeDownloads[url] = nil
+      self.controlDatabase?.remove(url: url)
     }
   }
 

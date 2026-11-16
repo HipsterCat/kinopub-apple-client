@@ -28,12 +28,16 @@ public struct DownloadControlInfo<Meta: Codable & Equatable>: Codable {
   public let resumeData: Data?
   public let progress: Float
   public let metadata: Meta
+  /// The viewer paused it. Optional so entries written before this field decode (as
+  /// "not paused": those relaunch into a running download).
+  public let isPaused: Bool?
 
-  public init(originalURL: URL, resumeData: Data?, progress: Float, metadata: Meta) {
+  public init(originalURL: URL, resumeData: Data?, progress: Float, metadata: Meta, isPaused: Bool? = nil) {
     self.originalURL = originalURL
     self.resumeData = resumeData
     self.progress = progress
     self.metadata = metadata
+    self.isPaused = isPaused
   }
 }
 

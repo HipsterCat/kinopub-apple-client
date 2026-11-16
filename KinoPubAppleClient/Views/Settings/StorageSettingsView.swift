@@ -132,12 +132,14 @@ final class StorageSettingsModel: ObservableObject {
     }
 
     if FeatureFlags.downloadsEnabled {
-      let files = appContext.downloadedFilesDatabase.readData() ?? []
-      downloadsCount = files.count
-      downloadsBytes = files.reduce(into: 0) { total, file in
-        let size = try? file.localFileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
-        total += Int64(size ?? 0)
-      }
+      // Both engines: the HLS `.movpkg`s an iPhone downloads were not counted before.
+      let center = AppContext.shared.downloadsCenter
+      center.reloadDownloaded()
+      let urls = center.downloaded.map(\.localURL)
+      downloadsCount = urls.count
+      downloadsBytes = await Task.detached(priority: .utility) {
+        urls.reduce(into: Int64(0)) { $0 += DownloadedTitle.diskSize(at: $1) }
+      }.value
     }
   }
 

@@ -20,11 +20,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     return true
   }
 
-  /// Relaunched in the background to finish events for a background URLSession.
+  /// Woken (or relaunched) in the background for a download session's events. The handler
+  /// goes to the session it names, and that session is reconnected so the events are
+  /// delivered at all: both are created lazily, and a session nobody creates hears
+  /// nothing — the HLS one never got its handler, and a finished film went unrecorded.
   func application(_ application: UIApplication,
                    handleEventsForBackgroundURLSession identifier: String,
                    completionHandler: @escaping () -> Void) {
-    AppContext.shared.downloadManager.backgroundCompletionHandler = completionHandler
+    let context = AppContext.shared
+    if identifier == HLSAssetDownloadManager.sessionIdentifier {
+      context.hlsDownloadManager.backgroundCompletionHandler = completionHandler
+      context.hlsDownloadManager.connect()
+    } else {
+      context.downloadManager.backgroundCompletionHandler = completionHandler
+      _ = context.downloadManager.session
+    }
   }
 }
 #endif

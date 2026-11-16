@@ -372,6 +372,13 @@ struct TabsNavigationView: View {
           Label("SidebarGenres".localized, systemImage: "square.stack.3d.down.right")
             .tag(NavigationTabs.genres)
             .sidebarReselect(.genres, using: sidebarReselect)
+          // The TV app's «Downloaded» is a Library place too (it was missing here and on
+          // iPad, while the TV's «Моё» had one — Sasha, 2026-11-16).
+          if FeatureFlags.downloadsEnabled {
+            Label("Downloaded", systemImage: "arrow.down.circle")
+              .tag(NavigationTabs.downloads)
+              .sidebarReselect(.downloads, using: sidebarReselect)
+          }
         }
 
         if !sidebarFolders.isEmpty {
@@ -388,6 +395,15 @@ struct TabsNavigationView: View {
       .environment(\.symbolVariants, .none)
         // Under the list, not over it: an inset let the last folder scroll beneath it.
         MacSidebarAccount(userService: appContext.userService)
+      }
+      // The TV app's download arrow at the top of the sidebar, beside the window's
+      // buttons: there while something downloads; a click shows what (Sasha, 2026-11-16).
+      .toolbar {
+        if FeatureFlags.downloadsEnabled {
+          ToolbarItem(placement: .automatic) {
+            MacSidebarDownloadsItem(center: appContext.downloadsCenter)
+          }
+        }
       }
       // The TV app's width, and fixed as its is: its divider does not move.
       .navigationSplitViewColumnWidth(min: Self.macSidebarWidth, ideal: Self.macSidebarWidth,
@@ -552,6 +568,8 @@ struct TabsNavigationView: View {
       }
     case .genres:
       MacGenresView()
+    case .downloads:
+      DownloadsView()
     case .bookmark(let id):
       if let folder = sidebarFolders.first(where: { $0.id == id }) {
         RouteStack(tab: .bookmark(id)) {
@@ -644,6 +662,12 @@ struct TabsNavigationView: View {
         }
         Tab("SidebarGenres".localized, systemImage: "square.stack.3d.down.right", value: NavigationTabs.genres) {
           MacGenresView()
+        }
+        // Missing from the iPad sidebar while the TV's «Моё» had it (Sasha, 2026-11-16).
+        if FeatureFlags.downloadsEnabled {
+          Tab("Downloaded", systemImage: "arrow.down.circle", value: NavigationTabs.downloads) {
+            DownloadsView()
+          }
         }
         Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {
           libraryContent

@@ -135,6 +135,45 @@ class DownloadManagerTests: XCTestCase {
     wait(for: [progressUpdated], timeout: 1.0)
     observation.cancel()
   }
+
+  // MARK: - Pause, failure, removal
+
+  /// Pausing cancels the task "by producing resume data"; the session then reports a
+  /// cancellation. That used to drop the download from the list.
+  func testCancellationOfAPausedDownloadKeepsIt() {
+    let download = registerDownload()
+    download.state = .paused
+    let cancelled = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
+
+    downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: cancelled)
+
+    XCTAssertNotNil(downloadManager.activeDownloads[url])
+    XCTAssertEqual(download.state, .paused)
+  }
+
+  /// The session gave up but left resume data (network, force quit): keep it, paused.
+  func testFailureWithResumeDataPausesTheDownload() {
+    let download = registerDownload()
+    download.state = .inProgress
+    let lost = NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost,
+                       userInfo: [NSURLSessionDownloadTaskResumeData: Data([1, 2, 3])])
+
+    downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: lost)
+
+    XCTAssertNotNil(downloadManager.activeDownloads[url])
+    XCTAssertEqual(download.state, .paused)
+    XCTAssertEqual(download.resumeData, Data([1, 2, 3]))
+  }
+
+  func testFailureWithoutResumeDataDropsTheDownload() {
+    let download = registerDownload()
+    download.state = .inProgress
+    let failed = NSError(domain: NSURLErrorDomain, code: NSURLErrorBadServerResponse)
+
+    downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: failed)
+
+    XCTAssertNil(downloadManager.activeDownloads[url])
+  }
 }
 
 // MARK: - Mock Classes

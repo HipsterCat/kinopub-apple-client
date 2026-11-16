@@ -288,8 +288,7 @@ struct LibraryShellView: View {
       // card grid, so it does not go through `LibrarySectionCatalog`. That inner stack
       // is still scoped to this pane (unchanged) — nothing downloads pushes today is
       // the kind of full-bleed page that needs to cover the sidebar.
-      DownloadsView(catalog: DownloadsCatalog(downloadsDatabase: appContext.downloadedFilesDatabase,
-                                              downloadManager: appContext.downloadManager))
+      DownloadsView(center: appContext.downloadsCenter)
     } else {
       sectionContent
         .platformNavigationTitle(model.title(for: model.selection))

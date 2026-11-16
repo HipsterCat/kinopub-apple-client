@@ -72,6 +72,8 @@ struct AppContext: AppContextProtocol {
   var downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
   var downloadNotificationManager: DownloadNotificationManager
   var seasonDownloadManager: SeasonDownloadManager
+  /// Every download screen's one source: in flight and on disk, both engines.
+  var downloadsCenter: DownloadsCenter
   var hlsDownloadsStore: HLSDownloadsStore
   var hlsDownloadManager: HLSAssetDownloadManager
   var actionsService: UserActionsService
@@ -106,10 +108,7 @@ struct AppContext: AppContextProtocol {
       controlDatabase: downloadsControlDatabase
     )
     let downloadNotificationManager = DownloadNotificationManager()
-    let seasonDownloadManager = SeasonDownloadManager(
-      downloadManager: downloadManager,
-      notifications: downloadNotificationManager
-    )
+    let seasonDownloadManager = SeasonDownloadManager(notifications: downloadNotificationManager)
     let hlsDownloadsStore = HLSDownloadsStore()
     let hlsDownloadManager = HLSAssetDownloadManager(
       store: hlsDownloadsStore,
@@ -119,8 +118,11 @@ struct AppContext: AppContextProtocol {
     // `@MainActor` and these callbacks are not. The closures run after `shared` is live.
     hlsDownloadManager.onDownloadFinished = { meta in
       Task { @MainActor in
-        AppContext.shared.downloadNotificationManager.notifyFinished(
-          title: meta.notificationTitle, identifier: "\(meta.id)")
+        let handledBySeason = AppContext.shared.seasonDownloadManager.handleFinished(meta: meta)
+        if !handledBySeason {
+          AppContext.shared.downloadNotificationManager.notifyFinished(
+            title: meta.notificationTitle, identifier: "\(meta.id)")
+        }
       }
     }
     hlsDownloadManager.onDownloadFailed = { meta in
@@ -138,12 +140,16 @@ struct AppContext: AppContextProtocol {
     // `nonisolated(unsafe)`: the Task is MainActor-queued after this MainActor `shared` init
     // finishes, so it cannot overlap the stores below; the manager is not Sendable.
     nonisolated(unsafe) let hlsToRestore = hlsDownloadManager
+    nonisolated(unsafe) let filesToReattach = downloadManager
     Task { @MainActor in
       hlsToRestore.restorePendingDownloads()
+      // Same for the mp4 session: reconnect, adopt the transfers it kept running, and
+      // continue the ones that were running when the app went away.
+      filesToReattach.reattachBackgroundTasks()
     }
-    downloadManager.onDownloadFinished = { url, meta in
+    downloadManager.onDownloadFinished = { _, meta in
       Task { @MainActor in
-        let handledBySeason = AppContext.shared.seasonDownloadManager.handleFinished(url: url)
+        let handledBySeason = AppContext.shared.seasonDownloadManager.handleFinished(meta: meta)
         if !handledBySeason {
           AppContext.shared.downloadNotificationManager.notifyFinished(
             title: meta.notificationTitle, identifier: "\(meta.id)")
@@ -216,6 +222,14 @@ struct AppContext: AppContextProtocol {
       hlsStore: hlsDownloadsStore,
       downloadedFilesDatabase: downloadedFilesDatabase
     )
+    let downloadsCenter = DownloadsCenter(
+      downloadManager: downloadManager,
+      hlsManager: hlsDownloadManager,
+      hlsStore: hlsDownloadsStore,
+      filesDatabase: downloadedFilesDatabase,
+      library: libraryState
+    )
+    seasonDownloadManager.center = downloadsCenter
     // Rows read the viewer's state at paint time, not from the cached cards.
     let viewerState = ViewerStateReader(library: libraryState, progress: localProgressStore)
     let contentStore = MainActor.assumeIsolated { ContentStore(viewer: viewerState) }
@@ -232,6 +246,7 @@ struct AppContext: AppContextProtocol {
       downloadedFilesDatabase: downloadedFilesDatabase,
       downloadNotificationManager: downloadNotificationManager,
       seasonDownloadManager: seasonDownloadManager,
+      downloadsCenter: downloadsCenter,
       hlsDownloadsStore: hlsDownloadsStore,
       hlsDownloadManager: hlsDownloadManager,
       actionsService: UserActionsServiceImpl(apiClient: apiClient),
