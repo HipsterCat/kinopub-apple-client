@@ -1,8 +1,3 @@
-//
-//  LibraryShellView.swift
-//  KinoPubAppleClient
-//
-
 import SwiftUI
 import KinoPubUI
 import KinoPubBackend
