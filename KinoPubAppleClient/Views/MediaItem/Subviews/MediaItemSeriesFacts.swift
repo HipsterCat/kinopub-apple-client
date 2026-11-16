@@ -134,77 +134,56 @@ enum SeriesFacts {
 /// Sasha's list (2026-11-08): «Новый сезон», «Новые серии», «Новая серия через 5 дней»,
 /// «Последний сезон», «Недавно на Кинопабе», «Новинка», «Премьера», «Все серии». Each is
 /// read from what kino.pub and TMDB already sent the page — no request of its own.
+///
+/// 2026-11-16 (Sasha): the badge kept changing its words while the page loaded («Новинка»,
+/// then «Новые серии», then the next episode) and said «новые серии» to someone who had
+/// watched none. Until a badge can be shown for sure, only TMDB dates speak, in short
+/// windows: a new season that began at most a week ago or starts within two days, the next
+/// episode within two days. «Недавно добавлен», «Новые серии» and «Новинка» (kino.pub's
+/// added/updated dates, a four-month release window) are off.
 enum TitleStatus: Equatable {
   case newEpisode(inDays: Int)
   case premiere
   case finalSeason
   case allEpisodes
   case newSeason
-  case newEpisodes
-  case newRelease
-  case recentlyAdded
 
   /// - Parameter awaitedEpisodeAirDate: the next episode of the season kino.pub is on
   ///   (`MediaItemModel.awaitedEpisodeAirDate`).
   static func resolve(_ item: MediaItem, _ metadata: TitleMetadata,
                       awaitedEpisodeAirDate: Date?, now: Date = Date(),
                       calendar: Calendar = .current) -> TitleStatus? {
+    /// Whole days from `date` to today: negative when it is still ahead.
     func days(since date: Date?) -> Int? {
       guard let date else { return nil }
       return calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
                                      to: calendar.startOfDay(for: now)).day
     }
-    let addedDaysAgo = item.createdAt > 0
-      ? days(since: Date(timeIntervalSince1970: TimeInterval(item.createdAt))) : nil
-    let updatedDaysAgo = item.updatedAt > 0
-      ? days(since: Date(timeIntervalSince1970: TimeInterval(item.updatedAt))) : nil
 
     if item.isSeries {
-      let seasons = item.seasons?.count ?? 0
-      let lastSeasonStart = metadata.seasonSummaries
-        .filter { $0.seasonNumber > 0 }
-        .max { $0.seasonNumber < $1.seasonNumber }?.airDate
-      let isNewSeason = seasons > 1
-        && days(since: lastSeasonStart).map { (0...Rules.newSeasonDays).contains($0) } == true
+      let seasons = metadata.seasonSummaries.filter { $0.seasonNumber > 0 }
+      let latestSeasonStart = seasons.max { $0.seasonNumber < $1.seasonNumber }?.airDate
+      let isNewSeason = seasons.count > 1
+        && days(since: latestSeasonStart).map { (-Rules.aheadDays...Rules.newSeasonDays).contains($0) } == true
       let premiered = days(since: metadata.firstAirDate).map { (0...Rules.premiereDays).contains($0) } == true
+      let episodeAhead = days(since: awaitedEpisodeAirDate).map { -$0 }
+        .flatMap { (0...Rules.aheadDays).contains($0) ? $0 : nil }
       // The next episode's date matters to someone already into the latest season. To
       // anyone who has not started it — or the series — the news is the new season or
       // the premiere (Sasha, 2026-11-09).
-      if hasStartedLatestSeason(item) {
-        if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
-          return .newEpisode(inDays: ahead)
-        }
-      } else {
-        if premiered { return .premiere }
-        if isNewSeason { return .newSeason }
-        if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
-          return .newEpisode(inDays: ahead)
-        }
-      }
+      if hasStartedLatestSeason(item), let episodeAhead { return .newEpisode(inDays: episodeAhead) }
       if premiered { return .premiere }
+      if isNewSeason { return .newSeason }
+      if let episodeAhead { return .newEpisode(inDays: episodeAhead) }
       if SeriesFacts.isFinished(item, metadata),
          let ended = days(since: metadata.lastAirDate), (0...Rules.endedDays).contains(ended) {
-        return seasons > 1 ? .finalSeason : .allEpisodes
-      }
-      if isNewSeason { return .newSeason }
-      if !SeriesFacts.isFinished(item, metadata),
-         let updated = updatedDaysAgo, (0...Rules.newEpisodesDays).contains(updated) {
-        return .newEpisodes
-      }
-      // A series new to the catalogue says so too, for the same two weeks a film does
-      // (Sasha, 2026-11-09).
-      if let added = addedDaysAgo, (0...Rules.recentlyAddedDays).contains(added) {
-        return .recentlyAdded
+        return seasons.count > 1 ? .finalSeason : .allEpisodes
       }
       return nil
     }
 
-    if let released = days(since: metadata.releaseDate) {
-      if (0...Rules.premiereDays).contains(released) { return .premiere }
-      if (0...Rules.newReleaseDays).contains(released) { return .newRelease }
-    }
-    if let added = addedDaysAgo, (0...Rules.recentlyAddedDays).contains(added) {
-      return .recentlyAdded
+    if let released = days(since: metadata.releaseDate), (0...Rules.premiereDays).contains(released) {
+      return .premiere
     }
     return nil
   }
@@ -228,20 +207,16 @@ enum TitleStatus: Equatable {
     case .finalSeason: return "TitleStatus_FinalSeason".localized
     case .allEpisodes: return "TitleStatus_AllEpisodes".localized
     case .newSeason: return "TitleStatus_NewSeason".localized
-    case .newEpisodes: return "TitleStatus_NewEpisodes".localized
-    case .newRelease: return "TitleStatus_NewRelease".localized
-    case .recentlyAdded: return "TitleStatus_RecentlyAdded".localized
     }
   }
 
   /// How fresh "new" is, in days. One place, so the badge is tuned here.
   enum Rules {
-    static let awaitedDays = 30
+    /// How far ahead a coming season or episode is announced.
+    static let aheadDays = 2
     static let premiereDays = 14
     static let endedDays = 60
-    static let newSeasonDays = 21
-    static let newEpisodesDays = 7
-    static let newReleaseDays = 120
-    static let recentlyAddedDays = 14
+    /// How long a season that has begun stays «Новый сезон».
+    static let newSeasonDays = 7
   }
 }
