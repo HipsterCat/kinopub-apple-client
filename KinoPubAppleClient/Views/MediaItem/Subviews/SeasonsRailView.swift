@@ -1536,8 +1536,12 @@ struct SeasonsRailView: View {
   ///   that tab's first item — correct for a manual tab click/switch. Only the
   ///   initial resume jump (`scrollToFirstUnseen`) passes a specific target here.
   private func selectTab(_ tabID: Int, entryEpisodeID: Int? = nil, proxy: ScrollViewProxy, animated: Bool) {
-    guard tabs.contains(where: { $0.id == tabID }),
-          let first = entries.first(where: { $0.tabID == tabID }) else { return }
+    guard tabs.contains(where: { $0.id == tabID }) else { return }
+    // The rail builds one season's cards at a time (`entries`): another season has none
+    // until it is the selected one, so select it first or the press finds nothing to
+    // scroll to and is dropped — the pills did nothing on iPhone (Sasha, 2026-11-16).
+    if !entries.contains(where: { $0.tabID == tabID }) { selectedTabID = tabID }
+    guard let first = entries.first(where: { $0.tabID == tabID }) else { return }
     let target = entryEpisodeID.flatMap { id in entries.first(where: { $0.id == id }) } ?? first
     selectedTabID = tabID
     seasonEntryEpisodeID = target.id
