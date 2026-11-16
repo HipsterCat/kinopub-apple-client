@@ -424,15 +424,15 @@ public extension MediaScores {
     return Array(major.prefix(limit ?? major.count)) + critics
   }
 
-  /// The phone's title line (Sasha, 2026-11-16): IMDb always first, then Kinopoisk —
-  /// the two the app had from the start, so the first to arrive — then Letterboxd, then
+  /// The phone's title line (Sasha, 2026-11-16): IMDb and Kinopoisk first — the two the
+  /// app had from the start, so the first to arrive — the one with more votes ahead, as
+  /// on the Home banner; then Letterboxd, then
   /// the other audiences by votes, Rotten Tomatoes, and Metacritic last of all. Only
   /// published scores.
   public func phoneLine(deduplicateAgainstAggregate: Bool = false, includesOthers: Bool = true) -> [MediaScoreItem] {
     func rank(_ source: MediaScoreLogo.Source) -> Int {
       switch source {
-      case .imdb: return 0
-      case .kinopoisk: return 1
+      case .imdb, .kinopoisk: return 0
       case .letterboxd: return 2
       case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten,
            .rottenTomatoesAudienceVerified, .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
@@ -447,7 +447,14 @@ public extension MediaScores {
       .enumerated()
       .sorted { lhs, rhs in
         let l = rank(lhs.element.source), r = rank(rhs.element.source)
-        return l != r ? l < r : lhs.offset < rhs.offset
+        if l != r { return l < r }
+        // IMDb and Kinopoisk: the one more people rated first, as the Home banner has
+        // it (Sasha, 2026-11-16: «Позолоченный век» — Kinopoisk first, it has more).
+        if l == 0 {
+          let lv = lhs.element.votes ?? 0, rv = rhs.element.votes ?? 0
+          if lv != rv { return lv > rv }
+        }
+        return lhs.offset < rhs.offset
       }
       .map(\.element)
   }
