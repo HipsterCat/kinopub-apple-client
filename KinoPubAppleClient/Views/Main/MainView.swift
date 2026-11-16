@@ -405,7 +405,11 @@ struct MainView: View {
       catalog.loadMoreSections()
     case "footer-customize":
       UserDefaults.standard.set("tabs", forKey: "KINOPUBOpenSettingsCategoryOnce")
-      navigationState.selectedTab = .settings
+      if settings != nil {
+        showsSettings = true
+      } else {
+        navigationState.selectedTab = .settings
+      }
     default:
       break
     }
