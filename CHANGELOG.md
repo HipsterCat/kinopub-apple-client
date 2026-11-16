@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **iOS and Mac skip chip:** Skip no longer presses itself. The default is Apple’s button (a press). Settings › Playback picks the delay, the automatic treatment (countdown, shrinking fill, progress stroke, ring, Picture in Picture with artwork, an Up Next banner) and cancel (an X, or Watch Credits). The chip is ordinary glass, dissolves ahead of the system chrome, and stays down while a subtitle or audio menu is open — the chrome stays up with that menu. tvOS still uses AVKit’s own button.
+
 - **macOS player (KP-35):** window title carries S/E + episode name, or concert show line + part (`PlaybackVariant`); prefers max-quality `hls4`; toasts load failures; retargets in place so the next item does not wipe to black; transparent title bar (no underlay).
 
 # Changelog
