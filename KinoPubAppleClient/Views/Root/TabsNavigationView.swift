@@ -814,7 +814,16 @@ struct TabsNavigationView: View {
                   authState: authState,
                   errorHandler: errorHandler,
                   contentType: contentType)
-    })
+    }, settings: shelvesSettings)
+  }
+
+  /// iPhone: the hero's gear opens Settings as a sheet, as Library's does.
+  private var shelvesSettings: AnyView? {
+#if os(iOS)
+    horizontalSizeClass == .compact ? AnyView(settingsContent) : nil
+#else
+    nil
+#endif
   }
 
   /// macOS and tvOS run the sidebar shell; iOS still gets the shelf-rows Library until

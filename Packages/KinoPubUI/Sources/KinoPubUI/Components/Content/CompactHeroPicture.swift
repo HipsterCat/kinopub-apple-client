@@ -110,6 +110,20 @@ public struct CompactHeroPicture: View {
 }
 #endif
 
+/// The phone hero's logo box, against the width — the Home banner's and the title
+/// page's. 70% × 26% let every wordmark run to the edges and stand tall (Sasha,
+/// 2026-11-16: «стремятся только в ширину»).
+public enum CompactHeroLogo {
+  public static let widthShare: CGFloat = 0.6
+  public static let heightShare: CGFloat = 0.2
+}
+
+/// The phone's still under the bars, against the width: taller than 16:10, so heads
+/// are not cut (Sasha, 2026-11-16) — the title page's and the Home banner's alike.
+public enum CompactHeroStill {
+  public static let tallness: CGFloat = 0.95
+}
+
 /// The phone hero's shade: its words are centred, so it is the foot alone, the way the
 /// Apple TV app's phone hero has it. `start` is where it begins, as a share of the hero.
 public struct CompactHeroScrim: View {

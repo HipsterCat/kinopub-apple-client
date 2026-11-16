@@ -464,8 +464,8 @@ public struct HomeHeroCarousel: View {
   /// the name in its place after a confirmed miss. Its slot keeps its height while the
   /// logo loads, so the words under it do not jump.
   private func mark(_ feature: HomeHeroFeature) -> some View {
-    let maxWidth = (size.width * (isCompact ? 0.7 : 0.4)).rounded()
-    let maxHeight = (size.width * (isCompact ? 0.26 : 0.085)).rounded()
+    let maxWidth = (size.width * (isCompact ? CompactHeroLogo.widthShare : 0.4)).rounded()
+    let maxHeight = (size.width * (isCompact ? CompactHeroLogo.heightShare : 0.085)).rounded()
     // Lettered names get more room than a logo: two lines of the hero's type in a logo's
     // width broke short names (Sasha's TODO, 2026-11-04).
     let textMaxWidth = (size.width * (isCompact ? 0.9 : 0.5)).rounded()
@@ -668,8 +668,13 @@ private struct HeroBackdrop: View {
     let wide = pictureWidth
 #if os(iOS)
     if isCompact {
+      // As the title page has it (Sasha, 2026-11-16): sharp from the top of the screen,
+      // no blurred copy above the still, the still as tall, fading into glass below.
       CompactHeroPicture(urls: feature.backdropCandidates, width: width, pictureWidth: wide,
-                         height: height, topBleed: topBleed)
+                         height: height, topBleed: topBleed,
+                         stillHeight: min((width * CompactHeroStill.tallness).rounded(),
+                                          max(height - topBleed, 0)),
+                         fromTop: true)
     } else {
       croppedPicture(feature, width: wide)
     }

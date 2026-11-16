@@ -453,7 +453,7 @@ private struct HeroUnderChrome: ViewModifier {
           if let profile {
             ToolbarItem(placement: .topBarTrailing) {
               Button(action: profile.action) {
-                Image(systemName: "person.crop.circle")
+                Image(systemName: "gear")
               }
               .accessibilityLabel(Text(profile.label))
               // Rebuilt when the picture leaves the bar: the glyph kept the dark

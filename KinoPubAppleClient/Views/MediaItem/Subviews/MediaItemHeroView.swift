@@ -352,6 +352,8 @@ struct MediaItemHeroView: View {
 #if !os(tvOS)
   /// The band's size, for the corner poster and the column the title leaves it.
   @State private var heroBandSize: CGSize = .zero
+  /// Trailer pressed before the details call brought its stream (iOS).
+  @State private var awaitsTrailer = false
 #endif
 #if os(iOS)
   @Environment(NavigationState.self) private var navigationState
@@ -772,6 +774,8 @@ struct MediaItemHeroView: View {
         if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
           TitleStatusBadge(status.text)
             .font(Self.secondaryFont)
+            // Half the gap to the logo it would have (Sasha, 2026-11-16).
+            .padding(.bottom, -Self.phoneBadgeGapCut)
         }
         titleBlock
         factsLine
@@ -825,7 +829,7 @@ struct MediaItemHeroView: View {
   /// The picture's height under the bars: taller than the banner's 16:10 (Sasha,
   /// 2026-11-16: «растянуть повыше бекдропы»).
   private var phoneStillHeight: CGFloat {
-    (heroBandSize.width * Self.phoneStillTallness).rounded()
+    (heroBandSize.width * CompactHeroStill.tallness).rounded()
   }
 
   /// The box above Play, under the bars: Play's top lands at the same share of the
@@ -879,7 +883,9 @@ struct MediaItemHeroView: View {
   }
 
   /// The picture under the bars, against the width.
-  static let phoneStillTallness: CGFloat = 0.95
+  /// Half of what stands between the status capsule and the logo: the stack's
+  /// spacing and the title block's own top inset.
+  static let phoneBadgeGapCut: CGFloat = (contentSpacing + bottomInset / 1.5) / 2
   /// Play's top, as a share of the picture under the bars.
   static let phonePlayAt: CGFloat = 0.88
   /// A poster-only title's poster, as a share of the picture's height.
@@ -1433,14 +1439,14 @@ struct MediaItemHeroView: View {
   /// The logo's box. Phone: the Home banner's phone budget, 70% × 26% of the width.
   private var logoMaxWidth: CGFloat {
 #if os(iOS)
-    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * 0.7).rounded() }
+    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * CompactHeroLogo.widthShare).rounded() }
 #endif
     return Self.logoMaxWidth
   }
 
   private var logoMaxHeight: CGFloat {
 #if os(iOS)
-    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * 0.26).rounded() }
+    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * CompactHeroLogo.heightShare).rounded() }
 #endif
     return Self.logoMaxHeight
   }
@@ -1710,9 +1716,10 @@ struct MediaItemHeroView: View {
       ViewThatFits(in: .horizontal) {
         phoneScoresRow(limit: nil, views: true, votes: true)
         phoneScoresRow(limit: nil, views: false, votes: true)
-        phoneScoresRow(limit: nil, views: true)
-        phoneScoresRow(limit: nil, views: false)
-        // The niche audiences (Douban, MyShows, Trakt…) give way before the critics.
+        // The niche audiences (Douban, MyShows, Trakt…) give way before the critics and
+        // before the vote total.
+        phoneScoresRow(limit: nil, views: true, others: false, votes: true)
+        phoneScoresRow(limit: nil, views: false, others: false, votes: true)
         phoneScoresRow(limit: nil, views: false, others: false)
         ForEach([3, 2, 1], id: \.self) { limit in
           phoneScoresRow(limit: limit, views: false, others: false)
@@ -2172,6 +2179,13 @@ struct MediaItemHeroView: View {
     .onChange(of: isInWatchlist) { _, _ in
       loadingActions.remove(.follow)
     }
+#if os(iOS)
+    .onChange(of: mediaItem.trailerURL) { _, url in
+      guard awaitsTrailer, url != nil else { return }
+      awaitsTrailer = false
+      navigationState.push(Route.trailerPlayer(mediaItem, token: UUID()))
+    }
+#endif
     .task {
       // Folder names live in BookmarkFoldersStore; cold installs have nothing until
       // Library/Bookmarks adopt. Ask once so the menu is not an empty "New Folder".
@@ -2217,7 +2231,7 @@ struct MediaItemHeroView: View {
       showsMarkWatched: showsWatchedButton && !promote,
       // The listing already says whether there is one: no waiting for the details call
       // to show the button (Sasha, 2026-11-16).
-      showsTrailer: mediaItem.trailerURL != nil || mediaItem.trailer != nil,
+      showsTrailer: showsTrailer,
       showsFollow: isSeries && onToggleWatchlist != nil && !promote,
       download: downloadPhase,
       showsShuffle: showsShuffleButton && !promote,
@@ -2228,6 +2242,16 @@ struct MediaItemHeroView: View {
       loading: loadingActions,
       seasonCount: mediaItem.seasons?.count
     )
+  }
+
+  /// iPhone: as soon as the listing names a trailer (its stream comes with the details;
+  /// a press waits for it, `trailerControl`). Elsewhere once it can play.
+  private var showsTrailer: Bool {
+#if os(iOS)
+    mediaItem.trailerURL != nil || mediaItem.trailer != nil
+#else
+    mediaItem.trailerURL != nil
+#endif
   }
 
   /// Concerts and multi-part titles still get a play pill per choice. A film that
@@ -2453,6 +2477,33 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private func trailerControl(_ appearance: MediaActionAppearance) -> some View {
+#if os(iOS)
+    if mediaItem.trailerURL == nil {
+      // Shown from the listing, which names the trailer but not its stream (that comes
+      // with the details call): a press waits for it, then plays (Sasha, 2026-11-16).
+      let waiting = Self.loading(appearance, awaitsTrailer)
+      Button {
+        awaitsTrailer = true
+      } label: {
+        MediaActionLabel(waiting)
+      }
+      .mediaActionStyle(waiting)
+      .focused($focus, equals: .trailer)
+    } else {
+      trailerLink(appearance)
+    }
+#else
+    trailerLink(appearance)
+#endif
+  }
+
+  private static func loading(_ appearance: MediaActionAppearance, _ isLoading: Bool) -> MediaActionAppearance {
+    var copy = appearance
+    copy.isLoading = isLoading
+    return copy
+  }
+
+  private func trailerLink(_ appearance: MediaActionAppearance) -> some View {
     PlayerLink(route: linkProvider.trailerPlayer(for: mediaItem), item: mediaItem, mode: .trailer) {
       MediaActionLabel(appearance)
     }

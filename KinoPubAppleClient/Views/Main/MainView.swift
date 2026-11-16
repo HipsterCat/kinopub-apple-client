@@ -25,6 +25,9 @@ struct MainView: View {
   @State private var heroIndex = 0
   /// Pushed, not a tab's root: iPhone's More list pushes Movies and the rest.
   @Environment(\.isPresented) private var isPushed
+  /// The Settings sheet the hero's gear opens on iPhone, as Library's gear does.
+  private let settings: AnyView?
+  @State private var showsSettings = false
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
@@ -32,8 +35,10 @@ struct MainView: View {
   /// `nil` is Watch Now (Continue Watching plus the configured shelves);
   /// `.movie` / `.serial` are the typed shelves.
   init(tab: NavigationTabs = .home,
-       catalog: @autoclosure @escaping () -> HomeCatalog) {
+       catalog: @autoclosure @escaping () -> HomeCatalog,
+       settings: AnyView? = nil) {
     self.tab = tab
+    self.settings = settings
     _catalog = StateObject(wrappedValue: catalog())
   }
 
@@ -91,6 +96,12 @@ struct MainView: View {
           await cardMenu.refreshFolders()
         }
         .mediaCardNewFolderAlert(cardMenu)
+#if os(iOS)
+        .sheet(isPresented: $showsSettings) {
+          settings
+            .environment(\.isSettingsSheet, true)
+        }
+#endif
     }
   }
 
@@ -460,7 +471,14 @@ struct MainView: View {
       },
       heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
       heroProfile: showsHeroChrome
-        ? (label: "Settings".localized, action: { navigationState.selectedTab = .settings })
+        ? (label: "Settings".localized, action: {
+          // The same sheet as Library's gear; a tab only where Settings is one.
+          if settings != nil {
+            showsSettings = true
+          } else {
+            navigationState.selectedTab = .settings
+          }
+        })
         : nil,
       heroIndex: $heroIndex,
       navigationLinkProvider: { card in
