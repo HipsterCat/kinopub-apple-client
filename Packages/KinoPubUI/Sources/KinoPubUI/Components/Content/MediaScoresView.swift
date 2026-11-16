@@ -367,9 +367,13 @@ public struct MediaScoresView: View {
     case none
   }
 
+  @ViewBuilder
   private func scoresRow(_ slice: [MediaScoreItem], votes: VoteStyle) -> some View {
     let total = slice.compactMap(\.votes).filter { $0 > 0 }.reduce(0, +)
-    return HStack(spacing: rowSpacing) {
+    if phoneLine {
+      phoneRow(slice, votes: votes != .none)
+    } else {
+    HStack(spacing: rowSpacing) {
       ForEach(slice) { item in
         score(item: item, showsVotes: votes == .each)
       }
@@ -380,6 +384,26 @@ public struct MediaScoresView: View {
           .fontWeight(.regular)
           .foregroundStyle(Color.KinoPub.subtitle)
           .monospacedDigit()
+      }
+    }
+    }
+  }
+
+  /// The phone's line: one count for everyone who voted, right after the audiences'
+  /// scores and before the critics' (Sasha, 2026-11-16: «сумму хотя бы»).
+  private func phoneRow(_ slice: [MediaScoreItem], votes: Bool) -> some View {
+    let audiences = slice.filter { ($0.votes ?? 0) > 0 }
+    let total = audiences.compactMap(\.votes).reduce(0, +)
+    let lastAudience = audiences.last?.id
+    return HStack(spacing: rowSpacing) {
+      ForEach(slice) { item in
+        score(item: item, showsVotes: false)
+        if votes, total > 0, item.id == lastAudience {
+          Text(verbatim: "(\(CompactCountFormat.string(total)))")
+            .foregroundStyle(Color.KinoPub.subtitle)
+            .monospacedDigit()
+            .padding(.leading, -rowSpacing / 2)
+        }
       }
     }
   }

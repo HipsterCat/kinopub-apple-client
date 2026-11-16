@@ -787,7 +787,7 @@ struct MediaItemHeroView: View {
       // Under Play every line keeps its room, filled or not — one line of scores, two of
       // synopsis, one playback line — so the hero ends at one place (Sasha, 2026-11-16).
       // The slots alone give the height; what is drawn in them never changes it.
-      phoneLineSlot(lines: 1, font: Self.secondaryFont)
+      phoneLineSlot(lines: 1, font: Self.phoneMetaFont)
         .frame(maxWidth: .infinity)
         .overlay { scoresLine }
       phoneLineSlot(lines: Self.phonePlotLines, font: MediaItemPlotView.font)
@@ -806,7 +806,7 @@ struct MediaItemHeroView: View {
             )
           }
         }
-      phoneLineSlot(lines: 1, font: Self.secondaryFont)
+      phoneLineSlot(lines: 1, font: Self.phoneMetaFont)
         .frame(maxWidth: .infinity)
         .overlay { playbackLine }
     }
@@ -1468,9 +1468,9 @@ struct MediaItemHeroView: View {
   /// `en`), not only the `?lang=` query. Under lettered type: original when it differs.
   @ViewBuilder
   private var titleSupplementaryBlock: some View {
-    if let line = supplementaryUnderTitle {
+    if let line = centersColumn ? phoneCaption : supplementaryUnderTitle {
       Text(line)
-        .font(Self.secondaryFont)
+        .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(columnTextAlignment)
         .fixedSize(horizontal: false, vertical: true)
@@ -1485,12 +1485,19 @@ struct MediaItemHeroView: View {
 
   /// Gap above the subtitle: looser under a wordmark than under lettered type.
   private var titleSupplementaryTopInset: CGFloat {
-    guard supplementaryUnderTitle != nil else { return 0 }
+    guard (centersColumn ? phoneCaption : supplementaryUnderTitle) != nil else { return 0 }
     switch resolvedTitleLogoMark {
     case .logo: return Self.contentSpacing * 1.5
     case .text: return Self.contentSpacing
     case .empty: return 0
     }
+  }
+
+  /// The phone's caption: the other name, then where it was made — the name alone does
+  /// not always say in what language it is (Sasha, 2026-11-16): «Dexter: Resurrection · США».
+  private var phoneCaption: String? {
+    let parts = [supplementaryUnderTitle, phoneCountry].compactMap { $0 }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
 
   private var supplementaryUnderTitle: String? {
@@ -1527,6 +1534,15 @@ struct MediaItemHeroView: View {
   /// broken across two lines.
   @ViewBuilder
   private var factsLine: some View {
+    if centersColumn {
+      phoneFactsLine
+    } else {
+      regularFactsLine
+    }
+  }
+
+  @ViewBuilder
+  private var regularFactsLine: some View {
     let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
     let blocks = factBlocks
     // On a phone the age rating closes the playback line instead (Sasha, 2026-11-16).
@@ -1578,7 +1594,11 @@ struct MediaItemHeroView: View {
   /// A film: «Мультфильм 2026», «2ч 53м», genres, country. The kind is the Home hero's
   /// vocabulary (`MediaPresentationProfile.kindTitleKey`), and the genre it already says
   /// (anime, animation, documentary) is not repeated after it.
-  private var factBlocks: [String] {
+  private var factBlocks: [String] { factBlocks() }
+
+  /// `genreLimit` genres at most; `place` false leaves the country out (the phone writes
+  /// it beside the original title).
+  private func factBlocks(genreLimit: Int = MediaItemHeroView.genreLimit, place showsPlace: Bool = true) -> [String] {
     let card = MediaCard(mediaItem)
     let profile = mediaItem.presentation
     var blocks: [String] = []
@@ -1616,11 +1636,11 @@ struct MediaItemHeroView: View {
     // Not the genre the kind already says: «Концерт  …, концерт», «ТВ-шоу  Развлекательные».
     let restated = kind == nil ? [] : Set(card.genres.filter { profile.kindGenreIDs.contains($0.id) }
       .map { $0.name.value(languageCode: MediaLanguage.current.rawValue) })
-    let genres = card.usefulGenres(limit: Self.genreLimit + restated.count,
+    let genres = card.usefulGenres(limit: genreLimit + restated.count,
                                    omittingDocumentary: kind != nil && profile.kind == .documentary)
       .filter { !restated.contains($0) }
-      .prefix(Self.genreLimit)
-    let place = mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
+      .prefix(genreLimit)
+    let place = showsPlace ? phoneCountry : nil
     // A concert is told apart by where it was played, not by its genres — the artist's
     // are the same on every live record — so the place goes first (Sasha, 2026-11-09).
     let placeLeads = profile.kind == .concert
@@ -1631,6 +1651,36 @@ struct MediaItemHeroView: View {
     }
     if !placeLeads, let place { blocks.append(place) }
     return blocks
+  }
+
+  /// The first production country.
+  private var phoneCountry: String? {
+    mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
+  }
+
+  /// The phone's facts: one line under the original title, never two — a second line
+  /// pushed the logo up (Sasha, 2026-11-16). Genres give way one by one; the country
+  /// is beside the original title (`phoneCaption`).
+  @ViewBuilder
+  private var phoneFactsLine: some View {
+    let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
+    ViewThatFits(in: .horizontal) {
+      ForEach((0...Self.genreLimit).reversed(), id: \.self) { limit in
+        HStack(spacing: Self.metaSpacing) {
+          if let status {
+            TitleStatusBadge(status.text)
+          }
+          ForEach(factBlocks(genreLimit: limit, place: false), id: \.self) { block in
+            Text(verbatim: block)
+          }
+        }
+        .lineLimit(1)
+        .fixedSize()
+      }
+    }
+    .font(Self.phoneMetaFont)
+    .foregroundStyle(heroMetaForeground)
+    .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
   }
 
   /// How long what Play offers runs — the episode it opens; for a film the version in focus, else the last one that was,
@@ -1658,6 +1708,8 @@ struct MediaItemHeroView: View {
       // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
       // the views last; the tail gives way when the line is full (Sasha, 2026-11-16).
       ViewThatFits(in: .horizontal) {
+        phoneScoresRow(limit: nil, views: true, votes: true)
+        phoneScoresRow(limit: nil, views: false, votes: true)
         phoneScoresRow(limit: nil, views: true)
         phoneScoresRow(limit: nil, views: false)
         // The niche audiences (Douban, MyShows, Trakt…) give way before the critics.
@@ -1666,7 +1718,7 @@ struct MediaItemHeroView: View {
           phoneScoresRow(limit: limit, views: false, others: false)
         }
       }
-      .font(Self.secondaryFont)
+      .font(Self.phoneMetaFont)
       .foregroundStyle(heroMetaForeground)
     } else if lineScores.hasDisplayableScore {
       ViewThatFits(in: .horizontal) {
@@ -1682,12 +1734,13 @@ struct MediaItemHeroView: View {
     }
   }
 
-  private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true) -> some View {
+  private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true,
+                              votes: Bool = false) -> some View {
     let views = mediaItem.views
     // No scores at all: the views are the line.
     let viewsShown = showsViews || !lineScores.hasDisplayableScore
     return HStack(spacing: Self.metaSpacing) {
-      MediaScoresView(lineScores, limit: limit, showsVotes: false, phoneLine: true,
+      MediaScoresView(lineScores, limit: limit, showsVotes: votes, phoneLine: true,
                       phoneLineOthers: others)
       if viewsShown, views > 0 {
         HStack(spacing: Self.glyphSpacing) {
@@ -1817,7 +1870,7 @@ struct MediaItemHeroView: View {
         phonePlaybackRow(runtime: nil, languages: Array(languages.prefix(1)), voicing: nil, captions: captions,
                          badges: badges, typedRating: typedRating, views: 0)
       }
-      .font(Self.secondaryFont)
+      .font(Self.phoneMetaFont)
       .foregroundStyle(heroMetaForeground)
       .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
     }
@@ -2162,7 +2215,9 @@ struct MediaItemHeroView: View {
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
       showsMarkWatched: showsWatchedButton && !promote,
-      showsTrailer: mediaItem.trailerURL != nil,
+      // The listing already says whether there is one: no waiting for the details call
+      // to show the button (Sasha, 2026-11-16).
+      showsTrailer: mediaItem.trailerURL != nil || mediaItem.trailer != nil,
       showsFollow: isSeries && onToggleWatchlist != nil && !promote,
       download: downloadPhase,
       showsShuffle: showsShuffleButton && !promote,
@@ -2212,13 +2267,16 @@ struct MediaItemHeroView: View {
 #elseif os(iOS)
     let row = MediaActionCatalog.row(for: actionContext)
     guard phoneHeroGrows else { return row }
-    // iPhone: what plays, and the bell (Sasha, 2026-11-10, 2026-11-16). Bookmarks are in
-    // the navigation bar, top right; Download and Mark as Watched in «…»; Shuffle and
-    // starting over in Play's long press. Trailer says its word alone, as Apple's does.
+    // iPhone: what plays, and Bookmarks, as on the Home banner (Sasha, 2026-11-10,
+    // 2026-11-16). The bell is in the navigation bar, top right; Download and Mark as
+    // Watched in «…»; Shuffle and starting over in Play's long press. Trailer says its
+    // word alone, as Apple's does.
     return row
       .filter { appearance in
         switch appearance.id {
-        case .bookmark, .markWatched, .download, .shuffle, .more: false
+        case .markWatched, .download, .shuffle, .more: false
+        // The bell is in the bar, top right; Bookmarks stay here, as on the Home banner.
+        case .follow: appearance.chrome != .circle
         default: true
         }
       }
@@ -2671,6 +2729,9 @@ struct MediaItemHeroView: View {
   /// is the same size the ratings captions and the information table use further down
   /// the page. See `TypeScale.detailBody`, which is where that decision lives.
   static let secondaryFont: Font = TypeScale.detailBody
+  /// The phone's lines around the title and Play: the Home banner's size, so the same
+  /// facts read the same on both (Sasha, 2026-11-16).
+  static let phoneMetaFont: Font = TypeScale.heroSecondary
 
   /// Not `text`, not `subtitle`: the row Apple puts under the title looks like primary
   /// text with the artwork faintly coming through it.

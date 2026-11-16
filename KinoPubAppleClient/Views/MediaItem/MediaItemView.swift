@@ -320,10 +320,10 @@ struct MediaItemView: View {
           bookmarkToolbarMenu
 #endif
 #if os(iOS)
-          // iPhone: Bookmarks top right, as everywhere (Sasha, 2026-11-10). One button
-          // there, not three: the bell is in the hero's row, Download in «…» (2026-11-16).
+          // iPhone: one button there, not three — the bell; Bookmarks are in the hero's
+          // row as on the Home banner, Download in «…» (Sasha, 2026-11-16).
           if barCarriesActions {
-            bookmarkToolbarMenu
+            followToolbarButton
           }
 #endif
           overflowMenu
@@ -532,6 +532,25 @@ struct MediaItemView: View {
 #endif
 
 #if os(iOS)
+  /// The bell, for a series that can be followed — not while labelled Follow leads the
+  /// hero's row (nothing left to play), where it would be said twice.
+  @ViewBuilder
+  private var followToolbarButton: some View {
+    let item = itemModel.mediaItem
+    if item.isSeries,
+       !MediaItemHeroView.promotesFollow(mediaItem: item,
+                                         awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                                         canFollow: true) {
+      Button {
+        itemModel.toggleWatchlist()
+      } label: {
+        Label(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist),
+              systemImage: itemModel.isInWatchlist ? "bell.fill" : "bell")
+      }
+      .disabled(!itemModel.itemLoaded)
+    }
+  }
+
   /// Download (with the flag on), in «…»: what Play opens, or pausing it; for a series
   /// also the season, its unwatched episodes, or all of them.
   @ViewBuilder
