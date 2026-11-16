@@ -744,39 +744,77 @@ struct MediaItemHeroView: View {
 #endif
 
 #if os(iOS)
-  /// iPhone: the Home banner's phone hero (Sasha, 2026-11-10: «в баннере на главной норм
-  /// не пидорасит ничего»). A 16:10 still under the bars with the words in one centred
-  /// column starting over its lower part, the picture carried on under them as blurred
-  /// glass (`CompactHeroPicture`), the foot shaded (`CompactHeroScrim`). A title with no
-  /// picture shows its poster there instead, over its blurred wash. The whole full-height
-  /// band of a 16:9 picture cropped to a portrait screen is gone: that crop was the
-  /// zoomed-in mess behind the words.
+  /// iPhone: the Home banner's phone hero (Sasha, 2026-11-10), reworked 2026-11-16 after
+  /// a week of use. The picture runs from the top edge, sharp, taller than the banner's
+  /// still, and fades into itself as blurred glass under the words — nothing blurred
+  /// above it. Play sits at one place on every title, at the foot of the picture: what
+  /// is above it (logo, caption, facts) grows upward from it, everything else (scores,
+  /// two lines of synopsis, the playback line) follows under it. All of it centred.
   private var phoneHero: some View {
-    VStack(spacing: 0) {
-      Color.clear
-        .frame(height: phoneWordsTop)
-        .accessibilityHidden(true)
-      content
+    phoneContent
+      .environment(\.colorScheme, heroChromeColorScheme)
+      .padding(.top, phase.topChromeInset)
+      .frame(maxWidth: .infinity)
+      .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
+      .background(alignment: .top) { phoneBackdrop }
+      .clipped()
+      .animation(Self.heroStateChange, value: showsPicture)
+  }
+
+  private var phoneContent: some View {
+    VStack(spacing: Self.contentSpacing) {
+      // Above Play, bottom-aligned in a box of fixed height: a long title or a second
+      // facts line grows up over the picture and never moves Play.
+      VStack(spacing: Self.contentSpacing) {
+        titleBlock
+        if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
+          TitleStatusBadge(status.text)
+            .font(Self.secondaryFont)
+        }
+        factsLine
+      }
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity)
+      .frame(height: phoneAbovePlayHeight, alignment: .bottom)
+
+      actions
+        .padding(.top, Self.actionsGap)
+        .padding(.bottom, Self.actionsGap)
+
+      scoresLine
+      if hasSynopsis {
+        MediaItemPlotView(
+          title: mediaItem.localizedTitle,
+          plot: synopsis.plot,
+          lead: synopsis.lead,
+          maxLines: Self.phonePlotLines,
+          centered: true,
+          focus: $focus,
+          popupSubtitle: popupOriginalTitle,
+          summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+        )
+      }
+      playbackLine
     }
-    .padding(.top, phase.topChromeInset)
-    .frame(maxWidth: .infinity)
-    .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
-    .background(alignment: .top) { phoneBackdrop }
-    .clipped()
-    .animation(Self.heroStateChange, value: showsPicture)
+    .padding(.horizontal, Self.horizontalInset)
+    .padding(.bottom, Self.bottomInset)
   }
 
-  /// The still's height at this width — the banner's.
+  /// The picture's height under the bars: taller than the banner's 16:10 (Sasha,
+  /// 2026-11-16: «растянуть повыше бекдропы»).
   private var phoneStillHeight: CGFloat {
-    CompactHeroPicture.stillHeight(width: heroBandSize.width)
+    (heroBandSize.width * Self.phoneStillTallness).rounded()
   }
 
-  /// Where the words start under the bars: over the still's fading lower part with a
-  /// picture, under the poster without one, at the top with neither.
+  /// The box above Play, under the bars: Play's top lands at the same share of the
+  /// picture on every title.
+  private var phoneAbovePlayHeight: CGFloat {
+    max(0, (phoneStillHeight * Self.phonePlayAt).rounded() - Self.actionsGap)
+  }
+
+  /// Where the bar takes over (`barTakesOver`): the words above Play are mostly under it.
   private var phoneWordsTop: CGFloat {
-    if showsPicture { return (phoneStillHeight * Self.phoneWordsOverStill).rounded() }
-    if showsCornerPoster { return phoneStillHeight + Self.contentSpacing }
-    return 0
+    (phoneAbovePlayHeight * 0.5).rounded()
   }
 
   @ViewBuilder
@@ -791,21 +829,22 @@ struct MediaItemHeroView: View {
         .opacity(usesAdaptivePosterHero ? 1 : 0)
       if !backdropCandidates.isEmpty, size.width > 0 {
         CompactHeroPicture(urls: backdropCandidates, width: size.width, height: size.height,
-                           topBleed: phase.topChromeInset,
+                           topBleed: phase.topChromeInset, stillHeight: still, fromTop: true,
                            onLoaded: { noteBackdrop(loaded: true) },
                            onFailed: { noteBackdrop(loaded: false) })
           .id(localCacheEpoch)
       }
       if showsCornerPoster, let url = heroPosterURL, still > 0 {
+        let posterHeight = (still * Self.phonePosterShare).rounded()
         CachedRemoteImage(url: url, contentMode: .fit)
-          .frame(width: (still * CardAspect.poster.ratio).rounded(), height: still)
+          .frame(width: (posterHeight * CardAspect.poster.ratio).rounded(), height: posterHeight)
           .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
           .padding(.top, phase.topChromeInset)
           .transition(.opacity)
           .accessibilityHidden(true)
       }
       if !usesAdaptivePosterHero {
-        // From a little way into the still, so its top keeps its colour.
+        // From a little way into the picture, so its top keeps its colour.
         CompactHeroScrim(start: size.height > 0
                          ? min(Self.phoneScrimMaxStart,
                                (phase.topChromeInset + still * Self.phoneScrimStillShare) / size.height)
@@ -816,10 +855,16 @@ struct MediaItemHeroView: View {
     .clipped()
   }
 
-  /// How far down the still the words begin, as a share of it.
-  static let phoneWordsOverStill: CGFloat = 0.62
-  /// The shade starts this far down the still…
-  static let phoneScrimStillShare: CGFloat = 0.3
+  /// The picture under the bars, against the width.
+  static let phoneStillTallness: CGFloat = 0.95
+  /// Play's top, as a share of the picture under the bars.
+  static let phonePlayAt: CGFloat = 0.88
+  /// A poster-only title's poster, as a share of the picture's height.
+  static let phonePosterShare: CGFloat = 0.5
+  /// Synopsis lines under Play before «ЕЩЁ» (Sasha, 2026-11-16).
+  static let phonePlotLines = 2
+  /// The shade starts this far down the picture…
+  static let phoneScrimStillShare: CGFloat = 0.35
   /// …and never lower than this share of the hero.
   static let phoneScrimMaxStart: CGFloat = 0.5
 #endif
@@ -1577,7 +1622,8 @@ struct MediaItemHeroView: View {
   /// at the end throughout.
   @ViewBuilder
   private var scoresLine: some View {
-    if lineScores.hasDisplayableScore || mediaItem.views > 0 {
+    // Views alone are no line of their own: they close the playback line (Sasha, 2026-11-16).
+    if lineScores.hasDisplayableScore {
       ViewThatFits(in: .horizontal) {
         scoresRow(votes: true, views: true)
         scoresRow(votes: false, views: true)
@@ -1676,7 +1722,9 @@ struct MediaItemHeroView: View {
     let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
     let audio = audioSummary
     let subtitles = subtitleSummary
-    if runtime != nil || !badges.isEmpty || audio != nil || subtitles != nil {
+    // kino.pub's views, when there is no score for them to follow (`scoresLine`).
+    let views = lineScores.hasDisplayableScore ? 0 : mediaItem.views
+    if runtime != nil || !badges.isEmpty || audio != nil || subtitles != nil || views > 0 {
       AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
                       centersRows: centersColumn) {
         if let runtime {
@@ -1696,6 +1744,14 @@ struct MediaItemHeroView: View {
             Image(systemName: Self.subtitlesSymbol)
             Text(verbatim: subtitles)
           }
+        }
+        if views > 0 {
+          HStack(spacing: Self.glyphSpacing) {
+            Image(systemName: Self.viewsSymbol)
+            Text(verbatim: formattedViewCount(views))
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
         }
       }
       .lineLimit(1)

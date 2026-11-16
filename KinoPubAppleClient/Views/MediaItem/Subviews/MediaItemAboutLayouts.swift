@@ -648,7 +648,8 @@ struct AboutFlowLayout: Layout {
         size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
         size.width = min(size.width, maxWidth)
       }
-      if !row.items.isEmpty, row.width + spacing + size.width > maxWidth {
+      // A half-point of slack: placed in the width it measured, a row must break the same.
+      if !row.items.isEmpty, row.width + spacing + size.width > maxWidth + 0.5 {
         rows.append(row)
         row = Row()
       }
@@ -665,6 +666,12 @@ struct AboutFlowLayout: Layout {
     let all = rows(maxWidth: maxWidth, subviews: subviews)
     let height = all.map(\.height).reduce(0, +) + (lineSpacing ?? spacing) * CGFloat(max(all.count - 1, 0))
     let widest = all.map(\.width).max() ?? 0
+    // Centred rows take the whole measure: hugging the widest row, the rows were broken
+    // again inside that narrower width when placed — one more row than measured, drawn
+    // over the synopsis under it (Sasha, 2026-11-16).
+    if centersRows, maxWidth.isFinite {
+      return CGSize(width: maxWidth, height: height)
+    }
     return CGSize(width: min(widest, maxWidth), height: height)
   }
 

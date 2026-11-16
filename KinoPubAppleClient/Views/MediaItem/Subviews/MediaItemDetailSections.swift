@@ -4617,6 +4617,11 @@ struct MediaItemPlotView: View {
   /// The whole text, no clamp: the poster hero has the room and nothing to fade over
   /// (Sasha, 2026-11-08).
   var expandsFully: Bool = false
+  /// Lines before the clamp, when not the platform's (`lineLimit`): two under the phone
+  /// hero's Play (Sasha, 2026-11-16).
+  var maxLines: Int? = nil
+  /// Every line centred (the phone hero), the hint after the last word or under it.
+  var centered: Bool = false
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
@@ -4669,7 +4674,8 @@ struct MediaItemPlotView: View {
       plotMeasurement
       content
     }
-    .frame(maxWidth: Self.maxWidth, alignment: .leading)
+    .frame(maxWidth: Self.maxWidth, alignment: centered ? .center : .leading)
+    .environment(\.plotCentered, centered)
     .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
     .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
   }
@@ -4765,13 +4771,13 @@ struct MediaItemPlotView: View {
 
   /// Clamped and unclamped heights, proposed the synopsis width. Hidden, and not
   /// part of the button label, so neither one changes what focus snapshots.
-  private var lineLimit: Int? { expandsFully ? nil : Self.lineLimit }
+  private var lineLimit: Int? { expandsFully ? nil : (maxLines ?? Self.lineLimit) }
 
   private var plotMeasurement: some View {
     Text(paragraphText)
       .font(Self.font)
       .lineLimit(lineLimit)
-      .multilineTextAlignment(.leading)
+      .multilineTextAlignment(centered ? .center : .leading)
       .frame(maxWidth: .infinity, alignment: .leading)
       // The clamped copy's own lines, at the full measure: the visible paragraph may be
       // narrower (it hugs its widest line), this one never is.
@@ -4790,7 +4796,7 @@ struct MediaItemPlotView: View {
       .background(alignment: .topLeading) {
         Text(paragraphText)
           .font(Self.font)
-          .multilineTextAlignment(.leading)
+          .multilineTextAlignment(centered ? .center : .leading)
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
           .hidden()
@@ -4854,11 +4860,12 @@ struct PlotParagraph: View {
   let lineLimit: Int?
 
   @State private var hintSize: CGSize = .zero
+  @Environment(\.plotCentered) private var centered
 
   var body: some View {
     if let lines, hintSize != .zero {
       let place = HintPlacement(lines: lines, hint: hintSize, isTruncated: isTruncated,
-                                gap: MediaItemPlotView.moreGap)
+                                gap: MediaItemPlotView.moreGap, centered: centered)
       paragraph
         .frame(width: place.textWidth, alignment: .leading)
         .mask {
@@ -4892,9 +4899,14 @@ struct PlotParagraph: View {
       .font(MediaItemPlotView.font)
       .foregroundStyle(Color.KinoPub.text)
       .lineLimit(lineLimit)
-      .multilineTextAlignment(.leading)
+      .multilineTextAlignment(centered ? .center : .leading)
       .fixedSize(horizontal: false, vertical: true)
   }
+}
+
+extension EnvironmentValues {
+  /// The synopsis is centred (`MediaItemPlotView.centered`), for the paragraph inside it.
+  @Entry var plotCentered: Bool = false
 }
 
 /// The lines of the clamped synopsis, from its `Text.Layout`.
@@ -4929,8 +4941,22 @@ private struct HintPlacement {
   var width: CGFloat
   var extraBottom: CGFloat = 0
 
-  init(lines: PlotLines, hint: CGSize, isTruncated: Bool, gap: CGFloat) {
+  init(lines: PlotLines, hint: CGSize, isTruncated: Bool, gap: CGFloat, centered: Bool = false) {
     let midY = lines.lastLineMidY - hint.height / 2
+    // Centred: the paragraph keeps the whole measure, so the lines sit where they were
+    // measured; the hint follows the last word, or is centred on a line of its own.
+    if centered, !isTruncated {
+      textWidth = lines.availableWidth
+      width = lines.availableWidth
+      let end = lines.lastLineEnd + gap
+      if end + hint.width <= lines.availableWidth {
+        origin = CGPoint(x: end, y: midY)
+      } else {
+        origin = CGPoint(x: (lines.availableWidth - hint.width) / 2, y: lines.height + gap)
+        extraBottom = hint.height + gap
+      }
+      return
+    }
     if isTruncated {
       textWidth = lines.availableWidth
       width = lines.availableWidth

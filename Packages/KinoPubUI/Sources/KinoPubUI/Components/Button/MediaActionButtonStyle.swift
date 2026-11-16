@@ -61,33 +61,18 @@ public enum MediaActionMetrics {
      #endif
      #if os(iOS)
   public static let controlSize: ControlSize = .large
-  /// iPhone: a size down from the iPad's (Sasha, 2026-11-10) — the hero is a column a
-  /// phone wide, and `.large` made Play the widest thing in it.
-  public static let compactControlSize: ControlSize = .regular
   /// iPhone: the resume bar as thick as ever, shorter (Sasha, 2026-11-10).
   public static let compactProgressWidth: CGFloat = 24
-  /// The label's type a step down with the control.
-  public static let compactLabelFont: Font? = .subheadline.weight(.semibold)
      #endif
 #endif
 }
 
 #if !os(tvOS)
-/// The hero controls' size: `MediaActionMetrics.controlSize`, a size down in a compact
-/// width on iPhone.
+/// The hero controls' size. iPhone had a size down for a week; Sasha asked for the
+/// regular size back (2026-11-16).
 private struct MediaActionControlSize: ViewModifier {
-#if os(iOS)
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-#endif
-
   func body(content: Content) -> some View {
-#if os(iOS)
-    content.controlSize(horizontalSizeClass == .compact
-                        ? MediaActionMetrics.compactControlSize
-                        : MediaActionMetrics.controlSize)
-#else
     content.controlSize(MediaActionMetrics.controlSize)
-#endif
   }
 }
 #endif

@@ -21,18 +21,6 @@ public struct MediaActionLabel: View {
     self.appearance = appearance
   }
 
-#if os(iOS)
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-#endif
-
-  /// A step down on iPhone, with the control (`MediaActionMetrics.compactControlSize`).
-  private var labelFont: Font? {
-#if os(iOS)
-    horizontalSizeClass == .compact ? MediaActionMetrics.compactLabelFont : MediaActionMetrics.labelFont
-#else
-    MediaActionMetrics.labelFont
-#endif
-  }
 
   public var body: some View {
     Group {
@@ -54,7 +42,7 @@ public struct MediaActionLabel: View {
         content
       }
     }
-    .font(labelFont)
+    .font(MediaActionMetrics.labelFont)
 #if !os(tvOS)
     // The monochrome Play's label (`mediaActionPlayPillStyle`), set on the label.
     .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))

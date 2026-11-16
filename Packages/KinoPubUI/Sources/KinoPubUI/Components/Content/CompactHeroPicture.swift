@@ -23,15 +23,23 @@ public struct CompactHeroPicture: View {
   private let topBleed: CGFloat
   private let onLoaded: (() -> Void)?
   private let onFailed: (() -> Void)?
+  private let stillHeight: CGFloat?
+  private let fromTop: Bool
 
   /// `pictureWidth`: wider than `width` when the picture drifts (the banner's pager).
+  /// `stillHeight`: the sharp picture's height under the bars, 16:10 of the width when nil.
+  /// `fromTop`: the sharp picture starts at the top of the screen, under the bars, with
+  /// no blurred extension above it — the title page (Sasha, 2026-11-16).
   public init(urls: [URL], width: CGFloat, pictureWidth: CGFloat? = nil, height: CGFloat,
-              topBleed: CGFloat, onLoaded: (() -> Void)? = nil, onFailed: (() -> Void)? = nil) {
+              topBleed: CGFloat, stillHeight: CGFloat? = nil, fromTop: Bool = false,
+              onLoaded: (() -> Void)? = nil, onFailed: (() -> Void)? = nil) {
     self.urls = urls
     self.width = width
     self.pictureWidth = pictureWidth ?? width
     self.height = height
     self.topBleed = topBleed
+    self.stillHeight = stillHeight
+    self.fromTop = fromTop
     self.onLoaded = onLoaded
     self.onFailed = onFailed
   }
@@ -40,9 +48,43 @@ public struct CompactHeroPicture: View {
   public static func stillHeight(width: CGFloat) -> CGFloat { (width * 10 / 16).rounded() }
 
   public var body: some View {
-    let still = Self.stillHeight(width: width)
+    if fromTop {
+      fromTopBody
+    } else {
+      bannerBody
+    }
+  }
+
+  /// One picture from the top edge down to the end of the still, fading out over its
+  /// lower part into the same picture carried on below as blurred glass.
+  private var fromTopBody: some View {
+    let picture = topBleed + (stillHeight ?? Self.stillHeight(width: width))
+    let below = max(height - picture, 0)
+    return ZStack(alignment: .top) {
+      FallbackRemoteImage(urls: urls, contentMode: .fill)
+        .frame(width: pictureWidth, height: picture)
+        .clipped()
+        .backgroundExtensionEffect()
+        .safeAreaPadding(.bottom, below)
+        .blur(radius: width * 0.06, opaque: true)
+      FallbackRemoteImage(urls: urls, contentMode: .fill, onLoaded: onLoaded, onFailed: onFailed)
+        .frame(width: pictureWidth, height: picture)
+        .clipped()
+        .mask {
+          LinearGradient(stops: [
+            .init(color: .black, location: 0),
+            .init(color: .black, location: 0.6),
+            .init(color: .clear, location: 1)
+          ], startPoint: .top, endPoint: .bottom)
+        }
+    }
+    .frame(width: pictureWidth, height: height, alignment: .top)
+  }
+
+  private var bannerBody: some View {
+    let still = stillHeight ?? Self.stillHeight(width: width)
     let below = max(height - topBleed - still, 0)
-    ZStack(alignment: .top) {
+    return ZStack(alignment: .top) {
       FallbackRemoteImage(urls: urls, contentMode: .fill)
         .frame(width: pictureWidth, height: still)
         .clipped()
