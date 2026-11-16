@@ -33,6 +33,10 @@ protocol ContentStoreProvider {
   var contentStore: ContentStore { get }
 }
 
+protocol DownloadsCenterProvider {
+  var downloadsCenter: DownloadsCenter { get }
+}
+
 protocol KinopoiskKeyProviderProvider {
   var kinopoiskKeyProvider: IntegrationKeyProvider { get }
 }
@@ -55,7 +59,8 @@ protocol AppContextProtocol: AuthorizationServiceProvider
 & LocalWatchProgressProvider
 & MediaLibraryProvider
 & ViewerStateProvider
-& TrackPreferencesProvider {}
+& TrackPreferencesProvider
+& DownloadsCenterProvider {}
 
 // MARK: - AppContext
 
@@ -140,7 +145,7 @@ struct AppContext: AppContextProtocol {
     // `nonisolated(unsafe)`: the Task is MainActor-queued after this MainActor `shared` init
     // finishes, so it cannot overlap the stores below; the manager is not Sendable.
     nonisolated(unsafe) let hlsToRestore = hlsDownloadManager
-    nonisolated(unsafe) let filesToReattach = downloadManager
+    let filesToReattach = downloadManager
     Task { @MainActor in
       hlsToRestore.restorePendingDownloads()
       // Same for the mp4 session: reconnect, adopt the transfers it kept running, and

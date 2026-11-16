@@ -90,9 +90,12 @@ public class Download<Meta: Codable & Equatable>: ObservableObject {
     speed = 0
     let pausing = task
     task = nil
-    pausing?.cancel(byProducingResumeData: { [weak self] data in
+    // The session calls back on its delegate queue; the download is only ever touched on
+    // the main thread, so the hop below is what makes this weak reference safe to carry.
+    nonisolated(unsafe) weak let pausedDownload = self
+    pausing?.cancel(byProducingResumeData: { data in
       DispatchQueue.main.async {
-        guard let self else { return }
+        guard let self = pausedDownload else { return }
         if let data { self.resumeData = data }
         Logger.kit.debug("[DOWNLOAD] Download for url: \(self.url.absoluteString) is paused (resume data: \(data != nil))")
         self.onStateChange?(self)
