@@ -180,6 +180,11 @@ struct MainView: View {
     // beneath the bar, and the bar can hide and reveal from that scroll. Sections apply
     // the 80 pt HIG side insets; a rail's trailing peek runs out to the screen edge.
     .ignoresSafeArea()
+#if os(iOS)
+    // The sides are measured, not ignored: the banner's words and every shelf's first
+    // card keep clear of the iPad's sidebar and the iPhone's notch (`PageMargins`).
+    .providesPageMargins()
+#endif
   }
 
   /// Continue Watching: five 16:9 stills across (HIG 5-column, 320 at 1920). Titles

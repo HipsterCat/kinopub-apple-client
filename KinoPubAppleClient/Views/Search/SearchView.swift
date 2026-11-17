@@ -130,7 +130,15 @@ struct SearchView: View {
       // nothing below the bar but the results (focus log, 2026-09-24). The sides are the
       // container's own: SwiftUI's 80 pt inset on top of UIKit's doubled the field's
       // indent and clipped the results' rails at 80 / 1840.
+#if os(tvOS)
       .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
+#else
+      // iPhone and iPad keep the sides: the grid's `safeAreaPadding` then adds the page
+      // inset to what covers that edge — the notch in landscape, the iPad's sidebar —
+      // the same margin every bleeding page measures (`PageMargins`). Ignored, the
+      // results ran under the notch (Sasha, 2026-11-16).
+      .ignoresSafeArea(.container, edges: .bottom)
+#endif
       .handleError(state: $errorHandler.state)
       .task {
         cardMenu.bind(errorHandler: errorHandler)

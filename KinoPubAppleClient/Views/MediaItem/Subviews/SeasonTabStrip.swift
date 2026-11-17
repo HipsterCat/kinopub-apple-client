@@ -241,7 +241,8 @@ struct SeasonTabStrip<TabMenu: View>: View {
             }
           }
         }
-        .padding(.horizontal, inset)
+        // The page's margins where it bleeds (`PageMargins`), `inset` elsewhere.
+        .pageMarginPadding(fallback: inset)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isEngaged)
         // The number grows into «N сезон» and the old one shrinks back while the capsule

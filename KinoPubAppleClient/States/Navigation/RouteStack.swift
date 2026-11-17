@@ -13,6 +13,7 @@
 //
 
 import SwiftUI
+import KinoPubUI
 
 /// A tab's whole navigation surface: the stack, the path it is bound to, the shared
 /// destination registry, and the "only the selected tab exposes a stack" gate.
@@ -55,6 +56,9 @@ extension View {
         // A pushed page does not scroll with its section's memory; a title page brings
         // its own (`MediaItemModel.scrollMemory`).
         .environment(\.scrollMemory, nil)
+        // Nor with its section's side margins: a page that bleeds measures its own
+        // (`PageMargins`).
+        .environment(\.pageMargins, nil)
 #if os(tvOS)
         // On every page too: a stack opened straight onto a title never shows its root.
         .tvNavigationZoom()

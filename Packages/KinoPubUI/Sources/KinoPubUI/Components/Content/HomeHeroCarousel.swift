@@ -42,6 +42,8 @@ public struct HomeHeroCarousel: View {
   private let isActive: Bool
   @Binding private var shownIndex: Int
   @Environment(\.heroStepRequest) private var heroStepRequest
+  /// The page's side margins where it measured them (`PageMargins`).
+  @Environment(\.pageMargins) private var pageMargins
 
   /// One page: which title, on which lap of the three.
   struct Slot: Hashable, Sendable {
@@ -406,8 +408,10 @@ public struct HomeHeroCarousel: View {
   private func wordsBlock(_ feature: HomeHeroFeature) -> some View {
     if feature.card.id > 0 {
       words(feature)
-        .padding(.leading, sideInset)
-        .padding(.trailing, sideInset)
+        // Clear of the iPad's sidebar and the iPhone's notch where the page measured
+        // them (`PageMargins`); the picture still runs under both.
+        .padding(.leading, pageMargins?.leading ?? sideInset)
+        .padding(.trailing, pageMargins?.trailing ?? sideInset)
         .padding(.bottom, features.count > 1 ? Metrics.dotsReserve : Metrics.bottomInset)
     }
   }
@@ -427,8 +431,8 @@ public struct HomeHeroCarousel: View {
         HeroPagingArrow(symbol: "chevron.compact.right", label: hero.labels.next,
                         isShown: isHovered) { step(1) }
       }
-      .padding(.leading, Metrics.arrowEdgeInset)
-      .padding(.trailing, Metrics.arrowEdgeInset)
+      .padding(.leading, Metrics.arrowEdgeInset + (pageMargins?.coveredLeading ?? 0))
+      .padding(.trailing, Metrics.arrowEdgeInset + (pageMargins?.coveredTrailing ?? 0))
     }
   }
 #endif

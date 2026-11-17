@@ -43,6 +43,11 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
   @Environment(\.mediaNavigation) private var mediaNavigation
   @State private var containerWidth: CGFloat = 1920
+  /// A bleeding page's margins (`PageMargins`): the columns fit the width nothing covers
+  /// and the first card sits clear of the iPad's sidebar or the iPhone's notch.
+  @Environment(\.pageMargins) private var pageMargins
+  /// The width the columns are laid out in.
+  private var layoutWidth: CGFloat { pageMargins?.contentWidth ?? containerWidth }
   /// The container's own horizontal safe-area inset. Zero on a screen that already
   /// sits inside the safe area; the overscan margin on one that ignores it (the detail
   /// page does, horizontally). `ShelfMetrics` takes the larger of the two.
@@ -110,13 +115,13 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 
   private var metrics: ShelfMetrics {
     isLandscape
-      ? .landscape(width: containerWidth, typeSize: typeSize, safeArea: containerSafeArea)
-      : .posters(width: containerWidth, typeSize: typeSize, safeArea: containerSafeArea)
+      ? .landscape(width: layoutWidth, typeSize: typeSize, safeArea: containerSafeArea)
+      : .posters(width: layoutWidth, typeSize: typeSize, safeArea: containerSafeArea)
   }
 
   /// The artwork box only: captions sit under the card, and the tile has no caption.
   private var tailTileHeight: CGFloat {
-    let width = metrics.cardWidth(in: containerWidth)
+    let width = metrics.cardWidth(in: layoutWidth)
     return isLandscape ? width / CardAspect.landscape.ratio : width / CardAspect.poster.ratio
   }
 
@@ -128,7 +133,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #if os(tvOS)
     contentLeadingInset
 #else
-    metrics.inset
+    pageMargins?.leading ?? metrics.inset
 #endif
   }
 
@@ -298,7 +303,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         ForEach(cards) { card in
           cardLink(card)
             .mediaZoomSource(id: "media-\(card.id)")
-            .frame(width: metrics.cardWidth(in: containerWidth))
+            .frame(width: metrics.cardWidth(in: layoutWidth))
 #if !os(tvOS)
             .buttonStyle(MediaCardButtonStyle())
 #endif
@@ -328,7 +333,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         if pagination.isWorthShowing {
           PaginationTailTile(state: pagination, onRetry: onRetryPagination)
             .wrapped()
-            .frame(width: metrics.cardWidth(in: containerWidth))
+            .frame(width: metrics.cardWidth(in: layoutWidth))
             .frame(height: tailTileHeight)
         }
       }
@@ -339,8 +344,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       .padding(.leading, leadingInset)
       .padding(.bottom, railFocusPadding)
 #else
-      .padding(.leading, metrics.inset)
-      .padding(.trailing, metrics.inset)
+      .padding(.leading, leadingInset)
+      .padding(.trailing, pageMargins?.trailing ?? metrics.inset)
       .padding(.vertical, railFocusPadding)
 #endif
     }

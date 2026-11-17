@@ -714,6 +714,8 @@ struct MediaItemHeroView: View {
 
 #if !os(tvOS)
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  /// The page's side margins on a bleeding page (`PageMargins`), iOS only.
+  @Environment(\.pageMargins) private var pageMargins
 
   /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
   /// all of that into one short strip, and none of it was further up the scroll.
@@ -758,7 +760,7 @@ struct MediaItemHeroView: View {
           if showsCornerPoster, let url = heroPosterURL {
             cornerPosterImage(url: url, bandSize: heroBaseBandSize)
               .padding(.top, phase.topChromeInset + Self.horizontalInset)
-              .padding(.trailing, Self.horizontalInset)
+              .padding(.trailing, pageMargins?.trailing ?? Self.horizontalInset)
               .transition(.opacity)
           }
         }
@@ -846,7 +848,8 @@ struct MediaItemHeroView: View {
         .frame(maxWidth: .infinity)
         .overlay { playbackLine }
     }
-    .padding(.horizontal, Self.horizontalInset)
+    // Clear of the notch in landscape (`PageMargins`).
+    .pageMarginPadding(fallback: Self.horizontalInset)
     .padding(.bottom, Self.bottomInset)
   }
 
@@ -1302,7 +1305,9 @@ struct MediaItemHeroView: View {
       heroBottomBlock
     }
 #if os(iOS)
-    .padding(.horizontal, Self.horizontalInset)
+    // Clear of the iPad's sidebar and the iPhone's notch, as every section under the
+    // hero (`PageMargins`).
+    .pageMarginPadding(fallback: Self.horizontalInset)
     .padding(.bottom, Self.bottomInset)
 #else
     .padding(.bottom, Self.horizontalInset)
@@ -2110,7 +2115,8 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     return widest
 #else
-    var available = heroBandSize.width - 2 * Self.contentHorizontalInset - Self.columnGutter
+    let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
+    var available = heroBandSize.width - margins - Self.columnGutter
     if showsCornerPoster { available -= posterColumnWidth }
     guard available > 0 else { return widest }
     return min(widest, (available * Self.creditsColumnShare).rounded())

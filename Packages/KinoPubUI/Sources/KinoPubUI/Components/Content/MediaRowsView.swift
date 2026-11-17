@@ -281,7 +281,7 @@ public struct MediaRowsView: View {
       .buttonStyle(.glass)
       .controlSize(.large)
       .frame(maxWidth: .infinity)
-      .padding(.horizontal, ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset)
+      .pageMarginPadding(fallback: ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset)
       .padding(.top, 8)
     }
   }

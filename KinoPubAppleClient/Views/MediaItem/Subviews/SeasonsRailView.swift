@@ -454,18 +454,23 @@ struct SeasonsRailView: View {
 
   // MARK: - Metrics (shared with every other landscape shelf)
 
+  /// Bleeding page (`PageMargins`): the columns are laid out in the width nothing
+  /// covers — beside the iPad's sidebar, between the iPhone's notch and its edge.
+  @Environment(\.pageMargins) private var pageMargins
+  private var layoutWidth: CGFloat { pageMargins?.contentWidth ?? railWidth }
+
   private var metrics: ShelfMetrics {
-    .landscape(width: railWidth, typeSize: typeSize)
+    .landscape(width: layoutWidth, typeSize: typeSize)
   }
 
   private var cardWidth: CGFloat {
-    metrics.cardWidth(in: railWidth)
+    metrics.cardWidth(in: layoutWidth)
   }
 
   /// The title page's side margin, the one the hero and every section under it start at.
   /// The shelf grid's own (40 pt on a Mac) put the seasons and episodes further right
   /// than everything else on the page (Sasha, 2026-10-30).
-  private var pageInset: CGFloat { MediaItemLayout.horizontalInset }
+  private var pageInset: CGFloat { pageMargins?.leading ?? MediaItemLayout.horizontalInset }
 
   private var stillHeight: CGFloat {
     cardWidth / CardAspect.landscape.ratio
@@ -1422,7 +1427,7 @@ struct SeasonsRailView: View {
     }
     // Content margins, not padding: `scrollTo(anchor: .leading)` would otherwise park
     // the first episode of a season under the page inset instead of beside it.
-    .contentMargins(.horizontal, pageInset, for: .scrollContent)
+    .pageContentMargins(fallback: pageInset)
     .scrollPosition($railPosition, anchor: .leading)
     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
       // A season card stands for its season's first entry.
@@ -2306,14 +2311,16 @@ struct VersionsRailView: View {
 #endif
   @State private var railWidth: CGFloat = SeasonsRailView.referenceWidth
 
-  private var metrics: ShelfMetrics { .landscape(width: railWidth, typeSize: typeSize) }
-  private var cardWidth: CGFloat { metrics.cardWidth(in: railWidth) }
+  @Environment(\.pageMargins) private var pageMargins
+  private var layoutWidth: CGFloat { pageMargins?.contentWidth ?? railWidth }
+  private var metrics: ShelfMetrics { .landscape(width: layoutWidth, typeSize: typeSize) }
+  private var cardWidth: CGFloat { metrics.cardWidth(in: layoutWidth) }
   /// The title page's side margin, as for the episodes (`SeasonsRailView.pageInset`).
   private var pageInset: CGFloat {
 #if os(tvOS)
     metrics.inset
 #else
-    MediaItemLayout.horizontalInset
+    pageMargins?.leading ?? MediaItemLayout.horizontalInset
 #endif
   }
 
@@ -2390,7 +2397,7 @@ struct VersionsRailView: View {
       }
       .padding(.vertical, Metrics.landscapeFocusPadding)
     }
-    .contentMargins(.horizontal, pageInset, for: .scrollContent)
+    .pageContentMargins(fallback: pageInset)
   }
 #endif
 }
@@ -2443,13 +2450,15 @@ struct TrailersRailView: View {
 
   private var entries: [Entry] { Self.entries(item: item, videos: videos) }
 
-  private var metrics: ShelfMetrics { .landscape(width: railWidth, typeSize: typeSize) }
-  private var cardWidth: CGFloat { metrics.cardWidth(in: railWidth) }
+  @Environment(\.pageMargins) private var pageMargins
+  private var layoutWidth: CGFloat { pageMargins?.contentWidth ?? railWidth }
+  private var metrics: ShelfMetrics { .landscape(width: layoutWidth, typeSize: typeSize) }
+  private var cardWidth: CGFloat { metrics.cardWidth(in: layoutWidth) }
   private var pageInset: CGFloat {
 #if os(tvOS)
     metrics.inset
 #else
-    MediaItemLayout.horizontalInset
+    pageMargins?.leading ?? MediaItemLayout.horizontalInset
 #endif
   }
 
@@ -2583,7 +2592,7 @@ struct TrailersRailView: View {
       }
       .padding(.vertical, Metrics.landscapeFocusPadding)
     }
-    .contentMargins(.horizontal, pageInset, for: .scrollContent)
+    .pageContentMargins(fallback: pageInset)
   }
 #endif
 }

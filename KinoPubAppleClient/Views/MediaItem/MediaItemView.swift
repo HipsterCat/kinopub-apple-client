@@ -274,10 +274,13 @@ struct MediaItemView: View {
       // click outside closes it (Sasha, 2026-10-30).
       .hostsInfoPopups()
 #elseif os(iOS)
-      // iPad: the open sidebar floats over the page and is its leading safe area; bleeding
-      // under it cut the logo, the facts and the buttons on the left (Sasha, 2026-11-16).
-      // Vertical only there, as on a Mac. iPhone still bleeds edge to edge.
-      .ignoresSafeArea(edges: horizontalSizeClass == .regular ? .vertical : .all)
+      // Edge to edge: the picture runs under the iPad's open sidebar and past the
+      // iPhone's notch, the words and the first cards keep clear of both by the page
+      // margins measured here (`PageMargins`, Sasha 2026-11-16). Ignoring only the
+      // vertical safe area kept the words clear but left them flush against the sidebar,
+      // 20 pt where the same page has 40 without it.
+      .ignoresSafeArea()
+      .providesPageMargins()
 #else
       .ignoresSafeArea()
 #endif

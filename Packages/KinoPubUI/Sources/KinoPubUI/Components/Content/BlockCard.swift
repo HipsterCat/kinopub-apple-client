@@ -178,7 +178,8 @@ public struct BlockRail<Content: View>: View {
       }
       .frame(height: height)
       .scrollTargetLayout()
-      .padding(.horizontal, inset)
+      // The page's margins where it bleeds (`PageMargins`), `inset` elsewhere.
+      .pageMarginPadding(fallback: inset)
     }
     .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     // Cards are all one width, so aligning to them lands a card edge at the inset

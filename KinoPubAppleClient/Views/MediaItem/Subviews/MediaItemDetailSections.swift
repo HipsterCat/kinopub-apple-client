@@ -654,11 +654,11 @@ struct MediaItemRatingsSection: View {
             }
           }
 #if os(tvOS)
-          .padding(.horizontal, MediaItemLayout.horizontalInset)
+          .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
 #else
           // The tiles carry no padding of their own here, so the first mark starts where
           // the section's header does (Sasha, 2026-10-30).
-          .padding(.horizontal, MediaItemLayout.horizontalInset)
+          .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
           .padding(.vertical, MediaItemRatingsSection.tilePadding)
 #endif
           .animation(.easeOut(duration: 0.35),
@@ -1208,7 +1208,7 @@ struct MediaItemCastSection: View {
           .buttonStyle(PortraitButtonStyle())
         }
       }
-      .padding(.horizontal, MediaItemLayout.horizontalInset)
+      .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
       .padding(.vertical, Self.focusPadding)
     }
   }
@@ -1732,7 +1732,7 @@ struct MediaItemSetlistSection: View {
             }
           }
           .scrollTargetLayout()
-          .safeAreaPadding(.horizontal, MediaItemLayout.horizontalInset)
+          .pageSafeAreaPadding(fallback: MediaItemLayout.horizontalInset)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .scrollTargetBehavior(.viewAligned)
@@ -1802,7 +1802,7 @@ struct MediaItemAwardsSection: View {
             AwardRow(award: award)
           }
         }
-        .padding(.horizontal, MediaItemLayout.horizontalInset)
+        .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
       }
     }
   }
@@ -1862,7 +1862,7 @@ struct MediaItemPhotosSection: View {
 #endif
             }
           }
-          .padding(.horizontal, MediaItemLayout.horizontalInset)
+          .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
           .padding(.vertical, Self.focusPadding)
         }
       }
@@ -1918,7 +1918,7 @@ struct MediaItemCommunityVoteSection: View {
       voteButton(up: true)
       voteButton(up: false)
     }
-    .padding(.horizontal, MediaItemLayout.horizontalInset)
+    .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
 #if os(tvOS)
     // Slack for the focus-scale grow, same as the ratings row above.
     .padding(.vertical, DetailTileStyle.focusPadding)
@@ -3898,7 +3898,7 @@ struct MediaItemInfoColumns: View {
                  metadataPath: metadataPath,
                  links: externalMetadata.externalLinks)
     }
-    .padding(.horizontal, MediaItemLayout.horizontalInset)
+    .pageMarginPadding(fallback: MediaItemLayout.horizontalInset)
   }
 
   /// One value the four layouts share, so switching between them can only change the
@@ -4541,11 +4541,14 @@ struct MediaItemSectionHeader: View {
 #endif
   }
 
+  /// On the page margin, as the first card under it (`PageMargins`).
+  @Environment(\.pageMargins) private var pageMargins
+
   private func header(showsChevron: Bool) -> some View {
     SectionHeader(title,
                   count: count,
                   showsChevron: showsChevron,
-                  leadingInset: MediaItemLayout.horizontalInset)
+                  leadingInset: pageMargins?.leading ?? MediaItemLayout.horizontalInset)
   }
 }
 
