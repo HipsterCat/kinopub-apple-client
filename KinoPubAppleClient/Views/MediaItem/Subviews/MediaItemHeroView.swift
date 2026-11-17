@@ -716,7 +716,7 @@ struct MediaItemHeroView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   /// The page's side margins on a bleeding page (`PageMargins`), iOS only.
   @Environment(\.pageMargins) private var pageMargins
-  /// The band width at which the people's column did not fit beside the written one.
+  /// The room between the margins at which the people's column did not fit.
   @State private var creditsOverflowWidth: CGFloat?
 
   /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
@@ -1345,9 +1345,8 @@ struct MediaItemHeroView: View {
     // their column for this width.
     .onGeometryChange(for: CGFloat.self, of: \.size.width) { width in
       guard showsCreditsColumn, heroBandSize.width > 0 else { return }
-      let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
-      if width > heroBandSize.width - margins + 1 {
-        creditsOverflowWidth = heroBandSize.width
+      if width > bandWidthBetweenMargins + 1 {
+        creditsOverflowWidth = bandWidthBetweenMargins
       }
     }
 #endif
@@ -2122,11 +2121,18 @@ struct MediaItemHeroView: View {
     // Hidden for the width it overflowed at; any other width (a turn, the sidebar
     // closing) tries the column again.
     guard !phoneHeroGrows else { return false }
-    return creditsOverflowWidth == nil || creditsOverflowWidth != heroBandSize.width
+    return creditsOverflowWidth == nil || creditsOverflowWidth != bandWidthBetweenMargins
 #endif
   }
 
 #if !os(tvOS)
+  /// The band between the page margins — keyed on this, not on the band: the band is as
+  /// wide with the iPad's sidebar open as closed, the room beside it is not.
+  private var bandWidthBetweenMargins: CGFloat {
+    let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
+    return (heroBandSize.width - margins).rounded()
+  }
+
   /// The band's width less the page margins, the gutter and the corner poster: what the
   /// written column and the people's column share.
   private var creditsRoom: CGFloat? {
