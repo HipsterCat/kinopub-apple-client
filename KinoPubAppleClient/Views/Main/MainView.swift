@@ -180,11 +180,6 @@ struct MainView: View {
     // beneath the bar, and the bar can hide and reveal from that scroll. Sections apply
     // the 80 pt HIG side insets; a rail's trailing peek runs out to the screen edge.
     .ignoresSafeArea()
-#if os(iOS)
-    // The sides are measured, not ignored: the banner's words and every shelf's first
-    // card keep clear of the iPad's sidebar and the iPhone's notch (`PageMargins`).
-    .providesPageMargins()
-#endif
   }
 
   /// Continue Watching: five 16:9 stills across (HIG 5-column, 320 at 1920). Titles
@@ -517,6 +512,14 @@ struct MainView: View {
         return menuEntries(for: card, surface: surface, isContinueWatching: card.isLandscape)
       }
     )
+#if os(iOS)
+    // Edge to edge, as the title page: the banner's picture runs under the iPad's open
+    // sidebar and past the iPhone's notch — it stopped short of both and left bands of
+    // page colour (2026-11-16) — while its words and every shelf's first card keep clear
+    // of them by the page margins (`PageMargins`).
+    .ignoresSafeArea(.container, edges: .horizontal)
+    .providesPageMargins()
+#endif
   }
 
   /// Each row's header already carries its own page (`HomeCatalog` sets `destination`).

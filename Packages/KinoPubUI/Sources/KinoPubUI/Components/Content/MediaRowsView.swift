@@ -92,6 +92,8 @@ public struct MediaRowsView: View {
   @State private var containerHeight: CGFloat = 0
   /// The bars' insets over the page: the hero's picture runs on under the top one.
   @State private var barInsets = EdgeInsets()
+  /// The page's side margins where it bleeds (`PageMargins`).
+  @Environment(\.pageMargins) private var pageMargins
   /// The hero is still under the navigation bar / window toolbar: its titles and
   /// buttons go light over the picture.
   @State private var heroUnderBar = true
@@ -368,7 +370,9 @@ public struct MediaRowsView: View {
         }
       }
       .scrollTargetLayout()
-      .safeAreaPadding(.horizontal, metrics.inset)
+      // Clear of whatever covers the sides on a bleeding page (`PageMargins`).
+      .safeAreaPadding(.leading, metrics.inset + (pageMargins?.coveredLeading ?? 0))
+      .safeAreaPadding(.trailing, metrics.inset + (pageMargins?.coveredTrailing ?? 0))
       .padding(.vertical, Metrics.focusPadding)
     }
     .scrollTargetBehavior(.viewAligned)

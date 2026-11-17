@@ -716,6 +716,8 @@ struct MediaItemHeroView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   /// The page's side margins on a bleeding page (`PageMargins`), iOS only.
   @Environment(\.pageMargins) private var pageMargins
+  /// The band width at which the people's column did not fit beside the written one.
+  @State private var creditsOverflowWidth: CGFloat?
 
   /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
   /// all of that into one short strip, and none of it was further up the scroll.
@@ -1337,6 +1339,18 @@ struct MediaItemHeroView: View {
       }
 #endif
     }
+#if !os(tvOS)
+    // Wider than the band between the margins: the written column could not give way
+    // (the iPad's open sidebar, 2026-11-16) and the people ran off the screen. Drop
+    // their column for this width.
+    .onGeometryChange(for: CGFloat.self, of: \.size.width) { width in
+      guard showsCreditsColumn, heroBandSize.width > 0 else { return }
+      let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
+      if width > heroBandSize.width - margins + 1 {
+        creditsOverflowWidth = heroBandSize.width
+      }
+    }
+#endif
   }
 
   @ViewBuilder
@@ -2103,9 +2117,26 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     return true
 #else
-    return !phoneHeroGrows
+    // And only where it fits beside the written column: with the iPad's sidebar open
+    // the scores line alone left it no room, and it ran off the screen (2026-11-16).
+    // Hidden for the width it overflowed at; any other width (a turn, the sidebar
+    // closing) tries the column again.
+    guard !phoneHeroGrows else { return false }
+    return creditsOverflowWidth == nil || creditsOverflowWidth != heroBandSize.width
 #endif
   }
+
+#if !os(tvOS)
+  /// The band's width less the page margins, the gutter and the corner poster: what the
+  /// written column and the people's column share.
+  private var creditsRoom: CGFloat? {
+    guard heroBandSize.width > 0 else { return nil }
+    let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
+    var available = heroBandSize.width - margins - Self.columnGutter
+    if showsCornerPoster { available -= posterColumnWidth }
+    return available
+  }
+#endif
 
   /// A little under half the synopsis measure at most, as the Apple TV app's column is
   /// beside its text; a share of what is left beside the poster and the margins once
@@ -2115,10 +2146,7 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     return widest
 #else
-    let margins = pageMargins.map { $0.leading + $0.trailing } ?? 2 * Self.contentHorizontalInset
-    var available = heroBandSize.width - margins - Self.columnGutter
-    if showsCornerPoster { available -= posterColumnWidth }
-    guard available > 0 else { return widest }
+    guard let available = creditsRoom, available > 0 else { return widest }
     return min(widest, (available * Self.creditsColumnShare).rounded())
 #endif
   }
