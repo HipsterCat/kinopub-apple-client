@@ -560,7 +560,7 @@ struct MediaItemHeroView: View {
   }
 
   private func claim(_ target: MediaItemFocusTarget, reason: String) {
-    FocusLog.moved(section: "hero", element: "claim \(target) — \(reason)", focused: true)
+    FocusLog.decision("hero: claim \(target) — \(reason)")
     focus = target
   }
 
@@ -596,6 +596,18 @@ struct MediaItemHeroView: View {
   /// nothing. Retried for a moment: the row repaints from the player's progress on the
   /// same appearance, and a control mid-transition does not take focus.
   private func claimEntryAfterReturn() {
+    guard returnsFromPlayer else {
+      // Back from another page: UIKit's own restore puts focus back on the card that
+      // opened it, after the pop's transition. Probed at once, mid-pop, nothing was
+      // focused yet, so the hero took Play over the card (round 6, 2026-11-17). Only a
+      // page that is still focus-less well after the pop gets the entry control.
+      Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(900))
+        guard !isCovered, focus == nil, TVFocusProbe.nothingFocused else { return }
+        claim(actionEntryTarget, reason: "back with nothing focused")
+      }
+      return
+    }
     Task { @MainActor in
       for delay in [0, 150, 250, 400, 500] {
         try? await Task.sleep(for: .milliseconds(delay))
