@@ -73,6 +73,9 @@ struct TabsNavigationView: View {
 #if os(macOS)
   @State private var sidebarReselectGuard = SidebarReselectGuard()
 #endif
+#if os(iOS)
+  @State private var sizeClassSwap = SizeClassSwap()
+#endif
 
   var body: some View {
     modernTabs
@@ -208,6 +211,12 @@ struct TabsNavigationView: View {
         }
 #endif
         if newValue == .search {
+#if os(iOS)
+          // A phone turned between the wide bar and the bottom one (iPhone Air, Pro Max
+          // in landscape): the new bar picked its Search tab by itself, and the title
+          // page pushed on Home was lost with the switch (2026-11-16). Not the user's.
+          if navigationState.selectedTab != .search, sizeClassSwap.isRecent { return }
+#endif
           if navigationState.selectedTab == .search {
             navigationState.reselect(.search)
           } else {
@@ -298,6 +307,8 @@ struct TabsNavigationView: View {
 #elseif os(tvOS)
     tvTabBar
 #elseif os(iOS)
+    // Noted while the body is built, before the new bar exists and calls back.
+    let _ = sizeClassSwap.note(horizontalSizeClass)
     if horizontalSizeClass == .regular {
       padTabBar
     } else {
@@ -1392,5 +1403,23 @@ private extension View {
   func sidebarReselect(_ tab: NavigationTabs, using action: @escaping (NavigationTabs) -> Void) -> some View {
     simultaneousGesture(TapGesture().onEnded { action(tab) })
   }
+}
+#endif
+
+#if os(iOS)
+/// When the horizontal size class last changed. A reference held in `@State`, written
+/// from the body without invalidating it: the new tab bar calls the selection setter
+/// within the same update, before any `onChange` would run.
+@MainActor
+final class SizeClassSwap {
+  private var last: UserInterfaceSizeClass??
+  private var changedAt: Date = .distantPast
+
+  func note(_ sizeClass: UserInterfaceSizeClass?) {
+    if let last, last != sizeClass { changedAt = Date() }
+    last = .some(sizeClass)
+  }
+
+  var isRecent: Bool { Date().timeIntervalSince(changedAt) < 1 }
 }
 #endif
