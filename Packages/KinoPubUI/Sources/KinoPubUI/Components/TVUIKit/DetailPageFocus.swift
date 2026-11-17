@@ -43,6 +43,15 @@ public enum DetailPageMenu {
     return false
   }
 
+  /// How far the detail page holding focus is scrolled down from its top, read from
+  /// UIKit. Nil when focus is on no detail page. SwiftUI's geometry preference did not
+  /// follow the scrolls the focus engine makes in the embedded page (it read 0 deep in
+  /// the page), so Menu took the hero for being on screen and closed the title.
+  public static func focusedPageOffset() -> CGFloat? {
+    guard let scroll = focusedPageScroll() else { return nil }
+    return scroll.contentOffset.y + scroll.adjustedContentInset.top
+  }
+
   /// The scroll of the detail page that holds focus now, if any.
   static func focusedPageScroll() -> UIScrollView? {
     for anchor in anchors.allObjects {

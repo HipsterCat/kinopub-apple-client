@@ -595,9 +595,11 @@ final class TVDetailLayoutUITests: XCTestCase {
     try waitForHeroFocus()
     let depth = 3
     for level in 1...depth {
+      // A different cover each time (as `testTheBackdropFollowsTitleAfterTitle`): the
+      // same title twice is the same page, and a pop then looks like no pop.
+      let id = 9_901_000 + level
       XCTAssertTrue(seek(.down, until: "kinopub.poster.", limit: 10), "level \(level): \(focusedDescription)")
-      XCUIRemote.shared.press(.right)
-      Thread.sleep(forTimeInterval: 0.8)
+      XCTAssertTrue(seek(.right, until: "kinopub.poster.\(id)", limit: 24), "level \(level): \(focusedDescription)")
       note("open from level \(level)")
       XCUIRemote.shared.press(.select)
       Thread.sleep(forTimeInterval: 3.0)
@@ -616,7 +618,7 @@ final class TVDetailLayoutUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 2.0)
       note("menu at level \(level): to the title before")
       try shoot("menu-depth-\(level)-popped")
-      XCTAssertTrue(focusedDescription.contains("kinopub.poster."),
+      XCTAssertTrue(focusedDescription.contains("kinopub.poster.\(9_901_000 + level - 1)"),
                     "level \(level): the title before is not on the card that opened it: \(focusedDescription)")
     }
   }
