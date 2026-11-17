@@ -789,9 +789,12 @@ struct MediaItemView: View {
         // focus, not by the remembered scroll offset — that offset went stale after the
         // scroll back up, and Menu on Play then scrolled to where the page already was
         // instead of closing it (UI test, 2026-11-17).
+        FocusLog.decision("menu (SwiftUI): focus=\(focus.map { "\($0)" } ?? "nil") pageMinY=\(Int(pageScrollMinY))")
         if let focus, focus != .versionsRail {
+          FocusLog.decision("menu (SwiftUI): at the hero, dismiss")
           dismiss()
         } else if !menuReturnsToHero(proxy) {
+          FocusLog.decision("menu (SwiftUI): not below the hero, dismiss")
           dismiss()
         }
       }
@@ -839,6 +842,7 @@ struct MediaItemView: View {
   /// here writes `@FocusState` — that assignment left the card below visually focused.
   private func menuReturnsToHero(_ proxy: ScrollViewProxy, belowHero: Bool = false) -> Bool {
     guard belowHero || pageScrollMinY <= -40 else { return false }
+    FocusLog.decision("menu: back up to the hero (from \(belowHero ? "the sections" : "SwiftUI"), pageMinY=\(Int(pageScrollMinY)))")
     NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
     withAnimation(.easeInOut(duration: 0.45)) {
       proxy.scrollTo(Self.heroAnchor, anchor: .top)

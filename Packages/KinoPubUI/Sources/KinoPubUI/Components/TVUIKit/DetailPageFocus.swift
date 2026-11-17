@@ -199,7 +199,9 @@ public final class HeroButtonRowGuideView: UIView {
   /// item at the moment the engine asks — SwiftUI rebuilds its items, so a stored one
   /// goes stale. Menu asks this view the same way.
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    if let target = resolveEntry() { return [target] }
+    let target = resolveEntry()
+    FocusLog.decision("button-row guide asked: \(target.map { "\(type(of: $0)) \($0.frame)" } ?? "no item under the marker")")
+    if let target { return [target] }
     return []
   }
 

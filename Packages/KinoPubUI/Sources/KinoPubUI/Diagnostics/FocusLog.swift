@@ -158,6 +158,11 @@ public enum FocusLog {
     )
   }
 
+  /// A focus decision worth reading in any build (Menu at the hero, a redirect).
+  public static func decision(_ text: String) {
+    logger.notice("◆ \(text, privacy: .public)")
+  }
+
   // MARK: - Rejection trace
 
   @MainActor private static var rejectionObserver: NSObjectProtocol?

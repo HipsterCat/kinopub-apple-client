@@ -471,6 +471,19 @@ struct MediaItemHeroView: View {
           inDetails = true
           return
         }
+        // Up from the sections lands on the entry control. To UIKit the whole SwiftUI
+        // hero is one focus item (the hosting scroll view's group container); which
+        // control inside it gets focus is SwiftUI's own search, and that went to the
+        // circle nearest the card («…») or over the row onto the synopsis (Sasha,
+        // 2026-11-17). Focus is already in the hero here, so this is a move between
+        // two SwiftUI controls, not a write that pulls focus out of a UIKit card.
+        if inDetails, old == nil, target != actionEntryTarget,
+           target == .plot || target.isActionControl {
+          FocusLog.decision("hero: up from the sections landed on \(target), entry is \(actionEntryTarget)")
+          inDetails = false
+          claim(actionEntryTarget, reason: "up from the sections")
+          return
+        }
         inDetails = false
         onFocusEntered?()
         if target == actionEntryTarget {
