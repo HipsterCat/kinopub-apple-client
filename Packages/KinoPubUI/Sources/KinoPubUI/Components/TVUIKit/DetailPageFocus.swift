@@ -129,7 +129,8 @@ public enum HeroEntryFocus {
 
   /// Asks the engine to land on the entry control the guide names. Logs when the
   /// focused item afterwards is not that control.
-  public static func request() {
+  @discardableResult
+  public static func request() -> Bool {
     let inWindow = guides.allObjects.filter { $0.window != nil }
     let scroll = DetailPageMenu.focusedPageScroll()
     let guide = inWindow.first { guide in scroll.map { guide.isDescendant(of: $0) } ?? false }
@@ -137,9 +138,9 @@ public enum HeroEntryFocus {
     guard let guide else {
       FocusLog.rejected(heading: "menu", preferred: "hero entry", chosen: "—",
                         reason: "the button-row focus guide is not in the window")
-      return
+      return false
     }
-    guide.requestEntry()
+    return guide.requestEntry()
   }
 }
 
@@ -249,18 +250,19 @@ public final class HeroButtonRowGuideView: UIView {
     }
   }
 
-  func requestEntry() {
+  @discardableResult
+  func requestEntry() -> Bool {
     retarget()
     guard let system = window.flatMap({ UIFocusSystem.focusSystem(for: $0) }) else {
       FocusLog.rejected(heading: "menu", preferred: entryIdentifier, chosen: "—",
                         reason: "no focus system for the hero")
-      return
+      return false
     }
     let before = Self.describe(system.focusedItem)
     guard let target = resolveEntry() else {
       FocusLog.rejected(heading: "menu", preferred: entryIdentifier, chosen: before,
                         reason: "no focus item under the entry marker")
-      return
+      return false
     }
     system.requestFocusUpdate(to: target)
     system.updateFocusIfNeeded()
@@ -268,7 +270,9 @@ public final class HeroButtonRowGuideView: UIView {
       FocusLog.rejected(heading: "menu", preferred: entryIdentifier,
                         chosen: Self.describe(system.focusedItem),
                         reason: "requestFocusUpdate did not land on the entry control (was \(before))")
+      return false
     }
+    return true
   }
 
   // MARK: Finding the entry control

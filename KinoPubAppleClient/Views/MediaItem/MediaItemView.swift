@@ -850,7 +850,16 @@ struct MediaItemView: View {
     withAnimation(.easeInOut(duration: 0.45)) {
       proxy.scrollTo(Self.heroAnchor, anchor: .top)
     }
-    HeroEntryFocus.request()
+    // Once the hero is back on screen. A UIKit request for the SwiftUI entry control
+    // made at once, with the hero still off screen under a card, did not land (round 5:
+    // focus stayed on the off-screen card, nothing on screen looked focused). If the
+    // request still misses, SwiftUI's own focus moves there.
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(500))
+      guard !HeroEntryFocus.request() else { return }
+      FocusLog.decision("menu: the UIKit request missed, @FocusState takes the entry control")
+      focus = entryFocus
+    }
     return true
   }
 #endif
