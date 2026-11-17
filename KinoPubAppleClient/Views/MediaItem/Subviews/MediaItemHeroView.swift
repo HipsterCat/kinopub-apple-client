@@ -555,6 +555,7 @@ struct MediaItemHeroView: View {
 
   private func claimActionEntryFocus() {
     if focus == nil || focus == .plot {
+      FocusLog.decision("hero: entry claim \(actionEntryTarget) on appearing (focus was \(focus.map { "\($0)" } ?? "nil"))")
       focus = actionEntryTarget
     }
   }
