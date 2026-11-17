@@ -802,6 +802,12 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private var startsAtTop = false
 
+  private func scrollToTopIfNeeded(animated: Bool) {
+    let top = -collectionView.adjustedContentInset.top
+    guard abs(collectionView.contentOffset.y - top) > 0.5 else { return }
+    collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: top), animated: animated)
+  }
+
   private func resetToTop() {
     guard isViewLoaded else { return }
     nearEndReported = [:]
@@ -1511,6 +1517,13 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     // Skeleton tiles are not destinations. The masthead is: Up from the grid reaches
     // person / collection detail. Empty grid keeps its escape on the sort chip.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
+    // Another list, focus still outside it: the only way in is its first card. Focus
+    // re-entering through a SwiftUI `focusSection` (Right from the Library sidebar, Down
+    // from the tab bar) goes to the item that section remembers, without asking
+    // `indexPathForPreferredFocusedView` — after a list swap a cell of the old list,
+    // reused deep in the new one (focus landed on the old row and scrolled the page and
+    // the tab bar away), or gone, and then the engine focused the collection view itself.
+    if wantsTopFocus, let top = topIndexPath, indexPath != top, !ownsFocus { return false }
     switch item {
     // The hero's buttons take focus, not its cell.
     case .placeholder, .groupTitle, .hero: return false
@@ -1550,6 +1563,32 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
+    // A safety net: the engine fell back to the collection view itself (it keeps focus and
+    // rejects every press — Sasha's "REJECTED up: preferred UIScrollView"). Hand focus to
+    // the top card.
+    if context.nextFocusedView === collectionView, topIndexPath != nil {
+      wantsTopFocus = true
+      handoffPath = nil
+      collectionView.remembersLastFocusedIndexPath = false
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.ownsFocus else { return }
+        self.collectionView.setNeedsFocusUpdate()
+        self.collectionView.updateFocusIfNeeded()
+        // The engine had started scrolling to the card it picked; stopping that part-way
+        // leaves the page short of its top, and the tab bar, which follows this offset,
+        // half off the screen.
+        self.scrollToTopIfNeeded(animated: true)
+      }
+      return
+    }
+    // Out of the page into the tab bar: the bar follows this scroll view and is whole
+    // only at its top. The engine scrolls only as far as the cell it leaves needed, so a
+    // page left short of the top — an interrupted focus scroll, a list swapped under it —
+    // kept the bar cut off at the top edge while it had focus (Sasha, 2026-11-17).
+    if !isEmbedded, let bar = tabBarController?.tabBar, let next = context.nextFocusedView,
+       next.isDescendant(of: bar), context.previouslyFocusedView?.isDescendant(of: collectionView) == true {
+      coordinator.addCoordinatedAnimations({ [weak self] in self?.scrollToTopIfNeeded(animated: false) })
+    }
     let previousSection = context.previouslyFocusedIndexPath?.section
     let resolved = resolveFocusedPath(from: context)
     focusedPath = resolved

@@ -678,7 +678,10 @@ enum LibraryFixture {
       Bookmark(id: 9_906_001, title: "Вечером", views: 0, count: "4", created: now, updated: now),
       Bookmark(id: 9_906_002, title: "Посмотреть с друзьями на выходных когда-нибудь", views: 0,
                count: "70", created: now, updated: now - 60)
-    ]
+    ] + (0..<UserDefaults.standard.integer(forKey: "KINOPUBLibraryFixtureExtraFolders")).map {
+      Bookmark(id: 9_906_100 + $0, title: "Папка \($0 + 1)", views: 0, count: "\(($0 % 3) * 9 + 2)",
+               created: now, updated: now - 120 - $0)
+    }
   }
 
   /// A folder's titles, twenty to a page; past the last page kino.pub answers the last page

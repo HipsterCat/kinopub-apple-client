@@ -171,6 +171,192 @@ final class TVMenuBackUITests: XCTestCase {
     }
   }
 
+  /// Library under the real tab bar (fixture, no session): scroll a long section down,
+  /// walk the sidebar through sections of other heights and back, then Up to the bar.
+  /// The bar must come back whole — frame.minY >= 0 — and Up must reach it
+  /// (Sasha, 2026-11-17: bar cut off at the top after folder switches).
+  func testLibraryTabBarWholeAfterSectionSwitches() throws {
+    continueAfterFailure = true
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBLibraryFixture", "YES", "-KINOPUBFixtureInTabs", "YES"]
+    app.launch()
+    let page = app.collectionViews["kinopub.page.library"]
+    XCTAssertTrue(page.waitForExistence(timeout: 30), "no Library page")
+    Thread.sleep(forTimeInterval: 2)
+    var step = 0
+    func snap(_ name: String) {
+      step += 1
+      let bar = app.tabBars.firstMatch
+      let frame = bar.exists ? bar.frame : .null
+      let focused = libFocus(app)
+      print("LIBRARY-BAR \(step) \(name) bar \(frame) barFocused \(tabBarFocused(in: app)) focus \(focused)")
+      try? shoot(app, name: String(format: "lib-%02d-%@", step, name))
+      if bar.exists, tabBarFocused(in: app) {
+        XCTAssertGreaterThanOrEqual(frame.minY, -0.5, "step \(step) \(name): focused tab bar cut off \(frame)")
+      }
+    }
+    func row(_ id: String) -> XCUIElement { app.descendants(matching: .any)["kinopub.library.section.\(id)"] }
+    func press(_ b: XCUIRemote.Button, _ n: Int = 1, wait: TimeInterval = 0.9) {
+      for _ in 0..<n { XCUIRemote.shared.press(b); Thread.sleep(forTimeInterval: wait) }
+    }
+    func goTo(_ id: String) {
+      let target = row(id)
+      func on(_ e: XCUIElement) -> Bool { e.exists && e.hasFocus }
+      for _ in 0..<10 where !on(target) {
+        let ids = ["watchlist", "unwatched", "allBookmarks", "folder:9906001", "folder:9906002", "downloads", "history"]
+        let current = ids.firstIndex { on(row($0)) }
+        guard let current, let goal = ids.firstIndex(of: id) else { press(.left); continue }
+        press(goal > current ? .down : .up, wait: 1.2)
+      }
+      XCTAssertTrue(on(target), "never reached sidebar row \(id): \(libFocus(app))")
+    }
+    snap("launch")
+    if tabBarFocused(in: app) { press(.down, wait: 1.5); snap("into-page") }
+    press(.left); goTo("history"); snap("history-row")
+    press(.right, wait: 1.5); press(.down, 4, wait: 1.0); snap("history-scrolled")
+    press(.left); snap("back-in-sidebar")
+    goTo("folder:9906001"); snap("short-folder")
+    goTo("folder:9906002"); snap("long-folder")
+    goTo("watchlist"); snap("watchlist")
+    goTo("history"); snap("history-again")
+    press(.right, wait: 1.5); snap("history-grid")
+    press(.down, 3, wait: 1.0); snap("history-down")
+    press(.left); goTo("folder:9906001"); goTo("history"); snap("history-third")
+    press(.right, wait: 1.5); snap("grid-third")
+    var reached = false
+    for i in 0..<10 {
+      press(.up, wait: 1.2)
+      snap("up-\(i)")
+      if tabBarFocused(in: app) { reached = true; break }
+    }
+    XCTAssertTrue(reached, "Up from the grid never reached the tab bar: \(libFocus(app))")
+    Thread.sleep(forTimeInterval: 1.5); snap("bar-settled")
+    let bar = app.tabBars.firstMatch
+    XCTAssertTrue(bar.exists && bar.frame.minY >= -0.5, "tab bar not whole: \(bar.exists ? "\(bar.frame)" : "none")")
+    app.terminate()
+  }
+
+  /// Same, with a sidebar taller than the screen (a dozen more folders): the sidebar's
+  /// own table scrolls. Walk to History at the bottom, scroll its grid, come back up
+  /// the whole list to Subscriptions and Up into the tab bar.
+  func testLibraryTabBarWholeWithScrollingSidebar() throws {
+    continueAfterFailure = true
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBLibraryFixture", "YES", "-KINOPUBFixtureInTabs", "YES",
+                            "-KINOPUBLibraryFixtureExtraFolders", "12"]
+    app.launch()
+    XCTAssertTrue(app.collectionViews["kinopub.page.library"].waitForExistence(timeout: 30), "no Library page")
+    Thread.sleep(forTimeInterval: 2)
+    var step = 0
+    func snap(_ name: String) {
+      step += 1
+      let bar = app.tabBars.firstMatch
+      let frame = bar.exists ? bar.frame : .null
+      print("LIBRARY-BAR \(step) \(name) bar \(frame) barFocused \(tabBarFocused(in: app)) focus \(libFocus(app))")
+      try? shoot(app, name: String(format: "lib2-%02d-%@", step, name))
+      if bar.exists, tabBarFocused(in: app) {
+        XCTAssertGreaterThanOrEqual(frame.minY, -0.5, "step \(step) \(name): focused tab bar cut off \(frame)")
+      }
+    }
+    func press(_ b: XCUIRemote.Button, _ n: Int = 1, wait: TimeInterval = 0.9) {
+      for _ in 0..<n { XCUIRemote.shared.press(b); Thread.sleep(forTimeInterval: wait) }
+    }
+    func focusedRowID() -> String? {
+      let hit = app.descendants(matching: .any).matching(
+        NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.library.section.")).firstMatch
+      return hit.exists ? String(hit.identifier.dropFirst("kinopub.library.section.".count)) : nil
+    }
+    snap("launch")
+    if tabBarFocused(in: app) { press(.down, wait: 1.5) }
+    press(.left, wait: 1.2); snap("sidebar")
+    for _ in 0..<25 where focusedRowID() != "history" { press(.down, wait: 0.7) }
+    Thread.sleep(forTimeInterval: 1.5); snap("history-row")
+    XCTAssertEqual(focusedRowID(), "history")
+    press(.right, wait: 1.5); press(.down, 4, wait: 1.0); snap("history-scrolled")
+    press(.left, wait: 1.2); snap("back-in-sidebar")
+    for i in 0..<25 where focusedRowID() != "watchlist" {
+      press(.up, wait: 0.6)
+      if i % 4 == 0 { snap("sidebar-up-\(i)") }
+    }
+    Thread.sleep(forTimeInterval: 1.5); snap("watchlist-row")
+    var reached = false
+    for i in 0..<4 {
+      press(.up, wait: 1.2); snap("bar-up-\(i)")
+      if tabBarFocused(in: app) { reached = true; break }
+    }
+    XCTAssertTrue(reached, "Up from Subscriptions never reached the tab bar: \(libFocus(app))")
+    Thread.sleep(forTimeInterval: 1.5); snap("bar-settled")
+    // Down into the page again, then folders up and down at speed, back to the bar from the grid.
+    press(.down, wait: 1.5); snap("from-bar")
+    press(.left, wait: 1.0)
+    for _ in 0..<10 { press(.down, wait: 0.35) }
+    for _ in 0..<6 { press(.up, wait: 0.35) }
+    Thread.sleep(forTimeInterval: 1.5); snap("fast-walk")
+    press(.right, wait: 1.5); press(.down, 3, wait: 0.9); snap("grid-down")
+    for i in 0..<10 {
+      press(.up, wait: 1.1); snap("grid-up-\(i)")
+      if tabBarFocused(in: app) { break }
+    }
+    Thread.sleep(forTimeInterval: 1.5); snap("bar-settled-2")
+    let bar = app.tabBars.firstMatch
+    XCTAssertTrue(tabBarFocused(in: app), "grid Up never reached the bar")
+    XCTAssertTrue(bar.exists && bar.frame.minY >= -0.5, "tab bar not whole: \(bar.exists ? "\(bar.frame)" : "none")")
+    app.terminate()
+  }
+
+  /// Down from the tab bar into a Library section the sidebar just switched to must land
+  /// on a card, not on the collection view itself (which keeps focus and eats every press).
+  func testLibraryDownFromBarAfterSectionSwitch() throws {
+    continueAfterFailure = true
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBLibraryFixture", "YES", "-KINOPUBFixtureInTabs", "YES"]
+    app.launch()
+    let page = app.collectionViews["kinopub.page.library"]
+    XCTAssertTrue(page.waitForExistence(timeout: 30), "no Library page")
+    Thread.sleep(forTimeInterval: 2)
+    func press(_ b: XCUIRemote.Button, _ n: Int = 1, wait: TimeInterval = 1.2) {
+      for _ in 0..<n { XCUIRemote.shared.press(b); Thread.sleep(forTimeInterval: wait) }
+    }
+    func collectionFocused() -> Bool { page.exists && page.hasFocus }
+    var step = 0
+    func snap(_ name: String) {
+      step += 1
+      print("LIBRARY-BAR \(step) \(name) barFocused \(tabBarFocused(in: app)) collectionFocused \(collectionFocused()) focus \(libFocus(app))")
+      try? shoot(app, name: String(format: "lib4-%02d-%@", step, name))
+    }
+    if tabBarFocused(in: app) { press(.down, wait: 1.5) }
+    snap("start")
+    func focusedRowID() -> String? {
+      let hit = app.descendants(matching: .any).matching(
+        NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.library.section.")).firstMatch
+      return hit.exists ? String(hit.identifier.dropFirst("kinopub.library.section.".count)) : nil
+    }
+    for round in 1...2 {
+      press(.left)
+      for _ in 0..<8 where focusedRowID() != "watchlist" { press(.up, wait: 0.8) }
+      press(.down, wait: 2.5); press(.up, wait: 2.5); snap("r\(round)-switched")
+      XCTAssertEqual(focusedRowID(), "watchlist")
+      press(.up, wait: 1.5); snap("r\(round)-bar")
+      XCTAssertTrue(tabBarFocused(in: app), "round \(round): Up from Subscriptions did not reach the bar")
+      press(.down, wait: 1.5); snap("r\(round)-down")
+      XCTAssertFalse(collectionFocused(), "round \(round): Down from the bar focused the collection view itself")
+      XCTAssertTrue(page.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch.exists,
+                    "round \(round): no card focused after Down: \(libFocus(app))")
+      press(.up, wait: 1.5); snap("r\(round)-up-again")
+      XCTAssertTrue(tabBarFocused(in: app), "round \(round): Up did not go back to the bar: \(libFocus(app))")
+      press(.down, wait: 1.5)
+    }
+    app.terminate()
+  }
+
+  private func libFocus(_ app: XCUIApplication) -> String {
+    let f = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    return f.exists ? "\(f.elementType.rawValue) id=\(f.identifier) label=\(f.label.prefix(40)) \(f.frame)" : "none"
+  }
+
   private func focusHeroDetails(in app: XCUIApplication) throws {
     let details = app.buttons["kinopub.hero.details"]
     for _ in 0..<10 where !details.hasFocus {
