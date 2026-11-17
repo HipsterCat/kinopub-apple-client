@@ -780,11 +780,20 @@ struct MediaItemView: View {
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
       .background {
-        DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy) })
+        // Asked only while focus is in this page's sections: always below the hero.
+        DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
       }
       .onPreferenceChange(PageScrollOffsetKey.self) { pageScrollMinY = $0 }
       .onExitCommand {
-        if !menuReturnsToHero(proxy) { dismiss() }
+        // A hero control has focus: this is the hero, Menu closes the title. Decided by
+        // focus, not by the remembered scroll offset — that offset went stale after the
+        // scroll back up, and Menu on Play then scrolled to where the page already was
+        // instead of closing it (UI test, 2026-11-17).
+        if let focus, focus != .versionsRail {
+          dismiss()
+        } else if !menuReturnsToHero(proxy) {
+          dismiss()
+        }
       }
 #endif
 #if !os(tvOS)
@@ -828,8 +837,8 @@ struct MediaItemView: View {
   /// Menu below the hero scrolls back to it and asks the button-row guide for the
   /// entry control. At the hero the press is declined so the stack pops. Nothing
   /// here writes `@FocusState` — that assignment left the card below visually focused.
-  private func menuReturnsToHero(_ proxy: ScrollViewProxy) -> Bool {
-    guard pageScrollMinY <= -40 else { return false }
+  private func menuReturnsToHero(_ proxy: ScrollViewProxy, belowHero: Bool = false) -> Bool {
+    guard belowHero || pageScrollMinY <= -40 else { return false }
     NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
     withAnimation(.easeInOut(duration: 0.45)) {
       proxy.scrollTo(Self.heroAnchor, anchor: .top)
