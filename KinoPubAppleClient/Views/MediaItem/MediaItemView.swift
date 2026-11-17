@@ -767,6 +767,12 @@ struct MediaItemView: View {
           contentSections
         }
         .background {
+          // Inside the scroll, so the anchor's enclosing scroll view is this page's: in
+          // the ScrollView's own background it was a sibling of it, never found the
+          // page, and Menu on a card fell to SwiftUI with no offset and closed the title.
+          DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
+        }
+        .background {
           GeometryReader { geo in
             Color.clear.preference(
               key: PageScrollOffsetKey.self,
@@ -779,10 +785,6 @@ struct MediaItemView: View {
       .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
-      .background {
-        // Asked only while focus is in this page's sections: always below the hero.
-        DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
-      }
       .onPreferenceChange(PageScrollOffsetKey.self) { pageScrollMinY = $0 }
       .onExitCommand {
         // A hero control has focus: this is the hero, Menu closes the title. Decided by

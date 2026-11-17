@@ -502,8 +502,14 @@ struct MediaItemHeroView: View {
       // briefly paint plot-focused and then jump — that was the entry blink.
       .onAppear {
         if isCovered {
+          // Back from a page pushed over this one: focus goes back to where the viewer
+          // left it (the card that opened that page) — only the player's return and a
+          // return with nothing focused claim the entry control. Claiming Play here
+          // unconditionally took focus off the card (focus reads nil while a UIKit card
+          // holds it), so every Back landed on the hero (Sasha, 2026-11-17).
           isCovered = false
           claimEntryAfterReturn()
+          return
         }
         claimActionEntryFocus()
       }
