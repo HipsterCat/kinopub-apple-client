@@ -69,6 +69,21 @@ private struct PageGeometry: Equatable {
   var width: CGFloat
   var leading: CGFloat
   var trailing: CGFloat
+
+  /// Changes under this are layout noise, not something covering the page.
+  static let threshold: CGFloat = 2
+
+  func differsNoticeably(from other: PageGeometry) -> Bool {
+    abs(width - other.width) >= Self.threshold
+      || abs(leading - other.leading) >= Self.threshold
+      || abs(trailing - other.trailing) >= Self.threshold
+  }
+
+  /// Whole points: no float residue (5.7e-14) reaches the margins.
+  var snapped: PageGeometry {
+    PageGeometry(width: width.rounded(), leading: max(0, leading.rounded()),
+                 trailing: max(0, trailing.rounded()))
+  }
 }
 
 private struct PageMarginsProvider: ViewModifier {
@@ -89,7 +104,13 @@ private struct PageMarginsProvider: ViewModifier {
                      trailing: proxy.safeAreaInsets.trailing)
       } action: { value in
         guard value.width > 0 else { return }
-        geometry = value
+        // Only a real change: a sidebar, a turn, a notch — tens of points. Measured
+        // inside a page whose content it pads, the value also moved by fractions of a
+        // point with that content, and on an iPhone turned on a title page the hero and
+        // these margins resized each other for good: 352.0 ↔ 352.99 pt every frame, the
+        // main thread at 95 % and the turn never finishing (2026-11-17).
+        if let geometry, !geometry.differsNoticeably(from: value) { return }
+        geometry = value.snapped
       }
   }
 }

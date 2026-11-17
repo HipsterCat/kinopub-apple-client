@@ -16,15 +16,25 @@ extension Key where Value == String {
 enum WorkerImageAdminTokenStore {
   private static let storage = KeychainStorageImpl(service: service)
 
+  /// Read from the Keychain once per launch: every card's context menu asks for it from
+  /// its body, and a Keychain query per card showed up in the main thread's samples
+  /// (2026-11-17). This store is the only writer, so the copy stays true.
+  private static var cached: String??
+
   static var token: String? {
     get {
+      if let cached { return cached }
       let raw: String? = storage.object(for: .workerImageAdminToken)
       let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      return trimmed.isEmpty ? nil : trimmed
+      let value = trimmed.isEmpty ? nil : trimmed
+      cached = .some(value)
+      return value
     }
     set {
       let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      storage.setObject(trimmed.isEmpty ? nil : trimmed, for: .workerImageAdminToken)
+      let value = trimmed.isEmpty ? nil : trimmed
+      storage.setObject(value, for: .workerImageAdminToken)
+      cached = .some(value)
     }
   }
 
