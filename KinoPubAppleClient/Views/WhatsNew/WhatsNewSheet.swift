@@ -3,8 +3,8 @@
 //  KinoPubAppleClient
 //
 //  What's New, in the shared `InfoPopup`: once at launch for the bullets this device
-//  has not shown yet (Done or Menu marks them seen), and the whole history from
-//  Settings › About.
+//  has not shown yet (Continue / Done / Menu / tap outside marks them seen), and the
+//  whole history from Settings › About.
 //
 
 import SwiftUI
@@ -62,10 +62,19 @@ enum WhatsNewText {
     Text(verbatim: String(format: "Version %@ • Build %@".localized,
                           Bundle.main.appVersionLong, Bundle.main.appBuild))
   }
+
+  /// Primary dismiss on the update popup: Continue on phone / pad / Mac, Done on tvOS.
+  static var confirmTitle: Text {
+#if os(tvOS)
+    Text("Done")
+#else
+    Text("Continue")
+#endif
+  }
 }
 
 /// Presents What's New over the signed-in app when some bullet has not been shown on
-/// this device. Done or Menu records every bullet as seen.
+/// this device. Continue / Done / Menu / outside dismiss records every bullet as seen.
 struct WhatsNewPresentation: ViewModifier {
   var isSignedIn: Bool
   @AppStorage("selectedLanguage") private var selectedLanguage: String = (
@@ -77,7 +86,7 @@ struct WhatsNewPresentation: ViewModifier {
     content
       .infoPopup(Text("What's new"),
                  subtitle: WhatsNewText.currentBuild,
-                 confirmTitle: Text("Done"),
+                 confirmTitle: WhatsNewText.confirmTitle,
                  isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
                  onDismiss: markSeen) {
         ChangelogBullets(bullets: pending?.bullets ?? [])
@@ -117,10 +126,22 @@ extension View {
 #Preview("What's New") {
   InfoPopupView(title: Text("What's new"),
                 subtitle: Text(verbatim: "Версия 1.0 • Сборка 10"),
-                confirmTitle: Text("Done")) {
+                confirmTitle: WhatsNewText.confirmTitle) {
     ChangelogBullets(bullets: [
       "В Медиатеке слева — таблетки: Слежу, Продолжить, История и папки закладок.",
       "Баннер на главной снова по центру, соседние карточки выглядывают.",
     ])
   }
 }
+
+#if !os(tvOS)
+#Preview("What's New · one bullet") {
+  InfoPopupView(title: Text("What's new"),
+                subtitle: Text(verbatim: "Version 1.0 • Build 1"),
+                confirmTitle: Text("Continue")) {
+    ChangelogBullets(bullets: [
+      "iPhone and iPad: Download on a title page no longer quits the app.",
+    ])
+  }
+}
+#endif
