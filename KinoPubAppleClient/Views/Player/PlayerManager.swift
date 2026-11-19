@@ -92,6 +92,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// menu do not add to it — the skip must not fire while the chip is off screen.
   var skipCountdownElapsed: Double = 0
   var skipCountdownAnchor: Double?
+  /// Paused while Skip would not be on screen (chrome / transport menus). iOS and
+  /// macOS set this from `PlayerChromeMonitor`; tvOS from the transport-bar
+  /// delegate plus a menu poll (`refreshTVSkipGate`).
   var skipCountdownSuspended = false
   /// The viewer chose to keep watching this segment (the X, or «Смотреть титры»).
   var dismissedOffer: PlaybackSkip.Offer?
@@ -101,6 +104,11 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 #if os(tvOS)
   /// AVKit's button, kept so its ring can be redrawn in place.
   var skipAction: UIAction?
+  /// AVKit only presents Skip while the transport bar is down. Starts `true` so
+  /// auto-Skip cannot fire before the first visibility callback.
+  var transportBarVisible = true
+  /// Speed / Subtitles / Audio / similar menus over the player.
+  var transportMenuActive = false
 #endif
   /// What the info panel is enriched from, beyond kino.pub — see `PlaybackMediaContext`.
   private let metadataService: MetadataService
@@ -1700,6 +1708,11 @@ extension PlayerManager {
   /// controller.
   func attach(to controller: AVPlayerViewController) {
     playerViewController = controller
+    // Assume chrome is up until the transport-bar delegate says otherwise — auto-Skip
+    // must not fire before Skip itself can be on screen.
+    transportBarVisible = true
+    transportMenuActive = false
+    skipCountdownSuspended = true
     // A trailer's Info shows its running time, which says nothing useful about the title
     // and reads as the film's own length. AVKit has no switch for that one line, so the
     // Info panel goes for trailers (Sasha, 2026-11-03) until there is a way to hide it;

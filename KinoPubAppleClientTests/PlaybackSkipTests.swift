@@ -79,6 +79,38 @@ final class PlaybackSkipTests: XCTestCase {
     XCTAssertFalse(SkipChipVisibility.shown(hasOffer: false, controlsVisible: true, menuActive: false))
   }
 
+  func testTVSkipIsActionableOnlyWithChromeDownAndNoMenu() {
+    XCTAssertTrue(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: false, menuActive: false))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: true, menuActive: false))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: false, menuActive: true))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: false, transportBarVisible: false, menuActive: false))
+  }
+
+  func testCountdownSuspendsWhenSkipWouldBeHidden() {
+    // iOS / macOS: chip follows chrome.
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: false,
+                                                        chipFollowsChrome: true))
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: true,
+                                                        chipFollowsChrome: true))
+    XCTAssertFalse(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: false,
+                                                         chipFollowsChrome: true))
+    // tvOS: Skip is the inverse of the transport bar.
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: false,
+                                                        chipFollowsChrome: false))
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: true,
+                                                        chipFollowsChrome: false))
+    XCTAssertFalse(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: false,
+                                                         chipFollowsChrome: false))
+  }
+
+  func testTransportMenuHeuristicsCoverSpeedAndTrackMenus() {
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("AVPlaybackSpeedMenuView"))
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("AVMediaSelectionView"))
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("UIContextMenuContainer"))
+    XCTAssertFalse(PlayerTransportMenu.looksLikeMenu("AVPlaybackControlsView"))
+    XCTAssertFalse(PlayerTransportMenu.looksLikeMenu("UILabel"))
+  }
+
   func testCountdownClockRoundsUp() {
     XCTAssertEqual(PlaybackSkip.countdownSecondsLeft(countdownLeft: 1, delay: 4), 4)
     XCTAssertEqual(PlaybackSkip.countdownSecondsLeft(countdownLeft: 0.5, delay: 4), 2)
