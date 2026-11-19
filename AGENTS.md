@@ -194,6 +194,9 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 - **Watch state is `WatchProgress`**: watched = 85% of runtime (kino.pub's rule). Cards paint
   `resumeFraction`; Up Next timing (`upNextLeadTime`) is a separate question. Skip markers, when
   they land, feed this type.
+- **During playback only report watch time** (`marktime` + local progress). Progress ticks must not
+  refresh watching / bookmarks / history shelves — that flood can ban the account. Named-key
+  `ContentStore.invalidate` notifies Home only for `.continueWatching`.
 - **Continuity beats placeholders.** Card → detail carries the known item and artwork; stale local
   data paints first and revalidates underneath. Exact skeletons only on true cold loads.
 - **Stores:** `ContentStore` owns Home/Library rows; `MediaRecordStore` owns item facts (one

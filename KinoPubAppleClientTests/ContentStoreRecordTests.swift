@@ -166,6 +166,38 @@ final class ContentStoreRecordTests: XCTestCase {
     NotificationCenter.default.removeObserver(observer)
   }
 
+  func testLibraryWatchRowInvalidateDoesNotPostAWatchNotification() async {
+    let store = makeStore()
+    store.setItems([.card(MediaCard(id: 1, posterURL: "", title: "A"))],
+                   for: .watchlist)
+    store.setItems([.card(MediaCard(id: 2, posterURL: "", title: "B"))],
+                   for: .continueWatching)
+    let posted = expectation(description: "must not fire for library-only invalidate")
+    posted.isInverted = true
+    let observer = NotificationCenter.default.addObserver(
+      forName: .contentStoreDidInvalidateWatch, object: nil, queue: .main
+    ) { _ in posted.fulfill() }
+    store.invalidate([.watchlist, .unfinishedSerials, .history])
+    await fulfillment(of: [posted], timeout: 0.2)
+    NotificationCenter.default.removeObserver(observer)
+    XCTAssertTrue(store.isStale(.watchlist))
+    XCTAssertFalse(store.isStale(.continueWatching),
+                   "Continue Watching must stay warm when only Library rows go stale")
+  }
+
+  func testContinueWatchingKeyInvalidatePostsAWatchNotification() async {
+    let store = makeStore()
+    store.setItems([.card(MediaCard(id: 1, posterURL: "", title: "A"))],
+                   for: .continueWatching)
+    let posted = expectation(description: "continue watching invalidate")
+    let observer = NotificationCenter.default.addObserver(
+      forName: .contentStoreDidInvalidateWatch, object: nil, queue: .main
+    ) { _ in posted.fulfill() }
+    store.invalidate([.continueWatching])
+    await fulfillment(of: [posted], timeout: 1)
+    NotificationCenter.default.removeObserver(observer)
+  }
+
   func testCatalogInvalidateDoesNotPostAWatchNotification() async {
     let store = makeStore()
     store.setItems([.card(MediaCard(id: 1, posterURL: "", title: "A"))],
