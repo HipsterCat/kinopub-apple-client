@@ -1,10 +1,14 @@
 ## Unreleased
 
+- **TV tab polish:** channel caption stays the programme when focused (system
+  marquee when long) — no channel-name swap under the tile. `GET /v1/tv` is reused
+  for an hour (memory + Caches). Navigation path Binding skips no-op writes;
+  tvOS nav zoom snapshots are `UIImageView`s (not `_UIReplicantView`); PCM no
+  longer logs every `NonFocusablePosterView` clear.
+
 - **TV channel logos from the bundle:** seven sports channels paint from
   `KinoPubUI` `Media.xcassets/tv` as full cards (CDN for the rest).
   `TVPageLogo.bundledMark` / mark+focus-BG compositing stays wired but unused.
-  Unfocused channel captions show the programme; focused returns the channel name
-  (`focusedTitle` + `subtitleOnFocus`).
 
 - **Playback no longer refreshes Library / Continue Watching shelves:** progress ticks were invalidating watchlist / unfinished / history and notifying Home, which re-hit `/v1/watching/*`, bookmarks and `/v1/history?perpage=50` about every 10 s (ban risk). Named-key invalidate only notifies for `.continueWatching`; Library stale marks wait until the player ends; Home skips network refresh while the player is active; Continue Watching history is capped at 8 and skipped when a warm history cache exists.
 

@@ -239,14 +239,13 @@ public struct TVPageTile: Identifiable, Hashable {
   /// A channel logo (bundled and/or remote). Whole, never cropped: full cards are
   /// letterboxed (`TVUIKitTileArtwork.letterboxed`); mark+BG pairs composite instead.
   public let logo: TVPageLogo?
-  /// Replaces `title` under the tile while focused — TV channels show the channel name
-  /// on focus when `title` at rest is the programme.
+  /// Replaces `title` under the tile while focused when a surface needs a different
+  /// focused line. TV channels keep the programme in `title` for both states (marquee
+  /// while focused) and leave this nil.
   public let focusedTitle: String?
-  /// A second line under the name, in the still cell's secondary text — what a channel
-  /// has on air.
+  /// A second line under the name, in the still cell's secondary text.
   public let subtitle: String?
-  /// When true, `subtitle` is drawn only while the tile is focused (avoids duplicating
-  /// the programme under an at-rest caption that is already the programme).
+  /// When true, `subtitle` is drawn only while the tile is focused.
   public let subtitleOnFocus: Bool
 
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,

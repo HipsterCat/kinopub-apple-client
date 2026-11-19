@@ -168,6 +168,9 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
     controller.returnsToTopOnMenu = returnsToTopOnMenu
     controller.contentIdentity = contentID
     controller.onBelowTopRowChange = { below in
+      // Only publish when it changes — a no-op write still rebuilds the representable
+      // and re-enters `NavigationStack`'s path sync in the same frame.
+      guard belowTop != below else { return }
       belowTop = below
     }
   }
