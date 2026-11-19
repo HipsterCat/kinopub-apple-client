@@ -442,6 +442,20 @@ struct MediaItemHeroView: View {
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
         trailer.setActive(onScreen)
       }
+#if os(tvOS)
+      // Over the hero, not in the system sheet: that sheet is a fixed platter with a
+      // navigation bar (the green truncated «Выберите версию»).
+      .fullScreenCover(isPresented: $showsVersionPicker) {
+        VersionPickerSheet(
+          variants: mediaItem.playbackVariants,
+          fallbackStillURL: mediaItem.posters.wideURL
+            ?? (mediaItem.posters.big.isEmpty ? nil : mediaItem.posters.big),
+          linkProvider: linkProvider
+        )
+        .presentationBackground(.clear)
+        .pageColorScheme()
+      }
+#else
       .sheet(isPresented: $showsVersionPicker) {
         VersionPickerSheet(
           variants: mediaItem.playbackVariants,
@@ -450,6 +464,7 @@ struct MediaItemHeroView: View {
           linkProvider: linkProvider
         )
       }
+#endif
 #if os(tvOS)
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
       // than on the page, so a focus move re-renders the hero and nothing else.
@@ -1394,7 +1409,8 @@ struct MediaItemHeroView: View {
           lead: synopsis.lead,
           focus: $focus,
           allowsFocus: actionEntryClaimed,
-          popupSubtitle: popupOriginalTitle,
+          // The TV app's panel puts one genre under the title, not the original name.
+          popupSubtitle: mediaItem.genreNames.first,
           summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
         )
         .padding(.vertical, Self.contentSpacing / 2)
