@@ -1136,13 +1136,19 @@ class HomeCatalog: ObservableObject {
     async let moviesTask = try? itemsService.fetchWatchingMovies().items
     async let allSerialsTask = try? itemsService.fetchWatchingSerials(subscribedOnly: false).items
     async let watchlistTask = try? itemsService.fetchWatchingSerials(subscribedOnly: true).items
-    async let historyTask = fetchContinueWatchingHistory(skip: skipHistory)
     async let bookmarksTask = recentBookmarks(rules: rules)
+    // History is inlined (not an instance helper) so `async let` does not return a
+    // non-Sendable `[HistoryEntry]?` from MainActor into a @concurrent child task.
+    let historyResult: [HistoryEntry]?
+    if skipHistory {
+      historyResult = nil
+    } else {
+      historyResult = try? await itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
+    }
 
     let moviesResult = await moviesTask
     let serialsResult = await allSerialsTask
     let watchlistResult = await watchlistTask
-    let historyResult = await historyTask
     let bookmarked = await bookmarksTask
 
     // Each source degrades independently (one endpoint down still shows the other
@@ -1306,11 +1312,6 @@ class HomeCatalog: ObservableObject {
     // `invalidate` sets `fetchedAt` to `.distantPast` — age is then huge, so we
     // ask again after Library watch rows were marked stale post-playback.
     return age >= 0 && age < historyReuseWindow
-  }
-
-  private func fetchContinueWatchingHistory(skip: Bool) async -> [HistoryEntry]? {
-    guard !skip else { return nil }
-    return try? await itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
   }
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.
