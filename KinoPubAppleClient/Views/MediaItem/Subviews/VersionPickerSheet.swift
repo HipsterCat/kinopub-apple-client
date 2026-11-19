@@ -178,7 +178,7 @@ struct VersionPickerSheet: View {
   private var tvSheet: some View {
     VStack(alignment: .leading, spacing: 18) {
       Text("Choose a Version")
-        .font(InfoPopupMetrics.titleFont)
+        .font(.title3)
         .foregroundStyle(Color.KinoPub.text)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
@@ -200,7 +200,7 @@ struct VersionPickerSheet: View {
         }
       }
     }
-    .padding(InfoPopupMetrics.padding)
+    .padding(40)
     .tvHeroSheet()
     .defaultFocus($focusedID, rows.first?.id, priority: .userInitiated)
     .onAppear { focusedID = rows.first?.id }
