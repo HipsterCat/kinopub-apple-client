@@ -28,11 +28,10 @@ struct ProfileView: View {
 #if os(tvOS)
     TVProfileSettingsHost(model: model)
 #else
-    NavigationStack {
-      SettingsRootView(model: model)
-        .background(Color.KinoPub.background)
-    }
-    .navigationStackActive(for: .settings, selected: navigationState.selectedTab)
+    // SettingsRootView owns NavigationStack (phone) or NavigationSplitView (wide iOS / Mac).
+    SettingsRootView(model: model)
+      .background(Color.KinoPub.background)
+      .navigationStackActive(for: .settings, selected: navigationState.selectedTab)
 #endif
   }
 }

@@ -13,7 +13,7 @@ import AppKit
 #endif
 
 #if !os(tvOS)
-/// Shared Settings shell: sidebar split on macOS, category list on iOS.
+/// Shared Settings shell: sidebar split on macOS and wide iOS; category list on phone.
 struct SettingsRootView: View {
   @Environment(\.appContext) private var appContext
   @Bindable var model: ProfileModel
@@ -24,20 +24,36 @@ struct SettingsRootView: View {
   /// keeps its large one.
   @Environment(\.isSettingsSheet) private var isSheet
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  /// Profile by default on the split (Sasha, Settings UX).
+  @State private var selectedCategory: SettingsCategory? = .account
+  @State private var detailPath: [SettingsDetailRoute] = []
+  @State private var compactPath = NavigationPath()
+  @State private var searchText = ""
+  @State private var isSearchPresented = false
 #endif
 #if os(macOS)
   /// Back / Forward across panes and pushed pages (`SettingsMacChrome.swift`).
-  @State private var history = SettingsHistory(SettingsLocation(category: .general))
-     @Environment(\.appearsActive) var appearsActive
-     @FocusState private var isFocused: Bool
-     @State private var searchText = ""
+  /// Default pane: Profile / account (was General).
+  @State private var history = SettingsHistory(SettingsLocation(category: .account))
+  @Environment(\.appearsActive) var appearsActive
+  @FocusState private var isFocused: Bool
+  @State private var searchText = ""
 #endif
 
   var body: some View {
 #if os(macOS)
     macSplit
+      .kinopubSettingsChrome()
 #else
-    iosList
+    Group {
+      if horizontalSizeClass == .regular {
+        iosSplit
+      } else {
+        iosCompact
+      }
+    }
+    .kinopubSettingsChrome()
 #endif
   }
 
@@ -68,13 +84,12 @@ struct SettingsRootView: View {
           }
         }
       }
-      .searchable(text: $searchText, placement: .sidebar)
+      .modifier(SettingsMacSearchableModifier(query: $searchText, onSelect: openSearchEntry(_:)))
       .focused($isFocused)
       .opacity(1.0)
       .onAppear {
           isFocused = true
       }
-//      .listStyle(.sidebar)
       .navigationSplitViewColumnWidth(Self.macSidebarWidth)
       // System Settings' sidebar does not move; ours was dragged to zero and stayed
       // there (Sasha, 2026-11-08). Pinned, and opened again each time the window opens.
@@ -84,54 +99,12 @@ struct SettingsRootView: View {
       NavigationStack(path: detailPath) {
         macDetailRoot
           .navigationDestination(for: SettingsDetailRoute.self) { route in
-            switch route {
-            case .devicesList:
-              DevicesListView()
-                .settingsMacChrome(title: "Devices", isRoot: false)
-            case .storage:
-              StorageSettingsView()
-                .settingsMacChrome(title: "Storage & Data", isRoot: false)
-            case .sections:
-              SectionsSettingsView()
-                .settingsMacChrome(title: "Sections", isRoot: false)
-            case .networkLog:
-              NetworkConsoleView()
-                .settingsMacChrome(title: "Network log", isRoot: false)
-            case .featureFlags:
-              FeatureFlagsView()
-                .settingsMacChrome(title: "Feature flags", isRoot: false)
-            case .integration(let integration):
-              IntegrationDetailView(integration: integration)
-                .settingsMacChrome(title: LocalizedStringKey(integration.name), isRoot: false)
-            case .languageList(let kind):
-              PlaybackLanguageListEditor(kind: kind)
-                .settingsMacChrome(title: kind == .audio ? "Prefer audio in" : "Prefer subtitles in", isRoot: false)
-#if DEBUG
-            case .streamSurvey:
-              StreamSurveyView()
-                .settingsMacChrome(title: "Stream survey", isRoot: false)
-            case .uiLab(let chrome):
-              // Prefer Window menu / openWindow on macOS; this is a fallback push.
-              UILabRoot(initialChrome: chrome)
-                .settingsMacChrome(title: LocalizedStringKey(chrome.windowTitle), isRoot: false)
-            case .typeStyles:
-              SystemTypeStylesCatalogView()
-                .settingsMacChrome(title: "Type Styles", isRoot: false)
-            case .libraryLab:
-              LibrarySidebarLabView()
-                .settingsMacChrome(title: "Library Sidebar Lab", isRoot: false)
-            case .playerCases:
-              PlayerCasesView()
-                .settingsMacChrome(title: "Player cases", isRoot: false)
-#endif
-            }
+            detailDestination(route)
+              .settingsMacChrome(title: detailTitle(for: route), isRoot: false)
           }
       }
       .background(MacFixedSidebar(width: Self.macSidebarWidth))
-//      .navigationSplitViewColumnWidth(500)
     }
-//    .navigationSplitViewStyle(.balanced)
-//    .frame(width: 720, height: 520)
     .environment(history)
     .task {
       model.fetch()
@@ -140,18 +113,11 @@ struct SettingsRootView: View {
         history.replace(with: SettingsLocation(category: first))
       }
     }
-    .alert("Are you sure?", isPresented: $showLogoutAlert) {
-      Button("Logout", role: .destructive) { model.logout() }
-      Button("Cancel", role: .cancel) { }
-    }
-    .alert(isPresented: $model.shouldShowExitAlert) {
-      Alert(
-        title: Text("Restarting the app"),
-        message: Text("The app will restart to apply the language change."),
-        primaryButton: .default(Text("OK")) { exit(0) },
-        secondaryButton: .cancel()
-      )
-    }
+    .settingsAlerts(
+      showLogoutAlert: $showLogoutAlert,
+      shouldShowExitAlert: $model.shouldShowExitAlert,
+      logout: { model.logout() }
+    )
   }
 
   private static let macSidebarWidth: CGFloat = 240
@@ -181,98 +147,166 @@ struct SettingsRootView: View {
     pane(for: category)
       .settingsMacChrome(title: category.titleKey, isRoot: true)
   }
+
+  private func openSearchEntry(_ entry: SettingsSearchEntry) {
+    var location = SettingsLocation(category: entry.category)
+    if let route = entry.route {
+      location.path = [route]
+    }
+    history.visit(location)
+  }
 #endif
 
 #if os(iOS)
-  private var iosList: some View {
-    List {
-      // The account row opens the account's page, as TestFlight's and Settings' do: it
-      // was a dead row and only the categories under it opened (Sasha, 2026-11-10).
-      Section {
-        NavigationLink(value: SettingsCategory.account) {
+  private var iosSplit: some View {
+    NavigationSplitView {
+      List(selection: $selectedCategory) {
+        Section {
           SettingsSidebarProfileView(
             name: profileName,
             subtitle: profileSubtitle,
             avatarImage: avatarImage
           )
+          .tag(SettingsCategory.account)
         }
-      }
 
-      ForEach(SettingsCategory.availableCategories) { category in
-        NavigationLink(value: category) {
-          Label {
-            Text(category.titleKey)
-          } icon: {
-            SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+        Section {
+          ForEach(SettingsCategory.listedCategories) { category in
+            Label {
+              Text(category.titleKey)
+            } icon: {
+              SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+            }
+            .tag(category)
           }
         }
-      }
 
-      Section {
-        NavigationLink {
-          AboutView()
-        } label: {
+        Section {
           Label {
             Text("About")
           } icon: {
             SettingsIconView(systemImage: "info.circle.fill", color: .gray)
           }
+          .tag(SettingsCategory.about)
+        }
+      }
+      .navigationTitle("Settings")
+      .modifier(SettingsSearchableModifier(
+        query: $searchText,
+        isPresented: $isSearchPresented,
+        isPhone: false,
+        onSelect: openSearchEntry(_:)
+      ))
+      .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
+    } detail: {
+      NavigationStack(path: $detailPath) {
+        Group {
+          if let selectedCategory {
+            pane(for: selectedCategory)
+              .navigationTitle(selectedCategory.titleKey)
+              .navigationBarTitleDisplayMode(.inline)
+          } else {
+            ContentUnavailableView("Settings", systemImage: "gearshape")
+          }
+        }
+        .navigationDestination(for: SettingsDetailRoute.self) { route in
+          detailDestination(route)
         }
       }
     }
-    .navigationDestination(for: SettingsCategory.self) { category in
-      pane(for: category)
-        .navigationTitle(category.titleKey)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: SettingsDetailRoute.self) { route in
-          switch route {
-          case .devicesList:
-            DevicesListView()
-          case .storage:
-            StorageSettingsView()
-          case .sections:
-            SectionsSettingsView()
-          case .networkLog:
-            NetworkConsoleView()
-              .navigationTitle("Network log")
-          case .featureFlags:
-            FeatureFlagsView()
-          case .integration(let integration):
-            IntegrationDetailView(integration: integration)
-              .navigationTitle(integration.name)
-          case .languageList(let kind):
-            PlaybackLanguageListEditor(kind: kind)
-#if DEBUG
-          case .streamSurvey:
-            StreamSurveyView()
-          case .uiLab(let chrome):
-            UILabRoot(initialChrome: chrome)
-          case .typeStyles:
-            SystemTypeStylesCatalogView()
-          case .libraryLab:
-            LibrarySidebarLabView()
-          case .playerCases:
-            PlayerCasesView()
-#endif
-          }
-        }
-    }
-    .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
+    .navigationSplitViewStyle(.balanced)
     .task {
       model.fetch()
       await loadAvatar()
     }
-    .alert("Are you sure?", isPresented: $showLogoutAlert) {
-      Button("Logout", role: .destructive) { model.logout() }
-      Button("Cancel", role: .cancel) { }
+    .settingsAlerts(
+      showLogoutAlert: $showLogoutAlert,
+      shouldShowExitAlert: $model.shouldShowExitAlert,
+      logout: { model.logout() }
+    )
+  }
+
+  private var iosCompact: some View {
+    NavigationStack(path: $compactPath) {
+      List {
+        // The account row opens the account's page, as TestFlight's and Settings' do: it
+        // was a dead row and only the categories under it opened (Sasha, 2026-11-10).
+        Section {
+          NavigationLink(value: SettingsCategory.account) {
+            SettingsSidebarProfileView(
+              name: profileName,
+              subtitle: profileSubtitle,
+              avatarImage: avatarImage
+            )
+          }
+        }
+
+        ForEach(SettingsCategory.availableCategories) { category in
+          NavigationLink(value: category) {
+            Label {
+              Text(category.titleKey)
+            } icon: {
+              SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+            }
+          }
+        }
+
+        Section {
+          NavigationLink(value: SettingsCategory.about) {
+            Label {
+              Text("About")
+            } icon: {
+              SettingsIconView(systemImage: "info.circle.fill", color: .gray)
+            }
+          }
+        }
+      }
+      .navigationDestination(for: SettingsCategory.self) { category in
+        pane(for: category)
+          .navigationTitle(category.titleKey)
+          .navigationBarTitleDisplayMode(.inline)
+          .navigationDestination(for: SettingsDetailRoute.self) { route in
+            detailDestination(route)
+          }
+      }
+      .navigationDestination(for: SettingsDetailRoute.self) { route in
+        detailDestination(route)
+      }
+      .modifier(SettingsSearchableModifier(
+        query: $searchText,
+        isPresented: $isSearchPresented,
+        isPhone: true,
+        onSelect: openSearchEntry(_:)
+      ))
+      .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
     }
-    .alert(isPresented: $model.shouldShowExitAlert) {
-      Alert(
-        title: Text("Restarting the app"),
-        message: Text("The app will restart to apply the language change."),
-        primaryButton: .default(Text("OK")) { exit(0) },
-        secondaryButton: .cancel()
-      )
+    .task {
+      model.fetch()
+      await loadAvatar()
+    }
+    .settingsAlerts(
+      showLogoutAlert: $showLogoutAlert,
+      shouldShowExitAlert: $model.shouldShowExitAlert,
+      logout: { model.logout() }
+    )
+  }
+
+  private func openSearchEntry(_ entry: SettingsSearchEntry) {
+    searchText = ""
+    isSearchPresented = false
+    if horizontalSizeClass == .regular {
+      selectedCategory = entry.category
+      if let route = entry.route {
+        detailPath = [route]
+      } else {
+        detailPath = []
+      }
+    } else {
+      compactPath = NavigationPath()
+      compactPath.append(entry.category)
+      if let route = entry.route {
+        compactPath.append(route)
+      }
     }
   }
 #endif
@@ -322,6 +356,92 @@ struct SettingsRootView: View {
       AboutView()
     }
   }
+
+  @ViewBuilder
+  private func detailDestination(_ route: SettingsDetailRoute) -> some View {
+    switch route {
+    case .devicesList:
+      DevicesListView()
+#if os(iOS)
+        .navigationTitle("Devices")
+#endif
+    case .storage:
+      StorageSettingsView()
+#if os(iOS)
+        .navigationTitle("Storage & Data")
+#endif
+    case .sections:
+      SectionsSettingsView()
+#if os(iOS)
+        .navigationTitle("Sections")
+#endif
+    case .networkLog:
+      NetworkConsoleView()
+        .navigationTitle("Network log")
+    case .featureFlags:
+      FeatureFlagsView()
+#if os(iOS)
+        .navigationTitle("Feature flags")
+#endif
+    case .integration(let integration):
+      IntegrationDetailView(integration: integration)
+        .navigationTitle(integration.name)
+    case .languageList(let kind):
+      PlaybackLanguageListEditor(kind: kind)
+#if os(iOS)
+        .navigationTitle(kind == .audio ? "Prefer audio in" : "Prefer subtitles in")
+#endif
+#if DEBUG
+    case .streamSurvey:
+      StreamSurveyView()
+#if os(iOS)
+        .navigationTitle("Stream survey")
+#endif
+    case .uiLab(let chrome):
+      UILabRoot(initialChrome: chrome)
+#if os(iOS)
+        .navigationTitle(LocalizedStringKey(chrome.windowTitle))
+#endif
+    case .typeStyles:
+      SystemTypeStylesCatalogView()
+#if os(iOS)
+        .navigationTitle("Type Styles")
+#endif
+    case .libraryLab:
+      LibrarySidebarLabView()
+#if os(iOS)
+        .navigationTitle("Library Sidebar Lab")
+#endif
+    case .playerCases:
+      PlayerCasesView()
+#if os(iOS)
+        .navigationTitle("Player cases")
+#endif
+#endif
+    }
+  }
+
+#if os(macOS)
+  private func detailTitle(for route: SettingsDetailRoute) -> LocalizedStringKey {
+    switch route {
+    case .devicesList: return "Devices"
+    case .storage: return "Storage & Data"
+    case .sections: return "Sections"
+    case .networkLog: return "Network log"
+    case .featureFlags: return "Feature flags"
+    case .integration(let integration): return LocalizedStringKey(integration.name)
+    case .languageList(let kind):
+      return kind == .audio ? "Prefer audio in" : "Prefer subtitles in"
+#if DEBUG
+    case .streamSurvey: return "Stream survey"
+    case .uiLab(let chrome): return LocalizedStringKey(chrome.windowTitle)
+    case .typeStyles: return "Type Styles"
+    case .libraryLab: return "Library Sidebar Lab"
+    case .playerCases: return "Player cases"
+#endif
+    }
+  }
+#endif
 
   private func loadAvatar() async {
     if let cached = UserProfileCache.shared.loadAvatar(),
@@ -376,6 +496,41 @@ private extension View {
     } else {
       platformNavigationTitle("Settings")
     }
+  }
+}
+#endif
+
+#if !os(tvOS)
+private extension View {
+  /// Settings keeps system toggle green; the app shell's monochrome `.tint(.primary)`
+  /// otherwise paints switches white in Dark.
+  @ViewBuilder
+  func kinopubSettingsChrome() -> some View {
+#if os(iOS)
+    self.tint(.green)
+#else
+    self
+#endif
+  }
+
+  func settingsAlerts(
+    showLogoutAlert: Binding<Bool>,
+    shouldShowExitAlert: Binding<Bool>,
+    logout: @escaping () -> Void
+  ) -> some View {
+    self
+      .alert("Are you sure?", isPresented: showLogoutAlert) {
+        Button("Logout", role: .destructive, action: logout)
+        Button("Cancel", role: .cancel) { }
+      }
+      .alert(isPresented: shouldShowExitAlert) {
+        Alert(
+          title: Text("Restarting the app"),
+          message: Text("The app will restart to apply the language change."),
+          primaryButton: .default(Text("OK")) { exit(0) },
+          secondaryButton: .cancel()
+        )
+      }
   }
 }
 #endif

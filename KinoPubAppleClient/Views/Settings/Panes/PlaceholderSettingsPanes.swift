@@ -29,6 +29,8 @@ struct DownloadsSettingsPane: View {
 }
 
 struct AppearanceSettingsPane: View {
+  @AppStorage(AppearancePreference.storageKey)
+  private var appearanceRaw = AppearancePreference.system.rawValue
   @AppStorage(MediaCardDisplayPreferences.ratingPlacementKey)
   private var ratingPlacement = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
   @AppStorage(MediaCardDisplayPreferences.ratingSourceKey)
@@ -93,9 +95,18 @@ struct AppearanceSettingsPane: View {
     let _ = coverLanguageToken
     Form {
       Section {
-        LabeledContent("Theme", value: "Dark")
+        Picker("Theme", selection: $appearanceRaw) {
+          ForEach(AppearancePreference.allCases) { preference in
+            Text(preference.titleKey).tag(preference.rawValue)
+          }
+        }
+#if os(iOS)
+        .pickerStyle(.navigationLink)
+#else
+        .pickerStyle(.menu)
+#endif
       } footer: {
-        Text("Dark-only until a deliberate light-theme pass.")
+        Text("Settings_Tip_Theme")
       }
 
       Section {
