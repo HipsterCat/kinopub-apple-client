@@ -37,6 +37,16 @@ final class PlaybackSession: ObservableObject {
   @Published private(set) var request: Request?
   @Published private(set) var manager: PlayerManager?
 
+  /// Always-current session identity. `@Published` `manager` / `request` catch up on
+  /// the next main-actor turn so a SwiftUI view body that calls `play`
+  /// (`RouteDestination.systemPlayer`) does not publish during an update.
+  private var activeRequest: Request?
+  private var activeManager: PlayerManager?
+
+  /// Live manager even before the `@Published` mirror updates. Prefer this for
+  /// "is something playing?" checks that must not wait a turn.
+  var currentManager: PlayerManager? { activeManager }
+
   /// Requests whose playback has ended, by strict identity (token included). A
   /// navigation destination is re-evaluated while its route is leaving, and creating
   /// a manager there is what re-armed a dismissed stream — the "player reopens
@@ -66,6 +76,20 @@ final class PlaybackSession: ObservableObject {
     }
   }
 
+  /// Installs the live identity immediately, then mirrors into `@Published` off the
+  /// current view-update turn.
+  private func setActive(manager: PlayerManager?, request: Request?) {
+    activeManager = manager
+    activeRequest = request
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      // A later `play` / `stop` may have won before this turn ran.
+      guard self.activeManager === manager, self.activeRequest == request else { return }
+      if self.manager !== manager { self.manager = manager }
+      if self.request != request { self.request = request }
+    }
+  }
+
   /// Returns the shared manager for `item`, replacing the previous request when the
   /// id/mode changes so only one stream runs at a time.
   @discardableResult
@@ -77,32 +101,31 @@ final class PlaybackSession: ObservableObject {
     actionsService: UserActionsService
   ) -> PlayerManager {
     let next = Request(itemID: item.id, mode: mode, token: token)
-    if let manager, let request, request.matches(next) {
-      return manager
+    if let activeManager, let activeRequest, activeRequest.matches(next) {
+      return activeManager
     }
     if tombstonedRequests.contains(next), let stoppedManager {
       return stoppedManager
     }
 
-    if let request {
-      rememberTombstone(request)
-      stoppedManager = manager
+    if let activeRequest {
+      rememberTombstone(activeRequest)
+      stoppedManager = activeManager
     }
     let profile = Self.trackProfile(for: item)
     let plan = PlaybackPreflight.shared.plan(for: item, profile: profile)
     // macOS window (and other tokenless) swaps: retarget the live manager so the picture
     // stays up until the next item replaces it — tearing down to nil first was the wipe
     // between concert parts (KP-35). Routed plays keep minting a fresh manager.
-    if let manager, token == nil {
+    if let activeManager, token == nil {
       if let media = item as? MediaItem {
         AppContext.shared.localProgressStore.cacheItem(media)
       }
-      manager.retarget(playItem: item, watchMode: mode, trackProfile: profile, plan: plan)
-      self.manager = manager
-      self.request = next
-      return manager
+      activeManager.retarget(playItem: item, watchMode: mode, trackProfile: profile, plan: plan)
+      setActive(manager: activeManager, request: next)
+      return activeManager
     }
-    manager?.tearDownForReplacement()
+    activeManager?.tearDownForReplacement()
     if let media = item as? MediaItem {
       AppContext.shared.localProgressStore.cacheItem(media)
     }
@@ -120,8 +143,7 @@ final class PlaybackSession: ObservableObject {
     if let token, fromBeginningTokens.remove(token) != nil {
       created.startsFromBeginning = true
     }
-    manager = created
-    request = next
+    setActive(manager: created, request: next)
     return created
   }
 
@@ -152,15 +174,15 @@ final class PlaybackSession: ObservableObject {
   /// again. False when the session has moved on to something else.
   @discardableResult
   func adopt(_ manager: PlayerManager, token: UUID) -> Bool {
-    guard self.manager === manager, let request else { return false }
-    self.request = Request(itemID: request.itemID, mode: request.mode, token: token)
+    guard activeManager === manager, let activeRequest else { return false }
+    setActive(manager: manager,
+              request: Request(itemID: activeRequest.itemID, mode: activeRequest.mode, token: token))
     return true
   }
 
   func clear() {
-    manager?.tearDownForReplacement()
-    manager = nil
-    request = nil
+    activeManager?.tearDownForReplacement()
+    setActive(manager: nil, request: nil)
   }
 
   /// **Leaving the player ends the stream.** Called when the player surface goes away —
@@ -175,13 +197,12 @@ final class PlaybackSession: ObservableObject {
   @discardableResult
   func stop(_ manager: PlayerManager) -> Bool {
     manager.tearDownForReplacement()
-    guard self.manager === manager else { return false }
-    if let request {
-      rememberTombstone(request)
+    guard activeManager === manager else { return false }
+    if let activeRequest {
+      rememberTombstone(activeRequest)
     }
     stoppedManager = manager
-    self.manager = nil
-    request = nil
+    setActive(manager: nil, request: nil)
     return true
   }
 }

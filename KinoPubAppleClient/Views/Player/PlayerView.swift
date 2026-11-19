@@ -43,7 +43,8 @@ struct PlayerView: View {
   /// by AVKit's own error state.)
   private var liveManager: PlayerManager {
 #if os(tvOS)
-    playbackSession.manager ?? playerManager
+    // `currentManager` is live even before the `@Published` mirror catches up after `play`.
+    playbackSession.currentManager ?? playbackSession.manager ?? playerManager
 #else
     playerManager
 #endif

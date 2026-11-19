@@ -117,7 +117,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   static let rowsWatchingChanges: [RowKey] = [.watchlist, .unfinishedSerials, .history]
 
   private func noteWatchProgressChanged() {
-    if PlaybackSession.shared.manager != nil {
+    if PlaybackSession.shared.currentManager != nil {
       pendingWatchInvalidate = true
       return
     }
