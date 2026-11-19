@@ -28,6 +28,11 @@ enum VersionPickerDiff {
   }
 
   static func subtitle(for variant: PlaybackVariant, among variants: [PlaybackVariant]) -> String? {
+#if os(tvOS)
+    // The TV app's row is the edition and one line, «Audio: English» — not a
+    // joined list of runtime, quality, dub kind and subtitles.
+    return audioLine(for: variant)
+#else
     guard variants.count > 1 else { return nil }
     var parts: [String] = []
 
@@ -52,8 +57,20 @@ enum VersionPickerDiff {
 
     guard !parts.isEmpty else { return nil }
     return parts.joined(separator: " · ")
+#endif
   }
 
+#if os(tvOS)
+  /// «Звук: Русский», or «Звук: Русский + 2» when the edition has more than one language.
+  private static func audioLine(for variant: PlaybackVariant) -> String? {
+    let groups = AudioTracks.languageGroups(for: AudioTracks.catalog(variant.video.audios))
+    guard let first = groups.first else { return nil }
+    let name = groups.count == 1 ? first.name : "\(first.name) + \(groups.count - 1)"
+    return String(format: String(localized: "VersionPicker_Audio"), name)
+  }
+#endif
+
+#if !os(tvOS)
   // MARK: - Diff gates
 
   private static func durationsDiffer(in variants: [PlaybackVariant]) -> Bool {
@@ -114,6 +131,7 @@ enum VersionPickerDiff {
     if names.count == 1 { return names[0] }
     return "\(names[0]) + \(names.count - 1)"
   }
+#endif
 }
 
 /// «Choose a Version» — first row focused by default; Select plays that edition.
@@ -131,6 +149,9 @@ struct VersionPickerSheet: View {
   private var rows: [VersionPickerRow] { VersionPickerDiff.rows(for: variants) }
 
   var body: some View {
+#if os(tvOS)
+    tvSheet
+#else
     NavigationStack {
       list
         .navigationTitle(Text("Choose a Version"))
@@ -148,29 +169,48 @@ struct VersionPickerSheet: View {
         }
 #endif
     }
-#if os(tvOS)
-    .onAppear {
-      focusedID = rows.first?.id
-    }
 #endif
   }
 
-  @ViewBuilder
-  private var list: some View {
 #if os(tvOS)
-    List {
-      ForEach(rows) { row in
-        Button {
-          play(row.variant)
-        } label: {
-          rowLabel(row)
+  /// Compact rows over the hero: a centred title, then poster + name + one audio line.
+  /// No navigation bar — that bar was the green truncated header.
+  private var tvSheet: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      Text("Choose a Version")
+        .font(InfoPopupMetrics.titleFont)
+        .foregroundStyle(Color.KinoPub.text)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+      VStack(spacing: 12) {
+        ForEach(rows) { row in
+          Button {
+            play(row.variant)
+          } label: {
+            rowLabel(row)
+          }
+          .buttonStyle(.card)
+          // The card style paints the focused row white and recolors the label.
+          // A vertical `fixedSize` keeps that row at the poster's height: without
+          // it the button accepts the card's spare height and the sheet grows a
+          // blank band under the last edition.
+          .fixedSize(horizontal: false, vertical: true)
+          .focused($focusedID, equals: row.id)
+          .accessibilityIdentifier("kinopub.versionPicker.\(row.id)")
         }
-        .focused($focusedID, equals: row.id)
-        .accessibilityIdentifier("kinopub.versionPicker.\(row.id)")
       }
     }
+    .padding(InfoPopupMetrics.padding)
+    .tvHeroSheet()
     .defaultFocus($focusedID, rows.first?.id, priority: .userInitiated)
-#else
+    .onAppear { focusedID = rows.first?.id }
+    .onExitCommand { dismiss() }
+  }
+#endif
+
+#if !os(tvOS)
+  @ViewBuilder
+  private var list: some View {
     List {
       ForEach(rows) { row in
         Button {
@@ -184,26 +224,15 @@ struct VersionPickerSheet: View {
 #if os(macOS)
     .listStyle(.inset)
 #endif
-#endif
   }
+#endif
 
   private func rowLabel(_ row: VersionPickerRow) -> some View {
     HStack(alignment: .center, spacing: 16) {
       thumb(for: row.variant)
         .frame(width: thumbSize.width, height: thumbSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-      VStack(alignment: .leading, spacing: 4) {
-        Text(row.title)
-          .font(.headline)
-          .foregroundStyle(.primary)
-          .multilineTextAlignment(.leading)
-        if let subtitle = row.subtitle {
-          Text(subtitle)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.leading)
-        }
-      }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      VersionRowText(title: row.title, subtitle: row.subtitle)
       Spacer(minLength: 0)
     }
     .padding(.vertical, 6)
@@ -218,17 +247,55 @@ struct VersionPickerSheet: View {
       url: url,
       size: thumbSize,
       contentMode: .fill,
-      placeholder: { Color.secondary.opacity(0.25) },
-      failure: { Color.secondary.opacity(0.25) }
+      placeholder: {
+#if os(tvOS)
+        Color.clear
+#else
+        Color.secondary.opacity(0.25)
+#endif
+      },
+      failure: {
+#if os(tvOS)
+        Color.clear
+#else
+        Color.secondary.opacity(0.25)
+#endif
+      }
     )
   }
 
   private var thumbSize: CGSize {
 #if os(tvOS)
-    CGSize(width: 160, height: 90)
+    CGSize(width: 136, height: 76)
 #else
     CGSize(width: 96, height: 54)
 #endif
+  }
+
+  /// `.buttonStyle(.card)` paints the focused row white and does not recolor a
+  /// custom label, so the title would be white on white. The style still owns
+  /// the platter, the lift and the parallax.
+  private struct VersionRowText: View {
+    let title: String
+    let subtitle: String?
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.headline)
+          .foregroundStyle(isFocused ? Color.black : Color.primary)
+          .multilineTextAlignment(.leading)
+          .lineLimit(2)
+        if let subtitle {
+          Text(subtitle)
+            .font(.subheadline)
+            .foregroundStyle(isFocused ? Color.black.opacity(0.6) : Color.secondary)
+            .multilineTextAlignment(.leading)
+            .lineLimit(1)
+        }
+      }
+    }
   }
 
   private func play(_ variant: PlaybackVariant) {

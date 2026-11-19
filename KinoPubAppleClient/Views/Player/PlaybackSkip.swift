@@ -36,14 +36,27 @@ enum PlaybackSkip {
   /// no skip at all.
   static let tail: Double = 2
 
-  /// The segment playing at `seconds`, while more than `tail` of it is left. A film is never
-  /// offered its credits: there may be a scene after them, and the end is near anyway.
+  /// How close to the stream's end a jump still counts as finishing the title.
+  /// Matches `closingCreditsStart`'s end-of-stream tolerance.
+  static let endTolerance: Double = 5
+
+  /// The segment playing at `seconds`, while more than `tail` of it is left.
+  ///
+  /// A film is offered its credits only when they close the title (they run to the end).
+  /// Mid-film credits with a scene after them stay off — the end is near and a skip
+  /// into the middle of a scene is not useful.
   ///
   /// `nextEpisodeAtCredits`: the next episode is proposed when credits that close the
   /// episode begin (tvOS's Up Next panel), so they get no skip of their own.
   static func offer(at seconds: Double, in segments: SkipSegments, durationSeconds: Double,
                     isEpisode: Bool, nextEpisodeAtCredits: Bool = false) -> Offer? {
-    let kinds: [SkipSegments.Kind] = isEpisode ? [.recap, .intro, .credits, .preview] : [.recap, .intro]
+    var kinds: [SkipSegments.Kind] = isEpisode
+      ? [.recap, .intro, .credits, .preview]
+      : [.recap, .intro]
+    // Closing credits on a film: Skip finishes the title instead of seeking into the end.
+    if !isEpisode, closingCreditsStart(in: segments, durationSeconds: durationSeconds) != nil {
+      kinds.append(.credits)
+    }
     for kind in kinds {
       guard let segment = segments[kind] else { continue }
       if kind == .credits, nextEpisodeAtCredits,
@@ -55,6 +68,19 @@ enum PlaybackSkip {
       return Offer(kind: kind, targetSeconds: end)
     }
     return nil
+  }
+
+  /// Skip lands at (or within `endTolerance` of) the stream's end — last episode credits,
+  /// a film's closing credits, or a preview that runs out the item.
+  static func finishesTitle(_ offer: Offer, durationSeconds: Double) -> Bool {
+    guard durationSeconds > 0 else { return false }
+    return offer.targetSeconds >= durationSeconds - endTolerance
+  }
+
+  /// SF Symbol for the Skip control: `forward.end.fill` when Skip closes the player,
+  /// otherwise `forward.fill`.
+  static func symbolName(for offer: Offer, durationSeconds: Double) -> String {
+    finishesTitle(offer, durationSeconds: durationSeconds) ? "forward.end.fill" : "forward.fill"
   }
 
   /// Seconds of playback tvOS waits before its own button skips. iOS and the Mac
@@ -80,7 +106,7 @@ enum PlaybackSkip {
   static func closingCreditsStart(in segments: SkipSegments, durationSeconds: Double) -> Double? {
     guard let credits = segments[.credits], durationSeconds > 0 else { return nil }
     let end = credits.endMs.map { Double($0) / 1000 } ?? durationSeconds
-    guard end >= durationSeconds - 5 else { return nil }
+    guard end >= durationSeconds - endTolerance else { return nil }
     let start = Double(credits.startMs) / 1000
     return start > 0 && start < durationSeconds ? start : nil
   }
@@ -183,10 +209,26 @@ enum SkipChipPreferences {
 }
 
 enum SkipChipVisibility {
-  /// The chip is up only while the player chrome is up, and never over a menu
-  /// that chrome owns.
+  /// iOS / macOS: the custom chip sits with the player chrome, and never over a
+  /// menu that chrome owns.
   static func shown(hasOffer: Bool, controlsVisible: Bool, menuActive: Bool) -> Bool {
     hasOffer && controlsVisible && !menuActive
+  }
+
+  /// tvOS: AVKit presents `contextualActions` only when the transport bar is
+  /// not visible (Apple docs). A transport menu (Speed, Subtitles, Audio, …)
+  /// also hides Skip.
+  static func actionable(hasOffer: Bool, transportBarVisible: Bool, menuActive: Bool) -> Bool {
+    hasOffer && !transportBarVisible && !menuActive
+  }
+
+  /// Whether the auto-skip countdown must pause.
+  /// - iOS / macOS (`chipFollowsChrome`): suspend when chrome is down or a menu is up.
+  /// - tvOS: Skip is the inverse of the transport bar — suspend when the bar is
+  ///   up or a menu is up.
+  static func countdownSuspended(chromeVisible: Bool, menuActive: Bool,
+                                 chipFollowsChrome: Bool) -> Bool {
+    chipFollowsChrome ? (!chromeVisible || menuActive) : (chromeVisible || menuActive)
   }
 }
 
@@ -239,8 +281,8 @@ struct SkipSegmentsPreview: Equatable {
   }
 
   /// Each part in the order it plays, with how long it lasts. A segment that runs to the
-  /// end is measured to the runtime. A film's credits are listed too, though the player
-  /// never offers them (a scene may follow).
+  /// end is measured to the runtime. A film's credits are listed too — the player only
+  /// offers them when they close the title.
   static func rows(_ segments: SkipSegments?, durationSeconds: Double) -> [Row] {
     guard let segments else { return [] }
     let order: [SkipSegments.Kind] = [.recap, .intro, .credits, .preview]
@@ -381,19 +423,29 @@ extension PlayerManager {
 
   /// The viewer pressed the button, or its countdown ran out: to the segment's end, and
   /// the button goes at once.
+  ///
+  /// When Skip would finish the title (closing credits on a film, last-episode end,
+  /// preview that runs out the stream), do **not** seek to the end — mark watched and
+  /// close (or hand off via `onPlaybackEnded`) immediately. Seeking first left the
+  /// playhead on the last frame before the end handler ran.
   func performSkip(automatically: Bool = false) {
     guard let offer = skipOffer else { return }
-    Logger.app.info("Skip \(offer.kind.rawValue, privacy: .public) to \(offer.targetSeconds)s\(automatically ? " (countdown)" : "", privacy: .public)")
+    let finishes = PlaybackSkip.finishesTitle(offer, durationSeconds: skipDurationSeconds)
+    Logger.app.info("Skip \(offer.kind.rawValue, privacy: .public) \(finishes ? "finish title" : "to \(offer.targetSeconds)s", privacy: .public)\(automatically ? " (countdown)" : "", privacy: .public)")
     skippedKinds.insert(offer.kind)
     skipOfferShownAt = nil
-    player.seek(to: CMTime(seconds: offer.targetSeconds, preferredTimescale: 600),
-                toleranceBefore: .zero, toleranceAfter: .positiveInfinity)
     skippedOffer = offer
     dismissedOffer = nil
     skipCountdownElapsed = 0
     skipCountdownAnchor = nil
     skipOffer = nil
     showSkip(nil)
+    if finishes {
+      finishTitleFromSkip()
+      return
+    }
+    player.seek(to: CMTime(seconds: offer.targetSeconds, preferredTimescale: 600),
+                toleranceBefore: .zero, toleranceAfter: .positiveInfinity)
   }
 
   /// The viewer wants this part: credits, a recap, the opening of episode 1.
@@ -445,9 +497,19 @@ extension PlayerManager {
       showSkip(offer)
     }
 #if os(tvOS)
+    refreshTVSkipGate()
     guard offer != nil, let shownAt = skipOfferShownAt else { return }
     // Scrubbed back before the button appeared: the countdown starts over from here.
     if seconds < shownAt { skipOfferShownAt = seconds }
+    // Transport bar up, or a Speed / Subtitles / Audio menu: Skip is not on
+    // screen, so the countdown must not run or fire.
+    if skipCountdownSuspended {
+      let left = skipCountdownLeft
+      if PlaybackSkip.countdown > 0 {
+        skipOfferShownAt = seconds - (1 - left) * PlaybackSkip.countdown
+      }
+      return
+    }
     let left = PlaybackSkip.countdownLeft(at: seconds, shownAt: skipOfferShownAt ?? seconds)
     skipCountdownLeft = left
     if left <= 0 {
@@ -466,8 +528,8 @@ extension PlayerManager {
       skipCountdownAnchor = seconds
       return
     }
-    // Chrome hidden, or a subtitle / audio menu open: the clock does not run,
-    // so the skip cannot fire while there is nothing on screen to cancel it.
+    // Chrome hidden, or a subtitle / audio / speed menu open: the clock does not
+    // run, so the skip cannot fire while there is nothing on screen to cancel it.
     if skipCountdownSuspended {
       skipCountdownAnchor = seconds
       return
@@ -485,6 +547,37 @@ extension PlayerManager {
 #endif
   }
 
+#if os(tvOS)
+  /// Combines the transport-bar delegate flag with a view-tree poll for menus
+  /// (Speed, Subtitles, Audio, …) that the bar-visibility callback alone can miss.
+  func refreshTVSkipGate() {
+    let menu = playerViewController.map(TVPlayerChrome.menuActive(in:)) ?? false
+    transportMenuActive = menu
+    let suspended = SkipChipVisibility.countdownSuspended(
+      chromeVisible: transportBarVisible,
+      menuActive: menu,
+      chipFollowsChrome: false
+    )
+    applyTVSkipSuspension(suspended)
+  }
+
+  /// Called from `AVPlayerViewControllerDelegate.willTransitionToVisibilityOfTransportBar`.
+  func noteTransportBar(visible: Bool) {
+    transportBarVisible = visible
+    refreshTVSkipGate()
+  }
+
+  private func applyTVSkipSuspension(_ suspended: Bool) {
+    let changed = skipCountdownSuspended != suspended
+    skipCountdownSuspended = suspended
+    if suspended {
+      playerViewController?.contextualActions = []
+    } else if changed, let offer = skipOffer {
+      showSkip(offer)
+    }
+  }
+#endif
+
   /// tvOS: AVKit's own button (`contextualActions`), which it animates in and out. iOS and
   /// the Mac draw `SkipChipOverlay` from `skipOffer`.
   private func showSkip(_ offer: PlaybackSkip.Offer?) {
@@ -495,13 +588,18 @@ extension PlayerManager {
         playerViewController?.contextualActions = []
         return
       }
-      let action = UIAction(title: PlaybackSkip.title,
-                            image: skipOfferShownAt == nil ? nil : SkipCountdownGlyph.image(left: 1)) { [weak self] _ in
+      let symbol = PlaybackSkip.symbolName(for: offer, durationSeconds: skipDurationSeconds)
+      let image: UIImage? = skipOfferShownAt == nil
+        ? UIImage(systemName: symbol)
+        : SkipCountdownGlyph.image(left: 1, symbolName: symbol)
+      let action = UIAction(title: PlaybackSkip.title, image: image) { [weak self] _ in
         self?.performSkip()
       }
       action.accessibilityLabel = PlaybackSkip.accessibilityTitle(for: offer.kind)
       skipAction = action
-      playerViewController?.contextualActions = [action]
+      // AVKit only presents contextual actions while the transport bar is hidden;
+      // keep the array empty while chrome or a menu would hide Skip anyway.
+      playerViewController?.contextualActions = skipCountdownSuspended ? [] : [action]
     }
 #endif
   }
@@ -511,24 +609,31 @@ extension PlayerManager {
   private func updateSkipRing(_ left: Double) {
 #if os(tvOS)
     MainActor.assumeIsolated {
-      skipAction?.image = SkipCountdownGlyph.image(left: left)
+      guard !skipCountdownSuspended, let offer = skipOffer else { return }
+      let symbol = PlaybackSkip.symbolName(for: offer, durationSeconds: skipDurationSeconds)
+      skipAction?.image = SkipCountdownGlyph.image(left: left, symbolName: symbol)
     }
 #endif
   }
 }
 
 #if os(tvOS)
-/// The glyph of tvOS's skip button: a play arrow inside a ring that drains with the
-/// countdown, the shape of the TV app's «Next Episode» (Sasha's photo, 2026-11-10).
+/// The glyph of tvOS's skip button: an SF Symbol (`forward.fill` / `forward.end.fill`)
+/// inside a ring that drains with the countdown — the shape of the TV app's
+/// «Next Episode», with Apple's skip symbols instead of `play.circle`.
 @MainActor
 enum SkipCountdownGlyph {
   static let side: CGFloat = 38
 
-  static func image(left: Double) -> UIImage {
+  static func image(left: Double, symbolName: String) -> UIImage {
     // Twenty steps are enough for the eye and keep the images few.
     let step = (left * 20).rounded() / 20
-    if let cached = cache[step] { return cached }
+    let key = "\(symbolName):\(step)"
+    if let cached = cache[key] { return cached }
     let size = CGSize(width: side, height: side)
+    let symbolConfig = UIImage.SymbolConfiguration(pointSize: side * 0.42, weight: .semibold)
+    let symbol = UIImage(systemName: symbolName, withConfiguration: symbolConfig)?
+      .withTintColor(.black, renderingMode: .alwaysOriginal)
     let image = UIGraphicsImageRenderer(size: size).image { context in
       let cg = context.cgContext
       let lineWidth: CGFloat = 3
@@ -544,19 +649,17 @@ enum SkipCountdownGlyph {
                   endAngle: startAngle + 2 * .pi * CGFloat(step), clockwise: false)
         cg.strokePath()
       }
-      // The arrow, a third of the ring.
-      let arrow = radius * 0.62
-      cg.setFillColor(UIColor.black.cgColor)
-      cg.move(to: CGPoint(x: center.x - arrow * 0.45, y: center.y - arrow * 0.6))
-      cg.addLine(to: CGPoint(x: center.x + arrow * 0.65, y: center.y))
-      cg.addLine(to: CGPoint(x: center.x - arrow * 0.45, y: center.y + arrow * 0.6))
-      cg.closePath()
-      cg.fillPath()
+      if let symbol {
+        let symbolSize = symbol.size
+        let origin = CGPoint(x: (size.width - symbolSize.width) / 2,
+                             y: (size.height - symbolSize.height) / 2)
+        symbol.draw(at: origin)
+      }
     }.withRenderingMode(.alwaysTemplate)
-    cache[step] = image
+    cache[key] = image
     return image
   }
 
-  private static var cache: [Double: UIImage] = [:]
+  private static var cache: [String: UIImage] = [:]
 }
 #endif

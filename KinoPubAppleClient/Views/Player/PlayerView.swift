@@ -43,7 +43,8 @@ struct PlayerView: View {
   /// by AVKit's own error state.)
   private var liveManager: PlayerManager {
 #if os(tvOS)
-    playbackSession.manager ?? playerManager
+    // `currentManager` is live even before the `@Published` mirror catches up after `play`.
+    playbackSession.currentManager ?? playbackSession.manager ?? playerManager
 #else
     playerManager
 #endif
@@ -370,6 +371,17 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     func playerViewControllerShouldDismiss(_ playerViewController: AVPlayerViewController) -> Bool {
       onMenuPress()
       return false
+    }
+
+    /// Skip (`contextualActions`) is only presented while the transport bar is
+    /// hidden. Drive the auto-Skip countdown from the same signal so it cannot
+    /// fire while chrome (or a menu that keeps chrome up) obscures the button.
+    func playerViewController(
+      _ playerViewController: AVPlayerViewController,
+      willTransitionToVisibilityOfTransportBar visible: Bool,
+      with coordinator: any AVPlayerViewControllerAnimationCoordinator
+    ) {
+      manager.noteTransportBar(visible: visible)
     }
 
     // MARK: Picture in Picture (`PictureInPictureKeeper`)

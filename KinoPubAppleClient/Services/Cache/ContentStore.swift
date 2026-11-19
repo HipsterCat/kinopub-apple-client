@@ -265,14 +265,19 @@ final class ContentStore {
 
   /// The same, for named rows only — when one family member must refetch and the rest
   /// (Home's Continue Watching, which overlays local progress itself) must not.
+  ///
+  /// Only `.continueWatching` posts `contentStoreDidInvalidateWatch`. Marking Library
+  /// watchlist / unfinished / history stale (e.g. on a progress tick) must not force
+  /// Home to re-hit `/v1/watching/*`, `/v1/history`, and bookmarks — that spam can ban
+  /// the account. Family-wide `invalidate(family: .watch)` still notifies.
   func invalidate(_ keys: [RowKey]) {
-    var didWatch = false
+    var notifyContinueWatching = false
     for key in keys {
       bump(key)
       rows[key]?.fetchedAt = .distantPast
-      if key.family == .watch { didWatch = true }
+      if key == .continueWatching { notifyContinueWatching = true }
     }
-    if didWatch {
+    if notifyContinueWatching {
       NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
     }
   }
@@ -297,8 +302,9 @@ final class ContentStore {
 }
 
 extension Notification.Name {
-  /// Posted when a `.watch` row is invalidated (mark watched, hide, pull-to-refresh).
-  /// Home refetches Continue Watching; painting from the cached snapshot is not enough.
+  /// Posted when Continue Watching must refetch (family `.watch` invalidate, or named
+  /// `.continueWatching`). Library-only named invalidates do not post this — Home
+  /// overlays local progress until the next foreground / TTL refresh.
   static let contentStoreDidInvalidateWatch = Notification.Name("KinoPub.contentStoreDidInvalidateWatch")
 }
 

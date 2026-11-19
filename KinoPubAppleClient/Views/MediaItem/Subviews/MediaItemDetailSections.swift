@@ -5093,12 +5093,10 @@ struct MediaItemSynopsisSummary {
   var metadata: TitleMetadata = TitleMetadata()
 }
 
-/// The synopsis popup: what the hero leaves out, not what it already says. One line
-/// with every piece that identifies the title — kind, every genre, the years, how much
-/// of it there is, the certification and the capability chips — then the full text,
-/// then what one picks a title by and cannot see on the page without digging: every
-/// audio language with its dubs, the subtitles, the video, who made it and where.
-/// No row repeats the facts line (a «Год: 2006» row told nobody anything).
+/// The synopsis popup. On tvOS it is the TV app's info panel: the title and one
+/// genre live in the chrome, then the synopsis, `year · runtime` with the capability
+/// badges, then Information (year, runtime, rating, origin). iOS and macOS keep the
+/// longer summary — every genre, the audio, the subtitles, the video.
 struct MediaItemSynopsisPopupContent: View {
   let plot: String
   let summary: MediaItemSynopsisSummary
@@ -5107,6 +5105,83 @@ struct MediaItemSynopsisPopupContent: View {
   private var metadata: TitleMetadata { summary.metadata }
 
   var body: some View {
+#if os(tvOS)
+    tvPanel
+#else
+    iosPanel
+#endif
+  }
+
+#if os(tvOS)
+  private var tvPanel: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      Text(plot)
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(Color.KinoPub.text)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !metadataParts.isEmpty || !capabilityBadges.detailBadgeAssets.isEmpty {
+        HStack(alignment: .center, spacing: 12) {
+          if !metadataParts.isEmpty {
+            Text(verbatim: metadataParts.joined(separator: " · "))
+              .font(InfoPopupMetrics.bodyFont)
+              .foregroundStyle(Color.KinoPub.subtitle)
+          }
+          MediaCapabilityBadgesView(badges: capabilityBadges, mode: .detail)
+        }
+      }
+
+      let facts = appleFacts
+      if !facts.isEmpty {
+        InfoPopupSection(Text("Information")) {
+          ForEach(facts, id: \.label) { fact in
+            InfoPopupFact(Text(LocalizedStringKey(fact.label)), value: fact.value)
+          }
+        }
+      }
+    }
+  }
+
+  /// «2026 · 59 мин» — the line under the synopsis. Badges sit beside it.
+  private var metadataParts: [String] {
+    var parts: [String] = []
+    if let years = yearsText { parts.append(years) }
+    if let runtime = sheetRuntime { parts.append(runtime) }
+    return parts
+  }
+
+  /// A film's runtime, or a series' average episode. Not a season count.
+  private var sheetRuntime: String? {
+    if item.isSeries {
+      return RuntimeText(seconds: item.duration.average).formatted(.short)
+    }
+    return item.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).text(for: .detailRuntime) }
+  }
+
+  private var capabilityBadges: MediaCapabilityBadges {
+    MediaCapabilityBadges.from(item: item)
+  }
+
+  /// Released, run time, rated, region of origin — the TV app's list, in our strings.
+  private var appleFacts: [(label: String, value: String)] {
+    var rows: [(String, String)] = []
+    if let years = yearsText { rows.append(("MediaItem_Year", years)) }
+    if let runtime = sheetRuntime {
+      rows.append((item.isSeries ? "MediaItem_EpisodeRuntime" : "MediaItem_Duration", runtime))
+    }
+    if let rating = metadata.ageRating?.trimmingCharacters(in: .whitespacesAndNewlines), !rating.isEmpty {
+      rows.append(("MediaItem_AgeRating", rating))
+    }
+    if !item.countryNames.isEmpty {
+      let key = item.countryNames.count == 1 ? "MediaItem_CountryOfOrigin" : "MediaItem_CountriesOfOrigin"
+      rows.append((key, item.countryNames.joined(separator: ", ")))
+    }
+    return rows
+  }
+#endif
+
+#if !os(tvOS)
+  private var iosPanel: some View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       factsLine
 
@@ -5178,6 +5253,7 @@ struct MediaItemSynopsisPopupContent: View {
     if let rating = metadata.ageRating, !rating.isEmpty { parts.append(rating) }
     return parts
   }
+#endif
 
   /// A film: its year. A series: «2006–» while it runs, «2006–2020» once it ended.
   private var yearsText: String? {
@@ -5193,6 +5269,7 @@ struct MediaItemSynopsisPopupContent: View {
     return String(first)
   }
 
+#if !os(tvOS)
   /// A film: its runtime. A series: what kino.pub has, «20 сезонов (704 серии)».
   private var volumeText: String? {
     guard item.isSeries else {
@@ -5249,6 +5326,7 @@ struct MediaItemSynopsisPopupContent: View {
     }
     return rows
   }
+#endif
 }
 
 #if DEBUG
