@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Playback no longer refreshes Library / Continue Watching shelves:** progress ticks were invalidating watchlist / unfinished / history and notifying Home, which re-hit `/v1/watching/*`, bookmarks and `/v1/history?perpage=50` about every 10 s (ban risk). Named-key invalidate only notifies for `.continueWatching`; Library stale marks wait until the player ends; Home skips network refresh while the player is active; Continue Watching history is capped at 8 and skipped when a warm history cache exists.
+
 - **Download on a title page (iOS):** Pulse's resume swizzle reads `currentRequest`. `AVAggregateAssetDownloadTask` throws `NSGenericException` from that getter, so pressing Download quit on `__NSCFBackgroundAVAggregateAssetDownloadTaskNoChildTask`. `URLSessionResumeGuard` calls the pre-Pulse `resume` for aggregate and asset download tasks and does not enter the swizzle.
 
 - **iOS and Mac skip chip:** Skip no longer presses itself. The default is Apple’s button (a press). Settings › Playback picks the delay, the automatic treatment (countdown, shrinking fill, progress stroke, ring, Picture in Picture with artwork, an Up Next banner) and cancel (an X, or Watch Credits). The chip is ordinary glass, dissolves ahead of the system chrome, and stays down while a subtitle or audio menu is open — the chrome stays up with that menu. tvOS still uses AVKit’s own button.
