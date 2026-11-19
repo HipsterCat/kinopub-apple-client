@@ -2080,7 +2080,8 @@ struct EpisodeInfoContent: Equatable {
   var qualityLines: [String]
 }
 
-/// TMDB-density episode Info: still, synopsis, facts, then audio / subs / quality.
+/// Episode Info. On tvOS, the synopsis and the age rating when there is one.
+/// iOS and macOS keep the still, the facts line, and audio, subtitles and quality.
 private struct EpisodeInfoPopupContent: View {
   let content: EpisodeInfoContent
 

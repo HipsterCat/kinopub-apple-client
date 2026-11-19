@@ -769,12 +769,14 @@ struct MediaItemView: View {
 
           contentSections
         }
+#if os(tvOS)
         .background {
           // Inside the scroll, so the anchor's enclosing scroll view is this page's: in
           // the ScrollView's own background it was a sibling of it, never found the
           // page, and Menu on a card fell to SwiftUI with no offset and closed the title.
           DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
         }
+#endif
         .background {
           GeometryReader { geo in
             Color.clear.preference(
