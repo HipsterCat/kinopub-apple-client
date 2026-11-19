@@ -214,6 +214,16 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   }
 }
 
+/// Where a tile's logo comes from — a remote card, one bundled full image, or a
+/// logo mark with a separate focus background (`Media.xcassets/tv`).
+public enum TVPageLogo: Hashable, Sendable {
+  case remote(URL)
+  /// One imageset: mark and plate already composited (letterboxed onto 16:9).
+  case bundled(String)
+  /// Logo mark at rest on the tile's plate; `focusBackground` only while focused.
+  case bundledMark(logo: String, focusBackground: String)
+}
+
 /// A tile whose artwork is drawn rather than loaded — genres, categories, sub-sections,
 /// the "See All" entry that opens a row's full list. It takes the cell of the section
 /// it sits in (a still, a square, a poster), so a genre rail and a row of posters are
@@ -226,15 +236,15 @@ public struct TVPageTile: Identifiable, Hashable {
   /// Nil takes a stable colour from the title (`TVUIKitTileArtwork.tint(for:)`).
   public let tint: UIColor?
   public let style: TVUIKitTileArtwork.Style
-  /// A logo drawn over the tint once it loads — a TV channel's card. Whole, never
-  /// cropped: its edges are carried out to the tile (`TVUIKitTileArtwork.letterboxed`).
-  public let logoURL: URL?
+  /// A channel logo (bundled and/or remote). Whole, never cropped: full cards are
+  /// letterboxed (`TVUIKitTileArtwork.letterboxed`); mark+BG pairs composite instead.
+  public let logo: TVPageLogo?
   /// A second line under the name, in the still cell's secondary text — what a channel
   /// has on air.
   public let subtitle: String?
 
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
-              style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL? = nil,
+              style: TVUIKitTileArtwork.Style = .gradient, logo: TVPageLogo? = nil,
               subtitle: String? = nil) {
     self.id = id
     self.title = title
@@ -242,25 +252,62 @@ public struct TVPageTile: Identifiable, Hashable {
     self.symbol = symbol
     self.tint = tint
     self.style = style
-    self.logoURL = logoURL
+    self.logo = logo
+  }
+
+  /// Convenience for a remote logo URL — same as `logo: .remote(url)`.
+  public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
+              style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL?,
+              subtitle: String? = nil) {
+    self.init(id: id, title: title, symbol: symbol, tint: tint, style: style,
+              logo: logoURL.map { .remote($0) }, subtitle: subtitle)
   }
 
   public var resolvedTint: UIColor { tint ?? TVUIKitTileArtwork.tint(for: title) }
+
+  /// Remote URL when the logo is not bundled — nil for asset-backed logos.
+  public var logoURL: URL? {
+    if case .remote(let url) = logo { return url }
+    return nil
+  }
 }
 
 public extension TVUIKitMediaItem {
   /// A drawn tile in the still cell: the tint is the artwork (until a logo, if there is
   /// one, loads over it), and the name is the caption line.
   init(tile: TVPageTile) {
+    let imageURL: URL?
+    let bundledImageName: String?
+    let focusBackgroundName: String?
+    switch tile.logo {
+    case .remote(let url):
+      imageURL = url
+      bundledImageName = nil
+      focusBackgroundName = nil
+    case .bundled(let name):
+      imageURL = nil
+      bundledImageName = name
+      focusBackgroundName = nil
+    case .bundledMark(let logo, let focusBackground):
+      imageURL = nil
+      bundledImageName = logo
+      focusBackgroundName = focusBackground
+    case nil:
+      imageURL = nil
+      bundledImageName = nil
+      focusBackgroundName = nil
+    }
     self.init(id: tile.id.hashValue,
-              imageURL: tile.logoURL,
+              imageURL: imageURL,
               tint: tile.resolvedTint,
               symbol: tile.symbol,
               tileStyle: tile.style,
               caption: tile.title,
               detail: tile.subtitle,
               status: .unavailable,
-              artworkFit: .letterbox)
+              artworkFit: .letterbox,
+              bundledImageName: bundledImageName,
+              focusBackgroundName: focusBackgroundName)
   }
 }
 

@@ -158,6 +158,12 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// Set, the item is a season's portrait card in front of its episodes instead of a
   /// still: a poster as tall as the stills, focusable for its menu and fold (`TVUIKitSeasonCardCell`).
   public let seasonCard: SeasonCard?
+  /// Imageset name in `KinoPubUI` Media.xcassets — a TV channel logo loaded from the
+  /// bundle instead of `imageURL`.
+  public let bundledImageName: String?
+  /// Imageset drawn behind `bundledImageName` only while the tile is focused
+  /// (logo-mark + focus-BG pattern). Nil: the bundled image is the full card.
+  public let focusBackgroundName: String?
 
   /// A season's card on the episode rail. Each line comes as a list of candidates, longest
   /// first: the card is a poster's width, so the cell draws the first that fits.
@@ -203,7 +209,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               focusGlyph: LandscapePlayGlyph? = nil,
               backdropImageURL: URL? = nil,
               fallbackImageURL: URL? = nil,
-              seasonCard: SeasonCard? = nil) {
+              seasonCard: SeasonCard? = nil,
+              bundledImageName: String? = nil,
+              focusBackgroundName: String? = nil) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -222,6 +230,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.backdropImageURL = backdropImageURL
     self.fallbackImageURL = fallbackImageURL
     self.seasonCard = seasonCard
+    self.bundledImageName = bundledImageName
+    self.focusBackgroundName = focusBackgroundName
   }
 
   /// A season's card, by its own id.
@@ -1120,7 +1130,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
   private var item: TVUIKitMediaItem?
   private var artwork: UIImage?
+  /// Logo mark for the mark+focus-BG pattern — composited in `updateConfiguration`.
+  private var markImage: UIImage?
+  private var focusBackgroundImage: UIImage?
   private var loadedURL: URL?
+  private var loadedBundledName: String?
   private var imageTask: Task<Void, Never>?
   private let overlay = TVUIKitMediaItemOverlayView()
   /// DEBUG `-KINOPUBFocusFirstPoster` sets this false on the CW landscape rail.
@@ -1146,11 +1160,19 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     self.captionOnFocus = captionOnFocus
     self.hidesCaption = hidesCaption
     self.overlayOnFocus = overlayOnFocus
-    let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
+    let keepsArtwork = self.item?.imageURL == item.imageURL
+      && self.item?.bundledImageName == item.bundledImageName
+      && self.item?.focusBackgroundName == item.focusBackgroundName
+      && (item.bundledImageName == nil
+          ? loadedURL == item.imageURL
+          : loadedBundledName == item.bundledImageName)
     self.item = item
     accessibilityIdentifier = "kinopub.rail.item.\(item.id)"
     if !keepsArtwork {
       artwork = nil
+      markImage = nil
+      focusBackgroundImage = nil
+      loadedBundledName = nil
       loadArtwork(for: item)
     }
     setNeedsUpdateConfiguration()
@@ -1170,9 +1192,15 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // Focused playable empty stills: quiet plate without the iconic SF Symbol so the
     // centre glass Play is the only affordance (Sasha — trailers had it, episodes looked
     // like the placeholder glyph was "already playing").
-    if artwork == nil, state.isFocused, item.focusGlyph == .play,
+    if artwork == nil, markImage == nil, state.isFocused, item.focusGlyph == .play,
        item.symbol == "play.rectangle.on.rectangle" {
       config.image = TVUIKitTileArtwork.placeholder(traits: traitCollection)
+    } else if item.focusBackgroundName != nil, let mark = markImage {
+      // Logo mark + focus BG: BG only while focused; at rest the mark sits on the plate.
+      config.image = Self.channelMarkArtwork(mark: mark,
+                                             background: state.isFocused ? focusBackgroundImage : nil,
+                                             plate: item.tint,
+                                             traits: traitCollection)
     } else {
       config.image = artwork ?? fallbackImage(for: item)
     }
@@ -1318,6 +1346,26 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     imageTask?.cancel()
     imageTask = nil
     loadedURL = nil
+    loadedBundledName = nil
+    // Bundled channel logos from `Media.xcassets/tv` — sync, no Nuke.
+    if let name = item.bundledImageName {
+      let mark = UIImage(named: name, in: .module, compatibleWith: traitCollection)
+      markImage = mark
+      loadedBundledName = name
+      if let focusName = item.focusBackgroundName {
+        focusBackgroundImage = UIImage(named: focusName, in: .module, compatibleWith: traitCollection)
+        artwork = nil
+      } else if let mark {
+        artwork = Self.present(mark, fit: item.artworkFit)
+        focusBackgroundImage = nil
+      }
+      if mark == nil {
+        ArtworkLog.skipped(by: "wide", reason: "missing bundled logo \(name)")
+      }
+      return
+    }
+    markImage = nil
+    focusBackgroundImage = nil
     // Ladder (KP-23): iconic tint/symbol at rest → series backdrop while unique
     // still loads → unique still → kino.pub thumb on 404. Blank grey forever is wrong.
     let unique = item.imageURL
@@ -1376,13 +1424,26 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     }
   }
 
+  /// Logo mark on its focus BG (focused) or on the channel plate (at rest).
+  private static func channelMarkArtwork(mark: UIImage, background: UIImage?, plate: UIColor?,
+                                         traits: UITraitCollection) -> UIImage {
+    if let background {
+      return TVUIKitTileArtwork.channelMark(mark, on: background)
+    }
+    let plate = plate ?? UIColor(white: 0.16, alpha: 1)
+    return TVUIKitTileArtwork.channelMark(mark, onPlate: plate, traits: traits)
+  }
+
   override func prepareForReuse() {
     super.prepareForReuse()
     imageTask?.cancel()
     imageTask = nil
     item = nil
     artwork = nil
+    markImage = nil
+    focusBackgroundImage = nil
     loadedURL = nil
+    loadedBundledName = nil
     contentConfiguration = nil
     cellAllowsFocus = true
     captionOnFocus = false
