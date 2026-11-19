@@ -183,10 +183,26 @@ enum SkipChipPreferences {
 }
 
 enum SkipChipVisibility {
-  /// The chip is up only while the player chrome is up, and never over a menu
-  /// that chrome owns.
+  /// iOS / macOS: the custom chip sits with the player chrome, and never over a
+  /// menu that chrome owns.
   static func shown(hasOffer: Bool, controlsVisible: Bool, menuActive: Bool) -> Bool {
     hasOffer && controlsVisible && !menuActive
+  }
+
+  /// tvOS: AVKit presents `contextualActions` only when the transport bar is
+  /// not visible (Apple docs). A transport menu (Speed, Subtitles, Audio, …)
+  /// also hides Skip.
+  static func actionable(hasOffer: Bool, transportBarVisible: Bool, menuActive: Bool) -> Bool {
+    hasOffer && !transportBarVisible && !menuActive
+  }
+
+  /// Whether the auto-skip countdown must pause.
+  /// - iOS / macOS (`chipFollowsChrome`): suspend when chrome is down or a menu is up.
+  /// - tvOS: Skip is the inverse of the transport bar — suspend when the bar is
+  ///   up or a menu is up.
+  static func countdownSuspended(chromeVisible: Bool, menuActive: Bool,
+                                 chipFollowsChrome: Bool) -> Bool {
+    chipFollowsChrome ? (!chromeVisible || menuActive) : (chromeVisible || menuActive)
   }
 }
 
@@ -445,9 +461,19 @@ extension PlayerManager {
       showSkip(offer)
     }
 #if os(tvOS)
+    refreshTVSkipGate()
     guard offer != nil, let shownAt = skipOfferShownAt else { return }
     // Scrubbed back before the button appeared: the countdown starts over from here.
     if seconds < shownAt { skipOfferShownAt = seconds }
+    // Transport bar up, or a Speed / Subtitles / Audio menu: Skip is not on
+    // screen, so the countdown must not run or fire.
+    if skipCountdownSuspended {
+      let left = skipCountdownLeft
+      if PlaybackSkip.countdown > 0 {
+        skipOfferShownAt = seconds - (1 - left) * PlaybackSkip.countdown
+      }
+      return
+    }
     let left = PlaybackSkip.countdownLeft(at: seconds, shownAt: skipOfferShownAt ?? seconds)
     skipCountdownLeft = left
     if left <= 0 {
@@ -466,8 +492,8 @@ extension PlayerManager {
       skipCountdownAnchor = seconds
       return
     }
-    // Chrome hidden, or a subtitle / audio menu open: the clock does not run,
-    // so the skip cannot fire while there is nothing on screen to cancel it.
+    // Chrome hidden, or a subtitle / audio / speed menu open: the clock does not
+    // run, so the skip cannot fire while there is nothing on screen to cancel it.
     if skipCountdownSuspended {
       skipCountdownAnchor = seconds
       return
@@ -485,6 +511,37 @@ extension PlayerManager {
 #endif
   }
 
+#if os(tvOS)
+  /// Combines the transport-bar delegate flag with a view-tree poll for menus
+  /// (Speed, Subtitles, Audio, …) that the bar-visibility callback alone can miss.
+  func refreshTVSkipGate() {
+    let menu = playerViewController.map(TVPlayerChrome.menuActive(in:)) ?? false
+    transportMenuActive = menu
+    let suspended = SkipChipVisibility.countdownSuspended(
+      chromeVisible: transportBarVisible,
+      menuActive: menu,
+      chipFollowsChrome: false
+    )
+    applyTVSkipSuspension(suspended)
+  }
+
+  /// Called from `AVPlayerViewControllerDelegate.willTransitionToVisibilityOfTransportBar`.
+  func noteTransportBar(visible: Bool) {
+    transportBarVisible = visible
+    refreshTVSkipGate()
+  }
+
+  private func applyTVSkipSuspension(_ suspended: Bool) {
+    let changed = skipCountdownSuspended != suspended
+    skipCountdownSuspended = suspended
+    if suspended {
+      playerViewController?.contextualActions = []
+    } else if changed, let offer = skipOffer {
+      showSkip(offer)
+    }
+  }
+#endif
+
   /// tvOS: AVKit's own button (`contextualActions`), which it animates in and out. iOS and
   /// the Mac draw `SkipChipOverlay` from `skipOffer`.
   private func showSkip(_ offer: PlaybackSkip.Offer?) {
@@ -501,7 +558,9 @@ extension PlayerManager {
       }
       action.accessibilityLabel = PlaybackSkip.accessibilityTitle(for: offer.kind)
       skipAction = action
-      playerViewController?.contextualActions = [action]
+      // AVKit only presents contextual actions while the transport bar is hidden;
+      // keep the array empty while chrome or a menu would hide Skip anyway.
+      playerViewController?.contextualActions = skipCountdownSuspended ? [] : [action]
     }
 #endif
   }
@@ -511,6 +570,7 @@ extension PlayerManager {
   private func updateSkipRing(_ left: Double) {
 #if os(tvOS)
     MainActor.assumeIsolated {
+      guard !skipCountdownSuspended else { return }
       skipAction?.image = SkipCountdownGlyph.image(left: left)
     }
 #endif

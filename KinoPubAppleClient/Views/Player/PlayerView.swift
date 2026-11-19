@@ -372,6 +372,17 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
       return false
     }
 
+    /// Skip (`contextualActions`) is only presented while the transport bar is
+    /// hidden. Drive the auto-Skip countdown from the same signal so it cannot
+    /// fire while chrome (or a menu that keeps chrome up) obscures the button.
+    func playerViewController(
+      _ playerViewController: AVPlayerViewController,
+      willTransitionToVisibilityOfTransportBar visible: Bool,
+      with coordinator: any AVPlayerViewControllerAnimationCoordinator
+    ) {
+      manager.noteTransportBar(visible: visible)
+    }
+
     // MARK: Picture in Picture (`PictureInPictureKeeper`)
 
     func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {

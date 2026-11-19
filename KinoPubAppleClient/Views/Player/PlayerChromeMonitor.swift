@@ -30,6 +30,71 @@ import AppKit
 import UIKit
 #endif
 
+/// Class-name heuristics for transport menus (Speed, Subtitles, Audio, …).
+/// Shared by the iOS / macOS chrome monitor and the tvOS skip gate.
+enum PlayerTransportMenu {
+  static func looksLikeMenu(_ name: String) -> Bool {
+    name.contains("ContextMenu")
+      || name.contains("Popover")
+      || name.contains("MediaSelection")
+      || name.contains("Callout")
+      || name.contains("PlaybackSpeed")
+      || name.contains("SpeedMenu")
+      || name.contains("SpeedPicker")
+      || name.contains("AVKitMenu")
+      || name.contains("DropDown")
+      || (name.contains("Menu") && (name.contains("Transport") || name.contains("Playback")
+                                    || name.contains("Speed") || name.contains("Audio")
+                                    || name.contains("Subtitle") || name.contains("Legible")
+                                    || name.contains("Audible")))
+  }
+}
+
+#if os(tvOS)
+
+/// tvOS Skip gate: menus that sit over the player while (or without) the transport bar.
+enum TVPlayerChrome {
+  static func menuActive(in controller: AVPlayerViewController) -> Bool {
+    if controller.presentedViewController != nil { return true }
+    if viewTreeHasMenu(controller.view) { return true }
+    if windowsHaveMenu(besides: controller.view.window) { return true }
+    return false
+  }
+
+  private static func viewTreeHasMenu(_ root: UIView) -> Bool {
+    var found = false
+    func walk(_ view: UIView, depth: Int) {
+      if found || depth > 8 { return }
+      let name = String(describing: type(of: view))
+      if PlayerTransportMenu.looksLikeMenu(name), !view.isHidden, view.alpha > 0.05 {
+        found = true
+        return
+      }
+      for subview in view.subviews { walk(subview, depth: depth + 1) }
+    }
+    walk(root, depth: 0)
+    return found
+  }
+
+  private static func windowsHaveMenu(besides playerWindow: UIWindow?) -> Bool {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    for scene in scenes {
+      for window in scene.windows where window !== playerWindow && !window.isHidden && window.alpha > 0.05 {
+        let name = String(describing: type(of: window))
+        if PlayerTransportMenu.looksLikeMenu(name) { return true }
+        if window.subviews.contains(where: {
+          PlayerTransportMenu.looksLikeMenu(String(describing: type(of: $0))) && !$0.isHidden
+        }) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+}
+
+#endif
+
 #if !os(tvOS)
 
 /// Address passed to KVO. File-scoped so the nonisolated observer callback can
@@ -167,7 +232,11 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
   }
 
   private func updateSuspension() {
-    manager?.skipCountdownSuspended = !controlsVisible || menuActive
+    manager?.skipCountdownSuspended = SkipChipVisibility.countdownSuspended(
+      chromeVisible: controlsVisible,
+      menuActive: menuActive,
+      chipFollowsChrome: true
+    )
   }
 
   private func setMenu(_ active: Bool) {
@@ -436,7 +505,11 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
     let extras = [window] + (window.childWindows ?? [])
     return extras.contains { candidate in
       let name = String(describing: type(of: candidate))
-      return candidate !== window && (name.contains("Popover") || name.contains("Menu"))
+      // AppKit menus often land in a child window whose class is simply *Menu* /
+      // *Popover*; the shared heuristics cover Speed and track pickers too.
+      return candidate !== window
+        && (name.contains("Menu") || name.contains("Popover")
+            || PlayerTransportMenu.looksLikeMenu(name))
     }
   }
 
@@ -559,10 +632,7 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
   }
 
   private func menuClassName(_ name: String) -> Bool {
-    name.contains("ContextMenu")
-      || name.contains("Popover")
-      || name.contains("MediaSelection")
-      || name.contains("Callout")
+    PlayerTransportMenu.looksLikeMenu(name)
   }
 #endif
 }
