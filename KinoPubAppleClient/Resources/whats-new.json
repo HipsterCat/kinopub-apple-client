@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "iPhone: во вкладке «Поиск» поле всегда видно под заголовком и снова реагирует на нажатия; счётчик «Всего …» под заголовком убран.",
         "iPhone и iPad: «Скачать» на странице тайтла больше не закрывает приложение.",
         "Apple TV: вниз с «Смотреть» на сериале попадает на серию, которую включит эта кнопка, а не на ближайшую карточку. У фильма с несколькими версиями кнопка остаётся «Смотреть фильм», а не время первой версии.",
         "Apple TV: вверх с карточки справа от кнопок попадает на «Смотреть», а не на «…». Menu ниже героя возвращает к нему, а не закрывает страницу. У сериала кнопка сразу «Смотреть», без «Смотреть фильм». Трейлер не теряет увеличение, когда рядом появляется YouTube. Назад из тайтла фокус возвращается на ту же карточку.",
@@ -125,6 +126,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "iPhone: on the Search tab the field stays visible under the title and responds to taps again; the “Total …” count under the title is gone.",
         "iPhone and iPad: Download on a title page no longer quits the app.",
         "Apple TV: Down from Play on a series lands on the episode that button plays, not the nearest card. A film with several versions keeps Watch Movie, not the first version’s remaining time.",
         "Apple TV: Up from a card to the right of the buttons lands on Play, not the ellipsis. Menu below the hero returns to it instead of closing the page. A series says Play immediately, not Watch Movie. A trailer keeps its focus scale when the YouTube card arrives. Back from a title returns focus to that card.",
