@@ -77,6 +77,10 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   private let errorHandler: ErrorHandler
   private let store: ContentStore
   private var bag = Set<AnyCancellable>()
+  /// Progress ticks while the player is up only set this; the invalidate runs once
+  /// when the session clears so Library's next `activate` sees stale rows without
+  /// bumping generation on every ~10 s mark.
+  private var pendingWatchInvalidate = false
 
   init(contentService: VideoContentService,
        authState: AuthState,
@@ -91,16 +95,40 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     // Unwatched, and History gains a row. The player writes local progress as it goes;
     // the next `activate` — coming back to the Library — refetches instead of painting
     // the cached page for the rest of its TTL (Sasha, 2026-10-03).
+    //
+    // While the player is active, only mark the need — do not invalidate on every
+    // progress tick (that used to notify Home and flood watching/history/bookmarks).
     NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
-        self?.store.invalidate(Self.rowsWatchingChanges)
+        self?.noteWatchProgressChanged()
+      }
+      .store(in: &bag)
+    PlaybackSession.shared.$manager
+      .receive(on: RunLoop.main)
+      .sink { [weak self] manager in
+        guard manager == nil else { return }
+        self?.flushPendingWatchInvalidate()
       }
       .store(in: &bag)
   }
 
   /// The Library rows that playback changes on the server.
   static let rowsWatchingChanges: [RowKey] = [.watchlist, .unfinishedSerials, .history]
+
+  private func noteWatchProgressChanged() {
+    if PlaybackSession.shared.currentManager != nil {
+      pendingWatchInvalidate = true
+      return
+    }
+    store.invalidate(Self.rowsWatchingChanges)
+  }
+
+  private func flushPendingWatchInvalidate() {
+    guard pendingWatchInvalidate else { return }
+    pendingWatchInvalidate = false
+    store.invalidate(Self.rowsWatchingChanges)
+  }
 
   // MARK: - Section switching
 
@@ -259,15 +287,19 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     Task { await loadPage(next) }
   }
 
-  /// Raw history *entries* per request. History is one row per play, and under
-  /// `HistoryGrouping.byShow` those collapse to one card per title — so a page of 20
-  /// entries can easily be three cards for someone part-way through a season. 50 keeps
-  /// the grid filling in one round trip instead of three.
+  /// Raw history *entries* per request on the Library History grid. History is one row
+  /// per play, and under `HistoryGrouping.byShow` those collapse to one card per title
+  /// — so a page of 20 entries can easily be three cards for someone part-way through
+  /// a season. 50 keeps that grid filling in one round trip instead of three.
   ///
-  /// Deliberately **not** used by the launch path: `HomeCatalog` still asks for 20,
-  /// because that request rides in the cold-start burst where a 96 KB page was already
-  /// called out as too much.
+  /// Continue Watching / Unwatched merges use `continueWatchingHistoryPerPage` (8):
+  /// subscribed watching payloads already carry enough, and a 50-row history page in
+  /// that path was part of the playback API flood.
   static let historyPerPage = 50
+
+  /// History page size for Continue Watching / Unwatched merges — dates for ranking,
+  /// not a browse grid. Cap stays small on purpose.
+  static let continueWatchingHistoryPerPage = 8
 
   /// A page that adds nothing new must not end the list, but chasing it forever is
   /// worse. Three consecutive all-duplicate pages and we stop until the user scrolls
@@ -417,7 +449,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     async let moviesTask = service.fetchWatchingMovies()
     async let unfinishedTask = service.fetchWatchingSerials(subscribedOnly: false)
     async let followedTask = service.fetchWatchingSerials(subscribedOnly: true)
-    async let historyTask = service.fetchHistory(page: nil, perPage: historyPerPage)
+    async let historyTask = service.fetchHistory(page: nil, perPage: continueWatchingHistoryPerPage)
     let movies = try await moviesTask.items
     let unfinished = (try? await unfinishedTask)?.items ?? []
     let followed = Set(((try? await followedTask)?.items ?? []).map(\.id))

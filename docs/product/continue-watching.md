@@ -86,14 +86,15 @@ a ten-episode season and the row kept trusting it.
 
 The cached snapshot is a 60 s TTL. That is not "the row never updates":
 
-- **Foreground** (Watch Now `scenePhase == .active`) refetches Continue Watching even inside the TTL, so progress written on another device lands when the user comes back.
+- **Foreground** (Watch Now `scenePhase == .active`) refetches Continue Watching even inside the TTL, so progress written on another device lands when the user comes back — **unless the player is active**. During playback only `marktime` / local progress run; watching lists, history and bookmarks stay quiet (ban risk).
 - **Mark watched / hide / follow** on the detail page invalidates the `.watch` family. That posts `contentStoreDidInvalidateWatch`; Home refetches instead of painting the cached cards. Marking a film watched also writes a local finished tombstone, so overlay hides the card before the refetch returns — without it, overlay re-inserted the in-progress playhead onto a title `watching/movies` had already dropped.
+- Progress ticks mark Library watchlist / unfinished / history stale for the next Library visit. That named-key invalidate does **not** notify Home (Continue Watching overlays local progress itself).
+- `/v1/history` for this row is capped at 8 entries and skipped when a history cache from the last few minutes is still warm — watching lists already carry the unfinished set.
 - An in-flight fetch that started **before** an invalidate is discarded (generation). Writing `fetchedAt = now` on that decode was why the network log filled with requests and the row never moved: Home trusted the old snapshot for another 60 s.
 - Local overlay does not paint a playhead that is **behind** the snapshot (other-device progress already on the card). It still leads the row for progress this device wrote that the server has not heard yet.
 
 ## Open
 
 
-Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of
-20 already measured ~96 KB on a cold launch), so it is a payload trade, not a free improvement.
-Tracked in Asana: [Library](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224202).
+Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50; Continue
+Watching asks for 8). Tracked in Asana: [Library](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224202).
