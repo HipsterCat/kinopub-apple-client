@@ -2,8 +2,9 @@
 //  LibraryBrowserChrome.swift
 //  KinoPubAppleClient
 //
-//  Catalog / Search chrome: grid↔list switcher, Filters button with an active-count
-//  badge, and Notes-style count copy for `.navigationSubtitle` under the title.
+//  Catalog / listing chrome: grid↔list switcher, Filters button with an active-count
+//  badge, and Notes-style count copy for `.navigationSubtitle` under the title
+//  (Catalog and category screens — not the Search tab root).
 //  Sort lives primarily in the Filter & Sort sheet (field + direction).
 //
 

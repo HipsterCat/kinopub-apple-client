@@ -488,8 +488,13 @@ struct SearchView: View {
       // Finder/Photos: compact trailing toolbar field + suggestion menu; not under-tab chrome.
       .macToolbarSearch()
       .navigationTitle("Search")
-#else
-      .searchable(text: $searchFieldText, placement: .automatic)
+#elseif os(iOS)
+      // App Store / Music / TV Search: field always under the large title — not pull-to-reveal
+      // (`.automatic`), which on iPhone with `.inlineLarge` often painted a dead, non-tappable
+      // drawer (KP-53). `navigationBarDrawer` is iOS-only; tvOS keeps `.automatic` below.
+      .searchable(text: $searchFieldText,
+                  placement: .navigationBarDrawer(displayMode: .always),
+                  prompt: Text("Search"))
       .searchSuggestions {
         // Only while the field is empty: once there is a query, the results below are
         // the better answer and a menu over them is in the way.
@@ -502,10 +507,22 @@ struct SearchView: View {
         }
       }
       .platformNavigationTitle(navigationTitleText)
+#else
+      .searchable(text: $searchFieldText, placement: .automatic)
+      .searchSuggestions {
+        if searchFieldText.isEmpty {
+          Section("Try Searching") {
+            ForEach(SearchStarters.queries, id: \.self) { starter in
+              Text(starter).searchCompletion(starter)
+            }
+          }
+        }
+      }
+      .platformNavigationTitle(navigationTitleText)
 #endif
 #if !os(tvOS)
-      // Notes-style count under the title — not an orphan “Total N” in the scroll.
-      .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
+      // No «Всего N» under Search — native Search tabs leave the title alone (KP-53).
+      // Catalog / category screens still use `LibraryBrowserSubtitle` where a count helps.
       .toolbar {
         LibraryFiltersToolbar(catalog: catalog,
                               chrome: .full,
