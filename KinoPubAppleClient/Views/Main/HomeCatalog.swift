@@ -566,6 +566,9 @@ class HomeCatalog: ObservableObject {
     NotificationCenter.default.publisher(for: .contentStoreDidInvalidateWatch)
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
+        // Progress ticks used to invalidate Library watch rows and post this; Home
+        // must not re-fetch watching/history/bookmarks while a film is playing.
+        guard PlaybackSession.shared.manager == nil else { return }
         Task { await self?.refreshContinueWatching() }
       }
       .store(in: &bag)
@@ -790,8 +793,15 @@ class HomeCatalog: ObservableObject {
   /// foreground and when a watch-family invalidate fires — `refreshIfStale`
   /// plus a 60 s TTL is why the row kept showing the last snapshot while the
   /// network log still filled with requests (shelves, banner details, metadata).
+  ///
+  /// While the player is active, only re-apply local progress: the watch-mark
+  /// path is the only network that should run then.
   func refreshContinueWatching() async {
     guard includesContinueWatching, authState.userState == .authorized else {
+      assembleRows()
+      return
+    }
+    if PlaybackSession.shared.manager != nil {
       assembleRows()
       return
     }
@@ -1120,10 +1130,13 @@ class HomeCatalog: ObservableObject {
   private func fetchContinueWatchingCards(limit: Int? = nil) async throws -> [MediaCard] {
     let rules = ContinueWatchingPreferences.rules
     let cap = limit ?? rules.maxItems
+    // Subscribed watching already carries enough for the row; skip `/v1/history`
+    // when we fetched it minutes ago. Cap stays at 8 when we do ask.
+    let skipHistory = Self.shouldSkipHistoryFetch(store: store)
     async let moviesTask = try? itemsService.fetchWatchingMovies().items
     async let allSerialsTask = try? itemsService.fetchWatchingSerials(subscribedOnly: false).items
     async let watchlistTask = try? itemsService.fetchWatchingSerials(subscribedOnly: true).items
-    async let historyTask = try? itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
+    async let historyTask = fetchContinueWatchingHistory(skip: skipHistory)
     async let bookmarksTask = recentBookmarks(rules: rules)
 
     let moviesResult = await moviesTask
@@ -1135,8 +1148,10 @@ class HomeCatalog: ObservableObject {
     // Each source degrades independently (one endpoint down still shows the other
     // three) — but if every single one failed, this is a network outage, not "the
     // user has nothing to continue watching". Throw so the store keeps the last
-    // known-good row instead of caching an empty one.
-    if moviesResult == nil, serialsResult == nil, watchlistResult == nil, historyResult == nil {
+    // known-good row instead of caching an empty one. A deliberate history skip
+    // is not a failure; watching lists alone are enough.
+    let hasHistory = !skipHistory && historyResult != nil
+    if moviesResult == nil, serialsResult == nil, watchlistResult == nil, !hasHistory {
       throw ContinueWatchingFetchError.allSourcesFailed
     }
 
@@ -1277,9 +1292,26 @@ class HomeCatalog: ObservableObject {
     return Array(cards.prefix(cap))
   }
 
-  /// One page of history: it is newest first, and fifty rows reach back about a week of
-  /// evenings — further back, a title is dated by this device or not at all.
-  private static let historyPerPage = 50
+  /// One small page of history for Continue Watching ranking dates. Watching lists
+  /// already carry the unfinished set; 50 was overkill and rode the playback flood.
+  private static let historyPerPage = LibrarySectionCatalog.continueWatchingHistoryPerPage
+
+  /// Prefer a warm Library history cache over another `/v1/history` call. The
+  /// watching lists are the row's source of truth; history only dates titles.
+  private static let historyReuseWindow: TimeInterval = 3 * 60
+
+  private static func shouldSkipHistoryFetch(store: ContentStore) -> Bool {
+    guard let fetchedAt = store.fetchedAt(.history) else { return false }
+    let age = Date().timeIntervalSince(fetchedAt)
+    // `invalidate` sets `fetchedAt` to `.distantPast` — age is then huge, so we
+    // ask again after Library watch rows were marked stale post-playback.
+    return age >= 0 && age < historyReuseWindow
+  }
+
+  private func fetchContinueWatchingHistory(skip: Bool) async -> [HistoryEntry]? {
+    guard !skip else { return nil }
+    return try? await itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
+  }
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.
   private static let spareCards = 4
