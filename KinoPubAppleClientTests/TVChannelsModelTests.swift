@@ -76,6 +76,23 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertFalse(model.isLoading)
   }
 
+  /// A few sports channels ship logos in the asset catalog; the rest stay on the CDN URL.
+  func testBundledLogosMixMarkFocusBackgroundAndFullCards() {
+    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 80),
+                   .mark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"))
+    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 27), .full("espn"))
+    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 145), .full("eleven-sports"))
+    XCTAssertNil(TVChannelCatalog.bundledLogo(for: 1), "МАТЧ! ТВ stays on the CDN")
+#if os(tvOS)
+    let cbs = TVChannelCatalog.channels.first { $0.id == 80 }!
+    let match = TVChannelCatalog.channels.first { $0.id == 1 }!
+    XCTAssertEqual(TVChannelsView.logo(for: cbs),
+                   .bundledMark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"))
+    XCTAssertEqual(TVChannelsView.logo(for: match),
+                   .remote(URL(string: "https://m.staticpop.net/channels/150x150/match_new.png")!))
+#endif
+  }
+
   /// The guide is asked for the channels already on screen, alongside `/v1/tv`.
   func testGuideUsesTheChannelsAlreadyShown() async {
     let asked = Streams()

@@ -90,8 +90,20 @@ struct TVChannelsView: View {
                title: channel.title,
                tint: Self.plate(for: channel.id),
                style: .flat,
-               logoURL: channel.logo.flatMap(URL.init(string:)),
+               logo: Self.logo(for: channel),
                subtitle: onAir?.title)
+  }
+
+  /// Bundled asset when the catalog has one; otherwise the CDN / payload URL.
+  static func logo(for channel: TVChannel) -> TVPageLogo? {
+    switch TVChannelCatalog.bundledLogo(for: channel.id) {
+    case .full(let name):
+      return .bundled(name)
+    case .mark(let logo, let focusBackground):
+      return .bundledMark(logo: logo, focusBackground: focusBackground)
+    case nil:
+      return channel.logo.flatMap(URL.init(string:)).map { .remote($0) }
+    }
   }
 
   private var status: TVPageStatus {

@@ -7,9 +7,10 @@
 //  tab shows. The previous bake was the sixteen at the bottom of this list (the Russian
 //  block the viewport was on), so the real list arrived and shoved them down.
 //
-//  Logos are not in the bundle. `logo` is kino.pub's `150x150` path, which serves the
-//  240×180 card; the cell letterboxes that onto 16:9. `plate` is the average of that
-//  card's edge, so the tile is already the logo's background while the picture loads.
+//  Most logos still come from kino.pub's `150x150` CDN path (240×180 card, letterboxed
+//  onto 16:9). A handful ship in `KinoPubUI` Media.xcassets/tv — either a full card or a
+//  logo mark + focus background. `plate` is the average of the card's edge, so the tile
+//  is already the logo's colour while a remote picture loads (and under a mark at rest).
 //
 
 import Foundation
@@ -24,8 +25,28 @@ enum TVChannelCatalog {
     let plate: UInt32
   }
 
+  /// Bundled channel artwork in `Packages/KinoPubUI/.../Media.xcassets/tv`.
+  enum BundledLogo: Equatable, Sendable {
+    /// Single imageset — mark and plate already one picture.
+    case full(String)
+    /// Logo mark always; focus background only while the tile is focused.
+    case mark(logo: String, focusBackground: String)
+  }
+
   /// The path `/v1/tv` has been serving. The file behind it is 240×180.
   static let logoBase = "https://m.staticpop.net/channels/150x150/"
+
+  /// Channels that paint from the asset catalog instead of (or ahead of) the CDN URL.
+  static let bundledLogos: [Int: BundledLogo] = [
+    // Logo mark + focus BG (restored pair; full `cbs-sports` imageset also present).
+    80: .mark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"),
+    145: .full("eleven-sports"),
+    27: .full("espn"),
+    95: .full("espn-2"),
+    10: .full("eurosport-1"),
+    68: .full("eurosport-2"),
+    92: .full("nba")
+  ]
 
   static let entries: [Entry] = [
     Entry(id: 80, title: "CBS Sports", logoName: "cbs_sports", plate: 0x051221),
@@ -102,5 +123,10 @@ enum TVChannelCatalog {
   /// `RRGGBB` of the logo's plate, or nil for a channel outside this list.
   static func plateHex(for id: Int) -> UInt32? {
     entries.first { $0.id == id }?.plate
+  }
+
+  /// Bundled artwork for `id`, when the asset catalog has one.
+  static func bundledLogo(for id: Int) -> BundledLogo? {
+    bundledLogos[id]
   }
 }

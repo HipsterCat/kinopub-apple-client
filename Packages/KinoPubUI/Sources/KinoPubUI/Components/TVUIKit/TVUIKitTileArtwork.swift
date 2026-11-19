@@ -144,6 +144,29 @@ public enum TVUIKitTileArtwork {
     return drawn
   }
 
+  /// Logo mark drawn over a focus background — both authored at the still's 16:9 size
+  /// in `Media.xcassets/tv`. Used while the channel tile is focused.
+  public static func channelMark(_ mark: UIImage, on background: UIImage) -> UIImage {
+    let size = background.size
+    guard size.width > 0, size.height > 0 else { return background }
+    return render(size: size, scale: max(background.scale, mark.scale)) { _ in
+      background.draw(in: CGRect(origin: .zero, size: size))
+      mark.draw(in: CGRect(origin: .zero, size: size))
+    }
+  }
+
+  /// Logo mark on the channel's plate colour — the at-rest look for mark+focus-BG logos.
+  public static func channelMark(_ mark: UIImage, onPlate plate: UIColor,
+                                 size: CGSize = wideSize,
+                                 traits: UITraitCollection? = nil) -> UIImage {
+    let resolved = plate.resolvedColor(with: traits ?? .current)
+    return render(size: size, scale: mark.scale) { _ in
+      resolved.setFill()
+      UIRectFill(CGRect(origin: .zero, size: size))
+      mark.draw(in: CGRect(origin: .zero, size: size))
+    }
+  }
+
   /// A logo on a tile of another shape: the picture whole, as tall (or as wide) as the
   /// tile, centred, and each side carried out to the edge by the picture's own outermost
   /// column (or row). A TV channel's 4:3 card has its mark on a plate of its own colour,
