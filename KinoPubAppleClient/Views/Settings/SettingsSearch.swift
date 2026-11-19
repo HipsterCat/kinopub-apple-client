@@ -195,8 +195,10 @@ struct SettingsSearchIndex {
 
 /// Hand-maintained flat list of nested Settings controls.
 enum SettingsSearchCatalog {
-  static let entries: [SettingsSearchEntry] = base + integrations
+  static let entries: [SettingsSearchEntry] = base + platformExtras + integrations
 
+  /// Shared across iOS and macOS. No `#if` inside this literal — Swift rejects
+  /// conditional compilation in container literals.
   private static let base: [SettingsSearchEntry] = [
     // Account / Profile
     .init("account-profile", titleKey: "Account",
@@ -216,11 +218,6 @@ enum SettingsSearchCatalog {
     .init("general-version", titleKey: "App version",
           keywords: "version build версия",
           category: .general),
-#if os(macOS)
-    .init("general-always-on-top", titleKey: "AlwaysOnTop",
-          keywords: "window always on top поверх окон",
-          category: .general),
-#endif
 
     // Playback
     .init("playback-quality", titleKey: "Stream quality",
@@ -379,13 +376,22 @@ enum SettingsSearchCatalog {
     .init("about", titleKey: "About",
           keywords: "about version licenses о программе лицензии",
           category: .about),
-
-#if os(macOS)
-    .init("sidebar-folders", titleKey: "Show bookmark folders",
-          keywords: "sidebar folders закладки боковая",
-          category: .sidebar),
-#endif
   ]
+
+  private static var platformExtras: [SettingsSearchEntry] {
+#if os(macOS)
+    [
+      .init("general-always-on-top", titleKey: "AlwaysOnTop",
+            keywords: "window always on top поверх окон",
+            category: .general),
+      .init("sidebar-folders", titleKey: "Show bookmark folders",
+            keywords: "sidebar folders закладки боковая",
+            category: .sidebar),
+    ]
+#else
+    []
+#endif
+  }
 
   private static var integrations: [SettingsSearchEntry] {
     Integration.allCases.map { integration in
