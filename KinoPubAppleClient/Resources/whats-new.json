@@ -4,7 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
-        "Apple TV: у части спортивных каналов логотипы из приложения (у CBS Sports фон появляется при фокусе); остальные по-прежнему с CDN.",
+        "Apple TV: у части спортивных каналов логотипы из приложения; без фокуса под карточкой — что в эфире, а не название канала.",
         "Mac: если при выходе были открыты Настройки, при следующем запуске снова открывается и главное окно — закрытие Настроек больше не оставляет приложение без интерфейса.",
         "Настройки › Внешний вид: тема — Система / Светлая / Тёмная (по умолчанию Система).",
         "iPhone и iPad: поиск по всем пунктам Настроек; на широком экране — сайдбар и детали, как на Mac (сначала Профиль). Баннер на Главной не крутится, пока открыты Настройки. Переключатели снова системно-зелёные.",
@@ -133,7 +133,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
-        "Apple TV: some sports channels use in-app logos (CBS Sports shows its background on focus); the rest still load from the CDN.",
+        "Apple TV: some sports channels use in-app logos; unfocused tiles show what’s on air under the card, not the channel name.",
         "Mac: quitting with Settings open restores the main library window too on next launch — closing Settings no longer leaves the app with no UI.",
         "Settings › Appearance: Theme is System / Light / Dark (System by default).",
         "iPhone and iPad: search across nested Settings; on a wide layout — sidebar and detail like Mac (Profile first). The Home banner pauses while Settings is open. Toggles use the system green again.",

@@ -59,7 +59,11 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertNil(model.nowPlaying(channelID: 1, at: now.addingTimeInterval(1_200)), "nothing after the schedule ends")
     XCTAssertNil(model.nowPlaying(channelID: 2, at: now))
 #if os(tvOS)
-    XCTAssertEqual(TVChannelsView.tile(for: Self.channel(1), onAir: model.nowPlaying(channelID: 1, at: now)).subtitle, "Now")
+    let tile = TVChannelsView.tile(for: Self.channel(1), onAir: model.nowPlaying(channelID: 1, at: now))
+    XCTAssertEqual(tile.title, "Now")
+    XCTAssertEqual(tile.focusedTitle, "Channel 1")
+    XCTAssertEqual(tile.subtitle, "Now")
+    XCTAssertTrue(tile.subtitleOnFocus)
 #endif
   }
 
@@ -77,21 +81,45 @@ final class TVChannelsModelTests: XCTestCase {
   }
 
   /// A few sports channels ship logos in the asset catalog; the rest stay on the CDN URL.
-  func testBundledLogosMixMarkFocusBackgroundAndFullCards() {
-    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 80),
-                   .mark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"))
+  func testBundledLogosUseFullCards() {
+    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 80), .full("cbs-sports"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 27), .full("espn"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 145), .full("eleven-sports"))
     XCTAssertNil(TVChannelCatalog.bundledLogo(for: 1), "МАТЧ! ТВ stays on the CDN")
 #if os(tvOS)
     let cbs = TVChannelCatalog.channels.first { $0.id == 80 }!
     let match = TVChannelCatalog.channels.first { $0.id == 1 }!
-    XCTAssertEqual(TVChannelsView.logo(for: cbs),
-                   .bundledMark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"))
+    XCTAssertEqual(TVChannelsView.logo(for: cbs), .bundled("cbs-sports"))
     XCTAssertEqual(TVChannelsView.logo(for: match),
                    .remote(URL(string: "https://m.staticpop.net/channels/150x150/match_new.png")!))
+    // Mark+focus-BG remains a supported logo kind even though no channel uses it now.
+    XCTAssertEqual(TVPageLogo.bundledMark(logo: "cbs-sports_logo",
+                                          focusBackground: "cbs-sports_bg"),
+                   .bundledMark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"))
 #endif
   }
+
+#if os(tvOS)
+  /// Unfocused caption is the programme; focused caption returns to the channel name.
+  func testChannelTileShowsProgramWhenUnfocused() {
+    let channel = TVChannel(id: 27, title: "ESPN 1",
+                            logo: "https://example/espn.png", stream: "https://example/live.m3u8")
+    let onAir = EPGProgram(title: "LIVE: COLLEGE BASKETBALL",
+                           start: Date().addingTimeInterval(-600),
+                           stop: Date().addingTimeInterval(600))
+    let withProgram = TVChannelsView.tile(for: channel, onAir: onAir)
+    XCTAssertEqual(withProgram.title, "LIVE: COLLEGE BASKETBALL")
+    XCTAssertEqual(withProgram.focusedTitle, "ESPN 1")
+    XCTAssertEqual(withProgram.subtitle, "LIVE: COLLEGE BASKETBALL")
+    XCTAssertTrue(withProgram.subtitleOnFocus)
+
+    let idle = TVChannelsView.tile(for: channel, onAir: nil)
+    XCTAssertEqual(idle.title, "ESPN 1")
+    XCTAssertNil(idle.focusedTitle)
+    XCTAssertNil(idle.subtitle)
+    XCTAssertFalse(idle.subtitleOnFocus)
+  }
+#endif
 
   /// The guide is asked for the channels already on screen, alongside `/v1/tv`.
   func testGuideUsesTheChannelsAlreadyShown() async {

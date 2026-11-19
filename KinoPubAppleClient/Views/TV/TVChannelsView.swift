@@ -83,15 +83,18 @@ struct TVChannelsView: View {
                    alpha: 1)
   }
 
-  /// The channel's name under the tile. The plate is the logo's own background; the
-  /// programme, when the guide knows it, is the still's secondary line on the focused tile.
+  /// At rest the line under the tile is what's on air (falling back to the channel
+  /// name). Focused: channel name under the tile, programme as the secondary line.
   static func tile(for channel: TVChannel, onAir: EPGProgram? = nil) -> TVPageTile {
-    TVPageTile(id: String(channel.id),
-               title: channel.title,
-               tint: Self.plate(for: channel.id),
-               style: .flat,
-               logo: Self.logo(for: channel),
-               subtitle: onAir?.title)
+    let program = onAir?.title
+    return TVPageTile(id: String(channel.id),
+                      title: program ?? channel.title,
+                      tint: Self.plate(for: channel.id),
+                      style: .flat,
+                      logo: Self.logo(for: channel),
+                      focusedTitle: program.map { _ in channel.title },
+                      subtitle: program,
+                      subtitleOnFocus: program != nil)
   }
 
   /// Bundled asset when the catalog has one; otherwise the CDN / payload URL.

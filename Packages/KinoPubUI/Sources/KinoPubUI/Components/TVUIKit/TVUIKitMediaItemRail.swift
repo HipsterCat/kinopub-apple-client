@@ -164,6 +164,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// Imageset drawn behind `bundledImageName` only while the tile is focused
   /// (logo-mark + focus-BG pattern). Nil: the bundled image is the full card.
   public let focusBackgroundName: String?
+  /// When true, `detail` (secondary text) is shown only while focused — TV channels
+  /// use this so the at-rest programme caption is not repeated as a second line.
+  public let detailOnFocus: Bool
 
   /// A season's card on the episode rail. Each line comes as a list of candidates, longest
   /// first: the card is a poster's width, so the cell draws the first that fits.
@@ -211,7 +214,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               fallbackImageURL: URL? = nil,
               seasonCard: SeasonCard? = nil,
               bundledImageName: String? = nil,
-              focusBackgroundName: String? = nil) {
+              focusBackgroundName: String? = nil,
+              detailOnFocus: Bool = false) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -232,6 +236,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.seasonCard = seasonCard
     self.bundledImageName = bundledImageName
     self.focusBackgroundName = focusBackgroundName
+    self.detailOnFocus = detailOnFocus
   }
 
   /// A season's card, by its own id.
@@ -1214,8 +1219,9 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // Home's rail leaves `detail` nil and stays one line. `updated(for:)` is the
     // sample's construction — the 2026-08-11 attempt set `secondaryText` on a raw
     // `wideCell()` and it painted nothing.
-    config.secondaryText = hideCaption ? nil : item.detail
-    if item.detail != nil {
+    let showDetail = item.detail != nil && (!item.detailOnFocus || state.isFocused)
+    config.secondaryText = hideCaption || !showDetail ? nil : item.detail
+    if showDetail {
       config.secondaryTextProperties.color = state.isFocused ? .secondaryLabel : .tertiaryLabel
     }
     // Zero on purpose: the system's bar only appears on the focused tile, and "you

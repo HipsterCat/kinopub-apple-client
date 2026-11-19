@@ -37,9 +37,9 @@ enum TVChannelCatalog {
   static let logoBase = "https://m.staticpop.net/channels/150x150/"
 
   /// Channels that paint from the asset catalog instead of (or ahead of) the CDN URL.
+  /// `.mark` stays supported for any channel later; none use it today.
   static let bundledLogos: [Int: BundledLogo] = [
-    // Logo mark + focus BG (restored pair; full `cbs-sports` imageset also present).
-    80: .mark(logo: "cbs-sports_logo", focusBackground: "cbs-sports_bg"),
+    80: .full("cbs-sports"),
     145: .full("eleven-sports"),
     27: .full("espn"),
     95: .full("espn-2"),

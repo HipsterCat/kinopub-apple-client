@@ -1,9 +1,10 @@
 ## Unreleased
 
 - **TV channel logos from the bundle:** seven sports channels paint from
-  `KinoPubUI` `Media.xcassets/tv` — CBS Sports as logo-mark + focus background,
-  the others as full cards; the rest of the grid still uses the CDN URL.
-  `TVPageLogo` / `TVChannelCatalog.bundledLogos`; focus BG only while focused.
+  `KinoPubUI` `Media.xcassets/tv` as full cards (CDN for the rest).
+  `TVPageLogo.bundledMark` / mark+focus-BG compositing stays wired but unused.
+  Unfocused channel captions show the programme; focused returns the channel name
+  (`focusedTitle` + `subtitleOnFocus`).
 
 - **Playback no longer refreshes Library / Continue Watching shelves:** progress ticks were invalidating watchlist / unfinished / history and notifying Home, which re-hit `/v1/watching/*`, bookmarks and `/v1/history?perpage=50` about every 10 s (ban risk). Named-key invalidate only notifies for `.continueWatching`; Library stale marks wait until the player ends; Home skips network refresh while the player is active; Continue Watching history is capped at 8 and skipped when a warm history cache exists.
 

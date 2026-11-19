@@ -239,16 +239,25 @@ public struct TVPageTile: Identifiable, Hashable {
   /// A channel logo (bundled and/or remote). Whole, never cropped: full cards are
   /// letterboxed (`TVUIKitTileArtwork.letterboxed`); mark+BG pairs composite instead.
   public let logo: TVPageLogo?
+  /// Replaces `title` under the tile while focused — TV channels show the channel name
+  /// on focus when `title` at rest is the programme.
+  public let focusedTitle: String?
   /// A second line under the name, in the still cell's secondary text — what a channel
   /// has on air.
   public let subtitle: String?
+  /// When true, `subtitle` is drawn only while the tile is focused (avoids duplicating
+  /// the programme under an at-rest caption that is already the programme).
+  public let subtitleOnFocus: Bool
 
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
               style: TVUIKitTileArtwork.Style = .gradient, logo: TVPageLogo? = nil,
-              subtitle: String? = nil) {
+              focusedTitle: String? = nil, subtitle: String? = nil,
+              subtitleOnFocus: Bool = false) {
     self.id = id
     self.title = title
+    self.focusedTitle = focusedTitle
     self.subtitle = subtitle
+    self.subtitleOnFocus = subtitleOnFocus
     self.symbol = symbol
     self.tint = tint
     self.style = style
@@ -258,9 +267,11 @@ public struct TVPageTile: Identifiable, Hashable {
   /// Convenience for a remote logo URL — same as `logo: .remote(url)`.
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
               style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL?,
-              subtitle: String? = nil) {
+              focusedTitle: String? = nil, subtitle: String? = nil,
+              subtitleOnFocus: Bool = false) {
     self.init(id: id, title: title, symbol: symbol, tint: tint, style: style,
-              logo: logoURL.map { .remote($0) }, subtitle: subtitle)
+              logo: logoURL.map { .remote($0) }, focusedTitle: focusedTitle,
+              subtitle: subtitle, subtitleOnFocus: subtitleOnFocus)
   }
 
   public var resolvedTint: UIColor { tint ?? TVUIKitTileArtwork.tint(for: title) }
@@ -303,11 +314,13 @@ public extension TVUIKitMediaItem {
               symbol: tile.symbol,
               tileStyle: tile.style,
               caption: tile.title,
+              focusedCaption: tile.focusedTitle,
               detail: tile.subtitle,
               status: .unavailable,
               artworkFit: .letterbox,
               bundledImageName: bundledImageName,
-              focusBackgroundName: focusBackgroundName)
+              focusBackgroundName: focusBackgroundName,
+              detailOnFocus: tile.subtitleOnFocus)
   }
 }
 
