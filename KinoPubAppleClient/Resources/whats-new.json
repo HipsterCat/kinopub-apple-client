@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "iPhone, iPad и Mac: «Что нового» — крупный лист с крестиком слева, «Продолжить» внизу и историей версий в том же окне; инфо о фильме тоже сразу на всю высоту.",
         "Картинки тайтлов (баннеры, фоны, логотипы, кадры серий) чаще приходят как WebP меньшего размера — быстрее грузятся; при сбое остаётся прежний JPEG/PNG.",
         "История снова пишет день и время («27 января в 20:54»), а не только часы.",
         "Apple TV, Поиск с сеточной клавиатурой: клавиатура остаётся слева, пока вы листаете результаты, а вкладки и поле поиска не уезжают вверх. Прежний вариант — в Настройках › Эксперименты (Grid keyboard always visible, после перезапуска).",
@@ -139,6 +140,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "iPhone, iPad, and Mac: What’s New is a large sheet with a close control, Continue at the bottom, and previous versions in the same window; film info also opens full-height.",
         "Title artwork (banners, backdrops, logos, episode stills) more often arrives as smaller WebP — faster to load; JPEG/PNG remains if the transform path fails.",
         "History rows show the day and the time again (“27 January at 20:54”), not the clock alone.",
         "Apple TV, Search with the grid keyboard: the keyboard stays on the left while you browse the results, and the tabs and the search field no longer scroll away. The previous behaviour is in Settings › Experiments (Grid keyboard always visible, after a relaunch).",

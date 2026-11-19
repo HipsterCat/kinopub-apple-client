@@ -73,6 +73,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+- **What's New on iPhone / iPad / Mac:** large / page sheet (or a dimmed page-hosted Mac
+  panel), title top-aligned, «Продолжить» / Continue at the bottom, no leading cross;
+  tap/click outside dismisses. tvOS keeps Done + Menu in the compact info card.
+  (`InfoPopupView` `confirmTitle` layout; `presentationDetents([.large])` +
+  `presentationSizing(.page)` on iOS.)
+
 - **Multi-version films: one Play → Choose a Version.** A `subtype: multi` film no longer
   gets a play pill per edition in the hero. One «Смотреть фильм» (or Continue / Play Again)
   opens an Apple TV-style sheet — thumb + name + runtime / quality / audio / subs when

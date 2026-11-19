@@ -7,17 +7,24 @@ popup and About (Sasha, 2026-10-16: "все устраивает").
 
 **prd** — The first launch of a build with notes this device has not shown yet presents
 What's New once, signed in, over the app: title, «Версия 1.0 • Сборка 10», the new
-bullets, and **Done**. The marketing version stays 1.0 across TestFlight builds, so the
-gate is per bullet, not per version: any bullet in `whats-new.json` that this device has
-not shown is new; a reworded one counts as new. A fresh install records everything as
-seen and stays quiet.
+bullets, and a primary dismiss control. The marketing version stays 1.0 across TestFlight
+builds, so the gate is per bullet, not per version: any bullet in `whats-new.json` that
+this device has not shown is new; a reworded one counts as new. A fresh install records
+everything as seen and stays quiet.
 
-**prd** — Done (Select) or Menu records every bullet as seen. On tvOS Done holds the
+**prd** — iPhone / iPad / Mac: **Continue** («Продолжить») at the bottom is the primary
+dismiss; there is no leading cross. Tap or click outside the panel also dismisses (same
+as detail info sheets). The header stays top-aligned even with a single bullet. Presentation
+is a large / page sheet on iOS and iPadOS (`presentationDetents([.large])` +
+`presentationSizing(.page)`), and a dimmed page-hosted panel on Mac (`InfoPopupHost`).
+
+**prd** — tvOS: **Done** (Select) or Menu records every bullet as seen. Done holds the
 focus and is the only stop; Up / Down page the text.
 
 **prd** — Drawn in the shared info popup (`InfoPopupView`): one panel over a dimmed
-screen, hugging short text, scrolling long text with the edges faded — not a tvOS sheet,
-which framed it in a second platter.
+screen. On tvOS short text hugs the card and long text scrolls with the edges faded —
+not a tvOS sheet, which framed it in a second platter. On phone / pad / Mac,
+`confirmTitle` switches the panel into the Continue layout above.
 
 ## Settings › About
 

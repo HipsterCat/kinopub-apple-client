@@ -2,10 +2,10 @@
 //  SheetCloseButton.swift
 //  KinoPubUI
 //
-//  The cross in the leading corner of a sheet, as TestFlight, the App Store and Apple's
-//  own What's New draw it: a glass circle with an `xmark`, Escape on a keyboard. One
-//  control for the code sign-in, What's New and the info popups instead of «Готово» and
-//  «Отмена» buttons that differ per screen (Sasha, 2026-11-10).
+//  The cross in the leading corner of a sheet, as TestFlight and the App Store draw it:
+//  a glass circle with an `xmark`, Escape on a keyboard. One control for the code sign-in
+//  and detail info popups instead of «Готово» and «Отмена» buttons that differ per screen
+//  (Sasha, 2026-11-10). What's New on phone / pad / Mac omits this and uses Continue.
 //
 
 import SwiftUI
