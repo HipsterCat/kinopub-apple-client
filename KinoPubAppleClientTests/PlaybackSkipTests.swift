@@ -32,11 +32,30 @@ final class PlaybackSkipTests: XCTestCase {
   func testOpenEndedCreditsRunToTheEndOfTheStream() {
     let offer = PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: true)
     XCTAssertEqual(offer, .init(kind: .credits, targetSeconds: 2_600))
+    guard let offer else { return }
+    XCTAssertTrue(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.end.fill")
   }
 
-  func testAFilmIsNeverOfferedItsCredits() {
-    XCTAssertNil(PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: false))
+  func testAFilmIsOfferedClosingCreditsThatFinishTheTitle() {
+    let offer = PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: false)
+    XCTAssertEqual(offer, .init(kind: .credits, targetSeconds: 2_600))
+    guard let offer else { return }
+    XCTAssertTrue(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.end.fill")
     XCTAssertEqual(PlaybackSkip.offer(at: 10, in: segments, durationSeconds: 2_600, isEpisode: false)?.kind, .recap)
+    // Mid-film credits with a scene after them stay off.
+    var withScene = segments
+    withScene[.credits] = .init(startMs: 2_400_000, endMs: 2_500_000, source: .skipDB)
+    XCTAssertNil(PlaybackSkip.offer(at: 2_410, in: withScene, durationSeconds: 2_600, isEpisode: false))
+  }
+
+  func testNormalSkipUsesForwardFillSymbol() {
+    guard let offer = PlaybackSkip.offer(at: 61, in: segments, durationSeconds: 2_600, isEpisode: true) else {
+      return XCTFail("expected intro skip")
+    }
+    XCTAssertFalse(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.fill")
   }
 
   func testClosingCreditsGiveWayToTheNextEpisode() {
@@ -77,6 +96,38 @@ final class PlaybackSkipTests: XCTestCase {
     XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: false, menuActive: false))
     XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: true))
     XCTAssertFalse(SkipChipVisibility.shown(hasOffer: false, controlsVisible: true, menuActive: false))
+  }
+
+  func testTVSkipIsActionableOnlyWithChromeDownAndNoMenu() {
+    XCTAssertTrue(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: false, menuActive: false))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: true, menuActive: false))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: true, transportBarVisible: false, menuActive: true))
+    XCTAssertFalse(SkipChipVisibility.actionable(hasOffer: false, transportBarVisible: false, menuActive: false))
+  }
+
+  func testCountdownSuspendsWhenSkipWouldBeHidden() {
+    // iOS / macOS: chip follows chrome.
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: false,
+                                                        chipFollowsChrome: true))
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: true,
+                                                        chipFollowsChrome: true))
+    XCTAssertFalse(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: false,
+                                                         chipFollowsChrome: true))
+    // tvOS: Skip is the inverse of the transport bar.
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: true, menuActive: false,
+                                                        chipFollowsChrome: false))
+    XCTAssertTrue(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: true,
+                                                        chipFollowsChrome: false))
+    XCTAssertFalse(SkipChipVisibility.countdownSuspended(chromeVisible: false, menuActive: false,
+                                                         chipFollowsChrome: false))
+  }
+
+  func testTransportMenuHeuristicsCoverSpeedAndTrackMenus() {
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("AVPlaybackSpeedMenuView"))
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("AVMediaSelectionView"))
+    XCTAssertTrue(PlayerTransportMenu.looksLikeMenu("UIContextMenuContainer"))
+    XCTAssertFalse(PlayerTransportMenu.looksLikeMenu("AVPlaybackControlsView"))
+    XCTAssertFalse(PlayerTransportMenu.looksLikeMenu("UILabel"))
   }
 
   func testCountdownClockRoundsUp() {

@@ -442,6 +442,20 @@ struct MediaItemHeroView: View {
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
         trailer.setActive(onScreen)
       }
+#if os(tvOS)
+      // Over the hero, not in the system sheet: that sheet is a fixed platter with a
+      // navigation bar (the green truncated «Выберите версию»).
+      .fullScreenCover(isPresented: $showsVersionPicker) {
+        VersionPickerSheet(
+          variants: mediaItem.playbackVariants,
+          fallbackStillURL: mediaItem.posters.wideURL
+            ?? (mediaItem.posters.big.isEmpty ? nil : mediaItem.posters.big),
+          linkProvider: linkProvider
+        )
+        .presentationBackground(.clear)
+        .pageColorScheme()
+      }
+#else
       .sheet(isPresented: $showsVersionPicker) {
         VersionPickerSheet(
           variants: mediaItem.playbackVariants,
@@ -450,6 +464,7 @@ struct MediaItemHeroView: View {
           linkProvider: linkProvider
         )
       }
+#endif
 #if os(tvOS)
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
       // than on the page, so a focus move re-renders the hero and nothing else.
@@ -1394,7 +1409,8 @@ struct MediaItemHeroView: View {
           lead: synopsis.lead,
           focus: $focus,
           allowsFocus: actionEntryClaimed,
-          popupSubtitle: popupOriginalTitle,
+          // The TV app's panel puts one genre under the title, not the original name.
+          popupSubtitle: mediaItem.genreNames.first,
           summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
         )
         .padding(.vertical, Self.contentSpacing / 2)
@@ -1770,12 +1786,15 @@ struct MediaItemHeroView: View {
       // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
       // the views last; the tail gives way when the line is full (Sasha, 2026-11-16).
       ViewThatFits(in: .horizontal) {
-        phoneScoresRow(limit: nil, views: true, votes: true)
-        phoneScoresRow(limit: nil, views: false, votes: true)
-        // The niche audiences (Douban, MyShows, Trakt…) give way before the critics and
-        // before the vote total.
-        phoneScoresRow(limit: nil, views: true, others: false, votes: true)
-        phoneScoresRow(limit: nil, views: false, others: false, votes: true)
+        // IMDb's and Kinopoisk's own counts, as on the Home banner; then one total.
+        ForEach([false, true], id: \.self) { total in
+          phoneScoresRow(limit: nil, views: true, votes: true, totalVotes: total)
+          phoneScoresRow(limit: nil, views: false, votes: true, totalVotes: total)
+          // The niche audiences (Douban, MyShows, Trakt…) give way before the critics and
+          // before the counts.
+          phoneScoresRow(limit: nil, views: true, others: false, votes: true, totalVotes: total)
+          phoneScoresRow(limit: nil, views: false, others: false, votes: true, totalVotes: total)
+        }
         phoneScoresRow(limit: nil, views: false, others: false)
         ForEach([3, 2, 1], id: \.self) { limit in
           phoneScoresRow(limit: limit, views: false, others: false)
@@ -1798,13 +1817,13 @@ struct MediaItemHeroView: View {
   }
 
   private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true,
-                              votes: Bool = false) -> some View {
+                              votes: Bool = false, totalVotes: Bool = false) -> some View {
     let views = mediaItem.views
     // No scores at all: the views are the line.
     let viewsShown = showsViews || !lineScores.hasDisplayableScore
     return HStack(spacing: Self.metaSpacing) {
       MediaScoresView(lineScores, limit: limit, showsVotes: votes, phoneLine: true,
-                      phoneLineOthers: others)
+                      phoneLineOthers: others, phoneLineTotalVotes: totalVotes)
       if viewsShown, views > 0 {
         HStack(spacing: Self.glyphSpacing) {
           Image(systemName: Self.viewsSymbol)

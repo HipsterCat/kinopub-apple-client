@@ -130,16 +130,22 @@ struct SkipChipOverlay: View {
   private var skipLabel: some View {
     switch style {
     case .countdown:
-      Text(PlaybackSkip.countdownLabel(countdownLeft: manager.skipCountdownLeft, delay: delay))
+      Label(PlaybackSkip.countdownLabel(countdownLeft: manager.skipCountdownLeft, delay: delay),
+            systemImage: skipSymbolName)
     case .ring:
       HStack(spacing: 8) {
         CircularProgressRing(progress: manager.skipCountdownLeft, color: .white, track: .white.opacity(0.28))
           .frame(width: 18, height: 18)
-        Text(PlaybackSkip.title)
+        Label(PlaybackSkip.title, systemImage: skipSymbolName)
       }
     default:
-      Text(PlaybackSkip.title)
+      Label(PlaybackSkip.title, systemImage: skipSymbolName)
     }
+  }
+
+  private var skipSymbolName: String {
+    guard let offer = manager.skipOffer else { return "forward.fill" }
+    return PlaybackSkip.symbolName(for: offer, durationSeconds: manager.skipDurationSeconds)
   }
 
   private var banner: some View {

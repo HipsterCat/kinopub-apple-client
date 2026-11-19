@@ -263,6 +263,9 @@ public struct MediaScoresView: View {
   public var phoneLine: Bool
   /// On the phone's line, the audiences after Letterboxd (Douban, MyShows, Trakt…).
   public var phoneLineOthers: Bool
+  /// On the phone's line, one total of the votes instead of IMDb's and Kinopoisk's own
+  /// counts — the fallback when those do not fit.
+  public var phoneLineTotalVotes: Bool
 
   public init(
     _ scores: MediaScores,
@@ -276,11 +279,13 @@ public struct MediaScoresView: View {
     fadedIcons: Bool = false,
     compactLimit: Int? = nil,
     phoneLine: Bool = false,
-    phoneLineOthers: Bool = true
+    phoneLineOthers: Bool = true,
+    phoneLineTotalVotes: Bool = false
   ) {
     self.scores = scores
     self.phoneLine = phoneLine
     self.phoneLineOthers = phoneLineOthers
+    self.phoneLineTotalVotes = phoneLineTotalVotes
     self.compactLimit = compactLimit
     self.limit = limit
     self.showsVotes = showsVotes
@@ -389,16 +394,19 @@ public struct MediaScoresView: View {
     }
   }
 
-  /// The phone's line: one count for everyone who voted, right after the audiences'
-  /// scores and before the critics' (Sasha, 2026-11-16: «сумму хотя бы»).
+  /// The phone's line. IMDb and Kinopoisk with their own counts, as the Home banner has
+  /// them; or, when those do not fit, one count for everyone who voted, after the
+  /// audiences' scores (Sasha, 2026-11-16: «сумму хотя бы»).
   private func phoneRow(_ slice: [MediaScoreItem], votes: Bool) -> some View {
     let audiences = slice.filter { ($0.votes ?? 0) > 0 }
     let total = audiences.compactMap(\.votes).reduce(0, +)
     let lastAudience = audiences.last?.id
     return HStack(spacing: rowSpacing) {
       ForEach(slice) { item in
-        score(item: item, showsVotes: false)
-        if votes, total > 0, item.id == lastAudience {
+        let ownCount = votes && !phoneLineTotalVotes
+          && (item.source == .imdb || item.source == .kinopoisk)
+        score(item: item, showsVotes: ownCount)
+        if votes, phoneLineTotalVotes, total > 0, item.id == lastAudience {
           Text(verbatim: "(\(CompactCountFormat.string(total)))")
             .foregroundStyle(Color.KinoPub.subtitle)
             .monospacedDigit()

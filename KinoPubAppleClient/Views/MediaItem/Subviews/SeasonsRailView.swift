@@ -2080,11 +2080,31 @@ struct EpisodeInfoContent: Equatable {
   var qualityLines: [String]
 }
 
-/// TMDB-density episode Info: still, synopsis, facts, then audio / subs / quality.
+/// Episode Info. On tvOS, the synopsis and the age rating when there is one.
+/// iOS and macOS keep the still, the facts line, and audio, subtitles and quality.
 private struct EpisodeInfoPopupContent: View {
   let content: EpisodeInfoContent
 
   var body: some View {
+#if os(tvOS)
+    // The TV app's episode panel: the synopsis under the title. Date and runtime
+    // are already the subtitle. No still (the hero is behind the card) and no
+    // file dump.
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      if let synopsis = content.synopsis, !synopsis.isEmpty {
+        Text(synopsis)
+          .font(InfoPopupMetrics.bodyFont)
+          .foregroundStyle(Color.KinoPub.text)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if let rating = content.rating, !rating.isEmpty {
+        InfoPopupSection(Text("Information")) {
+          InfoPopupFact(Text("MediaItem_AgeRating"), value: rating)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+#else
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       if let url = content.stillURL {
         CachedRemoteImage(url: url, contentMode: .fill) {
@@ -2140,6 +2160,7 @@ private struct EpisodeInfoPopupContent: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+#endif
   }
 }
 
