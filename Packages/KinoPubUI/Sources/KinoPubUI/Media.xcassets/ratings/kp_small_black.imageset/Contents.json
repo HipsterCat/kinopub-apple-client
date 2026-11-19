@@ -1,16 +1,17 @@
 {
   "images" : [
     {
+      "filename" : "kinopoisk_small_black.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "kp_small_black@2x.png",
+      "filename" : "kinopoisk_small_black@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "kp_small_black@3x.png",
+      "filename" : "kinopoisk_small_black@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

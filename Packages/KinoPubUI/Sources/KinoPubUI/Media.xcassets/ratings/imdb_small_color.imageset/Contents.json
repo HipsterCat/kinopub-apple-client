@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "imdb_small_color.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
