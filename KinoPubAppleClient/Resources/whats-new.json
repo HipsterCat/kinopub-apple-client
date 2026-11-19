@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Плеер: «Пропустить» в конце фильма или последней серии сразу отмечает просмотренным и закрывает плеер, не перематывая в конец.",
         "Apple TV: автопропуск больше не срабатывает, пока открыта панель плеера или меню скорости / субтитров / звука — только когда видна кнопка «Пропустить».",
         "iPhone и iPad: «Скачать» на странице тайтла больше не закрывает приложение.",
         "Apple TV: вниз с «Смотреть» на сериале попадает на серию, которую включит эта кнопка, а не на ближайшую карточку. У фильма с несколькими версиями кнопка остаётся «Смотреть фильм», а не время первой версии.",
@@ -126,6 +127,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Player: Skip at the end of a film or the last episode marks it watched and closes immediately, without seeking to the end. Skip uses forward.fill; the last piece uses forward.end.fill.",
         "Apple TV: Automatic Skip no longer fires while the player chrome or a Speed / Subtitles / Audio menu is up — only when the Skip button is on screen.",
         "iPhone and iPad: Download on a title page no longer quits the app.",
         "Apple TV: Down from Play on a series lands on the episode that button plays, not the nearest card. A film with several versions keeps Watch Movie, not the first version’s remaining time.",

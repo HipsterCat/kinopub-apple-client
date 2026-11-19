@@ -753,6 +753,12 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     onPlaybackEnded?(action)
   }
 
+  /// Last-piece Skip: report watched at the full duration and leave, without seeking
+  /// the playhead to the end first (`performSkip` in `PlaybackSkip.swift`).
+  func finishTitleFromSkip() {
+    handleEndOfPlayback()
+  }
+
   // MARK: - Subtitles
 
   /// Nothing to pick from on a trailer, or on an item the API gave no tracks for.

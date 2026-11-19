@@ -32,11 +32,30 @@ final class PlaybackSkipTests: XCTestCase {
   func testOpenEndedCreditsRunToTheEndOfTheStream() {
     let offer = PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: true)
     XCTAssertEqual(offer, .init(kind: .credits, targetSeconds: 2_600))
+    guard let offer else { return }
+    XCTAssertTrue(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.end.fill")
   }
 
-  func testAFilmIsNeverOfferedItsCredits() {
-    XCTAssertNil(PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: false))
+  func testAFilmIsOfferedClosingCreditsThatFinishTheTitle() {
+    let offer = PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: false)
+    XCTAssertEqual(offer, .init(kind: .credits, targetSeconds: 2_600))
+    guard let offer else { return }
+    XCTAssertTrue(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.end.fill")
     XCTAssertEqual(PlaybackSkip.offer(at: 10, in: segments, durationSeconds: 2_600, isEpisode: false)?.kind, .recap)
+    // Mid-film credits with a scene after them stay off.
+    var withScene = segments
+    withScene[.credits] = .init(startMs: 2_400_000, endMs: 2_500_000, source: .skipDB)
+    XCTAssertNil(PlaybackSkip.offer(at: 2_410, in: withScene, durationSeconds: 2_600, isEpisode: false))
+  }
+
+  func testNormalSkipUsesForwardFillSymbol() {
+    guard let offer = PlaybackSkip.offer(at: 61, in: segments, durationSeconds: 2_600, isEpisode: true) else {
+      return XCTFail("expected intro skip")
+    }
+    XCTAssertFalse(PlaybackSkip.finishesTitle(offer, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.symbolName(for: offer, durationSeconds: 2_600), "forward.fill")
   }
 
   func testClosingCreditsGiveWayToTheNextEpisode() {

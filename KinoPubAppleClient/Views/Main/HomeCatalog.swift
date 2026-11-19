@@ -568,7 +568,7 @@ class HomeCatalog: ObservableObject {
       .sink { [weak self] _ in
         // Progress ticks used to invalidate Library watch rows and post this; Home
         // must not re-fetch watching/history/bookmarks while a film is playing.
-        guard PlaybackSession.shared.manager == nil else { return }
+        guard PlaybackSession.shared.currentManager == nil else { return }
         Task { await self?.refreshContinueWatching() }
       }
       .store(in: &bag)
@@ -801,7 +801,7 @@ class HomeCatalog: ObservableObject {
       assembleRows()
       return
     }
-    if PlaybackSession.shared.manager != nil {
+    if PlaybackSession.shared.currentManager != nil {
       assembleRows()
       return
     }
