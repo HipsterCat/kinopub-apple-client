@@ -27,8 +27,9 @@ import OSLog
 /// first page and is unrelated to searching.
 ///
 /// **Where the text comes from is not the same on every platform.**
-/// - iOS / iPadOS / tvOS: `.searchable` is inside `SearchView`, bound to its own
-///   `@State`. The view exists before the field does, so nothing can race.
+/// - iOS / iPadOS: `.searchable` in `SearchView` with
+///   `.navigationBarDrawer(displayMode: .always)` so the field is under the large title
+///   without a pull-down (tvOS fallback path keeps `.automatic`). Bound to `@State`.
 /// - macOS: the field is in the *window toolbar* (`macToolbarSearch`), bound to
 ///   `NavigationState.macSearchFieldText`, and it exists on every tab — including tabs
 ///   where `SearchView` is not mounted at all. Typing there is what mounts it.
