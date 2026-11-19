@@ -39,13 +39,29 @@ enum TVChannelCatalog {
   /// Channels that paint from the asset catalog instead of (or ahead of) the CDN URL.
   /// `.mark` stays supported for any channel later; none use it today.
   static let bundledLogos: [Int: BundledLogo] = [
+    // Logo mark + focus BG (restored pair; full `cbs-sports` imageset also present).
     80: .full("cbs-sports"),
     145: .full("eleven-sports"),
     27: .full("espn"),
     95: .full("espn-2"),
     10: .full("eurosport-1"),
     68: .full("eurosport-2"),
-    92: .full("nba")
+    92: .full("nba"),
+    121: .full("fox-sports-1"),
+    123: .full("fox-sports-2"),
+    163: .full("mma-tv"),
+    75: .full("nbc-sports"),
+    89: .full("nhl-network"),
+    74: .full("premier-sports-1"),
+    25: .full("premier-sports-2"),
+    92: .full("nba"),
+    121: .full("fox-sports-1"),
+    123: .full("fox-sports-2"),
+    163: .full("mma-tv"),
+    75: .full("nbc-sports"),
+    89: .full("nhl-network"),
+    74: .full("premier-sports-1"),
+    25: .full("premier-sports-2"),
   ]
 
   static let entries: [Entry] = [
