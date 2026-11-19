@@ -138,7 +138,7 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
     if !animated, shownCount > 0, count > shownCount,
        let leaving = navigationController.viewControllers.dropLast().last?.view,
        leaving.window != nil,
-       let snapshot = leaving.snapshotView(afterScreenUpdates: false) {
+       let snapshot = Snapshot.imageView(of: leaving) {
       snapshot.frame = leaving.frame
       pendingSnapshot = snapshot
     }
@@ -192,7 +192,7 @@ private final class SwapAnimator: NSObject, UIViewControllerAnimatedTransitionin
 
   func animateTransition(using context: UIViewControllerContextTransitioning) {
     if let from = context.view(forKey: .from),
-       let snapshot = from.snapshotView(afterScreenUpdates: false) {
+       let snapshot = Snapshot.imageView(of: from) {
       snapshot.frame = from.frame
       snapshotTaken(snapshot)
     }
@@ -235,7 +235,7 @@ private enum TabBarSlide {
     guard let (tabs, bar) = bar(of: navigation) else { return }
     if isShowing(tabs, bar), !UIAccessibility.isReduceMotionEnabled,
        let window = bar.window,
-       let snapshot = bar.snapshotView(afterScreenUpdates: false) {
+       let snapshot = Snapshot.imageView(of: bar) {
       snapshot.frame = bar.convert(bar.bounds, to: window)
       snapshot.isUserInteractionEnabled = false
       window.addSubview(snapshot)
@@ -271,6 +271,30 @@ private enum TabBarSlide {
     slide.duration = duration
     slide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
     bar.layer.add(slide, forKey: "kinopub.tabBarSlide")
+  }
+}
+
+/// A plain `UIImageView` of a view — not `snapshotView(afterScreenUpdates:)`.
+///
+/// **Apple API limitation / adapter:** `snapshotView` returns `_UIReplicantView`. Adding
+/// that as a subview of a `UIHostingController`'s view (SwiftUI's `NavigationStack`
+/// container) logs *"Adding '_UIReplicantView' as a subview of UIHostingController.view
+/// is not supported"* and *"Snapshotting a view … afterScreenUpdates:NO"*. An image
+/// draw with `afterScreenUpdates: true` is a normal view and silences both.
+private enum Snapshot {
+  static func imageView(of view: UIView) -> UIImageView? {
+    let bounds = view.bounds
+    guard bounds.width > 1, bounds.height > 1 else { return nil }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = view.traitCollection.displayScale
+    format.opaque = false
+    let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      _ = view.drawHierarchy(in: bounds, afterScreenUpdates: true)
+    }
+    let imageView = UIImageView(image: image)
+    imageView.bounds = bounds
+    imageView.isUserInteractionEnabled = false
+    return imageView
   }
 }
 

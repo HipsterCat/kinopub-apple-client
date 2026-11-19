@@ -192,7 +192,8 @@ final class TVUIKitNonFocusablePosterView: TVUIKitDeferredPosterView {
   private func suppressFocusStealing() {
     guard isUserInteractionEnabled else { return }
     isUserInteractionEnabled = false
-    PosterContextMenuLog.log("NonFocusablePosterView cleared isUserInteractionEnabled")
+    // No log: `TVPosterView` re-enables interaction during layout, so this ran every
+    // frame on Home and flooded DEBUG (`[PCM] NonFocusablePosterView cleared…`).
   }
 }
 
