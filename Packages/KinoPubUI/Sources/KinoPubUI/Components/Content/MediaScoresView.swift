@@ -187,8 +187,8 @@ public struct MediaScoreLogo: View {
     switch style {
     case .template:
       switch source {
-      case .imdb: return "IMDb"
-      case .kinopoisk: return "kinopoisk"
+      case .imdb: return "imdb_small_black"
+      case .kinopoisk: return "kp_small_black"
       case .tmdb: return "tmdb"
       case .kinopub: return "kinopub_small"
       default: return source.colorAssetName
