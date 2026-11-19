@@ -49,7 +49,8 @@ struct SettingsSearchEntry: Identifiable, Hashable {
     if let sectionKey {
       parts.append(String(localized: String.LocalizationValue(sectionKey)))
     }
-    return parts.joined(separator: " › ")
+    // Same arrow System Settings uses in search hits (Accessibility → Head Tracking).
+    return parts.joined(separator: " → ")
   }
 
   private var categoryTitleKey: String {
@@ -424,24 +425,23 @@ struct SettingsSearchResults: View {
           Button {
             onSelect(entry)
           } label: {
-            // System Settings–style: colored section tile + title + breadcrumb.
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(entry.localizedTitle)
-                Text(entry.breadcrumb)
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
+            // iPhone / Mac System Settings search row: section tile, title, path.
+            HStack(spacing: 12) {
               SettingsIconView(
                 systemImage: entry.category.systemImage,
                 color: entry.category.iconColor
               )
+              VStack(alignment: .leading, spacing: 2) {
+                Text(entry.localizedTitle)
+                Text(entry.breadcrumb)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer(minLength: 0)
             }
+            .contentShape(Rectangle())
           }
-#if os(macOS)
           .buttonStyle(.plain)
-#endif
         }
       }
     }
