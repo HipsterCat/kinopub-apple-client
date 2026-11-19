@@ -145,6 +145,13 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
     .windowResizability(.contentSize)
     .defaultSize(width: WindowSize.macosDefault.width, height: WindowSize.macosDefault.height)
+    // Always present the library on launch. Settings (and any other restorable
+    // secondary `Window`) can reopen alone; with the default `.automatic` launch
+    // behavior the primary `WindowGroup` then stays closed because "another scene
+    // already presented" — closing Settings leaves a running app with no UI until
+    // the Dock icon is clicked. `.presented` keeps Settings restoration and still
+    // opens the main window beside it (Apple's `defaultLaunchBehavior`).
+    .defaultLaunchBehavior(.presented)
     // Unified toolbar with the page's title in it, as the TV app's: large beside Back,
     // inline once the page scrolls (`toolbarTitleDisplayMode(.inlineLarge)` per page).
     .windowToolbarStyle(.unified(showsTitle: true))

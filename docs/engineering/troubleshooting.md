@@ -34,6 +34,7 @@ Symptoms seen in this repo and what caused them. Measured evidence, linked from 
 | Blur/choreography "only works for series" | Something is keyed to incidental content geometry instead of state |
 | The page moves a little, then stops; background changes but layout doesn't | A threshold copied from a swipe-driven Apple sample onto a focus-driven page |
 | macOS: sidebar and player on screen together | A play entry point used `NavigationLink` instead of `PlayerLink` |
+| macOS: quit with Settings open, next launch shows only Settings; closing it leaves no UI until Dock click | Settings is a restorable `Window`; the primary `WindowGroup` used `.automatic` launch behavior, which skips presenting when another scene already restored. Primary scene needs `.defaultLaunchBehavior(.presented)` so the library opens beside restored Settings |
 | tvOS launch is slow with empty shelves | Auth no longer blocks on refresh when Keychain has a token — if the shell is up but rails are empty, nothing is cached / the content fetch is still in flight. Read Settings › Diagnostics › Network log, and switch on the in-flight overlay — do not guess from a spinner |
 | "What did the server actually reply?" | Settings › Diagnostics › Network log — full bodies, headers, timing. The one-line `ResponseLoggingPlugin` never had the body |
 
