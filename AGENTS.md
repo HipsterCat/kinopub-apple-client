@@ -22,11 +22,12 @@ semantic component is fine; two components for one idea on one platform is a def
 - **Language:** Swift 5 mode in packages (`swift-tools-version: 6.2`).
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.
   No custom transport chrome.
-- **Appearance:** every platform follows the system light/dark setting (no `.preferredColorScheme`
-  on the shell — on tvOS even `nil` pinned Dark; `LaunchAppearance` in `KinoPubAppleClientApp.swift`).
-  Like the Apple TV app: what is drawn over a title's picture (hero text, scrim, Play) is forced
-  dark; with no picture the hero follows the system. Shots in both: DEBUG
-  `-KINOPUBForceColorScheme light|dark`.
+- **Appearance:** Settings › Appearance › Theme is System (default) / Light / Dark
+  (`AppearancePreference`, applied by `kinopubAppearancePreference()`). System omits
+  `.preferredColorScheme` — on tvOS even `nil` pinned Dark. DEBUG
+  `-KINOPUBForceColorScheme light|dark` still wins (`LaunchAppearance`). Like the Apple TV
+  app: what is drawn over a title's picture (hero text, scrim, Play) is forced dark; with
+  no picture the hero follows the chosen / system scheme.
 - **Distribution:** personal builds and internal TestFlight. App Store review is not a target,
   which is what makes isolated private API acceptable.
 - **Docs are English.** A vendor's own documentation stays **verbatim in its language**

@@ -473,7 +473,9 @@ struct MainView: View {
         menuEntries(for: card, surface: .banner, isContinueWatching: false)
           .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
       },
-      heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
+      heroIsActive: navigationState.selectedTab == tab
+        && navigationState.path(for: tab).wrappedValue.isEmpty
+        && !showsSettings,
       heroProfile: showsHeroChrome
         ? (label: "Settings".localized, action: {
           // The same sheet as Library's gear; a tab only where Settings is one.

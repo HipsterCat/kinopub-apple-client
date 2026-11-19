@@ -288,6 +288,8 @@
               "children": [
                 { "path": "SettingsCategory.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsRootView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "AppearancePreference.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsSearch.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsIconView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsSidebarProfileView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsMacChrome.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

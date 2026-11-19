@@ -83,6 +83,7 @@ struct KinoPubAppleClientApp: App {
         .environment(windowSettings)
 #endif
         .kinopubLaunchColorScheme()
+        .kinopubAppearancePreference()
 #if os(tvOS)
         // Top Shelf items open here (`TopShelfLink`).
         .onOpenURL { url in
@@ -353,12 +354,12 @@ private struct UILabCommands: Commands {
 
 /// Appearance at the app root.
 ///
-/// tvOS must **not** get `.preferredColorScheme(.dark)` — CURRENT.md rescinded
-/// dark-only, and `.preferredColorScheme(nil)` still pinned Dark on the simulator
-/// (hig could not get Light). The modifier is applied only when DEBUG
-/// `-KINOPUBForceColorScheme light|dark` is set (`simctl ui appearance` unsupported).
-/// iOS / macOS follow the system too (Sasha, 2026-10-18 / 2026-10-29); what is drawn
-/// over a picture forces itself dark, the way the Apple TV app does.
+/// User Theme (Settings › Appearance) is applied by `kinopubAppearancePreference()`.
+/// tvOS must **not** get `.preferredColorScheme(nil)` for System — that still pinned
+/// Dark on the simulator (hig could not get Light); System means omitting the
+/// modifier. DEBUG `-KINOPUBForceColorScheme light|dark` still wins over the
+/// preference (`simctl ui appearance` unsupported). What is drawn over a picture
+/// forces itself dark, the way the Apple TV app does.
 enum LaunchAppearance {
 #if DEBUG
   static var forcedColorScheme: ColorScheme? {

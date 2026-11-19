@@ -568,7 +568,13 @@ final class TVSettingsCatalog {
                              label: { value in
                                (value as? String).flatMap(CoverArtworkLanguage.init(rawValue:))?.titleKey.localized
                              })),
-        info("Theme", "Dark".localized),
+        TSKRow(title: "Theme".localized,
+               description: "Settings_Tip_Theme".localized,
+               kind: .choice(key: "appearancePreference",
+                             values: AppearancePreference.allCases.map { $0.rawValue as NSString },
+                             label: { value in
+                               (value as? String).flatMap(AppearancePreference.init(rawValue:))?.localizedTitle
+                             })),
         TSKRow(title: "Вкладки и Главная",
                description: "Включение, отключение и сортировка вкладок верхнего меню и секций Главной страницы.",
                kind: .action(pushes: true) { [unowned self] in self.open(.tabs) },
@@ -1931,6 +1937,13 @@ final class TVSettingsCatalog {
                  guard let raw = value as? String,
                        let language = CoverArtworkLanguage(rawValue: raw) else { return }
                  CoverArtworkPreferences.set(language)
+               })
+    store.bind("appearancePreference",
+               get: { AppearancePreference.current.rawValue as NSString },
+               set: { value in
+                 guard let raw = value as? String,
+                       AppearancePreference(rawValue: raw) != nil else { return }
+                 defaults.set(raw, forKey: AppearancePreference.storageKey)
                })
     store.bind("cardRatingPlacement",
                get: { MediaCardDisplayPreferences.ratingPlacement.rawValue as NSString },

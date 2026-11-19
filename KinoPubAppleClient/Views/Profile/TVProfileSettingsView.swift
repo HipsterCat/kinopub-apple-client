@@ -29,6 +29,8 @@ struct TVProfileSettingsView: View {
   @Binding var selectedLanguage: String
   /// Bumps the cover row when the choice page writes the key.
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguageToken = ""
+  @AppStorage(AppearancePreference.storageKey)
+  private var appearanceRaw = AppearancePreference.system.rawValue
   @Binding var preferNonCCSubtitles: Bool
   @Binding var dualSubtitlesEnabled: Bool
   @Binding var secondSubtitleLanguage: String
@@ -77,6 +79,21 @@ struct TVProfileSettingsView: View {
     )
   }
 
+  private var themeLabel: String {
+    _ = appearanceRaw
+    return AppearancePreference.current.localizedTitle
+  }
+
+  private var themeSelection: Binding<String> {
+    Binding(
+      get: { AppearancePreference.current.rawValue },
+      set: { raw in
+        guard AppearancePreference(rawValue: raw) != nil else { return }
+        appearanceRaw = raw
+      }
+    )
+  }
+
   // MARK: - Destinations
 
   @ViewBuilder
@@ -93,6 +110,16 @@ struct TVProfileSettingsView: View {
           SettingsChoiceOption(id: language.rawValue, title: language.titleKey.localized)
         },
         selection: coverLanguageSelection
+      )
+    case .theme:
+      SettingsChoiceView(
+        title: "Theme",
+        pageSymbol: "paintbrush",
+        tipKey: "Settings_Tip_Theme",
+        options: AppearancePreference.allCases.map { preference in
+          SettingsChoiceOption(id: preference.rawValue, title: preference.localizedTitle)
+        },
+        selection: themeSelection
       )
     case .language:
       SettingsChoiceView(
@@ -349,7 +376,13 @@ struct TVProfileSettingsView: View {
         focus: focus,
         equals: .coverLanguage
       )
-      infoRow(label: "Theme", value: "Dark".localized, focus: focus, id: "theme")
+      navigationRow(
+        "Theme",
+        value: themeLabel,
+        route: .theme,
+        focus: focus,
+        equals: .theme
+      )
     }
   }
 
@@ -990,6 +1023,7 @@ private struct TVReleaseNotesPage: View {
 private enum SettingsRoute: Hashable {
   case category(TVSettingsCategory)
   case coverLanguage
+  case theme
   case language
   case secondSubtitleLanguage
   case streamQuality
@@ -1009,6 +1043,7 @@ private enum SettingsRoute: Hashable {
 /// them is focused). Payloads only keep siblings apart.
 private enum SettingsFocusItem: Hashable {
   case coverLanguage
+  case theme
   case language
   case streamQuality
   case rememberedTracks
@@ -1037,6 +1072,7 @@ private enum SettingsFocusItem: Hashable {
   var tipKey: LocalizedStringKey? {
     switch self {
     case .coverLanguage: "Settings_Tip_Covers"
+    case .theme: "Settings_Tip_Theme"
     case .language: "Settings_Tip_Language"
     case .streamQuality: "Settings_Tip_StreamQuality"
     case .rememberedTracks: "Settings_Tip_RememberedTracks"
