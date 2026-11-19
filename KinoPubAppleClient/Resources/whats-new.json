@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Apple TV: «Выберите версию» и окно информации — компактная карточка поверх постера, как в приложении Apple TV: системный шрифт, скругление, тень и обводка. У версии кадр, название и одна строка «Звук: …», без белой плашки. В информации — жанр, описание, год и длительность со значками, затем «Информация».",
         "iPhone и iPad: «Скачать» на странице тайтла больше не закрывает приложение.",
         "Apple TV: вниз с «Смотреть» на сериале попадает на серию, которую включит эта кнопка, а не на ближайшую карточку. У фильма с несколькими версиями кнопка остаётся «Смотреть фильм», а не время первой версии.",
         "Apple TV: вверх с карточки справа от кнопок попадает на «Смотреть», а не на «…». Menu ниже героя возвращает к нему, а не закрывает страницу. У сериала кнопка сразу «Смотреть», без «Смотреть фильм». Трейлер не теряет увеличение, когда рядом появляется YouTube. Назад из тайтла фокус возвращается на ту же карточку.",
@@ -125,6 +126,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Apple TV: Choose a Version and the info sheet are a compact card over the poster, as in the Apple TV app: system type, the tvOS corner, a shadow and a stroke. A version row is a poster, the title and one Audio line, with no white plate. Info is the genre, the synopsis, year and runtime with badges, then Information.",
         "iPhone and iPad: Download on a title page no longer quits the app.",
         "Apple TV: Down from Play on a series lands on the episode that button plays, not the nearest card. A film with several versions keeps Watch Movie, not the first version’s remaining time.",
         "Apple TV: Up from a card to the right of the buttons lands on Play, not the ellipsis. Menu below the hero returns to it instead of closing the page. A series says Play immediately, not Watch Movie. A trailer keeps its focus scale when the YouTube card arrives. Back from a title returns focus to that card.",

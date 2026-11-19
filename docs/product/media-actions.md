@@ -49,10 +49,12 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 One Play — the kind title (`Смотреть фильм` / Play Again). Not the first edition's
 remaining time; that time belongs to its row in the sheet.
 Select opens an Apple TV-style **Choose a Version** sheet: first row focused by
-default; each row is thumb + version name + distinguishing facts (runtime delta,
-quality / projector format, audio, subs) when the titles alone are not enough.
-The Versions rail under the hero stays for browsing. (Sasha, 2026-11-14; was one
-pill per version, 2026-10-03.)
+default; each row is a small poster, the version name, and one line (`Звук: …` /
+`Audio: …`). The card hugs that content over the hero — the tvOS corner, a stroke
+and a shadow — with no navigation bar and no plate behind the artwork.
+The Versions rail under the hero stays for browsing. (Sasha, 2026-11-16; the row
+was a joined runtime / quality / audio / subs list, 2026-11-14. Was one pill per
+version, 2026-10-03.)
 
 ### Concert / multi-part · several videos (`videos` > 1, not `subtype: multi`)
 `[▶ Концерт]` · `[▶ Don't Look Down]` · `[Трейлер]` · `«+ ещё N»` · …

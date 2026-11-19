@@ -142,6 +142,22 @@ final class TVDetailPageUITests: XCTestCase {
     try shoot("versions-1-sheet")
   }
 
+  /// Select on the synopsis opens the info card: «Информация», over the hero.
+  func testFilmSynopsisOpensInfoCard() throws {
+    launch("film")
+    try waitForFocus(on: "play", timeout: 20, "info-open")
+    XCUIRemote.shared.press(.up)
+    let plot = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "hero.plot"))
+      .firstMatch
+    XCTAssertTrue(plot.waitForExistence(timeout: 3), "Up from Play did not land on the synopsis: \(focusedDescription)")
+    XCUIRemote.shared.press(.select)
+    let information = app.staticTexts["Информация"]
+    XCTAssertTrue(information.waitForExistence(timeout: 5), "info card did not appear")
+    Thread.sleep(forTimeInterval: 0.6)
+    try shoot("info-1-sheet")
+  }
+
   /// Unnamed multi-version film: still one Play; the sheet lists Version 1…N.
   func testUnnamedMultiVersionFilmUsesSinglePlay() throws {
     launch("versionsUnnamed")
