@@ -424,33 +424,45 @@ struct SettingsSearchResults: View {
           Button {
             onSelect(entry)
           } label: {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(entry.localizedTitle)
-              Text(entry.breadcrumb)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // System Settings–style: colored section tile + title + breadcrumb.
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(entry.localizedTitle)
+                Text(entry.breadcrumb)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              SettingsIconView(
+                systemImage: entry.category.systemImage,
+                color: entry.category.iconColor
+              )
             }
           }
+#if os(macOS)
+          .buttonStyle(.plain)
+#endif
         }
       }
     }
 #if os(iOS)
     .listStyle(.insetGrouped)
+#elseif os(macOS)
+    .listStyle(.sidebar)
 #endif
   }
 }
 
 #if os(iOS)
 /// Phone: bottom search (iOS 26). Wide / iPad: nav-bar drawer always — Plozz placement.
+/// Only attaches `.searchable` — the host swaps its body when `query` is non-empty
+/// (overlay + `allowsHitTesting(false)` ate taps on the iPhone search field).
 struct SettingsSearchableModifier: ViewModifier {
   @Binding var query: String
   @Binding var isPresented: Bool
   var isPhone: Bool
-  let onSelect: (SettingsSearchEntry) -> Void
-
-  private var showsResults: Bool {
-    !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-  }
+  /// Kept for call-site compatibility; results are rendered by the host.
+  var onSelect: (SettingsSearchEntry) -> Void = { _ in }
 
   func body(content: Content) -> some View {
     Group {
@@ -465,17 +477,8 @@ struct SettingsSearchableModifier: ViewModifier {
     }
   }
 
-  @ViewBuilder
   private func searchableContent(_ content: Content) -> some View {
     content
-      .opacity(showsResults ? 0 : 1)
-      .allowsHitTesting(!showsResults)
-      .accessibilityHidden(showsResults)
-      .overlay {
-        if showsResults {
-          SettingsSearchResults(query: query, onSelect: onSelect)
-        }
-      }
       .searchable(
         text: $query,
         isPresented: $isPresented,
@@ -491,24 +494,11 @@ struct SettingsSearchableModifier: ViewModifier {
 #if os(macOS)
 struct SettingsMacSearchableModifier: ViewModifier {
   @Binding var query: String
-  let onSelect: (SettingsSearchEntry) -> Void
-
-  private var showsResults: Bool {
-    !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-  }
+  /// Kept for call-site compatibility; results are rendered by the host.
+  var onSelect: (SettingsSearchEntry) -> Void = { _ in }
 
   func body(content: Content) -> some View {
     content
-      .opacity(showsResults ? 0 : 1)
-      .allowsHitTesting(!showsResults)
-      .overlay {
-        if showsResults {
-          SettingsSearchResults(query: query) { entry in
-            query = ""
-            onSelect(entry)
-          }
-        }
-      }
       .searchable(text: $query, placement: .sidebar, prompt: "Search settings")
   }
 }
