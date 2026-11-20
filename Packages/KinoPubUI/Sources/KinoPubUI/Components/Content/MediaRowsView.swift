@@ -376,7 +376,8 @@ public struct MediaRowsView: View {
           .focused($focusedCard, equals: CardKey(row: Self.bannerRowID, card: card.id))
           .modifier(MediaCardContextMenuModifier(
             isEnabled: contextMenuProvider != nil,
-            entriesProvider: { contextMenuProvider?(card, .banner) ?? [] }
+            entriesProvider: { contextMenuProvider?(card, .banner) ?? [] },
+            previewSpecProvider: { .from(card: card, surface: .banner) }
           ))
         }
       }
@@ -543,33 +544,60 @@ public struct MediaCardButtonStyle: ButtonStyle {
 /// Entries are built **inside** `contextMenu` so providers that touch coordinators
 /// don't run for every visible card on every Home body pass (that path previously
 /// stormed `get-item-folders` and froze macOS).
+///
+/// On iOS / macOS, `previewSpec` paints the Apple-style enlarged artwork preview
+/// (underlay + loading). tvOS UIKit collections own the same look via
+/// `TVMediaCardContextPreviewController`.
 public struct MediaCardContextMenuModifier: ViewModifier {
   private let isEnabled: Bool
   private let entriesProvider: () -> [MediaCardContextEntry]
+  private let previewSpecProvider: (() -> MediaCardContextPreviewSpec?)?
 
-  public init(entries: [MediaCardContextEntry]) {
+  public init(entries: [MediaCardContextEntry],
+              previewSpec: MediaCardContextPreviewSpec? = nil) {
     self.isEnabled = !entries.isEmpty
     self.entriesProvider = { entries }
+    self.previewSpecProvider = previewSpec.map { spec in { spec } }
   }
 
-  public init(isEnabled: Bool, entriesProvider: @escaping () -> [MediaCardContextEntry]) {
+  public init(isEnabled: Bool,
+              entriesProvider: @escaping () -> [MediaCardContextEntry],
+              previewSpecProvider: (() -> MediaCardContextPreviewSpec?)? = nil) {
     self.isEnabled = isEnabled
     self.entriesProvider = entriesProvider
+    self.previewSpecProvider = previewSpecProvider
   }
 
   @ViewBuilder
   public func body(content: Content) -> some View {
     if isEnabled {
-      content.contextMenu {
-        ForEach(entriesProvider()) { entry in
-          entryView(entry)
+#if os(iOS) || os(macOS)
+      if let previewSpecProvider {
+        content.contextMenu {
+          menuBody
+        } preview: {
+          if let spec = previewSpecProvider() {
+            MediaCardContextPreview(spec: spec)
+          }
         }
-        // macOS 26+/27 hide SF Symbol menu icons unless we ask for title+icon.
-        .labelStyle(.titleAndIcon)
+      } else {
+        content.contextMenu { menuBody }
       }
+#else
+      content.contextMenu { menuBody }
+#endif
     } else {
       content
     }
+  }
+
+  @ViewBuilder
+  private var menuBody: some View {
+    ForEach(entriesProvider()) { entry in
+      entryView(entry)
+    }
+    // macOS 26+/27 hide SF Symbol menu icons unless we ask for title+icon.
+    .labelStyle(.titleAndIcon)
   }
 
   @ViewBuilder

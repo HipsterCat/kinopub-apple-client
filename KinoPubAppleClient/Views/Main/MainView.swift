@@ -597,13 +597,41 @@ struct MainView: View {
       )
     }
 
+    let canMarkWatched: Bool = {
+      if isContinueWatching { return card.canToggleWatched || !card.isSeries }
+      return !card.isSeries
+    }()
+    let watchedSubmenu: MediaCardContextMenus.WatchedSubmenu? = {
+      guard canMarkWatched, !card.isWatched,
+            card.isSeries, let season = card.season, let episode = card.video else { return nil }
+      return MediaCardContextMenus.WatchedSubmenu(
+        season: season,
+        episode: episode,
+        seasonCount: card.seasonCount,
+        onMarkEpisode: {
+          if isContinueWatching {
+            catalog.toggleWatched(card)
+          } else {
+            cardMenu.toggleWatched(card, removeFromContinueWatching: false)
+          }
+        },
+        onMarkSeason: {
+          cardMenu.markSeasonWatched(card, removeFromContinueWatching: isContinueWatching)
+        },
+        onMarkUnwatchedInSeason: {
+          cardMenu.markUnwatchedInSeason(card)
+        },
+        onMarkAllEpisodes: {
+          cardMenu.markAllEpisodesWatched(card, removeFromContinueWatching: isContinueWatching)
+        }
+      )
+    }()
     let onToggleWatched: (() -> Void)? = {
+      guard canMarkWatched, watchedSubmenu == nil else { return nil }
       if isContinueWatching {
-        return card.canToggleWatched ? { catalog.toggleWatched(card) } : nil
+        return { catalog.toggleWatched(card) }
       }
-      return card.isSeries ? nil : {
-        cardMenu.toggleWatched(card, removeFromContinueWatching: false)
-      }
+      return { cardMenu.toggleWatched(card, removeFromContinueWatching: false) }
     }()
 
     return MediaCardContextMenus.entries(
@@ -621,6 +649,7 @@ struct MainView: View {
       },
       onCreateBookmarkFolder: { cardMenu.promptNewFolder(for: card.itemID) },
       onToggleWatched: onToggleWatched,
+      watchedSubmenu: watchedSubmenu,
       onHide: isContinueWatching ? { catalog.hide(card) } : nil,
       onOpenImageURL: { openURL($0) }
     )
