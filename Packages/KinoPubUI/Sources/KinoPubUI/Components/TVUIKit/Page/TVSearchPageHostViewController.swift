@@ -24,6 +24,9 @@ final class TVSearchPageHostViewController: UIViewController {
   private weak var results: TVPageCollectionViewController?
   /// First appearance in the real tab (not the pre-warm parking window).
   var onFirstAppearance: (() -> Void)?
+  /// The host is in the off-screen pre-warm window. `viewDidAppear` still runs
+  /// so the keyboard is built; first-frame metrics wait until the real tab.
+  var isParked = false
   private var didReportFirstAppearance = false
 
   /// Bridges Down from the tab bar into the search chrome. On only while the
@@ -79,8 +82,7 @@ final class TVSearchPageHostViewController: UIViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    // The pre-warm parking window is alpha 0 / hidden; the real tab's window is not.
-    guard view.window?.alpha ?? 0 > 0.5, view.window?.isHidden == false else { return }
+    guard !isParked else { return }
     // Pre-warm may have focused the keyboard in the parking window and left the
     // guide off. The real tab opens on the bar, and Down needs the guide on.
     syncEntryGuide()

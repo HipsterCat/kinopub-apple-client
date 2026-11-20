@@ -19,6 +19,7 @@
 //    scroll.home       Home / templates vertical shelf scroll
 //    scroll.season     tvOS season-rail fold + horizontal rail, one interval per gesture
 //    page.title        navigation push → first painted item
+//    page.search       Search tab selected → field / keyboard first appear
 //    page.resize       Mac / iPad window size settled
 //
 
@@ -45,6 +46,7 @@ public enum PerfSignpost {
     public static let scrollHome = "scroll.home"
     public static let scrollSeason = "scroll.season"
     public static let pageTitle = "page.title"
+    public static let pageSearch = "page.search"
     public static let pageResize = "page.resize"
   }
 
@@ -166,6 +168,24 @@ public enum PerfSignpost {
     }
   }
 
+  /// Search tab opened → the field and keyboard have appeared. One interval per
+  /// process: the stack is pre-warmed at launch, then taken on first visit.
+  public static func beginSearchTab() {
+    guard page.isEnabled else { return }
+    searchTab.withLock { slot in
+      slot?.end("replaced")
+      slot = page.start("page.search", "tab")
+    }
+  }
+
+  public static func endSearchTab(_ reason: String = "painted") {
+    guard page.isEnabled else { return }
+    searchTab.withLock { slot in
+      slot?.end(reason)
+      slot = nil
+    }
+  }
+
   public static func notePageResize(_ size: CGSize) {
     guard page.isEnabled else { return }
     let bucket = CGSize(
@@ -196,6 +216,7 @@ public enum PerfSignpost {
   private static let pageResizeIdle = IdleEnd(session: pageResizeSession, delay: 0.3)
   private static let lastResize = Mutex<CGSize>(.zero)
   private static let titleOpen = Mutex<TitleOpenSlot>(TitleOpenSlot())
+  private static let searchTab = Mutex<PerfInterval?>(nil)
 }
 
 /// One begin/end pair. `end` is idempotent so `defer` and a callback can both fire.

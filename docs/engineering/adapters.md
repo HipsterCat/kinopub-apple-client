@@ -32,6 +32,8 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   General → Keyboard) hides while focus is in the results and the results take the full width,
   through UIKit's private `_shouldHideGridKeyboardUnfocused` (NO by default, no public switch;
   probed on tvOS 26.5 and 27.2). Guarded by `responds(to:)`: without it the keyboard just stays.
+  `TVSearchChrome.prewarm()` presents the stack off-screen at launch so the first Search
+  visit is not the first keyboard presentation (a hidden window skipped `viewDidAppear`).
   Since 2026-11-20 only with «Grid keyboard always visible» off (`TVSearchChrome.keepsGridKeyboardVisible`);
   on, the private switch is not touched at all — the keyboard stays and the container keeps the
   tab bar, field and suggestions in place by itself. The results then scroll beneath that

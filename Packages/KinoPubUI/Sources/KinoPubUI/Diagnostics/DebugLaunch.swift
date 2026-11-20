@@ -275,4 +275,14 @@ public enum DebugLaunch {
     false
 #endif
   }
+
+  /// `-KINOPUBSearchFixtureStartOnWatchNow`: the Search fixture lands on Watch Now
+  /// so a test can open Search the way production does (Home selected, Search lazy).
+  public static var searchFixtureStartOnWatchNow: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBSearchFixtureStartOnWatchNow")
+#else
+    false
+#endif
+  }
 }
