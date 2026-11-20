@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Artwork cache eviction:** decoded images expire after 15 minutes even under
+  the RAM budget; memory warning clears them; background keeps a tenth.
+  Disk is still LRU by last access with the size cap, plus a 7-day unused
+  floor, swept off the main thread at launch and on background.
+
 - **Artwork decode at drawn size:** backdrops, title logos and season-rail stills
   go through Nuke thumbnail + resize at the slot (logos `.fit` so PNG alpha
   stays; never TMDB `/original`). One logo bucket per platform (`w780`/`w1280`).

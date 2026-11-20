@@ -304,3 +304,19 @@ Logo-first presentation (`TitleLogoPresentationPolicy.whenResolved`) and `TitleL
 | Mac | 440×120 | 1280 | 1280 `.fit` | 1920 (was native on 5K) | 256–512 MB |
 
 Remeasure after this change: `artwork.request` end should show `px1280×…` / `px1920×…` rather than `full`, `tier=memory` on a neighbour hero turn, and `XCTMemoryMetric` on `testHomeHeroTurn` / `testTitleOpenFromHome` should drop on tvOS 4K (a 1920×1080×4 backdrop is ~8 MB vs a 4K original ~33 MB). Season-rail cells should no longer log `full` on first appear.
+
+## 10. Cache eviction
+
+What was already true (Nuke defaults + our limits, before this slice):
+
+| Layer | Limit | TTL | Sweep |
+| --- | --- | --- | --- |
+| Memory `ImageCache` | RAM-scaled cost (64–192 MB tvOS) + count 1500/2000 | `nil` (never expire) | CLOCK/LRU when over budget. `DispatchSourceMemoryPressure` → `removeAll`. iOS/tvOS background → trim to 10 % (Nuke). `entryCostLimit` 0.1 (unset). |
+| Disk `DataCache` | 128 MB tvOS / 512 MB else | none | LRU by `contentAccessDate` only when over size, down to 70 %. First sweep ~5 s after init on Nuke's utility queue, then every 30 min. |
+
+What we set:
+
+| Layer | Change |
+| --- | --- |
+| Memory | `ttl` = `memoryEntryTTL` (15 min from **insert**, not last access — Nuke has no idle TTL). `entryCostLimit` = 0.2 so an 8 MB 1080p backdrop fits at the 64 MB floor. UIKit memory-warning → `removeAll`; background → trim to 10 % (same as Nuke, so a warning that missed the DispatchSource still fires). |
+| Disk | Size LRU unchanged. `diskEntryMaxAge` = 7 days: files not accessed that long are deleted even under the byte cap. Age + size sweeps run off the main thread at launch and on background. |

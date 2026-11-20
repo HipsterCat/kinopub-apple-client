@@ -94,6 +94,37 @@ final class ArtworkPipelineTests: XCTestCase {
     XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 1280 + 0.5)
   }
 
+  func testEvictionConstants() {
+    XCTAssertEqual(Artwork.memoryEntryTTL, 15 * 60)
+    XCTAssertEqual(Artwork.memoryEntryCostLimit, 0.2, accuracy: 0.0001)
+    XCTAssertEqual(Artwork.diskEntryMaxAge, 7 * 24 * 60 * 60)
+  }
+
+  func testExpiredDiskURLsUsesAccessAgeAndSkipsHidden() throws {
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("ArtworkDiskSweep-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let visible = dir.appendingPathComponent("poster.bin")
+    let hidden = dir.appendingPathComponent(".data-cache-info")
+    try Data([1]).write(to: visible)
+    try Data([2]).write(to: hidden)
+
+    XCTAssertTrue(
+      Artwork.expiredDiskURLs(in: dir, olderThan: Artwork.diskEntryMaxAge).isEmpty
+    )
+    XCTAssertTrue(
+      Artwork.expiredDiskURLs(in: dir, olderThan: 0).isEmpty
+    )
+
+    let eightDays = Date().addingTimeInterval(8 * 24 * 60 * 60)
+    let expired = Artwork.expiredDiskURLs(
+      in: dir, olderThan: Artwork.diskEntryMaxAge, now: eightDays
+    )
+    XCTAssertEqual(Set(expired.map(\.lastPathComponent)), ["poster.bin"])
+  }
+
   func testDecodedByteCountCountsRasterData() {
 #if os(macOS)
     let image = NSImage(size: NSSize(width: 8, height: 4))

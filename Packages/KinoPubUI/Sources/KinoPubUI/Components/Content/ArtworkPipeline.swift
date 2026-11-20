@@ -105,8 +105,21 @@ public enum Artwork {
 #endif
   }
 
+  /// Decoded images this old expire even when the cache is under its byte/count
+  /// limits. Nuke's `ImageCache.ttl` is from insert (not last access), checked
+  /// on the next read — the closest public API to an idle timeout.
+  public static let memoryEntryTTL: TimeInterval = 15 * 60
+
+  /// An entry larger than this fraction of ``memoryByteLimit`` is not stored.
+  /// 0.2 keeps a 1920×1080×4 backdrop (~8 MB) cacheable at the 64 MB floor
+  /// (Nuke's 0.1 default would reject it).
+  public static let memoryEntryCostLimit: Double = 0.2
+
   private static let memoryCache: ImageCache = {
-    ImageCache(costLimit: memoryByteLimit, countLimit: memoryCountLimit)
+    let cache = ImageCache(costLimit: memoryByteLimit, countLimit: memoryCountLimit)
+    cache.ttl = memoryEntryTTL
+    cache.entryCostLimit = memoryEntryCostLimit
+    return cache
   }()
 
   /// Worker logo/backdrop request URL → language stamp from the last network answer.
@@ -115,8 +128,9 @@ public enum Artwork {
   /// the main actor. The critical sections are dictionary updates with no await.
   private static let workerLanguageByRequestURL = Mutex<[URL: WorkerArtworkLanguageTag]>([:])
 
-  /// Original-byte budget. Nuke evicts past this. tvOS purges `Caches/` when the
-  /// app is not running, so the TV budget stays a within-session cache.
+  /// Original-byte budget. Nuke evicts past this (LRU by last access, down to
+  /// 70 % of the limit). tvOS purges `Caches/` when the app is not running, so
+  /// the TV budget stays a within-session cache.
   public static let diskByteLimit: Int = {
 #if os(tvOS)
     128 * 1024 * 1024
@@ -124,6 +138,10 @@ public enum Artwork {
     512 * 1024 * 1024
 #endif
   }()
+
+  /// Disk entries not accessed for this long are deleted even if the cache is
+  /// under ``diskByteLimit``. One named floor — not a magic number at the sweep.
+  public static let diskEntryMaxAge: TimeInterval = 7 * 24 * 60 * 60
 
   private static let diskCache: DataCache? = {
     guard let cache = try? DataCache(name: "com.soda.kinopub.artwork") else { return nil }
@@ -493,6 +511,12 @@ public enum Artwork {
     static var token: (any NSObjectProtocol)?
   }
 
+  @MainActor
+  private enum CacheEvictionObserver {
+    static var started = false
+    static var tokens: [any NSObjectProtocol] = []
+  }
+
   /// Snapshot the screen scale on the main actor for **signposts** (`pixelSize`
   /// off-main). Does not change Nuke request sizes.
   ///
@@ -529,10 +553,11 @@ public enum Artwork {
 #endif
 
   /// Call once at launch. Re-snapshots when the screen configuration changes —
-  /// not on every artwork load.
+  /// not on every artwork load. Also starts memory/disk eviction observers.
   @MainActor
   public static func startRememberingDisplayScale() {
     rememberDisplayScale()
+    startCacheEviction()
     guard DisplayScaleObserver.token == nil else { return }
 #if os(macOS)
     DisplayScaleObserver.token = NotificationCenter.default.addObserver(
@@ -551,6 +576,88 @@ public enum Artwork {
       MainActor.assumeIsolated { rememberDisplayScale() }
     }
 #endif
+  }
+
+  /// Memory TTL + aggressive trim on pressure/background (tvOS/iOS). Disk LRU
+  /// size sweep plus ``diskEntryMaxAge`` — both off the main thread.
+  ///
+  /// Nuke's `ImageCache` already `removeAll`s on `DispatchSourceMemoryPressure`
+  /// and trims to 10 % on `didEnterBackground`. We still observe the UIKit
+  /// names so a warning that did not go through that source is handled, and so
+  /// the disk age floor runs at the same moment.
+  @MainActor
+  public static func startCacheEviction() {
+    scheduleDiskSweep()
+    guard !CacheEvictionObserver.started else { return }
+    CacheEvictionObserver.started = true
+#if os(iOS) || os(tvOS)
+    let center = NotificationCenter.default
+    CacheEvictionObserver.tokens = [
+      center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
+                         object: nil, queue: .main) { _ in
+        MainActor.assumeIsolated { trimMemoryForWarning() }
+      },
+      center.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                         object: nil, queue: .main) { _ in
+        MainActor.assumeIsolated {
+          trimMemoryForBackground()
+          scheduleDiskSweep()
+        }
+      }
+    ]
+#endif
+  }
+
+  /// Drop every decoded image. Memory warning: the process is about to be jetsam'd.
+  public static func trimMemoryForWarning() {
+    memoryCache.removeAll()
+  }
+
+  /// Keep a tenth of the budget so a return to Home is not a cold decode of the
+  /// current hero, but the rest of the session is gone.
+  public static func trimMemoryForBackground() {
+    memoryCache.trim(toCost: memoryByteLimit / 10)
+    memoryCache.trim(toCount: max(memoryCountLimit / 10, 1))
+  }
+
+  /// Size LRU (`DataCache.sweep`) and the 7-day age floor. Never on the hot path:
+  /// `DataCache.queue` is utility I/O; `sweep()` hops there via `sync`, so we
+  /// bounce off a detached task instead of the main thread.
+  public static func scheduleDiskSweep() {
+    guard let cache = diskCache else { return }
+    let path = cache.path
+    let maxAge = diskEntryMaxAge
+    cache.queue.async {
+      removeExpiredDiskEntries(in: path, olderThan: maxAge)
+    }
+    Task.detached(priority: .utility) {
+      cache.sweep()
+    }
+  }
+
+  /// Files whose content-access date is older than `maxAge`. Hidden Nuke staging
+  /// files (`.tmp`, `.data-cache-info`) are skipped.
+  public static func expiredDiskURLs(in directory: URL, olderThan maxAge: TimeInterval,
+                                     now: Date = Date()) -> [URL] {
+    guard maxAge > 0,
+          let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentAccessDateKey],
+            options: .skipsHiddenFiles
+          ) else { return [] }
+    let cutoff = now.addingTimeInterval(-maxAge)
+    return urls.filter { url in
+      let accessed = (try? url.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
+        ?? .distantPast
+      return accessed < cutoff
+    }
+  }
+
+  static func removeExpiredDiskEntries(in directory: URL, olderThan maxAge: TimeInterval,
+                                       now: Date = Date()) {
+    for url in expiredDiskURLs(in: directory, olderThan: maxAge, now: now) {
+      try? FileManager.default.removeItem(at: url)
+    }
   }
 
   public static func cacheDisplayScale(_ scale: CGFloat) {
