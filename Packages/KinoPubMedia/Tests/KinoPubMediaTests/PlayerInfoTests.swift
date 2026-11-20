@@ -39,10 +39,10 @@ final class PlayerInfoTests: XCTestCase {
   func testTheEpisodeLineCarriesTheNameOnlyWhenItSaysSomething() {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: episode(title: "Ted Lasso"),
                                                     parent: show), language: .en).subtitle,
-                   "Season 2, Episode 5")
+                   "Season 2, Ep 5")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: episode(title: nil),
                                                     parent: show), language: .en).subtitle,
-                   "Season 2, Episode 5")
+                   "Season 2, Ep 5")
   }
 
   /// **One genre.** Apple's card and panel say "Comedy" for a show filed under Comedy and
@@ -55,7 +55,7 @@ final class PlayerInfoTests: XCTestCase {
   func testTheGenreSpeaksTheViewersLanguage() {
     let info = PlayerInfo(context: MediaContext(item: episode(), parent: show), language: .ru)
     XCTAssertEqual(info.genre, "Комедия")
-    XCTAssertEqual(info.subtitle, "2 сезон, 5 серия: Goodbye Earl")
+    XCTAssertEqual(info.subtitle, "Сез 2, серия 5: Goodbye Earl")
   }
 
   /// Only one season known, and it is the first: the season goes without saying
@@ -66,9 +66,9 @@ final class PlayerInfoTests: XCTestCase {
     let first = MediaEntity(kind: .episode, title: "Pilot", seasonNumber: 1, episodeNumber: 1)
     let unnamed = MediaEntity(kind: .episode, title: "Эпизод 1", seasonNumber: 1, episodeNumber: 1)
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: first, parent: single),
-                              language: .en).subtitle, "Episode 1: Pilot")
+                              language: .en).subtitle, "Ep 1: Pilot")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: unnamed, parent: single),
-                              language: .en).subtitle, "Episode 1")
+                              language: .en).subtitle, "Ep 1")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: first, parent: single),
                               language: .ru).subtitle, "1 серия: Pilot")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: unnamed, parent: single),

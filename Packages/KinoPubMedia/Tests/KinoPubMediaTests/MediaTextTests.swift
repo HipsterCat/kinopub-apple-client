@@ -19,28 +19,28 @@ final class MediaTextTests: XCTestCase {
 
   func testShort() {
     XCTAssertEqual(many.formatted(.short, language: .en), "S1, E1")
-    XCTAssertEqual(many.formatted(.short, language: .ru), "1 сезон, 1 серия")
+    XCTAssertEqual(many.formatted(.short, language: .ru), "Сез 1, серия 1")
     XCTAssertEqual(sole.formatted(.short, language: .en), "E1")
-    XCTAssertEqual(sole.formatted(.short, language: .ru), "1 серия")
+    XCTAssertEqual(sole.formatted(.short, language: .ru), "1 сер")
     XCTAssertEqual(manyNamed.formatted(.short, language: .en), "S1, E1", "short never names")
   }
 
   /// The player's subtitle.
   func testMedium() {
-    XCTAssertEqual(many.formatted(.medium, language: .en), "Season 1, Episode 1")
+    XCTAssertEqual(many.formatted(.medium, language: .en), "Season 1, Ep 1")
     XCTAssertEqual(manyNamed.formatted(.medium, language: .en), "S1, E1: Pilot")
     XCTAssertEqual(many.formatted(.medium, language: .ru), "1 сезон, 1 серия")
-    XCTAssertEqual(manyNamed.formatted(.medium, language: .ru), "1 сезон, 1 серия: Pilot")
-    XCTAssertEqual(sole.formatted(.medium, language: .en), "Episode 1")
-    XCTAssertEqual(soleNamed.formatted(.medium, language: .en), "Episode 1: Pilot")
+    XCTAssertEqual(manyNamed.formatted(.medium, language: .ru), "Сез 1, серия 1: Pilot")
+    XCTAssertEqual(sole.formatted(.medium, language: .en), "Ep 1")
+    XCTAssertEqual(soleNamed.formatted(.medium, language: .en), "Ep 1: Pilot")
     XCTAssertEqual(sole.formatted(.medium, language: .ru), "1 серия")
     XCTAssertEqual(soleNamed.formatted(.medium, language: .ru), "1 серия: Pilot")
   }
 
   func testLong() {
-    XCTAssertEqual(manyNamed.formatted(.long, language: .en), "Season 1, Episode 1: Pilot")
-    XCTAssertEqual(soleNamed.formatted(.long, language: .en), "Episode 1: Pilot")
-    XCTAssertEqual(many.accessibilityLabel(language: .en), "Season 1, Episode 1")
+    XCTAssertEqual(manyNamed.formatted(.long, language: .en), "Season 1, Ep 1: Pilot")
+    XCTAssertEqual(soleNamed.formatted(.long, language: .en), "Ep 1: Pilot")
+    XCTAssertEqual(many.accessibilityLabel(language: .en), "Season 1, Ep 1")
   }
 
   /// Only *one* season, and it is the *first*: a show whose only uploaded season is its
@@ -68,7 +68,7 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(manyNamed.text(for: .playerSubtitle, language: .en), "S1, E1: Pilot")
     XCTAssertEqual(manyNamed.text(for: .continueWatchingCard, language: .en), "S1, E1")
     XCTAssertEqual(EpisodeText(season: nil, number: 9).text(for: .episodeTile, language: .en),
-                   "Episode 9")
+                   "Ep 9")
   }
 
   /// The detail page: the season switch is beside the tile, so the season goes unsaid
@@ -79,15 +79,15 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(named.text(for: .episodeTile, language: .ru), "7. Rainbow")
     XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "7 серия")
     XCTAssertEqual(EpisodeText(season: 2, number: 7, name: "Эпизод 7").listItem(language: .en),
-                   "Episode 7", "a placeholder is no name")
+                   "Ep 7", "a placeholder is no name")
   }
 
   /// Anywhere else: the season is said, the name after a colon.
   func testTitled() {
     XCTAssertEqual(manyNamed.text(for: .upNextTile, language: .en), "S1, E1: Pilot")
-    XCTAssertEqual(manyNamed.text(for: .upNextTile, language: .ru), "1 сезон, 1 серия: Pilot")
+    XCTAssertEqual(manyNamed.text(for: .upNextTile, language: .ru), "Сез 1, серия 1: Pilot")
     XCTAssertEqual(many.text(for: .upNextTile, language: .en), "S1, E1")
-    XCTAssertEqual(soleNamed.text(for: .upNextTile, language: .ru), "1 серия: Pilot")
+    XCTAssertEqual(soleNamed.text(for: .upNextTile, language: .ru), "1 сер: Pilot")
   }
 
   func testSeason() {
@@ -174,15 +174,15 @@ final class MediaTextTests: XCTestCase {
 
   /// The Library header: «156 непросмотренных серий», including the adjective.
   func testUnwatchedEpisodeHeaderCountsAgreeInRussian() {
-    let ru = [1: "1 непросмотренная серия", 2: "2 непросмотренные серии",
-              4: "4 непросмотренные серии", 5: "5 непросмотренных серий",
-              11: "11 непросмотренных серий", 21: "21 непросмотренная серия",
-              22: "22 непросмотренные серии", 156: "156 непросмотренных серий"]
+    let ru = [1: "1 серия", 2: "2 серии",
+              4: "4 серии", 5: "5 серий",
+              11: "11 серий", 21: "21 серия",
+              22: "22 серии", 156: "156 серий"]
     for (count, text) in ru {
       XCTAssertEqual(UnwatchedEpisodesCountText(count).formatted(language: .ru), text)
     }
-    XCTAssertEqual(UnwatchedEpisodesCountText(1).formatted(language: .en), "1 unwatched episode")
-    XCTAssertEqual(UnwatchedEpisodesCountText(156).formatted(language: .en), "156 unwatched episodes")
+    XCTAssertEqual(UnwatchedEpisodesCountText(1).formatted(language: .en), "1 episode")
+    XCTAssertEqual(UnwatchedEpisodesCountText(156).formatted(language: .en), "156 episodes")
   }
 
   func testAFolderHeaderCountSaysTotal() {
@@ -245,7 +245,7 @@ final class MediaTextTests: XCTestCase {
 
   func testMultiSeasonShortKeepsSeason() {
     let text = EpisodeText(season: 1, number: 6)
-    XCTAssertEqual(text.formatted(.short, language: .ru), "1 сезон, 6 серия")
+    XCTAssertEqual(text.formatted(.short, language: .ru), "Сез 1, серия 6")
     XCTAssertEqual(text.formatted(.short, language: .en), "S1, E6")
   }
 

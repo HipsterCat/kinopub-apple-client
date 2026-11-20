@@ -103,6 +103,12 @@ final class GenreVocabularyTests: XCTestCase {
   /// One name must never mean two genres in one vocabulary — the lookup would silently
   /// keep whichever came first.
   func testNoNameMeansTwoGenres() {
+    // kino.pub files both id 5 and id 11 as «Фэнтези» / "Fantasy". We keep them as
+    // distinct genres (`fantasy` vs `supernatural`) and disambiguate by id; the
+    // shared display name is not a lookup collision on aliases.
+    let kinopubHomonyms: Set<String> = [
+      "video/fantasy+supernatural", "video/supernatural+fantasy"
+    ]
     var owner: [String: String] = [:]
     for definition in GenreVocabulary.definitions {
       let genre = definition.genre
@@ -110,7 +116,10 @@ final class GenreVocabularyTests: XCTestCase {
       for name in Set(names.map(GenreVocabulary.normalize)) {
         let key = "\(genre.domain.rawValue)/\(name)"
         if let previous = owner[key] {
-          XCTFail("\"\(name)\" is both \(previous) and \(genre.id)")
+          let pair = "\(genre.domain.rawValue)/\(previous)+\(genre.id)"
+          if !kinopubHomonyms.contains(pair) {
+            XCTFail("\"\(name)\" is both \(previous) and \(genre.id)")
+          }
         }
         owner[key] = genre.id
       }

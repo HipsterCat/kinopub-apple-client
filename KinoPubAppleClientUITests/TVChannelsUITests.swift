@@ -164,7 +164,7 @@ final class TVChannelsUITests: XCTestCase {
   private func launch(realArt: Bool = false, extra: [String] = []) {
     app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
-                            "-KINOPUBTVChannelsFixture", "YES", "-KINOPUBInitialTab", "tv"]
+                            "-KINOPUBTVChannelsFixture", "<true/>", "-KINOPUBInitialTab", "tv"]
     if realArt { app.launchArguments += ["-KINOPUBFixtureRealArt", "YES"] }
     app.launchArguments += extra
     app.launch()
@@ -172,6 +172,8 @@ final class TVChannelsUITests: XCTestCase {
 
   /// Waits for the grid, then moves focus into it from wherever the launch left it.
   private func enterGrid() throws {
+    XCTAssertTrue(app.collectionViews["kinopub.page.tv"].waitForExistence(timeout: 30),
+                  "the TV page never appeared")
     XCTAssertTrue(cell(firstChannel).waitForExistence(timeout: 30), "the channels never appeared")
     Thread.sleep(forTimeInterval: 1.5)
     note("launch")

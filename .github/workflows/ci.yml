@@ -19,7 +19,7 @@ concurrency:
   # Distinct from the old `CI-${{ github.ref }}` group so leftover `xcode-27`
   # runs cannot serialize this work. `macos-latest` is GitHub's macos-26 arm64
   # image (Xcode 26.6 GM); the scarce `xcode-27` pool is not used.
-  group: ${{ github.workflow }}-xcode26-${{ github.ref }}
+  group: ${{ github.workflow }}-xcode26-v2-${{ github.ref }}
   # Owner logo/asset pushes must not cancel a main run that finally got a
   # macos-latest runner. PRs still cancel the previous attempt on the same ref.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

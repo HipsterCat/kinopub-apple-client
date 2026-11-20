@@ -7,7 +7,9 @@
   package tests are one job; jobs have timeouts and a per-test 180s watchdog.
   iOS/macOS deployment target is 26.5 (Xcode 26.6's SDK). Settings toggles use
   `ToggleStyle.Configuration`; `DownloadManager` is `final` so Swift 6 Release
-  archives compile.
+  archives compile. History event lines keep the day (`27 января в 20:54`).
+  Package tests match current `EpisodeText` / Library header copy. Performance UI
+  tests require the walk's own signpost, not a cached `artwork.request`.
 
 - **Performance measurement:** `OSSignposter` intervals under subsystem
   `com.soda.kinopub.perf` (artwork request/display, hero page and backdrop,

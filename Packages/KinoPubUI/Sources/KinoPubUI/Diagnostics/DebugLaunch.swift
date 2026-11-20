@@ -106,6 +106,7 @@ public enum DebugLaunch {
   public static var tvChannelsFixture: Bool {
 #if DEBUG
     UserDefaults.standard.bool(forKey: "KINOPUBTVChannelsFixture")
+      || ProcessInfo.processInfo.arguments.contains("-KINOPUBTVChannelsFixture")
 #else
     false
 #endif
