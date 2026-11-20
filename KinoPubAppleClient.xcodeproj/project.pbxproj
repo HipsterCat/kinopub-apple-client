@@ -382,6 +382,18 @@
 			isa = PBXBuildFile;
 			fileRef = C160E9F9778FE918E0BE44B8 /* AppearancePreference.swift */;
 		};
+		3F15FCB7D5B6F14704806A35 /* AppIconBadgePreferences.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 2CD15503A2E1A3C3E504DA28 /* AppIconBadgePreferences.swift */;
+		};
+		36E9876B86969455D5EF919F /* DetailsEnrichmentPreferences.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */;
+		};
+		D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */;
+		};
 		C415449FFA3974094F66839C /* SettingsSearch.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = C5BC89D5EDB3B3D0739E495B /* SettingsSearch.swift */;
@@ -1797,6 +1809,24 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = AppearancePreference.swift;
+			sourceTree = "<group>";
+		};
+		2CD15503A2E1A3C3E504DA28 /* AppIconBadgePreferences.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = AppIconBadgePreferences.swift;
+			sourceTree = "<group>";
+		};
+		1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DetailsEnrichmentPreferences.swift;
+			sourceTree = "<group>";
+		};
+		E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DetailsEnrichmentItemView.swift;
 			sourceTree = "<group>";
 		};
 		C5BC89D5EDB3B3D0739E495B /* SettingsSearch.swift */ = {
@@ -3311,6 +3341,7 @@
 				DA79558A1AB7C9D51E59C848 /* AdvancedSettingsPane.swift */,
 				F2753EF87A4C1E0E17D4E08E /* WorkerImageAdminTokenEntryView.swift */,
 				CDA9952A21443E59651A168F /* PlaceholderSettingsPanes.swift */,
+				E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */,
 				FBC45B7F4BD8A0FC87EDE68A /* DevicesSettingsPane.swift */,
 			);
 			path = Panes;
@@ -3331,6 +3362,8 @@
 				C3FEBEB047A3CC05860A8FEF /* SettingsCategory.swift */,
 				CC7DA582C9AF219DB0F1CBF8 /* SettingsRootView.swift */,
 				C160E9F9778FE918E0BE44B8 /* AppearancePreference.swift */,
+				2CD15503A2E1A3C3E504DA28 /* AppIconBadgePreferences.swift */,
+				1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */,
 				C5BC89D5EDB3B3D0739E495B /* SettingsSearch.swift */,
 				CD1EA626478F4579A66D8170 /* SettingsIconView.swift */,
 				ED886BC9D07E3800B1C4BF8E /* SettingsSidebarProfileView.swift */,
@@ -4036,6 +4069,9 @@
 				A3DAEC63279F0944CD156175 /* SettingsCategory.swift in Sources */,
 				BB2B280E8018C459295A2DA5 /* SettingsRootView.swift in Sources */,
 				C9C1748FA49070EC119C1FDA /* AppearancePreference.swift in Sources */,
+				3F15FCB7D5B6F14704806A35 /* AppIconBadgePreferences.swift in Sources */,
+				36E9876B86969455D5EF919F /* DetailsEnrichmentPreferences.swift in Sources */,
+				D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */,
 				C415449FFA3974094F66839C /* SettingsSearch.swift in Sources */,
 				CA980414CBFB666B647A7289 /* SettingsIconView.swift in Sources */,
 				D6FB5FD5AE0098A1D2E3CCCB /* SettingsSidebarProfileView.swift in Sources */,
