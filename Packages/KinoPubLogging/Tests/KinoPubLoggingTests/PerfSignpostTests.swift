@@ -11,6 +11,7 @@ final class PerfSignpostTests: XCTestCase {
     XCTAssertEqual(PerfSignpost.Interval.scrollHome, "scroll.home")
     XCTAssertEqual(PerfSignpost.Interval.scrollSeason, "scroll.season")
     XCTAssertEqual(PerfSignpost.Interval.pageTitle, "page.title")
+    XCTAssertEqual(PerfSignpost.Interval.pageSearch, "page.search")
     XCTAssertEqual(PerfSignpost.Interval.pageResize, "page.resize")
   }
 
@@ -33,6 +34,10 @@ final class PerfSignpostTests: XCTestCase {
     PerfSignpost.beginTitleOpen(id: "1")
     PerfSignpost.endTitleOpen(reason: "painted", id: "1")
     PerfSignpost.cancelTitleOpen(id: "1")
+
+    PerfSignpost.beginSearchTab()
+    PerfSignpost.endSearchTab("painted")
+    PerfSignpost.endSearchTab("already ended")
   }
 
   /// `endTitleOpen` with no open interval is a no-op (re-appear). The next

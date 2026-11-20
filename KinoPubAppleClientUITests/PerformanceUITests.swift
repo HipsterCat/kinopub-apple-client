@@ -121,6 +121,37 @@ final class PerformanceUITests: XCTestCase {
     }
   }
 
+  /// Cold open of the Search tab from Watch Now. `page.search` is takePrepared →
+  /// field/keyboard first appear. One iteration: the stack is taken once per process.
+  func testSearchTabFirstPaint() {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture",
+                            "-KINOPUBSearchFixtureStartOnWatchNow",
+                            "-KINOPUBForceColorScheme", "dark",
+                            "-ForceGridKeyboard", "YES",
+                            "-UserPreferredKeyboardStyle", "2"]
+    app.launch()
+    XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar did not appear")
+    Thread.sleep(forTimeInterval: 0.6)
+
+    let options = XCTMeasureOptions()
+    options.iterationCount = 1
+    // Clock is the tab-switch wait, which is the interval we want. Memory as usual.
+    measure(metrics: [
+      XCTClockMetric(),
+      XCTMemoryMetric(application: app),
+      signpost("page", "page.search")
+    ], options: options) {
+      XCUIRemote.shared.press(.left)
+      XCTAssertTrue(
+        app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 5)
+          || app.searchFields.firstMatch.waitForExistence(timeout: 2)
+          || app.keyboards.firstMatch.waitForExistence(timeout: 2),
+        "Search chrome did not appear"
+      )
+    }
+  }
+
   func testSeasonRailScroll() throws {
     // `<true/>` is the UserDefaults plist boolean. `"YES"` stores a string and
     // `FeatureFlag.storedValue` (`as? Bool`) falls back to the default, which is off.

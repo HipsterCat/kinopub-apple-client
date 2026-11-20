@@ -10,12 +10,13 @@
 //  presentation. WWDC 2020 "Discover search suggestions for Apple TV" and Apple's
 //  own guidance (forums thread 17819; Rivulet / Plozz keep the container as a real
 //  tab VC from launch) is to stand the container up when the tab bar is created,
-//  not lazily on first appearance. We keep a prepared stack in a hidden window of
-//  the current scene so the first paint of Search is the field and keyboard;
-//  catalog posters are applied afterwards.
+//  not lazily on first appearance. We keep a prepared stack in an off-screen
+//  window of the current scene (real size, so the keyboard actually presents)
+//  and take it when Search is first selected; catalog posters apply afterwards.
 //
 
 import UIKit
+import KinoPubLogging
 
 @MainActor
 public enum TVSearchChrome {
@@ -54,11 +55,22 @@ public enum TVSearchChrome {
 
   /// Stand the system search chrome up now so opening the Search tab does not
   /// wait on keyboard presentation. Safe to call more than once; a stack already
-  /// waiting is reused, a stack already taken is rebuilt.
+  /// waiting is reused, a stack already taken is rebuilt. `AppDelegate` may run
+  /// before a scene exists — a later call (tab bar `onAppear`) attaches then.
   public static func prewarm() {
-    if prepared != nil { return }
+    if parkingWindow != nil { return }
     let started = CACurrentMediaTime()
-    let stack = makeStack()
+    let stack: Stack
+    if let prepared {
+      stack = prepared
+    } else {
+      stack = makeStack()
+      prepared = stack
+      stack.host.isParked = true
+      stack.host.loadViewIfNeeded()
+      stack.search.loadViewIfNeeded()
+      stack.container.loadViewIfNeeded()
+    }
     park(stack)
     lastPrewarmMilliseconds = (CACurrentMediaTime() - started) * 1000
     NSLog("TVSEARCH prewarm %.0f ms", lastPrewarmMilliseconds ?? -1)
@@ -67,13 +79,15 @@ public enum TVSearchChrome {
   /// The pre-warmed host, or a fresh stack if none was waiting. The representable
   /// takes this once and SwiftUI parents it.
   static func takePrepared() -> Stack {
+    firstFrameOrigin = CACurrentMediaTime()
+    lastFirstFrameMilliseconds = nil
+    PerfSignpost.beginSearchTab()
     if let prepared {
       self.prepared = nil
       unpark(prepared)
-      firstFrameOrigin = CACurrentMediaTime()
+      prepared.host.isParked = false
       return prepared
     }
-    firstFrameOrigin = CACurrentMediaTime()
     return makeStack()
   }
 
@@ -100,30 +114,35 @@ public enum TVSearchChrome {
   private static func recordFirstFrame() {
     guard lastFirstFrameMilliseconds == nil, let origin = firstFrameOrigin else { return }
     lastFirstFrameMilliseconds = (CACurrentMediaTime() - origin) * 1000
+    PerfSignpost.endSearchTab("painted")
     NSLog("TVSEARCH first frame %.0f ms (prewarm %.0f ms)",
           lastFirstFrameMilliseconds ?? -1, lastPrewarmMilliseconds ?? -1)
   }
 
-  /// Keep the stack in the scene so UIKit actually builds the keyboard, without
-  /// showing a second window. Bounds come from the scene, not `UIScreen`.
+  /// Stand the stack up at the scene's size so the keyboard and field are
+  /// actually built, not only `loadViewIfNeeded`. A hidden / alpha-0 window
+  /// skipped `viewDidAppear`, and the first Search visit still presented the
+  /// keyboard from scratch (empty tab for seconds). The window sits off the
+  /// scene, almost transparent, and does not become key — Home keeps focus.
+  /// Bounds come from the scene, not `UIScreen`.
   private static func park(_ stack: Stack) {
-    prepared = stack
-    stack.host.loadViewIfNeeded()
-    stack.search.loadViewIfNeeded()
-    stack.container.loadViewIfNeeded()
+    guard parkingWindow == nil else { return }
     guard let scene = activeWindowScene() else {
       stack.host.view.layoutIfNeeded()
+      stack.search.searchBar.layoutIfNeeded()
       return
     }
+    let bounds = scene.coordinateSpace.bounds
     let window = UIWindow(windowScene: scene)
-    window.frame = scene.coordinateSpace.bounds
+    window.frame = bounds.offsetBy(dx: bounds.width, dy: 0)
     window.windowLevel = UIWindow.Level(rawValue: -1000)
-    window.alpha = 0
+    window.alpha = 0.02
     window.isUserInteractionEnabled = false
-    window.isHidden = true
     window.rootViewController = stack.host
+    window.isHidden = false
     stack.host.view.layoutIfNeeded()
     stack.search.searchBar.layoutIfNeeded()
+    stack.container.view.layoutIfNeeded()
     parkingWindow = window
   }
 

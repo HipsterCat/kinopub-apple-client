@@ -13,7 +13,7 @@ import SwiftUI
 import KinoPubUI
 
 struct TVSearchFixtureRoot: View {
-  @State private var tab = 0
+  @State private var tab = DebugLaunch.searchFixtureStartOnWatchNow ? 1 : 0
   @State private var text = DebugLaunch.searchQuery ?? "ма"
 
   var body: some View {
@@ -25,18 +25,20 @@ struct TVSearchFixtureRoot: View {
     TVSearchChrome.prewarm()
     return TabView(selection: $tab) {
       Tab(value: 0) {
-        TVSearchPage(
-          sections: DebugLaunch.searchFixtureTopCards
-            ? TVPageTemplatesGallery.searchSectionsWithTopCards
-            : TVPageTemplatesGallery.searchSections,
-          text: text,
-          placeholder: "Search".localized,
-          suggestions: [TVSearchSuggestion("Нолан", kind: .recent),
-                        TVSearchSuggestion("Тарантино", kind: .suggested),
-                        TVSearchSuggestion("Вильнёв", kind: .suggested)],
-          onTextChange: { text = $0 },
-          onSelect: { _, _ in }
-        )
+        if tab == 0 {
+          TVSearchPage(
+            sections: DebugLaunch.searchFixtureTopCards
+              ? TVPageTemplatesGallery.searchSectionsWithTopCards
+              : TVPageTemplatesGallery.searchSections,
+            text: text,
+            placeholder: "Search".localized,
+            suggestions: [TVSearchSuggestion("Нолан", kind: .recent),
+                          TVSearchSuggestion("Тарантино", kind: .suggested),
+                          TVSearchSuggestion("Вильнёв", kind: .suggested)],
+            onTextChange: { text = $0 },
+            onSelect: { _, _ in }
+          )
+        }
       } label: {
         Image(systemName: "magnifyingglass")
       }
