@@ -271,9 +271,36 @@ cells when the Test app job finishes. Do not copy them onto a device row.
 From the 2026-11-20 static reading. Treat as unconfirmed until a row above
 has numbers:
 
-1. Backdrops decode at full source resolution (`artwork.request` end `full` + tens of MB).
+1. Backdrops **and title logos** decode at full source resolution (`artwork.request` end `full`). Logos: see §9.
 2. tvOS decoded-image cache is 64 MB, smaller than a few 4K backdrops (`tier=disk` on every hero turn).
 3. iOS/Mac Home hero rebuilds every page every scroll frame (SwiftUI instrument, `HeroBackdrop`).
 4. Hero text/logo shadows without `shadowPath` (Color Offscreen-Rendered).
 5. Season rail CADisplayLink + fold blur (`scroll.season` vs native scroll).
 6. Prefetch stops at disk; cells decode on first show (`artwork.request` `tier=disk` on cell appear).
+
+## 9. Part B — title logos (verified, not started)
+
+Do not implement this until the owner confirms [#126](https://github.com/HipsterCat/kinopub-apple-client/pull/126) numbers are meaningful. The claims below were re-read in the tree, not inferred from the lag report.
+
+**Request / decode today is full-size.** `Artwork.makeRequest` with `size == .zero` builds a bare `ImageRequest(url:)` — no Nuke thumbnail processors (`ArtworkPipeline.swift`). Every title-logo load uses that default:
+
+- `ArtworkTitleLogoImages` (`TitleLogoSession.swift`): `cachedImage(for:)` and `imageWithSource(for: url)` — no size.
+- `TitleLogoSlot` paints `Artwork.cachedImage(for: $0)` with the same default, so the slot and the session share a key.
+- `HomeHeroWarmup.warm` loads neighbour logos with `size: .zero` (`HomeHero.swift`). The comment says “decoded at the size they will be drawn”; that is true for backdrops (`backdropSize`) and false for logos.
+- `RivuletSeasonRail.setLogo` calls `Artwork.image(for: url)` — same default. The slot is 110 pt high, 520 pt max wide (`RivuletSeasonRailMetrics`).
+
+**Worker `w` is not the slot.** `ArtworkPixelWidth.logo` is `screen × 680/1920` on tvOS (1360 px on a 4K Apple TV, 680 on 1080p) and `screen / 2` on iPhone / iPad / Mac. A 5K iMac (`5120` native) therefore asks `w=2560`. The worker’s TMDB ladder for logos is `[45 … 780, 1280, 1920]` (`workers/tmdb-proxy/src/title.js` `TMDB_WIDTHS`); `tmdbSized` with a target above 1920 has no bucket and falls through to `/original` because `logo` is in `TMDB_ORIGINAL_IF_WIDTH_UNKNOWN`. That is a 2000–4000 px PNG. `w=780/1280/1920` stay on those tokens (`title.test.js` “stamped logo snaps w onto 780 / 1280 / 1920”).
+
+**Slots are hundreds of points, not the screen.** Title-page `MediaItemHeroView.logoMaxWidth`: 680 tvOS, 440 macOS, 360 iPhone. Home tvOS UIKit hero: 28 % × 8.5 % of width (`TVPageHero.sizeLogo`, ~538 × 163 pt at 1920). SwiftUI Home on a wide page uses 40 % of the container (`HomeHeroCarousel.mark`). Season rail: 520 × 110 pt. Drawn pixels are `slot × displayScale` — on the order of 680–1360 px, not `/original`.
+
+**`TitleLogoFit` only reads `image.size`.** `TitleLogoFit.size(of:pixelWidth:maxWidth:maxHeight:displayScale:)` (`TitleLogoSlot.swift`) fits the bitmap in the box and caps upscale at 1.25× native pixels. Call sites pass `image.size` and `image.size.width * image.scale`. A smaller decode changes the bitmap’s size; the fitter does not need a second code path.
+
+**`Artwork.image` / `imageWithSource` default `ResizeMode.fill`.** With `size == .zero` that is a no-op (no processors). A thumbnail size with `.fill` centre-crops and can drop PNG alpha at the edges. Logos need `.fit` (`crop: false` in Nuke’s processors). `Artwork.image(for:)` does not take `mode` today — Part B has to thread `.fit` through the logo loads, including the season-rail call.
+
+When Part B runs, logos are in the same change as backdrops:
+
+- One size bucket per platform: the largest logo slot on that platform × scale, then TMDB `w780` or `w1280`, never `/original` (cap `ArtworkPixelWidth.logo` so the worker cannot miss the ladder).
+- Thumbnail decode at that bucket, `ResizeMode.fit`, so alpha stays.
+- Identical Nuke request keys for warmup, `TitleLogoSession` load, `TitleLogoSlot` cache hit, and `RivuletSeasonRail.setLogo`. A key split would make the warm copy miss and decode full-size on first paint.
+- Leave logo-first presentation alone (`TitleLogoPresentationPolicy.whenResolved` / `TitleLogoSession`: empty until a logo or a confirmed miss; a late URL must not swap text → logo).
+- Leave `TitleLogoFit` alone; it already sizes from the decoded bitmap.
