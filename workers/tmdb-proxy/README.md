@@ -85,12 +85,22 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    have that id, or a TMDB `ru` file when we don't — never a kino.pub url, and
    never an English poster in its place. A logo falls through to the other
    language (an English logo is sent when Russian was asked and only English
-   exists). We store links, not files. tvoe files go through
-   `tvoe.live/_next/image` (their widths only, their CDN only). TMDB files use
-   that kind's ladder from TMDB's image configuration (`backdrop_sizes`,
-   `logo_sizes`, `poster_sizes`, `still_sizes`); `original` is used only when
-   the file is known to be within 3840, except logos, posters and stills whose
-   originals are not the multi-thousand-pixel backdrops.
+   exists).    We store links, not files. **Stamped bytes** go through
+   **[wsrv.nl](https://wsrv.nl/)** first (`w=`, `q=80`, `output=webp` by
+   default; optional `format=jpeg|png|webp` on the route). Logo / backdrop /
+   poster pass the durable original as `url=`. **Thumbnails** pass the TMDB
+   ladder URL (face-crop tokens like `w454_and_h254_face` stay in that path —
+   weserv only re-encodes, it does not invent the crop), e.g.
+   `https://wsrv.nl/?url=https://image.tmdb.org/t/p/w454_and_h254_face/….jpg&w=410&q=80&output=webp`.
+   On weserv failure, or with Worker var `WESERV_DISABLED=1`, we fall back to
+   the legacy path: tvoe files through `tvoe.live/_next/image` (their widths
+   only, their CDN only); TMDB files on that kind's ladder; `original` only
+   when the file is known to be within 3840, except logos, posters and stills
+   whose originals are not the multi-thousand-pixel backdrops. Stamped answers
+   are edge-cached (`caches.default`, `Cache-Control: max-age=86400`) so
+   repeats do not re-tax weserv. Free-tier care: ~2500 *uncached* requests /
+   10 min / visitor IP ([FAQ](https://wsrv.nl/faq/)); cached hits do not
+   count — see `X-KinoPub-Image-Via: weserv|legacy`.
 2. **A few seasons, not the whole show** —
    `GET /v1/title/by/kinopub/{id}/seasons/2-4` (also `2,3` or `2&3`). At most
    four. `Accept-Language` picks the only language in the body. Each episode
