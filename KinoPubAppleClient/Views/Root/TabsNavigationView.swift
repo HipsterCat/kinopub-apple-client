@@ -922,22 +922,16 @@ struct TabsNavigationView: View {
   }
 
   private func fetchFolders() async -> [Bookmark] {
-    do {
-      let fetched = try await appContext.contentService.fetchBookmarks().items
-      // The sidebar refresh doubles as the app's folder-list refresh — see
-      // `BookmarkFoldersStore`, which every card menu reads instead of fetching.
-      BookmarkFoldersStore.shared.adopt(fetched)
-      return fetched
-        .filter { $0.count != "0" }
-        .recentlyUpdatedFirst()
-    } catch {
-      return sidebarFolders
-    }
+    let fetched = await BookmarkFoldersStore.shared.refreshIfStale(using: appContext.contentService)
+    return fetched
+      .filter { $0.count != "0" }
+      .recentlyUpdatedFirst()
   }
 
   private func fetchWatchlistCount() async -> Int {
     do {
-      return try await appContext.contentService.fetchWatchingSerials(subscribedOnly: true).items
+      return try await WatchingListCache.shared.serials(subscribedOnly: true,
+                                                       using: appContext.contentService)
         .reduce(0) { $0 + max($1.new ?? 0, 0) }
     } catch {
       return watchlistBadgeCount

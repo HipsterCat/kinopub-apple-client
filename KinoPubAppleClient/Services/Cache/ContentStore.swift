@@ -259,6 +259,7 @@ final class ContentStore {
       if family == .watch { didWatch = true }
     }
     if didWatch {
+      WatchingListCache.shared.invalidate()
       NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
     }
   }
@@ -270,12 +271,24 @@ final class ContentStore {
   /// watchlist / unfinished / history stale (e.g. on a progress tick) must not force
   /// Home to re-hit `/v1/watching/*`, `/v1/history`, and bookmarks — that spam can ban
   /// the account. Family-wide `invalidate(family: .watch)` still notifies.
+  ///
+  /// Named watchlist / unfinished / continue-watching keys also clear
+  /// `WatchingListCache` once (playback-end flush, mark paths) so the next Library /
+  /// badge read does not reuse pre-playback lists — without notifying Home unless
+  /// `.continueWatching` is in the keys.
   func invalidate(_ keys: [RowKey]) {
     var notifyContinueWatching = false
+    var clearWatchingLists = false
     for key in keys {
       bump(key)
       rows[key]?.fetchedAt = .distantPast
       if key == .continueWatching { notifyContinueWatching = true }
+      if key == .continueWatching || key == .watchlist || key == .unfinishedSerials {
+        clearWatchingLists = true
+      }
+    }
+    if clearWatchingLists {
+      WatchingListCache.shared.invalidate()
     }
     if notifyContinueWatching {
       NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
@@ -285,6 +298,7 @@ final class ContentStore {
   /// Drops continue-watching, history, watchlist and bookmark rows for an account
   /// switch. Catalogue shelves stay — they are not personal.
   func clearPersonalAccountData() {
+    WatchingListCache.shared.clear()
     let personal = rows.keys.filter { $0.family == .watch || $0.family == .bookmarks }
     guard !personal.isEmpty else { return }
     for key in personal {

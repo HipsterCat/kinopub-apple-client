@@ -181,7 +181,8 @@ class LibraryCatalog: ObservableObject {
 
   /// Background revalidation: keep what is on screen, never a loading state, and
   /// only replace the listing when the first page actually changed. `force` is
-  /// re-entering the Search tab; otherwise this is a no-op until `staleAfter`.
+  /// pull-to-refresh / filter change / empty — tab re-entry uses `force: false`
+  /// and waits for `staleAfter` (~5 min).
   func revalidate(force: Bool = false) async {
     if items.isEmpty {
       await load()

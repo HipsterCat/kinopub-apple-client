@@ -151,7 +151,7 @@ class PersonalLibraryCatalog: ObservableObject {
   }
 
   private func fetchWatchlistCards() async throws -> [MediaCard] {
-    let items = try await contentService.fetchWatchingSerials(subscribedOnly: true).items
+    let items = try await WatchingListCache.shared.serials(subscribedOnly: true, using: contentService)
     return items.map { item in
       MediaCard(id: item.id,
                posterURL: item.posters.medium,
@@ -171,22 +171,14 @@ class PersonalLibraryCatalog: ObservableObject {
   }
 
   private func fetchFolders() async -> [Bookmark] {
-    do {
-      let all = try await contentService.fetchBookmarks().items
-      // Unfiltered into the shared store — see BookmarksCatalog.
-      BookmarkFoldersStore.shared.adopt(all)
-      let fetched = all
-        .filter { $0.count != "0" }
-        .recentlyUpdatedFirst()
-      foldersFetchFailed = false
-      foldersError = nil
-      return fetched
-    } catch {
-      Logger.app.debug("Library bookmarks failed: \(error)")
-      foldersFetchFailed = true
-      foldersError = error
-      return folders  // keep whatever we already knew rather than emptying the tab
-    }
+    let all = await BookmarkFoldersStore.shared.refreshIfStale(using: contentService)
+    let fetched = all
+      .filter { $0.count != "0" }
+      .recentlyUpdatedFirst()
+    // Failure inside reload keeps the previous store list — still something to paint.
+    foldersFetchFailed = false
+    foldersError = nil
+    return fetched.isEmpty ? folders : fetched
   }
 
   private func fetchFolderItems(_ folder: Bookmark) async throws -> [RowItem] {

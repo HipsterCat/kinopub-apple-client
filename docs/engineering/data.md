@@ -22,18 +22,21 @@ The long form of [AGENTS.md › Data and continuity](../../AGENTS.md#data-and-co
   façade); `Artwork` owns remote images; `MediaRecordStore` owns item facts — one
   `MediaRecord` (merged model) per `MediaRef`, which `ContentStore` rows refer to
   (docs/media-model.md step 4). Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
-  `BookmarkFoldersStore` — the library store does not replace them. **All remote images go
-  through `Artwork`** — one decoded memory
+  `BookmarkFoldersStore` — the library store does not replace them. **Watching lists**
+  (`/v1/watching/movies` + serials×2) share `WatchingListCache` (memory, ~3 min, coalesced;
+  cleared on mark/toggle/follow/hide and when playback ends — not on progress ticks).
+  **All remote images go through `Artwork`** — one decoded memory
   cache keyed by target size, one disk entry per URL, coalescing and prefetch, on every platform.
   Use `CachedRemoteImage`, or `ArtworkImage` when the states need different geometry. `AsyncImage`
   is a regression and no longer appears anywhere in this repo. Local optimistic writes (hide, watched, bookmark) are
   authoritative until the server contradicts them.
 - **Bookmarks are answered locally.** `BookmarkMembershipStore` (item → folder ids) and
   `BookmarkFoldersStore` (the folder list, persisted across launches) draw every bookmark control.
-  `GET /v1/bookmarks` belongs to the screens that list folders — Library, Bookmarks, the sidebar,
-  which hand their result back with `adopt(_:)` — and to the moment a folder is created or deleted.
-  **A detail page fetches neither**: membership is already on the item payload (`bookmarks`), and
-  `get-item-folders` is gone on purpose.
+  Continue Watching, Top Bookmarks and the sidebar read folders through
+  `BookmarkFoldersStore.refreshIfStale` (+ `ContentStore` `.folder` rows for pages) — they
+  do not fire a parallel raw `GET /v1/bookmarks`. Dedicated Library / Bookmarks screens may
+  still fetch and `adopt(_:)`. **A detail page fetches neither**: membership is already on
+  the item payload (`bookmarks`), and `get-item-folders` is gone on purpose.
 - **`nolinks=1` on a series detail page is off** (`FeatureFlags.seriesDetailsWithoutLinks`).
   It is built and switchable — `MediaItemModel` asks without links when it knows the card is
   episodic (`isEpisodicType`), and `MediaLinksResolver` fills one `Episode` from

@@ -156,11 +156,11 @@ struct SearchView: View {
           }
         }
       }
-      // Re-entering the tab always refreshes in the background. Coming back to the
-      // list from a title does the same once the painted page is older than TTL.
+      // Re-entering the tab honors `staleAfter` (~5 min). Force only when empty,
+      // pull-to-refresh, or a filter / query change — not every tab hop.
       .onChange(of: navigationState.selectedTab) { old, tab in
         guard tab == .search, old != .search else { return }
-        Task { await catalog.revalidate(force: true) }
+        Task { await catalog.revalidate(force: false) }
       }
       .onChange(of: navigationState.searchRoutes.isEmpty) { _, atRoot in
         guard atRoot, navigationState.selectedTab == .search else { return }

@@ -84,14 +84,36 @@ a ten-episode season and the row kept trusting it.
 
 ## Refresh
 
-The cached snapshot is a 60 s TTL. That is not "the row never updates":
+The cached snapshot is a 60 s TTL on the Continue Watching *row*. Watching-list GETs
+are shared through `WatchingListCache` (~3 min, coalesced) across Home, Library and the
+sidebar badge.
 
-- **Foreground** (Watch Now `scenePhase == .active`) refetches Continue Watching even inside the TTL, so progress written on another device lands when the user comes back — **unless the player is active**. During playback only `marktime` / local progress run; watching lists, history and bookmarks stay quiet (ban risk).
-- **Mark watched / hide / follow** on the detail page invalidates the `.watch` family. That posts `contentStoreDidInvalidateWatch`; Home refetches instead of painting the cached cards. Marking a film watched also writes a local finished tombstone, so overlay hides the card before the refetch returns — without it, overlay re-inserted the in-progress playhead onto a title `watching/movies` had already dropped.
-- Progress ticks mark Library watchlist / unfinished / history stale for the next Library visit. That named-key invalidate does **not** notify Home (Continue Watching overlays local progress itself).
-- `/v1/history` for this row is capped at 8 entries and skipped when a history cache from the last few minutes is still warm — watching lists already carry the unfinished set.
-- An in-flight fetch that started **before** an invalidate is discarded (generation). Writing `fetchedAt = now` on that decode was why the network log filled with requests and the row never moved: Home trusted the old snapshot for another 60 s.
-- Local overlay does not paint a playhead that is **behind** the snapshot (other-device progress already on the card). It still leads the row for progress this device wrote that the server has not heard yet.
+- **Foreground** (Watch Now `scenePhase == .active`) only re-applies local progress —
+  it does **not** re-request `/v1/watching/*` within the app session. Cross-device sync
+  waits for cold start, pull-to-refresh, or the next process. During playback only
+  `marktime` / local progress run; watching lists, history and bookmarks stay quiet
+  (ban risk, #110).
+- **Mark watched / hide / follow** on the detail page invalidates the `.watch` family
+  (and `WatchingListCache`). That posts `contentStoreDidInvalidateWatch`; Home
+  refetches instead of painting the cached cards. Marking a film watched also writes a
+  local finished tombstone, so overlay hides the card before the refetch returns —
+  without it, overlay re-inserted the in-progress playhead onto a title
+  `watching/movies` had already dropped.
+- Progress ticks mark Library watchlist / unfinished / history stale for the next
+  Library visit. That named-key invalidate does **not** notify Home (Continue Watching
+  overlays local progress itself). When the player ends, those keys (and
+  `WatchingListCache`) clear once so Library / badge see a fresh list.
+- Bookmark folders for this row and Top Bookmarks go through `BookmarkFoldersStore` +
+  `ContentStore` folder rows — no parallel raw `/v1/bookmarks` from those paths.
+- `/v1/history` for this row is capped at 8 entries and skipped when a history cache
+  from the last few minutes is still warm — watching lists already carry the
+  unfinished set.
+- An in-flight fetch that started **before** an invalidate is discarded (generation).
+  Writing `fetchedAt = now` on that decode was why the network log filled with
+  requests and the row never moved: Home trusted the old snapshot for another 60 s.
+- Local overlay does not paint a playhead that is **behind** the snapshot (other-device
+  progress already on the card). It still leads the row for progress this device wrote
+  that the server has not heard yet.
 
 ## Open
 
