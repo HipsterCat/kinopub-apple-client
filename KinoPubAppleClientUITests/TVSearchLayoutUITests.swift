@@ -51,8 +51,10 @@ final class TVSearchLayoutUITests: XCTestCase {
     assertBesideGridKeyboard(frame, width: app.frame.width)
   }
 
-  /// Focus in the results: the grid keyboard slides away and the results take the
-  /// screen's width. Left from the first column brings it back and the results move over.
+  /// Focus below the keyboard: the grid keyboard slides away and the page takes the
+  /// screen's width, as in Apple's apps. Down from the suggestions lands on the filter row
+  /// (Genre), not a poster; the keyboard is already gone there. Left from the first column
+  /// brings it back and the results move over.
   func testGridKeyboardHidesWhileResultsHaveFocus() throws {
     let app = launch(gridKeyboard: true)
     let width = app.frame.width
@@ -218,7 +220,12 @@ final class TVSearchLayoutUITests: XCTestCase {
   private func launch(gridKeyboard: Bool, topCards: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture", "-KINOPUBForceColorScheme", "dark",
-                            "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO"]
+                            "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO",
+                            // The simulator's own Settings › Keyboard choice (com.apple.UIKit):
+                            // 1 linear, 2 grid. On tvOS 26.5 `-ForceGridKeyboard NO` does not
+                            // override a simulator set to grid, and the linear test met the
+                            // grid keyboard (2026-11-20).
+                            "-UserPreferredKeyboardStyle", gridKeyboard ? "2" : "1"]
     if topCards { app.launchArguments.append("-KINOPUBSearchFixtureTopCards") }
     app.launch()
     XCTAssertTrue(app.collectionViews["kinopub.page.search"].cells.firstMatch.waitForExistence(timeout: 20),

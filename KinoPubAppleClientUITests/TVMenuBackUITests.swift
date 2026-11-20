@@ -92,7 +92,11 @@ final class TVMenuBackUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 4)
     try shoot(app, name: "settings-0-experiments")
     XCTAssertFalse(app.tabBars.firstMatch.isHittable, "Experiments should hide the tab bar")
-    app.open(URL(string: "kinopub://title/1")!)
+    // The link goes to the running app, as the Top Shelf sends it. Not `app.open(_:)`: under
+    // Xcode 27.2 that relaunches the app with the URL, so Settings is never left — the app
+    // comes back up on it. On tvOS 27.2 that launch, switching from Settings to Home, also
+    // left focus on the hidden tab bar and the first Menu closed the app (2026-11-20).
+    XCUIDevice.shared.system.open(URL(string: "kinopub://title/1")!)
     Thread.sleep(forTimeInterval: 3)
     try shoot(app, name: "settings-1-top-shelf-link")
     for _ in 0..<4 where !tabBarFocused(in: app) {
