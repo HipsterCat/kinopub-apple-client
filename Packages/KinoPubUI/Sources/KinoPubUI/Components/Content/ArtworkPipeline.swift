@@ -160,7 +160,7 @@ public enum Artwork {
   /// other platforms keep Nuke's `.points` (it already multiplies by scale).
   private static func macOSPixelSize(forPoints size: CGSize) -> (size: CGSize, unit: ImageProcessingOptions.Unit) {
 #if os(macOS)
-    let scale = max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+    let scale = displayScale
     return (CGSize(width: size.width * scale, height: size.height * scale), .pixels)
 #else
     return (size, .points)
@@ -393,12 +393,43 @@ public enum Artwork {
     )
   }
 
-  private static var displayScale: CGFloat {
+  /// Last scale seen on the main actor. `pixelSize` / `tracedResponse` run off-main
+  /// (`async` Nuke); `UITraitCollection.current` and `NSScreen.screens` are undefined
+  /// there and often report 1.0 on Apple TV 4K (2×).
+  private static let cachedDisplayScale = Mutex<CGFloat>(0)
+
+  /// Snapshot the screen scale on the main actor. App launch and every image
+  /// view call this; `pixelSize` then reads the cache only.
+  @MainActor
+  public static func rememberDisplayScale() {
 #if os(macOS)
-    max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+    cacheDisplayScale(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2)
 #else
-    max(UITraitCollection.current.displayScale, 1)
+    cacheDisplayScale(UITraitCollection.current.displayScale)
 #endif
+  }
+
+  public static func cacheDisplayScale(_ scale: CGFloat) {
+    cachedDisplayScale.withLock { $0 = max(scale, 1) }
+  }
+
+  /// Safe from any actor. Uses the last main-actor snapshot, or a platform
+  /// default — never `UITraitCollection.current` off the main actor.
+  public static var displayScale: CGFloat {
+    let cached = cachedDisplayScale.withLock { $0 }
+    if cached > 0 { return cached }
+#if os(tvOS)
+    return 2
+#elseif os(macOS)
+    return 2
+#else
+    return 3
+#endif
+  }
+
+  static func rememberDisplayScaleIfOnMain() {
+    guard Thread.isMainThread else { return }
+    MainActor.assumeIsolated { rememberDisplayScale() }
   }
 
   private static func cacheTier(_ type: ImageResponse.CacheType?) -> String {
@@ -412,6 +443,7 @@ public enum Artwork {
 
   private static func tracedResponse(_ url: URL, size: CGSize, mode: ResizeMode) async throws
     -> ImageResponse {
+    rememberDisplayScaleIfOnMain()
     let imageRequest = request(url, size: size, mode: mode)
     let pixels = pixelSize(forPoints: size)
     let interval = PerfSignpost.beginArtworkRequest(url: url, pixelSize: pixels)

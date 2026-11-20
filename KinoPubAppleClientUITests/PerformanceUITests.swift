@@ -8,6 +8,11 @@
 //  tvOS walks the DEBUG fixtures (no kino.pub session). iOS / Mac Home needs
 //  `~/.kinopub-dev-session.json` and skips in CI when it is missing.
 //
+//  Metrics: `XCTOSSignpostMetric` on our intervals (the hitch stand-in on
+//  tvOS, where Apple's scrolling hitch metrics do not apply) and
+//  `XCTMemoryMetric`. No `XCTClockMetric` — the walks wait for the remote /
+//  animation, and a clock metric would measure those waits.
+//
 //  These tests record metrics. They do not fail on hitch-time noise — there is
 //  no stored baseline. Numbers land in the xcresult and in
 //  `docs/engineering/performance.md`.
@@ -32,6 +37,13 @@ final class PerformanceUITests: XCTestCase {
     XCTOSSignpostMetric(subsystem: "com.soda.kinopub.perf", category: category, name: name)
   }
 
+  /// tvOS has no `scrollingAndDecelerationMetric`. Interval duration of our
+  /// `scroll.*` / `hero.page` / `artwork.request` signposts is the hitch
+  /// stand-in XCTest can record; hitch ratio still comes from Instruments.
+  private func hitchMetrics(_ extra: XCTMetric...) -> [XCTMetric] {
+    [XCTMemoryMetric()] + extra
+  }
+
   // MARK: - tvOS
 
 #if os(tvOS)
@@ -41,11 +53,10 @@ final class PerformanceUITests: XCTestCase {
                   "templates gallery did not appear")
     Thread.sleep(forTimeInterval: 1.0)
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("scroll", "scroll.home")
-    ], options: measureOptions) {
+    measure(metrics: hitchMetrics(
+      signpost("scroll", "scroll.home"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       for _ in 0..<5 {
         XCUIRemote.shared.press(.down)
         Thread.sleep(forTimeInterval: 0.45)
@@ -69,11 +80,10 @@ final class PerformanceUITests: XCTestCase {
       "Next did not take focus — Select would open a title instead of paging"
     )
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("hero", "hero.page")
-    ], options: measureOptions) {
+    measure(metrics: hitchMetrics(
+      signpost("hero", "hero.page"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       for _ in 0..<4 {
         XCUIRemote.shared.press(.select)
         Thread.sleep(forTimeInterval: 0.9)
@@ -88,12 +98,11 @@ final class PerformanceUITests: XCTestCase {
     XCTAssertTrue(first.waitForExistence(timeout: 20), "fixture list did not appear")
     Thread.sleep(forTimeInterval: 0.8)
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
+    measure(metrics: hitchMetrics(
       signpost("page", "page.title"),
-      signpost("hero", "hero.backdrop")
-    ], options: measureOptions) {
+      signpost("hero", "hero.backdrop"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       XCUIRemote.shared.press(.select)
       XCTAssertTrue(
         app.buttons["kinopub.hero.play"].waitForExistence(timeout: 15)
@@ -113,11 +122,10 @@ final class PerformanceUITests: XCTestCase {
     launchDetail("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<true/>"])
     XCTAssertTrue(waitForHeroFocus(timeout: 20), "title hero did not take focus")
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("scroll", "scroll.season")
-    ], options: measureOptions) {
+    measure(metrics: hitchMetrics(
+      signpost("scroll", "scroll.season"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       // Down is the CADisplayLink fold (`scroll.season`). Up returns to the hero so
       // the next iteration is the same walk; Menu would pop the page.
       XCUIRemote.shared.press(.down)
@@ -178,11 +186,10 @@ final class PerformanceUITests: XCTestCase {
   func testHomeShelfScroll() throws {
     launchWithSessionIfAny()
     let scroll = try requireHomeScroll()
-    var metrics: [XCTMetric] = [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("scroll", "scroll.home")
-    ]
+    var metrics = hitchMetrics(
+      signpost("scroll", "scroll.home"),
+      signpost("artwork", "artwork.request")
+    )
     metrics.append(XCTOSSignpostMetric.scrollingAndDecelerationMetric)
 
     measure(metrics: metrics, options: measureOptions) {
@@ -195,16 +202,20 @@ final class PerformanceUITests: XCTestCase {
 
   func testHeroCarouselPaging() throws {
     launchWithSessionIfAny()
-    let scroll = try requireHomeScroll()
-    // The hero is a horizontal pager at the top of Home.
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("hero", "hero.page")
-    ], options: measureOptions) {
-      scroll.swipeLeft(velocity: .fast)
+    _ = try requireHomeScroll()
+    let (pager, y) = try requireHomeHeroPager()
+
+    measure(metrics: hitchMetrics(
+      signpost("hero", "hero.page"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
+      // Horizontal drag on the hero band — not a left-swipe of the vertical
+      // Home scroll (that hits a shelf at mid-screen).
+      let start = pager.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: y))
+      let end = pager.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: y))
+      start.press(forDuration: 0.05, thenDragTo: end)
       Thread.sleep(forTimeInterval: 0.7)
-      scroll.swipeLeft(velocity: .fast)
+      start.press(forDuration: 0.05, thenDragTo: end)
       Thread.sleep(forTimeInterval: 0.7)
     }
   }
@@ -218,11 +229,10 @@ final class PerformanceUITests: XCTestCase {
       throw XCTSkip("no Home cards — no kino.pub session on this simulator")
     }
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("page", "page.title")
-    ], options: measureOptions) {
+    measure(metrics: hitchMetrics(
+      signpost("page", "page.title"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       card.tap()
       let play = app.buttons
         .matching(NSPredicate(format: "identifier == 'kinopub.hero.play' OR label BEGINSWITH 'Play' OR label BEGINSWITH 'Смотреть'"))
@@ -232,6 +242,17 @@ final class PerformanceUITests: XCTestCase {
       app.navigationBars.buttons.firstMatch.tap()
       Thread.sleep(forTimeInterval: 0.5)
     }
+  }
+
+  /// Prefer the `kinopub.hero` container; if XCTest does not expose it, swipe
+  /// the top band of Home (the pager), not the mid-page shelf.
+  private func requireHomeHeroPager() throws -> (XCUIElement, CGFloat) {
+    let hero = app.descendants(matching: .any)["kinopub.hero"]
+    if hero.waitForExistence(timeout: 8) {
+      return (hero, 0.4)
+    }
+    let scroll = try requireHomeScroll()
+    return (scroll, 0.12)
   }
 #endif
 
@@ -249,11 +270,9 @@ final class PerformanceUITests: XCTestCase {
     let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.98))
     let squeezed = start.withOffset(CGVector(dx: -220, dy: -160))
 
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
+    measure(metrics: hitchMetrics(
       signpost("page", "page.resize")
-    ], options: measureOptions) {
+    ), options: measureOptions) {
       start.click(forDuration: 0.05, thenDragTo: squeezed)
       Thread.sleep(forTimeInterval: 0.5)
       squeezed.click(forDuration: 0.05, thenDragTo: start)
@@ -264,11 +283,10 @@ final class PerformanceUITests: XCTestCase {
   func testHomeShelfScroll() throws {
     launchWithSessionIfAny()
     let scroll = try requireHomeScroll()
-    measure(metrics: [
-      XCTClockMetric(),
-      XCTMemoryMetric(),
-      signpost("scroll", "scroll.home")
-    ], options: measureOptions) {
+    measure(metrics: hitchMetrics(
+      signpost("scroll", "scroll.home"),
+      signpost("artwork", "artwork.request")
+    ), options: measureOptions) {
       scroll.scroll(byDeltaX: 0, deltaY: -400)
       Thread.sleep(forTimeInterval: 0.4)
       scroll.scroll(byDeltaX: 0, deltaY: 400)

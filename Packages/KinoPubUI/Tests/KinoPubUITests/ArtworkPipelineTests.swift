@@ -12,11 +12,18 @@ final class ArtworkPipelineTests: XCTestCase {
   }
 
   func testPixelSizeScalesPoints() {
+    Artwork.cacheDisplayScale(2)
     let points = CGSize(width: 100, height: 50)
     let pixels = Artwork.pixelSize(forPoints: points)
-    XCTAssertGreaterThan(pixels.width, 0)
-    XCTAssertGreaterThanOrEqual(pixels.width, points.width)
-    XCTAssertEqual(pixels.width / pixels.height, points.width / points.height, accuracy: 0.01)
+    XCTAssertEqual(pixels.width, 200, accuracy: 0.01)
+    XCTAssertEqual(pixels.height, 100, accuracy: 0.01)
+  }
+
+  func testPixelSizeUsesCachedScaleNotTraitCollection() {
+    Artwork.cacheDisplayScale(3)
+    let pixels = Artwork.pixelSize(forPoints: CGSize(width: 10, height: 10))
+    XCTAssertEqual(pixels.width, 30, accuracy: 0.01)
+    XCTAssertEqual(Artwork.displayScale, 3, accuracy: 0.01)
   }
 
   func testDecodedByteCountCountsRasterData() {

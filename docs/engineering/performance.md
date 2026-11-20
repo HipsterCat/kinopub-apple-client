@@ -104,7 +104,9 @@ or a finger, on a signed-in account.
 - **iPhone:** Fast vertical flick through Home, then back to the top.
 - **Mac:** Trackpad scroll through Home, then back.
 
-Signposts: `scroll.home`. Metrics: hitch ratio, `XCTOSSignpostMetric.scrollingAndDecelerationMetric` (iOS).
+Signposts: `scroll.home`. Metrics: hitch ratio on device (Animation Hitches);
+on tvOS XCTest, `XCTOSSignpostMetric` duration of `scroll.home` +
+`artwork.request`; on iOS also `scrollingAndDecelerationMetric`.
 
 ### B. Hero carousel paging × 10
 
@@ -221,24 +223,34 @@ Pull numbers out of the xcresult:
 xcrun xcresulttool get test-results summary --path "$RESULT" --compact
 ```
 
-`XCTOSSignpostMetric` for our intervals reports duration. `XCTClockMetric` is
-wall time of the walk. `XCTMemoryMetric` is physical memory. iOS also records
-`scrollingAndDecelerationMetric` (system hitch during the swipe).
+`XCTOSSignpostMetric` for our intervals reports duration (the number XCTest can
+record on every platform). `XCTMemoryMetric` is physical memory. iOS also
+records `scrollingAndDecelerationMetric` (system hitch during a pan).
 
-tvOS focus moves are not pan gestures, so Apple's
-`scrollDecelerationMetric` / `scrollingAndDecelerationMetric` usually record
-nothing there — we measure `scroll.home` / `scroll.season` instead.
+tvOS has no Apple hitch metric in XCTest — focus moves are not pan gestures, so
+`scrollDecelerationMetric` / `scrollingAndDecelerationMetric` record nothing.
+The tvOS hitch stand-in is `XCTOSSignpostMetric` on `scroll.home`,
+`scroll.season`, `hero.page`, and `artwork.request` (interval duration while
+the walk is in flight). Hitch **ratio** (ms/s) still comes from Instruments
+Animation Hitches on a Release device. Simulator rows in the table are
+durations, not hitch ratios.
+
+`XCTClockMetric` is not used: the walks wait for the remote / animation to
+settle, and a clock metric would measure those waits.
 
 ## 7. Results
 
 Fill a row per run. Simulator rows stay tagged **simulator**.
 
+Simulator rows are **interval durations** (`XCTOSSignpostMetric`), not hitch
+ratio. Hitch ms/s is a Release device, Animation Hitches.
+
 | Date | SHA | Machine | Build | Cache | Scenario | Hitch ms/s | Max hitch ms | Backdrop ms | Decode MB | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-11-20 | *(this change)* | tvOS Simulator 27.x | Debug | fixture | Home shelves | *CI xcresult* | | | | `PerformanceUITests.testHomeShelfScroll` |
-| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Hero paging | *CI xcresult* | | | | `testHeroCarouselPaging` |
-| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Title open | *CI xcresult* | | | | `testTitlePageOpen` |
-| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Season rail | *CI xcresult* | | | | `testSeasonRailScroll` |
+| 2026-11-20 | *(this change)* | tvOS Simulator 27.x | Debug | fixture | Home shelves | *duration, not hitch* | | | | `PerformanceUITests.testHomeShelfScroll` |
+| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Hero paging | *duration, not hitch* | | | | `testHeroCarouselPaging` |
+| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Title open | *duration, not hitch* | | | | `testTitlePageOpen` |
+| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Season rail | *duration, not hitch* | | | | `testSeasonRailScroll` |
 | | | iOS Simulator | Debug | session? | Home scroll | skip unless session | | | | |
 | | | Apple TV 4K | Release | cold | Hero ×10 | | | | | device, not yet |
 | | | iPhone | Release | cold | Home flick | | | | | device, not yet |

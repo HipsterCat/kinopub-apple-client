@@ -14,4 +14,4 @@ Playbook and harness: [docs/engineering/performance.md](../engineering/performan
 | Unwatched | Flattened player glass; `glassEffectContainer`; stopped decoding cover art 4×. | [936b63b](https://github.com/fer0n/Unwatched/commit/936b63b), [5ba2dbe](https://github.com/fer0n/Unwatched/commit/5ba2dbe) |
 
 ## Proposal — M · P2
-Landed as `PerfSignpost` + `PerformanceUITests` + the engineering playbook. Remaining work is filling the results table from a Release device (Apple TV 4K, iPhone, Mac) and acting on the numbers.
+Landed as `PerfSignpost` + `PerformanceUITests` + the engineering playbook.

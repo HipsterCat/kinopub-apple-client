@@ -214,6 +214,8 @@ public struct MediaRowsView: View {
     }
 #if !os(tvOS)
     .remembersScroll()
+#endif
+#if os(iOS)
     .onScrollPhaseChange { _, phase in
       if phase == .idle {
         PerfSignpost.endHomeScroll("idle")

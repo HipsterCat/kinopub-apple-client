@@ -71,6 +71,7 @@ public struct ArtworkImage<Content: View>: View {
 
   @MainActor
   private func load(id: Int) async {
+    Artwork.rememberDisplayScale()
     guard let url else {
       apply(.empty)
       return

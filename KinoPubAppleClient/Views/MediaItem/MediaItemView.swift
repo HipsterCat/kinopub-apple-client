@@ -372,10 +372,11 @@ struct MediaItemView: View {
       // from what the player just wrote locally. No-op until the payload has loaded.
       .onAppear {
         itemModel.repaintFromLocalProgress()
+        // `onChange(initial:)` runs before `onAppear`. If the item is already
+        // painted it stashes a ready reason; `beginTitleOpen` consumes that
+        // without opening a 0 ms interval. Do not end here — a leftover
+        // `readyID` would make the next open of the same title report ~0 ms.
         PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
-        if itemModel.hasPaintedItem {
-          PerfSignpost.endTitleOpen(reason: "already-painted", id: "\(itemModel.mediaItemId)")
-        }
       }
       .onChange(of: itemModel.hasPaintedItem, initial: true) { _, painted in
         if painted {
