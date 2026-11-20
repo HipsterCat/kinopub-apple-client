@@ -3,8 +3,8 @@
 # Secrets, first-time Apple setup, and how to trigger a run: docs/testflight.md.
 # Missing secrets skip this workflow with a notice; they do not fail the run.
 #
-# Archives run on `macos-26` with Xcode 26.x GM. App Store Connect rejects
-# beta Xcodes; do not move these jobs onto `xcode-27`.
+# Archives run on `macos-latest` (macos-26 arm64, Xcode 26.x GM). App Store
+# Connect rejects beta Xcodes; do not move these jobs onto `xcode-27`.
 
 name: TestFlight
 
@@ -45,7 +45,7 @@ permissions:
 concurrency:
   # Distinct from the old `testflight` group so a leftover `xcode-27` upload
   # sitting in that queue cannot block macos-26 archives.
-  group: testflight-xcode26
+  group: testflight-xcode26-latest
   cancel-in-progress: false
 
 env:
@@ -109,7 +109,7 @@ jobs:
     name: Upload ${{ matrix.platform }}
     needs: [gate, prepare]
     if: needs.gate.outputs.should_upload == 'true'
-    runs-on: macos-26
+    runs-on: macos-latest
     timeout-minutes: 75
     strategy:
       fail-fast: false

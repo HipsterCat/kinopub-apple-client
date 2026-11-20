@@ -68,7 +68,7 @@ jobs:
 
   xcode-opens-project:
     name: Xcode opens pbxproj
-    runs-on: macos-26
+    runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

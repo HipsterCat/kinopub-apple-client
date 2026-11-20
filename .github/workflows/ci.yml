@@ -16,12 +16,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Distinct from the old `CI-${{ github.ref }}` / `CI-refs/heads/main` group so
-  # leftover `xcode-27` runs sitting in that queue cannot serialize macos-26 CI.
+  # Distinct from the old `CI-${{ github.ref }}` group so leftover `xcode-27`
+  # runs cannot serialize this work. `macos-latest` is GitHub's macos-26 arm64
+  # image (Xcode 26.6 GM); the scarce `xcode-27` pool is not used.
   group: ${{ github.workflow }}-xcode26-${{ github.ref }}
-  # Let a main run finish: frequent pushes used to cancel queued jobs before
-  # they ever started. PRs still cancel the previous attempt on the same ref.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
   filter:
@@ -87,7 +86,7 @@ jobs:
     name: Build (${{ matrix.platform }})
     needs: filter
     if: needs.filter.outputs.compile == 'true'
-    runs-on: macos-26
+    runs-on: macos-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -143,7 +142,7 @@ jobs:
     name: Test app (${{ matrix.platform }})
     needs: [filter, build]
     if: needs.filter.outputs.test_app == 'true' && needs.build.result == 'success'
-    runs-on: macos-26
+    runs-on: macos-latest
     timeout-minutes: 90
     # Write only for the screenshot ref below.
     permissions:
@@ -275,7 +274,7 @@ jobs:
     name: Test packages
     needs: [filter, build]
     if: needs.filter.outputs.packages == 'true' && needs.build.result == 'success'
-    runs-on: macos-26
+    runs-on: macos-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

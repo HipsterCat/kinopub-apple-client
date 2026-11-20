@@ -38,7 +38,7 @@ if [ ${#gm[@]} -gt 0 ]; then
 fi
 
 if [ -z "$xcode" ]; then
-  echo "::error::No Xcode 26.x GM on this runner. Packages declare swift-tools-version 6.2, which needs it (runs-on: macos-26)."
+  echo "::error::No Xcode 26.x GM on this runner. Packages declare swift-tools-version 6.2, which needs it (runs-on: macos-latest / macos-26)."
   echo "Xcodes present on this image:"
   ls -d /Applications/Xcode*.app 2>/dev/null || echo "  (none)"
   exit 1
