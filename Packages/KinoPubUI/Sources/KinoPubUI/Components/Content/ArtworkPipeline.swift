@@ -158,14 +158,25 @@ public enum Artwork {
 
   /// Point box → Nuke resize unit. macOS always uses `.pixels` at display scale;
   /// other platforms keep Nuke's `.points` (it already multiplies by scale).
+  ///
+  /// Floor 2 is KP-14 (Nuke's macOS `Screen.scale` is 1; 1× requests made Retina
+  /// posters soft). The signpost cache (`displayScale`) must not feed this — a
+  /// 1× snapshot would halve request pixels and miss the memory cache.
   private static func macOSPixelSize(forPoints size: CGSize) -> (size: CGSize, unit: ImageProcessingOptions.Unit) {
 #if os(macOS)
-    let scale = displayScale
+    let scale = macOSRequestScale
     return (CGSize(width: size.width * scale, height: size.height * scale), .pixels)
 #else
     return (size, .points)
 #endif
   }
+
+#if os(macOS)
+  /// Live screen scale for **requests**, ≥2. Independent of the signpost cache.
+  static var macOSRequestScale: CGFloat {
+    max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+  }
+#endif
 
   /// Already-decoded art at this size, or nil. Synchronous on purpose: a cell calls this
   /// while configuring so a recycled tile never paints a placeholder.
@@ -395,17 +406,47 @@ public enum Artwork {
 
   /// Last scale seen on the main actor. `pixelSize` / `tracedResponse` run off-main
   /// (`async` Nuke); `UITraitCollection.current` and `NSScreen.screens` are undefined
-  /// there and often report 1.0 on Apple TV 4K (2×).
+  /// there and often report 1.0 on Apple TV 4K (2×). Signposts only — not requests.
   private static let cachedDisplayScale = Mutex<CGFloat>(0)
 
-  /// Snapshot the screen scale on the main actor. App launch and every image
-  /// view call this; `pixelSize` then reads the cache only.
+  @MainActor
+  private enum DisplayScaleObserver {
+    static var token: (any NSObjectProtocol)?
+  }
+
+  /// Snapshot the screen scale on the main actor for **signposts** (`pixelSize`
+  /// off-main). Does not change Nuke request sizes.
   @MainActor
   public static func rememberDisplayScale() {
 #if os(macOS)
     cacheDisplayScale(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2)
 #else
     cacheDisplayScale(UITraitCollection.current.displayScale)
+#endif
+  }
+
+  /// Call once at launch. Re-snapshots when the screen configuration changes —
+  /// not on every artwork load.
+  @MainActor
+  public static func startRememberingDisplayScale() {
+    rememberDisplayScale()
+    guard DisplayScaleObserver.token == nil else { return }
+#if os(macOS)
+    DisplayScaleObserver.token = NotificationCenter.default.addObserver(
+      forName: NSApplication.didChangeScreenParametersNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { rememberDisplayScale() }
+    }
+#else
+    DisplayScaleObserver.token = NotificationCenter.default.addObserver(
+      forName: UIScreen.modeDidChangeNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { rememberDisplayScale() }
+    }
 #endif
   }
 
@@ -427,11 +468,6 @@ public enum Artwork {
 #endif
   }
 
-  static func rememberDisplayScaleIfOnMain() {
-    guard Thread.isMainThread else { return }
-    MainActor.assumeIsolated { rememberDisplayScale() }
-  }
-
   private static func cacheTier(_ type: ImageResponse.CacheType?) -> String {
     switch type {
     case .memory: "memory"
@@ -443,7 +479,6 @@ public enum Artwork {
 
   private static func tracedResponse(_ url: URL, size: CGSize, mode: ResizeMode) async throws
     -> ImageResponse {
-    rememberDisplayScaleIfOnMain()
     let imageRequest = request(url, size: size, mode: mode)
     let pixels = pixelSize(forPoints: size)
     let interval = PerfSignpost.beginArtworkRequest(url: url, pixelSize: pixels)

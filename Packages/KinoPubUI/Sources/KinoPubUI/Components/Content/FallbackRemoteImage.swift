@@ -63,7 +63,6 @@ public struct FallbackRemoteImage: View {
 
   @MainActor
   private func load() async {
-    Artwork.rememberDisplayScale()
     let key = listKey
     let known = Self.winners[key] ?? urls.first
     if let known, let cached = Artwork.cachedImage(for: known) {

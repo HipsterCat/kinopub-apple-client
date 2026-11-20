@@ -22,9 +22,24 @@ final class ArtworkPipelineTests: XCTestCase {
   func testPixelSizeUsesCachedScaleNotTraitCollection() {
     Artwork.cacheDisplayScale(3)
     let pixels = Artwork.pixelSize(forPoints: CGSize(width: 10, height: 10))
+#if os(macOS)
+    // Signpost size follows the request (KP-14 floor 2), not the signpost cache.
+    XCTAssertGreaterThanOrEqual(pixels.width, 20)
+    XCTAssertEqual(Artwork.displayScale, 3, accuracy: 0.01)
+#else
     XCTAssertEqual(pixels.width, 30, accuracy: 0.01)
     XCTAssertEqual(Artwork.displayScale, 3, accuracy: 0.01)
+#endif
   }
+
+#if os(macOS)
+  func testMacOSRequestScaleFloorsAtTwoIndependentOfSignpostCache() {
+    Artwork.cacheDisplayScale(1)
+    XCTAssertGreaterThanOrEqual(Artwork.macOSRequestScale, 2)
+    let pixels = Artwork.pixelSize(forPoints: CGSize(width: 100, height: 50))
+    XCTAssertGreaterThanOrEqual(pixels.width, 200)
+  }
+#endif
 
   func testDecodedByteCountCountsRasterData() {
 #if os(macOS)
