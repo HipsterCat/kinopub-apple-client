@@ -30,22 +30,20 @@ import AppKit
 
 public enum InfoPopupMetrics {
 #if os(tvOS)
-  /// Reading width of the TV app's info panel, not the width of the screen.
-  public static let maxWidth: CGFloat = 760
-  /// Short of a 1080pt screen, so the hero stays visible around the card.
-  public static let maxCardHeight: CGFloat = 760
-  public static let padding: CGFloat = 40
-  /// Apple's info platter. Measured against AVKit's Info tab (≈46 pt,
-  /// `docs/product/playback-info.md`); the earlier 56 pt guess read boxier
-  /// than that panel.
-  public static let cornerRadius: CGFloat = 46
+  public static let maxWidth: CGFloat = 1280
+  public static let padding: CGFloat = 64
+  /// The system sheet's corner. What's New and the info sheet keep this size
+  /// (Sasha, 2026-11-20: the dimensions were already right).
+  public static let cornerRadius: CGFloat = 56
   public static let titleFont: Font = .title3
-  public static let subtitleFont: Font = .body
-  public static let bodyFont: Font = .body
-  public static let captionFont: Font = .body
+  public static let subtitleFont: Font = .subheadline
+  public static let bodyFont: Font = .caption
+  /// Smaller than the body: fact labels, the facts line, genres.
+  public static let captionFont: Font = .caption2
+  /// A section heading inside the popup («Информация»).
   public static let sectionFont: Font = .headline
-  public static let contentSpacing: CGFloat = 22
-  public static let scrimOpacity: Double = 0
+  public static let contentSpacing: CGFloat = 28
+  public static let scrimOpacity: Double = 0.5
 #elseif os(macOS)
   public static let maxWidth: CGFloat = 620
   public static let padding: CGFloat = 28
@@ -72,10 +70,15 @@ public enum InfoPopupMetrics {
 }
 
 #if os(tvOS)
+/// Chrome for «Выберите версию» only. What's New and the info sheet keep
+/// `InfoPopupView`'s own size.
+private enum VersionSheetChromeMetrics {
+  static let maxWidth: CGFloat = 760
+  static let cornerRadius: CGFloat = 46
+}
+
 public extension View {
-  /// A content-sized card over the hero. The system sheet will not hug its content,
-  /// so the card draws that chrome: glass, the platter corner, a hairline stroke and
-  /// a shadow the hero shows through.
+  /// The version chooser's content-sized card. Not the info sheet.
   func tvHeroSheet() -> some View {
     modifier(TVHeroSheetChrome())
   }
@@ -83,11 +86,12 @@ public extension View {
 
 private struct TVHeroSheetChrome: ViewModifier {
   func body(content: Content) -> some View {
-    let shape = RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
+    let shape = RoundedRectangle(cornerRadius: VersionSheetChromeMetrics.cornerRadius, style: .continuous)
     ZStack {
       Color.clear
       content
-        .frame(maxWidth: InfoPopupMetrics.maxWidth, maxHeight: InfoPopupMetrics.maxCardHeight)
+        .frame(maxWidth: VersionSheetChromeMetrics.maxWidth)
+        .fixedSize(horizontal: false, vertical: true)
         .background {
           shape
             .fill(Color.black.opacity(0.01))
@@ -144,26 +148,39 @@ public struct InfoPopupView<Content: View>: View {
 
   public var body: some View {
 #if os(tvOS)
-    // The system `.sheet` is one fixed ~1000×370 pt platter whatever the content or
-    // `presentationSizing` asks (probed on tvOS 26.5, 2026-10-25), so this card draws
-    // the same chrome itself: glass, the platter corner, a stroke and a shadow, sized
-    // to the text, with the hero still visible around it.
-    VStack(spacing: 0) {
-      scrollingText
-      if let confirmTitle {
-        Button(action: close) { confirmTitle }
-          .focused($confirmFocused)
-          .padding(.bottom, InfoPopupMetrics.padding)
+    // Same panel as before: the page dims, the card stays the wide sheet. The glass
+    // shadow was right and too light, and the platter had no stroke (Sasha, 2026-11-20).
+    ZStack {
+      Color.black.opacity(InfoPopupMetrics.scrimOpacity)
+        .ignoresSafeArea()
+      VStack(spacing: 0) {
+        scrollingText
+        if let confirmTitle {
+          Button(action: close) { confirmTitle }
+            .focused($confirmFocused)
+            .padding(.bottom, InfoPopupMetrics.padding)
+        }
       }
-    }
-    .tvHeroSheet()
-    .defaultFocus($confirmFocused, confirmTitle != nil, priority: .userInitiated)
-    // One focus stop — the button, or the text when there is none — so Up and Down
-    // have nowhere to move focus and page the text instead. With the text as a second
-    // stop, Down from it jumped straight back to the button and nothing ever scrolled.
-    .onMoveCommand { direction in
-      guard let target = ScrollPage.target(of: scrollGeometry, direction: direction) else { return }
-      withAnimation(.easeInOut(duration: 0.3)) { scrollPosition.scrollTo(y: target) }
+      .frame(maxWidth: InfoPopupMetrics.maxWidth)
+      .background {
+        RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
+          .fill(Color.black.opacity(0.01))
+          .shadow(color: .black.opacity(0.8), radius: 70, y: 32)
+      }
+      .kinoGlass(in: RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
+          .strokeBorder(Color.primary.opacity(0.35), lineWidth: 1.5)
+      }
+      .padding(60)
+      .defaultFocus($confirmFocused, confirmTitle != nil, priority: .userInitiated)
+      // One focus stop — the button, or the text when there is none — so Up and Down
+      // have nowhere to move focus and page the text instead. With the text as a second
+      // stop, Down from it jumped straight back to the button and nothing ever scrolled.
+      .onMoveCommand { direction in
+        guard let target = ScrollPage.target(of: scrollGeometry, direction: direction) else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { scrollPosition.scrollTo(y: target) }
+      }
     }
     // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
     .onExitCommand(perform: close)
@@ -224,16 +241,13 @@ public struct InfoPopupView<Content: View>: View {
         }
 #endif
 #if os(tvOS)
-        // A short fade at the cut, not a percentage of the card: 8% ate the last
-        // fact of a panel that otherwise fitted.
+        // Lines fade at the edges rather than being cut by them — the padding is the fade.
         .mask {
-          VStack(spacing: 0) {
-            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-              .frame(height: 12)
-            Color.black
-            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-              .frame(height: 12)
-          }
+          LinearGradient(stops: [.init(color: .clear, location: 0),
+                                 .init(color: .black, location: 0.05),
+                                 .init(color: .black, location: 0.92),
+                                 .init(color: .clear, location: 1)],
+                         startPoint: .top, endPoint: .bottom)
         }
 #endif
     }
@@ -287,8 +301,12 @@ public struct InfoPopupSection<Content: View>: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 0.75) {
       title
         .font(InfoPopupMetrics.sectionFont)
-        // The TV app's sheet: «Information» in primary, the same weight as a headline.
+#if os(tvOS)
+        .foregroundStyle(Color.KinoPub.subtitle)
+#else
+        // The TV app's sheet: «Информация», «Языки» in bold primary.
         .foregroundStyle(Color.KinoPub.text)
+#endif
       content()
     }
     .padding(.top, InfoPopupMetrics.contentSpacing * 0.5)
@@ -308,10 +326,8 @@ public struct InfoPopupFact: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
 #if os(tvOS)
-      // The TV app stacks the name and the value in one text style: the name
-      // secondary, the value primary.
       label
-        .font(InfoPopupMetrics.bodyFont)
+        .font(InfoPopupMetrics.captionFont)
         .foregroundStyle(Color.KinoPub.subtitle)
       if !value.isEmpty {
         Text(verbatim: value)
