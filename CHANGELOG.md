@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Poster / video context menus (KP-73):** Apple-style enlarged artwork preview
+  on every long-press surface (prefetch, underlay, loading spinner, one size per
+  aspect). Follow / unfollow flips the menu title immediately and toasts
+  success; Watched on series CW cards is a submenu like the detail «…» menu
+  (episode · season · unwatched in season · all).
+
 - **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer
   `https://wsrv.nl/?url=…&w=&q=80&output=webp`, with legacy TMDB/tvoe/Kinopoisk
   resize if weserv fails or `WESERV_DISABLED` is set. Logo / backdrop / poster

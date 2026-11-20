@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubUI
 
 /// Single source of card context-menu items (ids, titles, icons, grouping).
@@ -13,11 +14,24 @@ enum MediaCardContextMenus {
 
   /// The "Add to Bookmarks" submenu — what the Home hero's Bookmark button opens.
   static let bookmarksMenuID = "bookmarks"
+  /// Watched submenu — same shape as the detail page's «…» Mark as Watched menu.
+  static let watchedMenuID = "watched"
 
   struct BookmarkFolderOption: Identifiable {
     let id: Int
     let title: String
     let isContaining: Bool
+  }
+
+  /// Series CW / watching card: Mark Episode · Season · Unwatched in Season · All.
+  struct WatchedSubmenu {
+    let season: Int
+    let episode: Int
+    let seasonCount: Int?
+    let onMarkEpisode: () -> Void
+    let onMarkSeason: () -> Void
+    let onMarkUnwatchedInSeason: () -> Void
+    let onMarkAllEpisodes: () -> Void
   }
 
   /// Full Home / Library / banner menu driven by optional handlers.
@@ -32,6 +46,8 @@ enum MediaCardContextMenus {
     onToggleBookmarkFolder: ((Int) -> Void)? = nil,
     onCreateBookmarkFolder: (() -> Void)? = nil,
     onToggleWatched: (() -> Void)? = nil,
+    /// When set (and the card is not already watched), Watched is a submenu like «…».
+    watchedSubmenu: WatchedSubmenu? = nil,
     onHide: (() -> Void)? = nil,
     /// Admin only: the Change Images sheet for this title.
     onChangeImages: (() -> Void)? = nil,
@@ -80,7 +96,51 @@ enum MediaCardContextMenus {
        }
        
        // MARK: Watched
-       if let onToggleWatched {
+       // Series with a known S/E: dropdown like the detail «…» menu. Films / already
+       // watched stay a single row ("Mark as New").
+       if let watchedSubmenu, !card.isWatched {
+         appendDivider()
+         let episodeLabel = EpisodeText(
+           season: watchedSubmenu.season,
+           number: watchedSubmenu.episode,
+           seasonCount: watchedSubmenu.seasonCount
+         ).text(for: .contextMenu)
+         let seasonLabel = SeasonText(watchedSubmenu.season)
+           .formatted(MediaSurface.contextMenu.textLength)
+         entries.append(.submenu(
+           id: watchedMenuID,
+           title: String(localized: "MediaAction_MarkWatchedMenu"),
+           systemImage: "checkmark.circle",
+           children: [
+             MediaCardContextAction(
+               id: "mark-episode-watched",
+               title: "\("Mark Episode Watched".localized) · \(episodeLabel)",
+               systemImage: "checkmark",
+               handler: watchedSubmenu.onMarkEpisode
+             ),
+             MediaCardContextAction(
+               id: "mark-season-watched",
+               title: "\("Mark Season Watched".localized) · \(seasonLabel)",
+               systemImage: "checkmark.circle",
+               handler: watchedSubmenu.onMarkSeason
+             ),
+             MediaCardContextAction(
+               id: "mark-unwatched-in-season",
+               title: "Mark Unwatched in Season".localized,
+               systemImage: "checkmark.circle",
+               handler: watchedSubmenu.onMarkUnwatchedInSeason
+             ),
+             MediaCardContextAction(
+               id: "mark-all-episodes-watched",
+               title: "Mark All Episodes Watched".localized,
+               systemImage: "checkmark.circle.fill",
+               handler: watchedSubmenu.onMarkAllEpisodes
+             )
+           ],
+           footer: []
+         ))
+         markGroup()
+       } else if let onToggleWatched {
          appendDivider()
          entries.append(.action(MediaCardContextAction(
            id: "toggle-watched",
@@ -264,6 +324,27 @@ enum MediaCardContextMenus {
       if isContinueWatchingStyle { return card.canToggleWatched || !card.isSeries }
       return !card.isSeries
     }()
+    let watchedSubmenu: WatchedSubmenu? = {
+      guard canMarkWatched, !card.isWatched,
+            card.isSeries, let season = card.season, let episode = card.video else { return nil }
+      return WatchedSubmenu(
+        season: season,
+        episode: episode,
+        seasonCount: card.seasonCount,
+        onMarkEpisode: {
+          menu.toggleWatched(card, removeFromContinueWatching: isContinueWatchingStyle)
+        },
+        onMarkSeason: {
+          menu.markSeasonWatched(card, removeFromContinueWatching: isContinueWatchingStyle)
+        },
+        onMarkUnwatchedInSeason: {
+          menu.markUnwatchedInSeason(card)
+        },
+        onMarkAllEpisodes: {
+          menu.markAllEpisodesWatched(card, removeFromContinueWatching: isContinueWatchingStyle)
+        }
+      )
+    }()
 
     return entries(
       for: card,
@@ -280,9 +361,10 @@ enum MediaCardContextMenus {
                             serverHint: card.viewerState.bookmarkFolderIDs ?? [])
       },
       onCreateBookmarkFolder: { menu.promptNewFolder(for: card.itemID) },
-      onToggleWatched: canMarkWatched
+      onToggleWatched: canMarkWatched && watchedSubmenu == nil
         ? { menu.toggleWatched(card, removeFromContinueWatching: isContinueWatchingStyle) }
         : nil,
+      watchedSubmenu: watchedSubmenu,
       onHide: isContinueWatchingStyle
         ? { menu.hideFromContinueWatching(card) }
         : nil,

@@ -209,8 +209,11 @@ struct LibraryView: View {
               .onAppear { bookmarks.loadMoreContent(after: card) }
           }
           .buttonStyle(MediaCardButtonStyle())
-          .modifier(MediaCardContextMenuModifier(isEnabled: true,
-                                                 entriesProvider: { contextEntries(card) }))
+          .modifier(MediaCardContextMenuModifier(
+            isEnabled: true,
+            entriesProvider: { contextEntries(card) },
+            previewSpecProvider: { .from(card: card, surface: .shelf) }
+          ))
         }
       }
       .padding(.horizontal, metrics.inset)

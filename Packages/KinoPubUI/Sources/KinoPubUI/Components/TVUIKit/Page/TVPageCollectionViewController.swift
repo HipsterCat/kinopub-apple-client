@@ -1787,9 +1787,17 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       return nil
     }
     PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
-    return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
+    let section = sections[indexPath.section]
+    // Still rails paint landscape; poster rails paint 2:3 — `from(card:)` picks aspect.
+    let preview = MediaCardContextPreviewSpec.from(
+      card: card,
+      surface: section.kind == .still ? .episodeRail : .shelf
+    )
+    return TVUIKitContextMenuBuilder.configuration(
+      identifier: indexPath as NSIndexPath,
+      preview: preview,
+      entries: entries
+    )
   }
 
   public func collectionView(

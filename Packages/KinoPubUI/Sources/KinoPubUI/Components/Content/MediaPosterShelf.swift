@@ -316,7 +316,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
             .modifier(MediaCardContextMenuModifier(
               isEnabled: contextMenuProvider != nil,
-              entriesProvider: { contextMenuProvider?(card) ?? [] }
+              entriesProvider: { contextMenuProvider?(card) ?? [] },
+              previewSpecProvider: { .from(card: card, surface: .shelf) }
             ))
             // Last loaded card came into view. `isThresholdID` rather than an index
             // lookup on purpose: `firstIndex(of:)` over `MediaCard` from every card's
