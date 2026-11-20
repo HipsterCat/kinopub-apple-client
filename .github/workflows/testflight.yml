@@ -43,7 +43,9 @@ permissions:
 # Push is the reliable daily trigger (see schedule comment); the gate
 # allows at most one successful automatic archive per UTC day.
 concurrency:
-  group: testflight
+  # Distinct from the old `testflight` group so a leftover `xcode-27` upload
+  # sitting in that queue cannot block macos-26 archives.
+  group: testflight-xcode26
   cancel-in-progress: false
 
 env:

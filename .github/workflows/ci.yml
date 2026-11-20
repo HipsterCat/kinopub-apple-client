@@ -16,7 +16,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Distinct from the old `CI-${{ github.ref }}` / `CI-refs/heads/main` group so
+  # leftover `xcode-27` runs sitting in that queue cannot serialize macos-26 CI.
+  group: ${{ github.workflow }}-xcode26-${{ github.ref }}
   # Let a main run finish: frequent pushes used to cancel queued jobs before
   # they ever started. PRs still cancel the previous attempt on the same ref.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
