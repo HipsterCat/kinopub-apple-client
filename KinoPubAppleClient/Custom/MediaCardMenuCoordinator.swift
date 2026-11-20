@@ -156,12 +156,25 @@ final class MediaCardMenuCoordinator: ObservableObject {
   }
 
   func toggleWatchlist(_ card: MediaCard) {
+    let library = AppContext.shared.libraryState
+    let previous = AppContext.shared.viewerState
+      .state(for: card.ref, reported: card.reportedState).isFollowing == true
+    let next = !previous
+    // Optimistic: the next menu open must already say «Отслеживать» / «Не отслеживать».
+    library.setWatchlist(itemId: card.itemID, value: next)
+    hudToast = HudToast(
+      systemImage: next ? "plus" : "minus",
+      title: (next ? "Added to Watchlist" : "Removed from Watchlist").localized
+    )
+    objectWillChange.send()
     Task {
       do {
         try await actionsService.toggleWatchlist(id: card.itemID)
         contentStore.invalidate(family: .watch)
         await WatchingListCache.shared.refreshFollowed(using: contentService)
       } catch {
+        library.setWatchlist(itemId: card.itemID, value: previous)
+        objectWillChange.send()
         errorHandler?.setError(error)
       }
     }
@@ -184,10 +197,12 @@ final class MediaCardMenuCoordinator: ObservableObject {
   func toggleWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
     let video = card.video ?? (card.isSeries ? nil : 1)
     guard let video else { return }
+    let markingWatched = !card.isWatched
     if removeFromContinueWatching {
       contentStore.removeCard(id: card.id, from: .continueWatching)
       AppContext.shared.localProgressStore.clear(id: card.itemID)
     }
+    presentWatchedHud(nowWatched: markingWatched)
     Task {
       do {
         try await actionsService.toggleWatching(id: card.itemID, video: video, season: card.season)
@@ -198,6 +213,72 @@ final class MediaCardMenuCoordinator: ObservableObject {
           contentStore.invalidate(family: .watch)
         }
       }
+    }
+  }
+
+  /// Bulk season toggle — same `/v1/watching/toggle` shape as the detail «…» menu.
+  func markSeasonWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
+    guard let season = card.season else { return }
+    if removeFromContinueWatching {
+      contentStore.removeCard(id: card.id, from: .continueWatching)
+      AppContext.shared.localProgressStore.clear(id: card.itemID)
+    }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season)
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+        if removeFromContinueWatching {
+          contentStore.invalidate(family: .watch)
+        }
+      }
+    }
+  }
+
+  /// Completes remaining episodes in the card's season (detail «Отметить непросмотренные»).
+  func markUnwatchedInSeason(_ card: MediaCard) {
+    guard let season = card.season else { return }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season)
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+      }
+    }
+  }
+
+  /// Marks every incomplete season watched — fetches details for the season list.
+  func markAllEpisodesWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
+    if removeFromContinueWatching {
+      contentStore.removeCard(id: card.id, from: .continueWatching)
+      AppContext.shared.localProgressStore.clear(id: card.itemID)
+    }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        let item = try await contentService.fetchDetails(for: "\(card.itemID)").item
+        for season in item.seasons ?? [] where season.episodes.contains(where: { !$0.isWatched }) {
+          _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season.number)
+        }
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+        if removeFromContinueWatching {
+          contentStore.invalidate(family: .watch)
+        }
+      }
+    }
+  }
+
+  private func presentWatchedHud(nowWatched: Bool) {
+    if nowWatched {
+      hudToast = HudToast(systemImage: "checkmark", title: "Watched".localized)
+    } else {
+      hudToast = HudToast(systemImage: "eye", title: "Marked as New".localized)
     }
   }
 
