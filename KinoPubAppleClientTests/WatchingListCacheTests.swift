@@ -5,6 +5,7 @@
 
 import XCTest
 import KinoPubBackend
+import KinoPubUI
 @testable import KinoPub
 
 @MainActor

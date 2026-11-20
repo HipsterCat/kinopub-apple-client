@@ -446,7 +446,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
   /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
   nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
-    let watching = WatchingListCache.shared
+    let watching = await WatchingListCache.shared
     async let moviesTask = watching.movies(using: service)
     async let unfinishedTask = watching.serials(subscribedOnly: false, using: service)
     async let followedTask = watching.serials(subscribedOnly: true, using: service)
