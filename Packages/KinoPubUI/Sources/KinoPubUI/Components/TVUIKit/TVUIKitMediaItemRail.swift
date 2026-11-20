@@ -35,6 +35,7 @@ import SwiftUI
 import UIKit
 import TVUIKit
 import KinoPubBackend
+import KinoPubLogging
 import KinoPubMedia
 
 // MARK: - Status
@@ -598,6 +599,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private var contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
   private var allowsFocus = true
 
+  /// The numbered season rail records `scroll.season` on this collection. Other
+  /// 16:9 rails (Continue Watching, Similar) leave it off.
+  public var reportsSeasonScroll = false
+
   /// Asked by the engine before it lands on an item, by id. Nil: every item. The season
   /// rail uses it to keep the remote off the episodes it should not land on.
   public var canFocusItem: ((Int) -> Bool)?
@@ -1000,6 +1005,26 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSourcePrefetching 
 }
 
 extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollectionViewDelegate {
+  public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard reportsSeasonScroll, scrollView === collectionView else { return }
+    PerfSignpost.noteSeasonScroll("rail")
+  }
+
+  public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    guard reportsSeasonScroll, scrollView === collectionView else { return }
+    PerfSignpost.endSeasonScroll("animation")
+  }
+
+  public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard reportsSeasonScroll, scrollView === collectionView else { return }
+    PerfSignpost.endSeasonScroll("decelerate")
+  }
+
+  public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard reportsSeasonScroll, scrollView === collectionView, !decelerate else { return }
+    PerfSignpost.endSeasonScroll("drag")
+  }
+
   public func collectionView(_ collectionView: UICollectionView,
                              numberOfItemsInSection section: Int) -> Int {
     items.count

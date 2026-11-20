@@ -416,14 +416,38 @@ public enum Artwork {
 
   /// Snapshot the screen scale on the main actor for **signposts** (`pixelSize`
   /// off-main). Does not change Nuke request sizes.
+  ///
+  /// Reads the screen / window traits — never `UITraitCollection.current` outside
+  /// a trait context (that is often 1.0 in `App.init`, while Apple TV 4K is 2×).
   @MainActor
   public static func rememberDisplayScale() {
 #if os(macOS)
-    cacheDisplayScale(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2)
+    cacheDisplayScale(
+      NSScreen.main?.backingScaleFactor
+        ?? NSScreen.screens.map(\.backingScaleFactor).max()
+        ?? 2
+    )
 #else
-    cacheDisplayScale(UITraitCollection.current.displayScale)
+    cacheDisplayScale(liveUIKitDisplayScale())
 #endif
   }
+
+#if !os(macOS)
+  @MainActor
+  private static func liveUIKitDisplayScale() -> CGFloat {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+    if let scene {
+      let window = scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
+      let scale = window?.screen.scale ?? scene.screen.scale
+      if scale > 0 { return scale }
+      let traits = window?.traitCollection.displayScale ?? scene.traitCollection.displayScale
+      if traits > 0 { return traits }
+    }
+    let screen = UIScreen.main.scale
+    return screen > 0 ? screen : 1
+  }
+#endif
 
   /// Call once at launch. Re-snapshots when the screen configuration changes —
   /// not on every artwork load.

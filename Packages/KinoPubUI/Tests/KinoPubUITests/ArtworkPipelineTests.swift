@@ -19,6 +19,20 @@ final class ArtworkPipelineTests: XCTestCase {
     XCTAssertEqual(pixels.height, 100, accuracy: 0.01)
   }
 
+  @MainActor
+  func testRememberDisplayScaleReadsScreenTraits() {
+    Artwork.cacheDisplayScale(1)
+    Artwork.rememberDisplayScale()
+#if os(macOS)
+    let live = NSScreen.main?.backingScaleFactor
+      ?? NSScreen.screens.map(\.backingScaleFactor).max()
+      ?? 2
+    XCTAssertEqual(Artwork.displayScale, max(live, 1), accuracy: 0.01)
+#else
+    XCTAssertEqual(Artwork.displayScale, UIScreen.main.scale, accuracy: 0.01)
+#endif
+  }
+
   func testPixelSizeUsesCachedScaleNotTraitCollection() {
     Artwork.cacheDisplayScale(3)
     let pixels = Artwork.pixelSize(forPoints: CGSize(width: 10, height: 10))

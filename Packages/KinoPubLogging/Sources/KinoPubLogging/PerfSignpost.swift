@@ -17,11 +17,12 @@
 //    hero.page         Home hero turned to another title
 //    hero.backdrop     page-backdrop crossfade (tvOS title page)
 //    scroll.home       Home / templates vertical shelf scroll
-//    scroll.season     tvOS season-rail page slide
-//    page.title        title page open → first paint
+//    scroll.season     tvOS season-rail fold + horizontal rail, one interval per gesture
+//    page.title        navigation push → first painted item
 //    page.resize       Mac / iPad window size settled
 //
 
+import CoreGraphics
 import Foundation
 import OSLog
 import Synchronization
@@ -87,11 +88,13 @@ public enum PerfSignpost {
 
   public static func beginHomeScroll(_ detail: String = "scroll") {
     guard scroll.isEnabled else { return }
+    homeScrollIdle.cancel()
     homeScrollSession.begin(detail)
   }
 
   public static func endHomeScroll(_ detail: String = "idle") {
     guard scroll.isEnabled else { return }
+    homeScrollIdle.cancel()
     homeScrollSession.end(detail)
   }
 
@@ -99,21 +102,36 @@ public enum PerfSignpost {
   /// settle. Used where there is no scroll-phase callback (Mac clip-view
   /// bounds, tvOS focus `setContentOffset` that may skip `didEndDecelerating`).
   ///
+  /// Settle is ~80 ms after the last `didScroll` — long enough for deceleration
+  /// frames, short enough that a 0.45 s remote cadence is not one giant interval.
+  /// Prefer `endHomeScroll` from `didEndDecelerating` / `didEndScrollingAnimation`
+  /// when those fire.
+  ///
   /// A no-op unless a recording is attached — `scrollViewDidScroll` is every frame.
   public static func noteHomeScroll(_ detail: String = "scroll") {
     guard scroll.isEnabled else { return }
-    beginHomeScroll(detail)
+    homeScrollSession.begin(detail)
     homeScrollIdle.reschedule()
   }
 
   public static func beginSeasonScroll(_ detail: String = "slide") {
     guard scroll.isEnabled else { return }
+    seasonScrollIdle.cancel()
     seasonScrollSession.begin(detail)
   }
 
   public static func endSeasonScroll(_ detail: String = "idle") {
     guard scroll.isEnabled else { return }
+    seasonScrollIdle.cancel()
     seasonScrollSession.end(detail)
+  }
+
+  /// Horizontal rail / tab scroll. Same settle as `noteHomeScroll`. The Rivulet
+  /// CADisplayLink fold uses `beginSeasonScroll` / `endSeasonScroll` instead.
+  public static func noteSeasonScroll(_ detail: String = "rail") {
+    guard scroll.isEnabled else { return }
+    seasonScrollSession.begin(detail)
+    seasonScrollIdle.reschedule()
   }
 
   // MARK: - Page
@@ -180,7 +198,11 @@ public enum PerfSignpost {
   private static let seasonScrollSession = PerfScrollSession(scroll, name: "scroll.season")
   private static let heroPageSession = PerfScrollSession(hero, name: "hero.page")
   private static let pageResizeSession = PerfScrollSession(page, name: "page.resize")
-  private static let homeScrollIdle = IdleEnd(session: homeScrollSession, delay: 0.25)
+  /// After the last scroll frame. Shorter than a remote press gap (~0.45 s) so
+  /// each gesture is its own interval; longer than one display frame so
+  /// deceleration still counts as the same gesture.
+  private static let homeScrollIdle = IdleEnd(session: homeScrollSession, delay: 0.08)
+  private static let seasonScrollIdle = IdleEnd(session: seasonScrollSession, delay: 0.08)
   private static let pageResizeIdle = IdleEnd(session: pageResizeSession, delay: 0.3)
   private static let lastResize = Mutex<CGSize>(.zero)
   private static let titleOpen = Mutex<TitleOpenSlot>(TitleOpenSlot())
@@ -267,6 +289,13 @@ private final class IdleEnd: @unchecked Sendable {
     work = item
     lock.unlock()
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+  }
+
+  func cancel() {
+    lock.lock()
+    work?.cancel()
+    work = nil
+    lock.unlock()
   }
 }
 

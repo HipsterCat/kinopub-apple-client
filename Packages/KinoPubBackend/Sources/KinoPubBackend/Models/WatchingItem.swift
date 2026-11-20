@@ -8,7 +8,7 @@ import Foundation
 /// The trimmed-down item shape returned by `/v1/watching/movies` and
 /// `/v1/watching/serials`. These endpoints send only enough to draw a card, so this
 /// deliberately is not a `MediaItem` — decoding one from this payload would fail.
-public struct WatchingItem: Codable, Hashable, Identifiable {
+public struct WatchingItem: Codable, Hashable, Identifiable, Sendable {
   public let id: Int
   public let type: String
   public let subtype: String?

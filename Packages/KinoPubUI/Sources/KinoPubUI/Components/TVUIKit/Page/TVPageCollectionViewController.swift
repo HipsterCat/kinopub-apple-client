@@ -1444,9 +1444,10 @@ public final class TVPageCollectionViewController: UIViewController {
 extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collectionView else { return }
-    // One source on tvOS: idle-ended `scroll.home`. Drag begin/end would close
-    // the interval while `didScroll` is still firing (focus-driven moves skip
-    // dragging entirely). `noteHomeScroll` is a no-op unless a recording is on.
+    // Begin on the first move. End on settle (`didEndDecelerating` /
+    // `didEndScrollingAnimation` / drag-end without deceleration). Focus-driven
+    // moves skip dragging; `noteHomeScroll`'s short idle is the fallback so
+    // each remote press is its own interval. No-op unless a recording is on.
     if !isEmbedded { PerfSignpost.noteHomeScroll("scroll") }
     updateHeroStageFromScroll()
   }
@@ -1472,6 +1473,16 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     guard scrollView === collectionView else { return }
     if !isEmbedded { PerfSignpost.endHomeScroll("animation") }
     logHeroScroll("scroll animation ended")
+  }
+
+  public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView else { return }
+    if !isEmbedded { PerfSignpost.endHomeScroll("decelerate") }
+  }
+
+  public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard scrollView === collectionView, !decelerate else { return }
+    if !isEmbedded { PerfSignpost.endHomeScroll("drag") }
   }
 
   public func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {

@@ -1023,6 +1023,26 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     return section
   }
 
+  public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.noteSeasonScroll("rail")
+  }
+
+  public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.endSeasonScroll("animation")
+  }
+
+  public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.endSeasonScroll("decelerate")
+  }
+
+  public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard (scrollView === railView || scrollView === tabsView), !decelerate else { return }
+    PerfSignpost.endSeasonScroll("drag")
+  }
+
   public func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }
 
   public func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {

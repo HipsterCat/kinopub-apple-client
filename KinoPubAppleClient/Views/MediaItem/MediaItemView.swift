@@ -372,13 +372,17 @@ struct MediaItemView: View {
       // from what the player just wrote locally. No-op until the payload has loaded.
       .onAppear {
         itemModel.repaintFromLocalProgress()
-        // `onChange(initial:)` runs before `onAppear`. If the item is already
-        // painted it stashes a ready reason; `beginTitleOpen` consumes that
-        // without opening a 0 ms interval. Do not end here — a leftover
-        // `readyID` would make the next open of the same title report ~0 ms.
-        PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
+        // Navigation (`NavigationState.push` / path write) already began
+        // `page.title`. If the item is already in memory (fixture, listed
+        // cache), end here so the interval is push → first frame, not a
+        // leftover `onChange(initial:)` handshake that reports ~0.
+        if itemModel.hasPaintedItem {
+          PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
+        } else {
+          PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
+        }
       }
-      .onChange(of: itemModel.hasPaintedItem, initial: true) { _, painted in
+      .onChange(of: itemModel.hasPaintedItem) { _, painted in
         if painted {
           PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
         }

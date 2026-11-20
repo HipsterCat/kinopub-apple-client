@@ -49,9 +49,9 @@ Subsystem **`com.soda.kinopub.perf`**. Zero cost unless a recording or an
 | `artwork` | `artwork.display` | Event: the bitmap was assigned to a view | `Artwork.noteDisplayed` |
 | `hero` | `hero.page` | Home hero turned to another title (tvOS `TVPageHeroBackdropView`, iOS/Mac pager) | `TVPageHero.swift`, `HomeHeroCarousel.swift` |
 | `hero` | `hero.backdrop` | tvOS title-page backdrop load + crossfade | `PageBackdropHost.show` |
-| `scroll` | `scroll.home` | Home / templates vertical shelf scroll | `TVPageCollectionViewController`, `MediaRowsView`, Mac `ScrollMemory` |
-| `scroll` | `scroll.season` | tvOS Rivulet season-rail CADisplayLink slide | `RivuletSeasonRail.animatePage` |
-| `page` | `page.title` | Title page `onAppear` → first painted item | `MediaItemView` |
+| `scroll` | `scroll.home` | One interval per scroll gesture: begin on first move, end on settle (`didEndDecelerating` / `didEndScrollingAnimation` / ~80 ms idle) | `TVPageCollectionViewController`, `MediaRowsView`, Mac `ScrollMemory` |
+| `scroll` | `scroll.season` | One interval per gesture: Rivulet CADisplayLink fold (begin on start, end on settle) and horizontal episode/tab scroll | `RivuletSeasonRail`, numbered `TVSeasonRail` |
+| `page` | `page.title` | Navigation push of a details route → first painted item | `NavigationState`, `MediaItemView` |
 | `page` | `page.resize` | iPad / Mac window size bucket changed, then 0.3 s settle | `MediaRowsView` |
 
 Instruments → **os_signpost** instrument → filter subsystem `com.soda.kinopub.perf`.
@@ -224,8 +224,15 @@ xcrun xcresulttool get test-results summary --path "$RESULT" --compact
 ```
 
 `XCTOSSignpostMetric` for our intervals reports duration (the number XCTest can
-record on every platform). `XCTMemoryMetric` is physical memory. iOS also
-records `scrollingAndDecelerationMetric` (system hitch during a pan).
+record on every platform). An empty signpost metric **fails the test**
+(`RequiredOSSignpostMetric`); XCTest would otherwise drop it and stay green.
+`XCTMemoryMetric(application:)` is the app's physical memory, not the test
+runner's. iOS also records `scrollingAndDecelerationMetric` (system hitch
+during a pan).
+
+`scroll.home` / `scroll.season` close between remote presses: the walk sleeps
+~0.8 s after each gesture so deceleration can finish. A duration equal to the
+whole measure block means the interval did not settle.
 
 tvOS has no Apple hitch metric in XCTest — focus moves are not pan gestures, so
 `scrollDecelerationMetric` / `scrollingAndDecelerationMetric` record nothing.

@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import KinoPubBackend
+import KinoPubLogging
 
 /// Filter + display title handed to Search when opening from an item-page chip.
 struct PendingSearch: Equatable {
@@ -271,7 +272,12 @@ final class NavigationState {
                      // `NavigationStack` can ask to write the same path more than once in a
                      // frame (`Update NavigationAuthority bound path…`). Skip no-ops.
                      guard self[keyPath: keyPath] != routes else { return }
+                     let previous = self[keyPath: keyPath]
                      self[keyPath: keyPath] = routes
+                     if routes.count > previous.count,
+                        let id = routes.last?.detailsItemID {
+                       PerfSignpost.beginTitleOpen(id: "\(id)")
+                     }
                      let ids = MediaItemModelCache.itemIDs(in: routes)
                      MainActor.assumeIsolated {
                        MediaItemModelCache.shared.keep(only: ids, on: tab)
@@ -332,6 +338,9 @@ final class NavigationState {
 #endif
     guard let keyPath = Self.routes(for: selectedTab) else { return }
     self[keyPath: keyPath].append(route)
+    if let id = route.detailsItemID {
+      PerfSignpost.beginTitleOpen(id: "\(id)")
+    }
   }
 }
 

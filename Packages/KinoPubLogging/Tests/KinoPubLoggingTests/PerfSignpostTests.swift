@@ -25,6 +25,10 @@ final class PerfSignpostTests: XCTestCase {
     PerfSignpost.beginHomeScroll("test")
     PerfSignpost.endHomeScroll("test")
     PerfSignpost.endHomeScroll("already ended")
+    PerfSignpost.noteHomeScroll("test")
+    PerfSignpost.endHomeScroll("test")
+    PerfSignpost.noteSeasonScroll("test")
+    PerfSignpost.endSeasonScroll("test")
 
     PerfSignpost.beginTitleOpen(id: "1")
     PerfSignpost.endTitleOpen(reason: "painted", id: "1")

@@ -10,8 +10,10 @@
 //
 //  Metrics: `XCTOSSignpostMetric` on our intervals (the hitch stand-in on
 //  tvOS, where Apple's scrolling hitch metrics do not apply) and
-//  `XCTMemoryMetric`. No `XCTClockMetric` — the walks wait for the remote /
-//  animation, and a clock metric would measure those waits.
+//  `XCTMemoryMetric(application:)`. Empty signpost metrics fail the test
+//  (XCTest otherwise drops them and stays green). No `XCTClockMetric` — the
+//  walks wait for the remote / animation, and a clock metric would measure
+//  those waits.
 //
 //  These tests record metrics. They do not fail on hitch-time noise — there is
 //  no stored baseline. Numbers land in the xcresult and in
@@ -33,15 +35,21 @@ final class PerformanceUITests: XCTestCase {
     return options
   }
 
-  private func signpost(_ category: String, _ name: String) -> XCTOSSignpostMetric {
-    XCTOSSignpostMetric(subsystem: "com.soda.kinopub.perf", category: category, name: name)
+  private func signpost(_ category: String, _ name: String) -> XCTMetric {
+    RequiredOSSignpostMetric(subsystem: "com.soda.kinopub.perf", category: category, name: name)
   }
 
   /// tvOS has no `scrollingAndDecelerationMetric`. Interval duration of our
   /// `scroll.*` / `hero.page` / `artwork.request` signposts is the hitch
   /// stand-in XCTest can record; hitch ratio still comes from Instruments.
   private func hitchMetrics(_ extra: XCTMetric...) -> [XCTMetric] {
-    [XCTMemoryMetric()] + extra
+    [XCTMemoryMetric(application: app)] + extra
+  }
+
+  /// Wait for one remote-driven scroll to settle so `scroll.*` closes between
+  /// presses instead of spanning the whole walk.
+  private func waitForScrollSettle() {
+    Thread.sleep(forTimeInterval: 0.8)
   }
 
   // MARK: - tvOS
@@ -59,13 +67,12 @@ final class PerformanceUITests: XCTestCase {
     ), options: measureOptions) {
       for _ in 0..<5 {
         XCUIRemote.shared.press(.down)
-        Thread.sleep(forTimeInterval: 0.45)
+        waitForScrollSettle()
       }
       for _ in 0..<5 {
         XCUIRemote.shared.press(.up)
-        Thread.sleep(forTimeInterval: 0.45)
+        waitForScrollSettle()
       }
-      Thread.sleep(forTimeInterval: 0.8)
     }
   }
 
@@ -126,16 +133,22 @@ final class PerformanceUITests: XCTestCase {
       signpost("scroll", "scroll.season"),
       signpost("artwork", "artwork.request")
     ), options: measureOptions) {
-      // Down is the CADisplayLink fold (`scroll.season`). Up returns to the hero so
-      // the next iteration is the same walk; Menu would pop the page.
+      // Down is the CADisplayLink fold (`scroll.season`, 0.6 s). Right is the
+      // episode rail. Up returns to the hero so the next iteration is the same
+      // walk; Menu would pop the page.
       XCUIRemote.shared.press(.down)
-      Thread.sleep(forTimeInterval: 1.2)
+      Thread.sleep(forTimeInterval: 0.9)
+      let onRail = app.descendants(matching: .any).matching(NSPredicate(
+        format: "(identifier BEGINSWITH %@ OR identifier BEGINSWITH %@) AND hasFocus == true",
+        "kinopub.rivulet.still.", "kinopub.rail.item.")).firstMatch
+      XCTAssertTrue(onRail.waitForExistence(timeout: 5),
+                    "Down from the hero did not land on the season rail")
       for _ in 0..<4 {
         XCUIRemote.shared.press(.right)
-        Thread.sleep(forTimeInterval: 0.45)
+        waitForScrollSettle()
       }
       XCUIRemote.shared.press(.up)
-      Thread.sleep(forTimeInterval: 1.0)
+      Thread.sleep(forTimeInterval: 0.9)
     }
   }
 
@@ -194,9 +207,9 @@ final class PerformanceUITests: XCTestCase {
 
     measure(metrics: metrics, options: measureOptions) {
       scroll.swipeUp(velocity: .fast)
-      Thread.sleep(forTimeInterval: 0.6)
+      waitForScrollSettle()
       scroll.swipeDown(velocity: .fast)
-      Thread.sleep(forTimeInterval: 0.6)
+      waitForScrollSettle()
     }
   }
 
@@ -288,9 +301,9 @@ final class PerformanceUITests: XCTestCase {
       signpost("artwork", "artwork.request")
     ), options: measureOptions) {
       scroll.scroll(byDeltaX: 0, deltaY: -400)
-      Thread.sleep(forTimeInterval: 0.4)
+      waitForScrollSettle()
       scroll.scroll(byDeltaX: 0, deltaY: 400)
-      Thread.sleep(forTimeInterval: 0.4)
+      waitForScrollSettle()
     }
   }
 #endif
@@ -322,4 +335,50 @@ final class PerformanceUITests: XCTestCase {
     return scroll
   }
 #endif
+}
+
+/// XCTest silently drops an `XCTOSSignpostMetric` with zero intervals, so the
+/// test stays green. Fail instead — empty samples are not a measurement.
+private final class RequiredOSSignpostMetric: NSObject, XCTMetric {
+  private let inner: XCTOSSignpostMetric
+  private let label: String
+
+  convenience init(subsystem: String, category: String, name: String) {
+    self.init(
+      inner: XCTOSSignpostMetric(subsystem: subsystem, category: category, name: name),
+      label: "\(category)/\(name)"
+    )
+  }
+
+  private init(inner: XCTOSSignpostMetric, label: String) {
+    self.inner = inner
+    self.label = label
+    super.init()
+  }
+
+  func copy(with zone: NSZone? = nil) -> Any {
+    RequiredOSSignpostMetric(
+      inner: inner.copy(with: zone) as! XCTOSSignpostMetric,
+      label: label
+    )
+  }
+
+  func willBeginMeasuring() {
+    inner.willBeginMeasuring()
+  }
+
+  func didStopMeasuring() {
+    inner.didStopMeasuring()
+  }
+
+  func reportMeasurements(
+    from startTime: XCTPerformanceMeasurementTimestamp,
+    to endTime: XCTPerformanceMeasurementTimestamp
+  ) throws -> [XCTPerformanceMeasurement] {
+    let measurements = try inner.reportMeasurements(from: startTime, to: endTime)
+    if measurements.isEmpty {
+      XCTFail("signpost \(label) produced no samples; XCTest would drop an empty metric")
+    }
+    return measurements
+  }
 }

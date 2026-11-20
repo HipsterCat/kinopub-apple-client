@@ -3,8 +3,11 @@
 - **Performance measurement:** `OSSignposter` intervals under subsystem
   `com.soda.kinopub.perf` (artwork request/display, hero page and backdrop,
   Home shelf scroll, season-rail slide, title open, window resize). Zero cost
-  unless Instruments or `XCTOSSignpostMetric` is attached. UI performance tests
-  in `PerformanceUITests`; playbook in `docs/engineering/performance.md`.
+  unless Instruments or `XCTOSSignpostMetric` is attached. Scroll intervals are
+  per gesture (begin on move, end on settle). Empty signpost metrics fail the
+  UI test. `WatchingItem` / `Posters` are `Sendable` (the #125 compile break;
+  not waiting on #123). `URLSessionResumeGuard` tests match the current
+  skip-aggregate API. Playbook in `docs/engineering/performance.md`.
 
 - **Shared watching-list cache + quieter Home/Search:** `/v1/watching/movies` and
   both `/v1/watching/serials` answers are one in-memory cache (~3 min, coalesced)
