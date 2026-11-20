@@ -76,18 +76,17 @@ final class WatchingListCache {
       case .serials(let subscribed):
         items = try await service.fetchWatchingSerials(subscribedOnly: subscribed).items
       }
+      // Only the generation that owns `fetching` may clear it — a stale fetch finishing
+      // after `invalidate` must not wipe a newer in-flight marker (#123 review nit).
+      guard generation == gen else { return items }
       fetching.remove(list)
-      guard generation == gen else {
-        // `invalidate` already cancelled waiters and cleared `fetching`.
-        return items
-      }
       entries[list] = Entry(items: items, fetchedAt: Date())
       let pending = waiters.removeValue(forKey: list) ?? []
       for waiter in pending { waiter.resume(returning: items) }
       return items
     } catch {
-      fetching.remove(list)
       guard generation == gen else { throw error }
+      fetching.remove(list)
       let pending = waiters.removeValue(forKey: list) ?? []
       for waiter in pending { waiter.resume(throwing: error) }
       throw error
