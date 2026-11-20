@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **tvOS console quiet (follow-up):** nav zoom no longer drives
+  `_TVNavigationZoomAnimator` (that inserted `_UIReplicantView` under hosting
+  views) — plain `UIImageView` scale/fade on the navigation controller; snapshots
+  use `drawHierarchy(…, afterScreenUpdates: false)`; push/pop direction is
+  recorded in `willShow`. Home hero / page stop preferring themselves while they
+  already own focus so Up reaches the tab bar. TV Menu `returnToTopRow` retries if
+  the cell does not own focus (no hand scroll). TV disk cache URL is injectable
+  (tests use a temp file). Dead live on tvOS auto-dismisses with a toast. TSK…
+  snapshot lines stay Apple-only.
+
 - **Shared watching-list cache + quieter Home/Search:** `/v1/watching/movies` and
   both `/v1/watching/serials` answers are one in-memory cache (~3 min, coalesced)
   for Continue Watching, Library Unwatched/Following and the sidebar badge.

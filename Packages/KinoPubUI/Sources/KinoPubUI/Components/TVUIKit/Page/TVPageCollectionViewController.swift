@@ -1324,6 +1324,9 @@ public final class TVPageCollectionViewController: UIViewController {
     // A retry button is the landing spot. An empty state with no button is not —
     // the header chips (or the sidebar) keep the remote.
     if !statusView.isHidden, statusView.claimsFocus { return [statusView] }
+    // While this page already owns focus, do not keep preferring the collection —
+    // that trapped Up from the Home hero into a reject instead of the tab bar.
+    if ownsFocus { return super.preferredFocusEnvironments }
     return [collectionView]
   }
 
@@ -1376,18 +1379,38 @@ public final class TVPageCollectionViewController: UIViewController {
   /// consumed; `false` passes through to the tab bar.
   @discardableResult
   public func returnToTopRow() -> Bool {
-    guard isBelowTopRow, topIndexPath != nil else { return false }
+    guard isBelowTopRow, let top = topIndexPath else { return false }
     wantsTopFocus = true
+    handoffPath = nil
     collectionView.remembersLastFocusedIndexPath = false
     lastPublishedBelowTop = false
     onBelowTopRowChange?(false)
     // The collection holds focus and its delegate names the top row. Not this controller:
     // an ancestor's request wins over the collection's, and where the controller does not
     // claim focus (Search) it falls through to its view, so the engine picked the nearest
-    // visible card — one row up per press (2026-10-25).
+    // visible card — one row up per press (2026-10-25). The focus engine scrolls — no
+    // hand `contentOffset` settle (banner/hero rule).
     collectionView.setNeedsFocusUpdate()
     collectionView.updateFocusIfNeeded()
+    // Caption lit without tile scale: the engine sometimes parks on the collection
+    // itself. One async retry (no hand scroll) is enough for the cell to own focus.
+    if focusedPath != top || !cellOwnsFocus(at: top) {
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.wantsTopFocus || self.focusedPath != top else { return }
+        self.wantsTopFocus = true
+        self.collectionView.setNeedsFocusUpdate()
+        self.collectionView.updateFocusIfNeeded()
+      }
+    }
     return true
+  }
+
+  /// True when the focus leaf is the cell at `path` (not the collection wrapping it).
+  private func cellOwnsFocus(at path: IndexPath) -> Bool {
+    guard let cell = collectionView.cellForItem(at: path),
+          let item = UIFocusSystem.focusSystem(for: collectionView)?.focusedItem as? UIView
+    else { return false }
+    return item === cell || item.isDescendant(of: cell)
   }
 
   public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

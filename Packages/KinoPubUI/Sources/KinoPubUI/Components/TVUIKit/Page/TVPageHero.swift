@@ -645,8 +645,11 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// Where focus enters the hero when the page asks for it — down from the tab bar the
   /// first time, Menu back to the top: Next, the Plozz / Apple TV entry Sasha picked
   /// (2026-10-22), so Right right away turns the page. Play when there is one title.
+  /// Empty while a button already has focus so Up can leave for the tab bar — always
+  /// preferring `entryButton` made that move reject (Sasha, 2026-11-20).
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    [entryButton]
+    if buttons.arrangedSubviews.contains(where: \.isFocused) { return [] }
+    return [entryButton]
   }
 
   /// The button the hero is entered on: the one focus last left, else Next.

@@ -11,6 +11,11 @@ import KinoPubUI
 @MainActor
 final class WatchingListCacheTests: XCTestCase {
 
+  override func setUp() async throws {
+    try await super.setUp()
+    WatchingListCache.shared.clear()
+  }
+
   override func tearDown() async throws {
     WatchingListCache.shared.clear()
     try await super.tearDown()

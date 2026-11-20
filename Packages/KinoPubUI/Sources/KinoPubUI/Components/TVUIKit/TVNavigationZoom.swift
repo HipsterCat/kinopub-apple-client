@@ -10,14 +10,18 @@
 //  `UIViewController.Transition.zoom` / SwiftUI `.navigationTransition(.zoom)` "have no
 //  effect" (Apple's docs; probed 2026-11-05: push and present both crossfade). The
 //  scale in/out TVML apps and the old kino.pub client have — the page you leave grows
-//  toward you and fades, the next one fades in; back is the reverse — is TVMLKit's
-//  private `_TVNavigationZoomAnimator`, a plain `UIViewControllerAnimatedTransitioning`
-//  (found by listing TVMLKit's classes on the 27.2 runtime; recorded frame by frame).
+//  toward you and fades, the next one fades in; back is the reverse — was TVMLKit's
+//  private `_TVNavigationZoomAnimator`. Driving that animator under SwiftUI's
+//  `UIHostingController` made it add `_UIReplicantView` into the hosting view (runtime
+//  fault, 2026-11-20). So the look is the same scale/fade, drawn by us with a plain
+//  `UIImageView` on the navigation controller's view — a common superview above every
+//  hosting controller — never through the private animator.
 //
 //  How: SwiftUI's `NavigationStack` is a `UINavigationController` whose delegate is
 //  SwiftUI's own. The delegate is wrapped, not replaced: every call goes on to SwiftUI's
-//  object, and only "which animator for this push / pop" is answered here. If the class
-//  is missing on some tvOS, the answer is SwiftUI's — the system crossfade.
+//  object, and only "which animator for this push / pop" is answered here (a no-op swap
+//  that hands back a bitmap of the page left). `-KINOPUBSystemNavigationTransition YES`
+//  keeps the system's crossfade.
 //
 
 import SwiftUI
@@ -32,23 +36,11 @@ public extension View {
   }
 }
 
-/// Whether TVMLKit's animator is there to use.
+/// Whether the custom scale transition is on.
 public enum TVNavigationZoom {
-  static let animatorClass: NSObject.Type? = {
-    _ = dlopen("/System/Library/Frameworks/TVMLKit.framework/TVMLKit", RTLD_NOW)
-    guard let cls = NSClassFromString("_TVNavigationZoomAnimator") as? NSObject.Type,
-          cls.instancesRespond(to: NSSelectorFromString("animateTransition:"))
-    else { return nil }
-    return cls
-  }()
-
   /// `-KINOPUBSystemNavigationTransition YES` keeps the system's crossfade, to compare.
   public static var isAvailable: Bool {
-    animatorClass != nil && !UserDefaults.standard.bool(forKey: "KINOPUBSystemNavigationTransition")
-  }
-
-  static func makeAnimator() -> UIViewControllerAnimatedTransitioning? {
-    animatorClass?.init() as? UIViewControllerAnimatedTransitioning
+    !UserDefaults.standard.bool(forKey: "KINOPUBSystemNavigationTransition")
   }
 }
 
@@ -122,24 +114,33 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
 
   /// SwiftUI's tvOS stack pushes **without** animation (`willShow … animated: false`, no
   /// transition coordinator) — the page just appeared and the fade people saw was the
-  /// page's own content. So the push asks no animator; the same animator is driven here
+  /// page's own content. So the push asks no animator; the zoom is driven here
   /// instead, from a snapshot of the page being left, once the new page is in place.
   private var shownCount = 0
-  private var pendingSnapshot: UIView?
+  private var pendingSnapshot: UIImageView?
+  /// Direction of the transition that will finish in `didShow`. Depth alone is wrong:
+  /// title → related → Menu leaves depth 2, so `shownCount > 1` would play a push zoom
+  /// on a pop (review on #123).
+  private var pendingGrowing: Bool?
 
   func navigationController(_ navigationController: UINavigationController,
                             willShow viewController: UIViewController, animated: Bool) {
     let count = navigationController.viewControllers.count
     if count > shownCount {
+      pendingGrowing = true
       TabBarSlide.willPush(in: navigationController)
     } else if count < shownCount {
+      pendingGrowing = false
       TabBarSlide.willPop(in: navigationController, toRoot: count == 1)
+    } else {
+      pendingGrowing = nil
     }
     if !animated, shownCount > 0, count > shownCount,
        let leaving = navigationController.viewControllers.dropLast().last?.view,
        leaving.window != nil,
        let snapshot = Snapshot.imageView(of: leaving) {
-      snapshot.frame = leaving.frame
+      // Frame in the navigation controller — the common superview above hosting views.
+      snapshot.frame = leaving.convert(leaving.bounds, to: navigationController.view)
       pendingSnapshot = snapshot
     }
     (wrapped as? UINavigationControllerDelegate)?
@@ -148,24 +149,20 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
 
   func navigationController(_ navigationController: UINavigationController,
                             didShow viewController: UIViewController, animated: Bool) {
+    let growing = pendingGrowing
+    pendingGrowing = nil
     shownCount = navigationController.viewControllers.count
     (wrapped as? UINavigationControllerDelegate)?
       .navigationController?(navigationController, didShow: viewController, animated: animated)
     if shownCount > 1 { TabBarSlide.keepHidden(in: navigationController) }
     guard let snapshot = pendingSnapshot else { return }
     pendingSnapshot = nil
-    guard let container = viewController.view.superview,
-          let animator = TVNavigationZoom.makeAnimator() else { return }
-    let leaving = UIViewController()
-    leaving.view = snapshot
-    container.addSubview(snapshot)
-    let context = ZoomPushContext(container: container, from: leaving, to: viewController) {
-      snapshot.removeFromSuperview()
-    }
-    animator.animateTransition(using: context)
+    // Prefer the direction recorded in `willShow`; fall back to depth only if missing.
+    Zoom.play(snapshot: snapshot, over: navigationController.view,
+              growing: growing ?? (shownCount > 1))
   }
 
-  /// SwiftUI answers the push  /// SwiftUI answers the push through UIKit's private `animatorForOperation:` question,
+  /// SwiftUI answers the push through UIKit's private `animatorForOperation:` question,
   /// which UIKit asks before the public one; hidden, so the public one above is asked.
   private static let hidden: Set<Selector> = [
     NSSelectorFromString("navigationController:animatorForOperation:fromViewController:toViewController:")
@@ -182,18 +179,24 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
   }
 }
 
-/// Swaps the pages without animating and hands back a snapshot of the page left, which
+/// Swaps the pages without animating and hands back a bitmap of the page left, which
 /// `didShow` then zooms away over the page shown.
 private final class SwapAnimator: NSObject, UIViewControllerAnimatedTransitioning {
-  private let snapshotTaken: (UIView) -> Void
-  init(snapshotTaken: @escaping (UIView) -> Void) { self.snapshotTaken = snapshotTaken }
+  private let snapshotTaken: (UIImageView) -> Void
+  init(snapshotTaken: @escaping (UIImageView) -> Void) { self.snapshotTaken = snapshotTaken }
 
   func transitionDuration(using context: UIViewControllerContextTransitioning?) -> TimeInterval { 0 }
 
   func animateTransition(using context: UIViewControllerContextTransitioning) {
     if let from = context.view(forKey: .from),
        let snapshot = Snapshot.imageView(of: from) {
-      snapshot.frame = from.frame
+      // Same space as the push path: navigation controller's view (container's superview).
+      // `from.frame` is in the transition container; both snapshots are added to the nav view.
+      if let navView = context.containerView.superview {
+        snapshot.frame = from.convert(from.bounds, to: navView)
+      } else {
+        snapshot.frame = from.frame
+      }
       snapshotTaken(snapshot)
     }
     if let to = context.view(forKey: .to), let toVC = context.viewController(forKey: .to) {
@@ -202,6 +205,38 @@ private final class SwapAnimator: NSObject, UIViewControllerAnimatedTransitionin
     }
     context.view(forKey: .from)?.removeFromSuperview()
     context.completeTransition(!context.transitionWasCancelled)
+  }
+}
+
+/// The scale/fade that `_TVNavigationZoomAnimator` drew — without inviting its
+/// `_UIReplicantView` into a hosting controller.
+@MainActor
+private enum Zoom {
+  static let duration: TimeInterval = 0.45
+
+  /// `growing` is a push (old page scales up and out); a pop scales down into place.
+  static func play(snapshot: UIImageView, over container: UIView?, growing: Bool) {
+    guard let container else {
+      snapshot.removeFromSuperview()
+      return
+    }
+    if UIAccessibility.isReduceMotionEnabled {
+      snapshot.removeFromSuperview()
+      return
+    }
+    snapshot.isUserInteractionEnabled = false
+    if snapshot.superview !== container {
+      container.addSubview(snapshot)
+    }
+    let end: CGAffineTransform = growing
+      ? CGAffineTransform(scaleX: 1.12, y: 1.12)
+      : CGAffineTransform(scaleX: 0.92, y: 0.92)
+    UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
+      snapshot.transform = end
+      snapshot.alpha = 0
+    } completion: { _ in
+      snapshot.removeFromSuperview()
+    }
   }
 }
 
@@ -279,8 +314,8 @@ private enum TabBarSlide {
 /// **Apple API limitation / adapter:** `snapshotView` returns `_UIReplicantView`. Adding
 /// that as a subview of a `UIHostingController`'s view (SwiftUI's `NavigationStack`
 /// container) logs *"Adding '_UIReplicantView' as a subview of UIHostingController.view
-/// is not supported"* and *"Snapshotting a view … afterScreenUpdates:NO"*. An image
-/// draw with `afterScreenUpdates: true` is a normal view and silences both.
+/// is not supported"*. An image draw is a normal view; it lives on the navigation
+/// controller's view, above every hosting controller.
 private enum Snapshot {
   static func imageView(of view: UIView) -> UIImageView? {
     let bounds = view.bounds
@@ -288,60 +323,16 @@ private enum Snapshot {
     let format = UIGraphicsImageRendererFormat()
     format.scale = view.traitCollection.displayScale
     format.opaque = false
+    // `afterScreenUpdates: false` keeps materials (blur/glass) and avoids the
+    // "drawing with afterScreenUpdates:YES inside CoreAnimation commit" warning.
+    // Taken from `willShow` / the zero-duration swap animator, not mid-commit.
     let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
-      _ = view.drawHierarchy(in: bounds, afterScreenUpdates: true)
+      _ = view.drawHierarchy(in: bounds, afterScreenUpdates: false)
     }
     let imageView = UIImageView(image: image)
     imageView.bounds = bounds
     imageView.isUserInteractionEnabled = false
     return imageView
   }
-}
-
-/// The transition context UIKit would have built for an animated push: the container
-/// both pages are in, the page left (its snapshot) and the page shown.
-private final class ZoomPushContext: NSObject, UIViewControllerContextTransitioning {
-  let containerView: UIView
-  private let from: UIViewController
-  private let to: UIViewController
-  private let finished: () -> Void
-
-  init(container: UIView, from: UIViewController, to: UIViewController, finished: @escaping () -> Void) {
-    containerView = container
-    self.from = from
-    self.to = to
-    self.finished = finished
-  }
-
-  var isAnimated: Bool { true }
-  var isInteractive: Bool { false }
-  var transitionWasCancelled: Bool { false }
-  var presentationStyle: UIModalPresentationStyle { .none }
-  var targetTransform: CGAffineTransform { .identity }
-
-  func updateInteractiveTransition(_ percentComplete: CGFloat) {}
-  func finishInteractiveTransition() {}
-  func cancelInteractiveTransition() {}
-  func pauseInteractiveTransition() {}
-  func completeTransition(_ didComplete: Bool) { finished() }
-
-  func viewController(forKey key: UITransitionContextViewControllerKey) -> UIViewController? {
-    switch key {
-    case .from: from
-    case .to: to
-    default: nil
-    }
-  }
-
-  func view(forKey key: UITransitionContextViewKey) -> UIView? {
-    switch key {
-    case .from: from.view
-    case .to: to.view
-    default: nil
-    }
-  }
-
-  func initialFrame(for vc: UIViewController) -> CGRect { vc === from ? from.view.frame : .zero }
-  func finalFrame(for vc: UIViewController) -> CGRect { vc === to ? to.view.frame : .zero }
 }
 #endif

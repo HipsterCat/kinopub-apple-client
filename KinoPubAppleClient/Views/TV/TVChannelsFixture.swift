@@ -88,9 +88,12 @@ struct TVChannelsFixtureRoot: View {
     TabView(selection: $navigationState.selectedTab) {
       Tab(value: NavigationTabs.home) { Color.clear } label: { Text("Watch Now") }
       Tab(value: NavigationTabs.tv) {
+        // `diskCacheURL: nil` — UI tests must not write `fixture.invalid` streams into
+        // the shared simulator Caches folder the real TV tab also reads (#123 review).
         TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService,
                                               epgService: TVChannelsFixture.guide,
-                                              initialChannels: TVChannelsFixture.channels))
+                                              initialChannels: TVChannelsFixture.channels,
+                                              diskCacheURL: nil))
       } label: { Text("TV") }
     }
     .tabViewStyle(.tabBarOnly)
