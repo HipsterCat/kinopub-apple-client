@@ -60,33 +60,18 @@ struct SettingsRootView: View {
 #if os(macOS)
   private var macSplit: some View {
     NavigationSplitView {
-      List(selection: categorySelection) {
-        // A selectable row, as System Settings' account is: a `.plain` button sat on
-        // the list without a selection of its own (Sasha, 2026-11-08).
-        Section {
-          SettingsSidebarProfileView(
-            name: profileName,
-            subtitle: profileSubtitle,
-            avatarImage: avatarImage
-          )
-          .tag(SettingsCategory.account)
-        }
-
-        Section {
-          ForEach(SettingsCategory.listedCategories) { category in
-            Label {
-              Text(category.titleKey)
-                .lineLimit(1)
-            } icon: {
-              SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
-            }
-            .tag(category)
+      Group {
+        if showsMacSearchResults {
+          SettingsSearchResults(query: searchText) { entry in
+            searchText = ""
+            openSearchEntry(entry)
           }
+        } else {
+          macSidebarList
         }
       }
-      .modifier(SettingsMacSearchableModifier(query: $searchText, onSelect: openSearchEntry(_:)))
+      .modifier(SettingsMacSearchableModifier(query: $searchText))
       .focused($isFocused)
-      .opacity(1.0)
       .onAppear {
           isFocused = true
       }
@@ -121,6 +106,37 @@ struct SettingsRootView: View {
   }
 
   private static let macSidebarWidth: CGFloat = 240
+
+  private var showsMacSearchResults: Bool {
+    !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var macSidebarList: some View {
+    List(selection: categorySelection) {
+      // A selectable row, as System Settings' account is: a `.plain` button sat on
+      // the list without a selection of its own (Sasha, 2026-11-08).
+      Section {
+        SettingsSidebarProfileView(
+          name: profileName,
+          subtitle: profileSubtitle,
+          avatarImage: avatarImage
+        )
+        .tag(SettingsCategory.account)
+      }
+
+      Section {
+        ForEach(SettingsCategory.listedCategories) { category in
+          Label {
+            Text(category.titleKey)
+              .lineLimit(1)
+          } icon: {
+            SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+          }
+          .tag(category)
+        }
+      }
+    }
+  }
 
   /// Picking a pane in the sidebar is a step in the window's history, opening the pane's
   /// root as System Settings does.
@@ -160,42 +176,18 @@ struct SettingsRootView: View {
 #if os(iOS)
   private var iosSplit: some View {
     NavigationSplitView {
-      List(selection: $selectedCategory) {
-        Section {
-          SettingsSidebarProfileView(
-            name: profileName,
-            subtitle: profileSubtitle,
-            avatarImage: avatarImage
-          )
-          .tag(SettingsCategory.account)
-        }
-
-        Section {
-          ForEach(SettingsCategory.listedCategories) { category in
-            Label {
-              Text(category.titleKey)
-            } icon: {
-              SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
-            }
-            .tag(category)
-          }
-        }
-
-        Section {
-          Label {
-            Text("About")
-          } icon: {
-            SettingsIconView(systemImage: "info.circle.fill", color: .gray)
-          }
-          .tag(SettingsCategory.about)
+      Group {
+        if showsCompactSearchResults {
+          SettingsSearchResults(query: searchText, onSelect: openSearchEntry(_:))
+        } else {
+          iosSplitSidebarList
         }
       }
       .navigationTitle("Settings")
       .modifier(SettingsSearchableModifier(
         query: $searchText,
         isPresented: $isSearchPresented,
-        isPhone: false,
-        onSelect: openSearchEntry(_:)
+        isPhone: false
       ))
       .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
     } detail: {
@@ -228,37 +220,13 @@ struct SettingsRootView: View {
 
   private var iosCompact: some View {
     NavigationStack(path: $compactPath) {
-      List {
-        // The account row opens the account's page, as TestFlight's and Settings' do: it
-        // was a dead row and only the categories under it opened (Sasha, 2026-11-10).
-        Section {
-          NavigationLink(value: SettingsCategory.account) {
-            SettingsSidebarProfileView(
-              name: profileName,
-              subtitle: profileSubtitle,
-              avatarImage: avatarImage
-            )
-          }
-        }
-
-        ForEach(SettingsCategory.availableCategories) { category in
-          NavigationLink(value: category) {
-            Label {
-              Text(category.titleKey)
-            } icon: {
-              SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
-            }
-          }
-        }
-
-        Section {
-          NavigationLink(value: SettingsCategory.about) {
-            Label {
-              Text("About")
-            } icon: {
-              SettingsIconView(systemImage: "info.circle.fill", color: .gray)
-            }
-          }
+      // Swap the list for results — do not overlay/`allowsHitTesting` the searchable
+      // host (that made the bottom search field unresponsive on iPhone).
+      Group {
+        if showsCompactSearchResults {
+          SettingsSearchResults(query: searchText, onSelect: openSearchEntry(_:))
+        } else {
+          iosCompactCategoryList
         }
       }
       .navigationDestination(for: SettingsCategory.self) { category in
@@ -275,8 +243,7 @@ struct SettingsRootView: View {
       .modifier(SettingsSearchableModifier(
         query: $searchText,
         isPresented: $isSearchPresented,
-        isPhone: true,
-        onSelect: openSearchEntry(_:)
+        isPhone: true
       ))
       .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
     }
@@ -289,6 +256,79 @@ struct SettingsRootView: View {
       shouldShowExitAlert: $model.shouldShowExitAlert,
       logout: { model.logout() }
     )
+  }
+
+  private var showsCompactSearchResults: Bool {
+    !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var iosSplitSidebarList: some View {
+    List(selection: $selectedCategory) {
+      Section {
+        SettingsSidebarProfileView(
+          name: profileName,
+          subtitle: profileSubtitle,
+          avatarImage: avatarImage
+        )
+        .tag(SettingsCategory.account)
+      }
+
+      Section {
+        ForEach(SettingsCategory.listedCategories) { category in
+          Label {
+            Text(category.titleKey)
+          } icon: {
+            SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+          }
+          .tag(category)
+        }
+      }
+
+      Section {
+        Label {
+          Text("About")
+        } icon: {
+          SettingsIconView(systemImage: "info.circle.fill", color: .gray)
+        }
+        .tag(SettingsCategory.about)
+      }
+    }
+  }
+
+  private var iosCompactCategoryList: some View {
+    List {
+      // The account row opens the account's page, as TestFlight's and Settings' do: it
+      // was a dead row and only the categories under it opened (Sasha, 2026-11-10).
+      Section {
+        NavigationLink(value: SettingsCategory.account) {
+          SettingsSidebarProfileView(
+            name: profileName,
+            subtitle: profileSubtitle,
+            avatarImage: avatarImage
+          )
+        }
+      }
+
+      ForEach(SettingsCategory.availableCategories) { category in
+        NavigationLink(value: category) {
+          Label {
+            Text(category.titleKey)
+          } icon: {
+            SettingsIconView(systemImage: category.systemImage, color: category.iconColor)
+          }
+        }
+      }
+
+      Section {
+        NavigationLink(value: SettingsCategory.about) {
+          Label {
+            Text("About")
+          } icon: {
+            SettingsIconView(systemImage: "info.circle.fill", color: .gray)
+          }
+        }
+      }
+    }
   }
 
   private func openSearchEntry(_ entry: SettingsSearchEntry) {
@@ -501,13 +541,25 @@ private extension View {
 #endif
 
 #if !os(tvOS)
+/// Switch only — restores UISwitch’s system green under the app’s `.tint(.primary)`
+/// without painting close buttons, pickers, or chevrons green.
+private struct KinopubSystemToggleStyle: ToggleStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    Toggle(isOn: configuration.$isOn) {
+      configuration.label
+    }
+    .tint(.green)
+    // Concrete switch style so this style does not recurse through the environment.
+    .toggleStyle(.switch)
+  }
+}
+
 private extension View {
-  /// Settings keeps system toggle green; the app shell's monochrome `.tint(.primary)`
-  /// otherwise paints switches white in Dark.
+  /// Toggles keep unmodified system on-colors; every other control keeps the shell tint.
   @ViewBuilder
   func kinopubSettingsChrome() -> some View {
 #if os(iOS)
-    self.tint(.green)
+    self.toggleStyle(KinopubSystemToggleStyle())
 #else
     self
 #endif
