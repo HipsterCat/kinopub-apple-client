@@ -904,20 +904,24 @@ struct TabsNavigationView: View {
   /// fetch per sign-in for nothing. Left over from the parked sidebar shell.
   private func loadSidebarChrome() async {
     async let foldersTask = fetchFolders()
-    async let watchlistTask = fetchWatchlistCount()
+    async let watchlistTask = fetchWatchlistSerials()
     sidebarFolders = await foldersTask
-    watchlistBadgeCount = await watchlistTask
+    let serials = await watchlistTask
+    watchlistBadgeCount = Self.tabBadgeCount(from: serials)
+    AppIconBadgeController.apply(serials: serials)
     sidebarSyncedAt = Date()
   }
 
   private func syncSidebarFolders() async {
     if let sidebarSyncedAt, Date().timeIntervalSince(sidebarSyncedAt) < Self.sidebarSyncTTL { return }
     async let foldersTask = fetchFolders()
-    async let watchlistTask = fetchWatchlistCount()
+    async let watchlistTask = fetchWatchlistSerials()
     let folders = await foldersTask
-    let watchlist = await watchlistTask
+    let serials = await watchlistTask
+    let watchlist = Self.tabBadgeCount(from: serials)
     if folders != sidebarFolders { sidebarFolders = folders }
     if watchlist != watchlistBadgeCount { watchlistBadgeCount = watchlist }
+    AppIconBadgeController.apply(serials: serials)
     sidebarSyncedAt = Date()
   }
 
@@ -928,14 +932,17 @@ struct TabsNavigationView: View {
       .recentlyUpdatedFirst()
   }
 
-  private func fetchWatchlistCount() async -> Int {
+  private func fetchWatchlistSerials() async -> [WatchingItem] {
     do {
       return try await WatchingListCache.shared.serials(subscribedOnly: true,
                                                        using: appContext.contentService)
-        .reduce(0) { $0 + max($1.new ?? 0, 0) }
     } catch {
-      return watchlistBadgeCount
+      return []
     }
+  }
+
+  private static func tabBadgeCount(from serials: [WatchingItem]) -> Int {
+    serials.reduce(0) { $0 + max($1.new ?? 0, 0) }
   }
 }
 

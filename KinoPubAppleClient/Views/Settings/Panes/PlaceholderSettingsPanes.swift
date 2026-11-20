@@ -248,53 +248,149 @@ struct SidebarSettingsPane: View {
 }
 
 struct NotificationsSettingsPane: View {
-  @State private var downloadComplete = true
-  @State private var newEpisodes = false
-  @State private var watchlistReminders = false
+  @Environment(\.appContext) private var appContext
+  @AppStorage(AppIconBadgePreferences.enabledKey) private var badgeEnabled = false
+  @AppStorage(AppIconBadgePreferences.modeKey)
+  private var badgeMode = AppIconBadgePreferences.Mode.unwatchedEpisodes.rawValue
 
   var body: some View {
     Form {
       Section {
-        Toggle("Download complete", isOn: $downloadComplete)
-        Toggle("New episodes", isOn: $newEpisodes)
-        Toggle("Watchlist reminders", isOn: $watchlistReminders)
+        Toggle("App Icon Badge", isOn: $badgeEnabled)
+          .onChange(of: badgeEnabled) { _, isOn in
+            if isOn {
+              AppIconBadgeController.requestAuthorizationIfNeeded()
+            }
+            Task { await refreshAppIconBadge() }
+          }
+        Picker("Display the number of", selection: $badgeMode) {
+          ForEach(AppIconBadgePreferences.Mode.allCases) { mode in
+            Text(LocalizedStringKey(mode.titleKey)).tag(mode.rawValue)
+          }
+        }
+        .disabled(!badgeEnabled)
+        .onChange(of: badgeMode) { _, _ in
+          Task { await refreshAppIconBadge() }
+        }
       } footer: {
-        Text("Demo controls — not saved yet.")
+        Text("Home Screen icon only. The Watchlist tab keeps its own count.")
       }
     }
     .formStyle(.grouped)
   }
+
+  private func refreshAppIconBadge() async {
+    if !badgeEnabled {
+      AppIconBadgeController.refreshFromPreferences()
+      return
+    }
+    do {
+      let serials = try await WatchingListCache.shared.serials(
+        subscribedOnly: true,
+        using: appContext.contentService
+      )
+      AppIconBadgeController.apply(serials: serials)
+    } catch {
+      AppIconBadgeController.refreshFromPreferences()
+    }
+  }
 }
 
 struct DetailsSettingsPane: View {
-  /// Real and saved, unlike the demo toggles below it.
+  @AppStorage(DetailsEnrichmentPreferences.metadataFetchingKey)
+  private var metadataFetching = true
+  @AppStorage(DetailsEnrichmentPreferences.paneKey)
+  private var paneRaw = DetailsEnrichmentPreferences.Pane.items.rawValue
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
   private var showAgeRatingBadge = false
+  @AppStorage(DetailsEnrichmentPreferences.hideDescriptionsKey)
+  private var hideDescriptions = false
+  @AppStorage(DetailsEnrichmentPreferences.hideTitlesKey)
+  private var hideTitles = false
+  @AppStorage(DetailsEnrichmentPreferences.blurPreviewsKey)
+  private var blurPreviews = false
 
-  @State private var showCast = true
-  @State private var showAwards = true
-  @State private var showSimilar = true
-  @State private var showTrailers = true
+  private var pane: Binding<DetailsEnrichmentPreferences.Pane> {
+    Binding(
+      get: { DetailsEnrichmentPreferences.Pane(rawValue: paneRaw) ?? .items },
+      set: { paneRaw = $0.rawValue }
+    )
+  }
 
   var body: some View {
     Form {
       Section {
-        Toggle("Age rating badge", isOn: $showAgeRatingBadge)
-      } header: {
-        Text("Metadata")
+        Toggle("Metadata Fetching", isOn: $metadataFetching)
       } footer: {
-        Text("Shows the certification chip beside the year on a title's hero. The rating is always listed in the information table.")
+        Text("Off stops outside metadata on title pages. kino.pub data still loads.")
       }
 
       Section {
-        Toggle("Cast & crew", isOn: $showCast)
-        Toggle("Awards", isOn: $showAwards)
-        Toggle("Similar titles", isOn: $showSimilar)
-        Toggle("Trailers", isOn: $showTrailers)
+        Picker("Details", selection: pane) {
+          ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
+            Text(LocalizedStringKey(value.titleKey)).tag(value)
+          }
+        }
+        .pickerStyle(.segmented)
+        .disabled(!metadataFetching)
+        .labelsHidden()
+      }
+
+      if pane.wrappedValue == .items {
+        Section {
+          ForEach(DetailsEnrichmentItem.imageItems) { item in
+            NavigationLink(value: SettingsDetailRoute.detailsItem(item)) {
+              Label(LocalizedStringKey(item.titleKey), systemImage: item.systemImage)
+            }
+            .disabled(!metadataFetching)
+          }
+        } header: {
+          Text("Images")
+        }
+
+        Section {
+          ForEach(DetailsEnrichmentItem.infoItems) { item in
+            NavigationLink(value: SettingsDetailRoute.detailsItem(item)) {
+              Label(LocalizedStringKey(item.titleKey), systemImage: item.systemImage)
+            }
+            .disabled(!metadataFetching)
+          }
+        } header: {
+          Text("Info")
+        }
+      } else {
+        Section {
+          ForEach(DetailsEnrichmentSource.rows) { integration in
+            NavigationLink(value: SettingsDetailRoute.integration(integration)) {
+              HStack(spacing: 10) {
+                IntegrationIconView(integration: integration)
+                Text(verbatim: integration.name)
+              }
+            }
+            .disabled(!metadataFetching)
+          }
+        } footer: {
+          Text("Opens the same pages as Integrations — keys, proxy, data and playback.")
+        }
+      }
+
+      Section {
+        Toggle("Age rating badge", isOn: $showAgeRatingBadge)
+          .disabled(!metadataFetching)
       } header: {
-        Text("Detail sections")
+        Text("Display")
       } footer: {
-        Text("Demo controls — not saved yet.")
+        Text("Certification chip beside the year on the hero. Always listed in Facts.")
+      }
+
+      Section {
+        Toggle("Hide descriptions", isOn: $hideDescriptions)
+        Toggle("Hide titles", isOn: $hideTitles)
+        Toggle("Blur previews", isOn: $blurPreviews)
+      } header: {
+        Text("Spoilers")
+      } footer: {
+        Text("Facts, stills and titles that can spoil — including when rewatching.")
       }
     }
     .formStyle(.grouped)
