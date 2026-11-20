@@ -29,6 +29,8 @@ import KinoPubLogging
 import KinoPubMetadata
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 /// Namespace for the shared artwork stack: the pipeline, the request shape, and the
@@ -174,7 +176,7 @@ public enum Artwork {
   /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and
   /// `ArtworkImage` go through this so they never import Nuke.
   public static func image(for url: URL, size: CGSize = .zero) async throws -> PlatformImage {
-    try await pipeline.image(for: request(url, size: size))
+    try await tracedResponse(url, size: size, mode: .fill).image
   }
 
   /// `image(for:)`, plus where it came from: the URL that answered after redirects
@@ -188,14 +190,8 @@ public enum Artwork {
   public static func imageWithSource(for url: URL, size: CGSize = .zero,
                                      mode: ResizeMode = .fill) async throws
     -> (image: PlatformImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String) {
-    let response = try await pipeline.imageTask(with: request(url, size: size, mode: mode)).response
-    let tier: String
-    switch response.cacheType {
-    case .memory: tier = "memory"
-    case .disk: tier = "disk"
-    case .none: tier = "network"
-    @unknown default: tier = "unknown"
-    }
+    let response = try await tracedResponse(url, size: size, mode: mode)
+    let tier = cacheTier(response.cacheType)
     let answered = response.urlResponse?.url
     let header = (response.urlResponse as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Language")
     var language = WorkerArtworkLanguageTag.resolved(answeredURL: answered, contentLanguageHeader: header)
@@ -356,6 +352,81 @@ public enum Artwork {
 
   private static func noteSeen(_ url: URL, size: CGSize, mode: ResizeMode) {
     seen.withLock { $0[url, default: []].insert(SeenVariant(size: size, mode: mode)) }
+  }
+
+  // MARK: - Decode size / signposts
+
+  /// Drawn box in points → pixels the pipeline will actually decode. `.zero` means
+  /// full source resolution (no downsample).
+  public static func pixelSize(forPoints size: CGSize) -> CGSize {
+    guard size != .zero else { return .zero }
+    let target = macOSPixelSize(forPoints: size)
+    if target.unit == .pixels { return target.size }
+    let scale = displayScale
+    return CGSize(width: size.width * scale, height: size.height * scale)
+  }
+
+  /// Decoded bitmap bytes (row × height), or a 4-bytes-per-pixel estimate.
+  public static func decodedByteCount(_ image: PlatformImage) -> Int {
+#if os(macOS)
+    if let rep = image.representations.first as? NSBitmapImageRep {
+      return max(rep.bytesPerRow * rep.pixelsHigh, 0)
+    }
+    let pixels = image.representations.first
+    let width = pixels?.pixelsWide ?? Int(image.size.width)
+    let height = pixels?.pixelsHigh ?? Int(image.size.height)
+    return max(width * height * 4, 0)
+#else
+    if let cg = image.cgImage {
+      return max(cg.bytesPerRow * cg.height, 0)
+    }
+    let scale = image.scale
+    return max(Int(image.size.width * scale * image.size.height * scale * 4), 0)
+#endif
+  }
+
+  public static func noteDisplayed(_ image: PlatformImage, url: URL, size: CGSize) {
+    PerfSignpost.emitArtworkDisplay(
+      url: url,
+      bytes: decodedByteCount(image),
+      pixelSize: pixelSize(forPoints: size)
+    )
+  }
+
+  private static var displayScale: CGFloat {
+#if os(macOS)
+    max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+#else
+    max(UITraitCollection.current.displayScale, 1)
+#endif
+  }
+
+  private static func cacheTier(_ type: ImageResponse.CacheType?) -> String {
+    switch type {
+    case .memory: "memory"
+    case .disk: "disk"
+    case .none: "network"
+    @unknown default: "unknown"
+    }
+  }
+
+  private static func tracedResponse(_ url: URL, size: CGSize, mode: ResizeMode) async throws
+    -> ImageResponse {
+    let imageRequest = request(url, size: size, mode: mode)
+    let pixels = pixelSize(forPoints: size)
+    let interval = PerfSignpost.beginArtworkRequest(url: url, pixelSize: pixels)
+    do {
+      let response = try await pipeline.imageTask(with: imageRequest).response
+      interval.endArtwork(
+        tier: cacheTier(response.cacheType),
+        bytes: decodedByteCount(response.image),
+        pixelSize: pixels
+      )
+      return response
+    } catch {
+      interval.endArtwork(tier: "error", bytes: 0, pixelSize: pixels)
+      throw error
+    }
   }
 }
 

@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Performance measurement:** `OSSignposter` intervals under subsystem
+  `com.soda.kinopub.perf` (artwork request/display, hero page and backdrop,
+  Home shelf scroll, season-rail slide, title open, window resize). Zero cost
+  unless Instruments or `XCTOSSignpostMetric` is attached. UI performance tests
+  in `PerformanceUITests`; playbook in `docs/engineering/performance.md`.
+
 - **Shared watching-list cache + quieter Home/Search:** `/v1/watching/movies` and
   both `/v1/watching/serials` answers are one in-memory cache (~3 min, coalesced)
   for Continue Watching, Library Unwatched/Following and the sidebar badge.

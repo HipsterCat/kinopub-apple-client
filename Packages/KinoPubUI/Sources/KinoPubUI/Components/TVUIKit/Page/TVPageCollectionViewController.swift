@@ -20,6 +20,7 @@
 import SwiftUI
 import TVUIKit
 import UIKit
+import KinoPubLogging
 
 /// What the page says about itself while it has nothing (or nothing yet) to show.
 public enum TVPageStatus: Equatable {
@@ -1443,7 +1444,23 @@ public final class TVPageCollectionViewController: UIViewController {
 extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collectionView else { return }
+    if !isEmbedded { PerfSignpost.noteHomeScroll("scroll") }
     updateHeroStageFromScroll()
+  }
+
+  public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView, !isEmbedded else { return }
+    PerfSignpost.beginHomeScroll("drag")
+  }
+
+  public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard scrollView === collectionView, !isEmbedded else { return }
+    if !decelerate { PerfSignpost.endHomeScroll("drag") }
+  }
+
+  public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView, !isEmbedded else { return }
+    PerfSignpost.endHomeScroll("decelerate")
   }
 
   public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
@@ -1465,6 +1482,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
 
   public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
     guard scrollView === collectionView else { return }
+    if !isEmbedded { PerfSignpost.endHomeScroll("animation") }
     logHeroScroll("scroll animation ended")
   }
 

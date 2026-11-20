@@ -52,6 +52,7 @@ semantic component is fine; two components for one idea on one platform is a def
 | Detail page internals | [docs/engineering/detail-page.md](docs/engineering/detail-page.md) |
 | Data, caches, diagnostics — the long form | [docs/engineering/data.md](docs/engineering/data.md) |
 | Approaches removed on purpose | [docs/engineering/removed.md](docs/engineering/removed.md) |
+| Measuring scroll / hitch / artwork | [docs/engineering/performance.md](docs/engineering/performance.md) |
 | TestFlight pipeline | [docs/testflight.md](docs/testflight.md) |
 | Community fork | [docs/community-fork.md](docs/community-fork.md) |
 | Research and history — evidence, never law | [docs/research/](docs/research/README.md), [docs/archive/](docs/archive/) |
@@ -262,6 +263,7 @@ Deferred verification is allowed; silent "everything landed" claims are not.
 | tvOS cells, rails, pages | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
 | tvOS detail sections | `KinoPubAppleClient/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
 | Artwork (the only Nuke import) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
+| Scroll / hitch / artwork signposts | `Packages/KinoPubLogging/Sources/KinoPubLogging/PerfSignpost.swift`, `docs/engineering/performance.md` |
 | Rows / per-item library | `KinoPubAppleClient/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
 | Network log (the only Pulse import) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
 | Routes / player / API | `KinoPubAppleClient/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |

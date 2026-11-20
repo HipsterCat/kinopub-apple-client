@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftUI
+import KinoPubLogging
 
 /// One titled, horizontally scrolling row of cards.
 public struct MediaRow: Identifiable {
@@ -152,6 +153,7 @@ public struct MediaRowsView: View {
       } action: { size in
         if size.width > 0 { containerWidth = size.width }
         if size.height > 0 { containerHeight = size.height }
+        if size.width > 0, size.height > 0 { PerfSignpost.notePageResize(size) }
       }
       .onGeometryChange(for: EdgeInsets.self) { proxy in
         proxy.safeAreaInsets
@@ -212,6 +214,13 @@ public struct MediaRowsView: View {
     }
 #if !os(tvOS)
     .remembersScroll()
+    .onScrollPhaseChange { _, phase in
+      if phase == .idle {
+        PerfSignpost.endHomeScroll("idle")
+      } else {
+        PerfSignpost.beginHomeScroll("phase")
+      }
+    }
 #endif
 #if os(tvOS)
     .scrollClipDisabled()

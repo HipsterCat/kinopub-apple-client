@@ -24,6 +24,7 @@ import Foundation
 //  picture, and ends on a hard edge: the page under it keeps the system appearance.
 //
 
+import KinoPubLogging
 import KinoPubMetadata
 import SwiftUI
 #if os(macOS)
@@ -196,7 +197,12 @@ public struct HomeHeroCarousel: View {
       // 2026-10-31).
       return width > 0 ? (geometry.contentOffset.x + geometry.contentInsets.leading) / width : 0
     } action: { _, page in
+      let previous = Int(pager.page.rounded())
       pager.page = page
+      let now = Int(page.rounded())
+      if now != previous {
+        PerfSignpost.noteHeroPage(from: previous, to: now)
+      }
       // At rest between two pages — a burst of window resizes outran the re-snap on
       // the width change and left it there for good: back onto the current page.
       if !isScrolling, !isTurning, abs(page - page.rounded()) > 0.001 {
@@ -207,7 +213,10 @@ public struct HomeHeroCarousel: View {
       heroLog("scroll phase \(phase)")
       isScrolling = phase != .idle
       isDragging = phase != .idle && phase != .animating
-      if phase == .idle { settle() }
+      if phase == .idle {
+        PerfSignpost.endHeroPage("idle")
+        settle()
+      }
     }
     .frame(width: size.width, height: size.height)
     // The pictures run up under the bars, past the pager's own frame.

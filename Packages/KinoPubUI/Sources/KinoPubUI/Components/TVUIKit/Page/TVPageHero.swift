@@ -33,6 +33,7 @@
 
 import TVUIKit
 import UIKit
+import KinoPubLogging
 
 // MARK: - Model
 
@@ -221,6 +222,7 @@ final class TVPageHeroBackdropView: UIView {
   private var loadTask: Task<Void, Never>?
   private var transitionID = 0
   private var recede: CGFloat = 0
+  private var pageInterval: PerfInterval?
 
   /// How far the picture glides up, on top of the page's scroll, by the end of the
   /// recede, as a share of the screen's height: its black foot clears the row under
@@ -318,8 +320,11 @@ final class TVPageHeroBackdropView: UIView {
         self.fireTurned()
       }
     }
+    let previousID = shownID ?? 0
     shownID = feature.card.id
     loadTask?.cancel()
+    pageInterval?.end("replaced")
+    pageInterval = PerfSignpost.beginHeroPage(from: previousID, to: feature.card.id)
     let size = bounds.size
     let urls = feature.backdropCandidates
     if let next {
@@ -327,7 +332,7 @@ final class TVPageHeroBackdropView: UIView {
     }
     for url in urls {
       if let hit = TVUIKitRemoteImage.cached(url: url, size: size) {
-        present(hit, direction: sameTitle ? 0 : direction)
+        present(hit, direction: sameTitle ? 0 : direction, url: url)
         return
       }
     }
@@ -342,7 +347,7 @@ final class TVPageHeroBackdropView: UIView {
           ArtworkLog.source("hero.backdrop", id: feature.card.itemID, asked: url,
                             answered: loaded.answered, tier: loaded.tier,
                             candidate: index, of: urls.count)
-          self.present(loaded.image, direction: direction)
+          self.present(loaded.image, direction: direction, url: url)
           return
         }
       }
@@ -350,7 +355,7 @@ final class TVPageHeroBackdropView: UIView {
       ArtworkLog.exhausted("hero.backdrop", id: feature.card.itemID, tried: urls)
       // Never the portrait poster (cropped it is the wrong picture): an empty
       // backdrop under the shading reads better than a wrong one.
-      self.present(nil, direction: 0)
+      self.present(nil, direction: 0, url: nil)
     }
   }
 
@@ -360,7 +365,12 @@ final class TVPageHeroBackdropView: UIView {
     call?()
   }
 
-  private func present(_ image: UIImage?, direction: Int) {
+  private func present(_ image: UIImage?, direction: Int, url: URL? = nil) {
+    if let image, let url {
+      Artwork.noteDisplayed(image, url: url, size: bounds.size)
+    }
+    pageInterval?.end(image == nil ? "empty" : "presented")
+    pageInterval = nil
     finishTransition()
     defer { fireTurned() }
     guard front.image != nil, image != nil, direction != 0,

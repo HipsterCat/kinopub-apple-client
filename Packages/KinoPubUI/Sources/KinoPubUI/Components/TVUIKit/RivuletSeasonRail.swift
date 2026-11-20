@@ -18,6 +18,7 @@
 import SwiftUI
 import TVUIKit
 import UIKit
+import KinoPubLogging
 
 public extension Notification.Name {
   /// Menu on the season block. The detail page scrolls back to the hero.
@@ -496,6 +497,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
   }
 
   private func releasePageScroll() {
+    if scrollLink != nil { PerfSignpost.endSeasonScroll("released") }
     scrollLink?.invalidate()
     scrollLink = nil
     releaseHold()
@@ -553,6 +555,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     let link = CADisplayLink(target: self, selector: #selector(stepScroll))
     link.add(to: .main, forMode: .common)
     scrollLink = link
+    PerfSignpost.beginSeasonScroll("display-link")
   }
 
   @objc private func stepScroll(_ link: CADisplayLink) {
@@ -570,6 +573,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
       scrollLink = nil
       pageScroll?.setContentOffset(CGPoint(x: pageScroll?.contentOffset.x ?? 0, y: scrollTargetY), animated: false)
       settledY = scrollTargetY
+      PerfSignpost.endSeasonScroll("settled")
       let completion = scrollCompletion
       scrollCompletion = nil
       completion?()

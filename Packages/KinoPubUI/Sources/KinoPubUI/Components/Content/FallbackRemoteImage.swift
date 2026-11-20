@@ -66,6 +66,7 @@ public struct FallbackRemoteImage: View {
     let key = listKey
     let known = Self.winners[key] ?? urls.first
     if let known, let cached = Artwork.cachedImage(for: known) {
+      Artwork.noteDisplayed(cached, url: known, size: .zero)
       image = Image(platformImage: cached)
       loading = false
       onLoaded?()
@@ -85,6 +86,7 @@ public struct FallbackRemoteImage: View {
       if Task.isCancelled { return }
       do {
         let loaded = try await Artwork.image(for: url)
+        Artwork.noteDisplayed(loaded, url: url, size: .zero)
         // `.transition(.opacity)` only plays inside an animated change.
         withAnimation(Self.fadeIn) { image = Image(platformImage: loaded) }
         Self.winners[key] = url
