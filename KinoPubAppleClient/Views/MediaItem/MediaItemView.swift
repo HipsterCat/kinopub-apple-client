@@ -13,6 +13,7 @@ import UIKit
 import KinoPubUI
 import KinoPubBackend
 import KinoPubKit
+import KinoPubLogging
 import KinoPubMetadata
 import KinoPubMedia
 
@@ -371,6 +372,22 @@ struct MediaItemView: View {
       // from what the player just wrote locally. No-op until the payload has loaded.
       .onAppear {
         itemModel.repaintFromLocalProgress()
+        // Navigation already began `page.title`. End on first paint. A
+        // re-appear (back from the player) with no open interval is a no-op —
+        // it must not stash a leftover that would swallow the next push.
+        if itemModel.hasPaintedItem {
+          PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
+        } else {
+          PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
+        }
+      }
+      .onChange(of: itemModel.hasPaintedItem) { _, painted in
+        if painted {
+          PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
+        }
+      }
+      .onDisappear {
+        PerfSignpost.cancelTitleOpen(id: "\(itemModel.mediaItemId)")
       }
       .task {
         relatedRowsMenu.bind(errorHandler: errorHandler)

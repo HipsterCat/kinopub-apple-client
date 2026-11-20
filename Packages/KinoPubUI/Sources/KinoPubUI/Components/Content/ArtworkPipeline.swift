@@ -29,6 +29,8 @@ import KinoPubLogging
 import KinoPubMetadata
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 /// Namespace for the shared artwork stack: the pipeline, the request shape, and the
@@ -156,14 +158,25 @@ public enum Artwork {
 
   /// Point box → Nuke resize unit. macOS always uses `.pixels` at display scale;
   /// other platforms keep Nuke's `.points` (it already multiplies by scale).
+  ///
+  /// Floor 2 is KP-14 (Nuke's macOS `Screen.scale` is 1; 1× requests made Retina
+  /// posters soft). The signpost cache (`displayScale`) must not feed this — a
+  /// 1× snapshot would halve request pixels and miss the memory cache.
   private static func macOSPixelSize(forPoints size: CGSize) -> (size: CGSize, unit: ImageProcessingOptions.Unit) {
 #if os(macOS)
-    let scale = max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+    let scale = macOSRequestScale
     return (CGSize(width: size.width * scale, height: size.height * scale), .pixels)
 #else
     return (size, .points)
 #endif
   }
+
+#if os(macOS)
+  /// Live screen scale for **requests**, ≥2. Independent of the signpost cache.
+  static var macOSRequestScale: CGFloat {
+    max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+  }
+#endif
 
   /// Already-decoded art at this size, or nil. Synchronous on purpose: a cell calls this
   /// while configuring so a recycled tile never paints a placeholder.
@@ -174,7 +187,7 @@ public enum Artwork {
   /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and
   /// `ArtworkImage` go through this so they never import Nuke.
   public static func image(for url: URL, size: CGSize = .zero) async throws -> PlatformImage {
-    try await pipeline.image(for: request(url, size: size))
+    try await tracedResponse(url, size: size, mode: .fill).image
   }
 
   /// `image(for:)`, plus where it came from: the URL that answered after redirects
@@ -188,14 +201,8 @@ public enum Artwork {
   public static func imageWithSource(for url: URL, size: CGSize = .zero,
                                      mode: ResizeMode = .fill) async throws
     -> (image: PlatformImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String) {
-    let response = try await pipeline.imageTask(with: request(url, size: size, mode: mode)).response
-    let tier: String
-    switch response.cacheType {
-    case .memory: tier = "memory"
-    case .disk: tier = "disk"
-    case .none: tier = "network"
-    @unknown default: tier = "unknown"
-    }
+    let response = try await tracedResponse(url, size: size, mode: mode)
+    let tier = cacheTier(response.cacheType)
     let answered = response.urlResponse?.url
     let header = (response.urlResponse as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Language")
     var language = WorkerArtworkLanguageTag.resolved(answeredURL: answered, contentLanguageHeader: header)
@@ -356,6 +363,161 @@ public enum Artwork {
 
   private static func noteSeen(_ url: URL, size: CGSize, mode: ResizeMode) {
     seen.withLock { $0[url, default: []].insert(SeenVariant(size: size, mode: mode)) }
+  }
+
+  // MARK: - Decode size / signposts
+
+  /// Drawn box in points → pixels the pipeline will actually decode. `.zero` means
+  /// full source resolution (no downsample).
+  public static func pixelSize(forPoints size: CGSize) -> CGSize {
+    guard size != .zero else { return .zero }
+    let target = macOSPixelSize(forPoints: size)
+    if target.unit == .pixels { return target.size }
+    let scale = displayScale
+    return CGSize(width: size.width * scale, height: size.height * scale)
+  }
+
+  /// Decoded bitmap bytes (row × height), or a 4-bytes-per-pixel estimate.
+  public static func decodedByteCount(_ image: PlatformImage) -> Int {
+#if os(macOS)
+    if let rep = image.representations.first as? NSBitmapImageRep {
+      return max(rep.bytesPerRow * rep.pixelsHigh, 0)
+    }
+    let pixels = image.representations.first
+    let width = pixels?.pixelsWide ?? Int(image.size.width)
+    let height = pixels?.pixelsHigh ?? Int(image.size.height)
+    return max(width * height * 4, 0)
+#else
+    if let cg = image.cgImage {
+      return max(cg.bytesPerRow * cg.height, 0)
+    }
+    let scale = image.scale
+    return max(Int(image.size.width * scale * image.size.height * scale * 4), 0)
+#endif
+  }
+
+  public static func noteDisplayed(_ image: PlatformImage, url: URL, size: CGSize) {
+    PerfSignpost.emitArtworkDisplay(
+      url: url,
+      bytes: decodedByteCount(image),
+      pixelSize: pixelSize(forPoints: size)
+    )
+  }
+
+  /// Last scale seen on the main actor. `pixelSize` / `tracedResponse` run off-main
+  /// (`async` Nuke); `UITraitCollection.current` and `NSScreen.screens` are undefined
+  /// there and often report 1.0 on Apple TV 4K (2×). Signposts only — not requests.
+  private static let cachedDisplayScale = Mutex<CGFloat>(0)
+
+  @MainActor
+  private enum DisplayScaleObserver {
+    static var token: (any NSObjectProtocol)?
+  }
+
+  /// Snapshot the screen scale on the main actor for **signposts** (`pixelSize`
+  /// off-main). Does not change Nuke request sizes.
+  ///
+  /// Reads the screen / window traits — never `UITraitCollection.current` outside
+  /// a trait context (that is often 1.0 in `App.init`, while Apple TV 4K is 2×).
+  @MainActor
+  public static func rememberDisplayScale() {
+#if os(macOS)
+    cacheDisplayScale(
+      NSScreen.main?.backingScaleFactor
+        ?? NSScreen.screens.map(\.backingScaleFactor).max()
+        ?? 2
+    )
+#else
+    cacheDisplayScale(liveUIKitDisplayScale())
+#endif
+  }
+
+#if !os(macOS)
+  @MainActor
+  private static func liveUIKitDisplayScale() -> CGFloat {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+    if let scene {
+      let window = scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
+      let scale = window?.screen.scale ?? scene.screen.scale
+      if scale > 0 { return scale }
+      let traits = window?.traitCollection.displayScale ?? scene.traitCollection.displayScale
+      if traits > 0 { return traits }
+    }
+    let screen = UIScreen.main.scale
+    return screen > 0 ? screen : 1
+  }
+#endif
+
+  /// Call once at launch. Re-snapshots when the screen configuration changes —
+  /// not on every artwork load.
+  @MainActor
+  public static func startRememberingDisplayScale() {
+    rememberDisplayScale()
+    guard DisplayScaleObserver.token == nil else { return }
+#if os(macOS)
+    DisplayScaleObserver.token = NotificationCenter.default.addObserver(
+      forName: NSApplication.didChangeScreenParametersNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { rememberDisplayScale() }
+    }
+#else
+    DisplayScaleObserver.token = NotificationCenter.default.addObserver(
+      forName: UIScreen.modeDidChangeNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { rememberDisplayScale() }
+    }
+#endif
+  }
+
+  public static func cacheDisplayScale(_ scale: CGFloat) {
+    cachedDisplayScale.withLock { $0 = max(scale, 1) }
+  }
+
+  /// Safe from any actor. Uses the last main-actor snapshot, or a platform
+  /// default — never `UITraitCollection.current` off the main actor.
+  public static var displayScale: CGFloat {
+    let cached = cachedDisplayScale.withLock { $0 }
+    if cached > 0 { return cached }
+#if os(tvOS)
+    return 2
+#elseif os(macOS)
+    return 2
+#else
+    return 3
+#endif
+  }
+
+  private static func cacheTier(_ type: ImageResponse.CacheType?) -> String {
+    switch type {
+    case .memory: "memory"
+    case .disk: "disk"
+    case .none: "network"
+    @unknown default: "unknown"
+    }
+  }
+
+  private static func tracedResponse(_ url: URL, size: CGSize, mode: ResizeMode) async throws
+    -> ImageResponse {
+    let imageRequest = request(url, size: size, mode: mode)
+    let pixels = pixelSize(forPoints: size)
+    let interval = PerfSignpost.beginArtworkRequest(url: url, pixelSize: pixels)
+    do {
+      let response = try await pipeline.imageTask(with: imageRequest).response
+      interval.endArtwork(
+        tier: cacheTier(response.cacheType),
+        bytes: decodedByteCount(response.image),
+        pixelSize: pixels
+      )
+      return response
+    } catch {
+      interval.endArtwork(tier: "error", bytes: 0, pixelSize: pixels)
+      throw error
+    }
   }
 }
 

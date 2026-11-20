@@ -76,6 +76,7 @@ public struct ArtworkImage<Content: View>: View {
       return
     }
     if let cached = Artwork.cachedImage(for: url, size: size) {
+      Artwork.noteDisplayed(cached, url: url, size: size)
       apply(.success(Image(platformImage: cached)))
       return
     }
@@ -85,6 +86,7 @@ public struct ArtworkImage<Content: View>: View {
       // `.task(id:)` cancels on URL change, but `Artwork.image` does not always
       // throw `CancellationError` — a stale decode must not paint over the new card.
       guard id == loadID else { return }
+      Artwork.noteDisplayed(loaded, url: url, size: size)
       apply(.success(Image(platformImage: loaded)))
     } catch is CancellationError {
       return

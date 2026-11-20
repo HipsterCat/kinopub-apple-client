@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Performance measurement:** `OSSignposter` intervals under subsystem
+  `com.soda.kinopub.perf` (artwork request/display, hero page and backdrop,
+  Home shelf scroll, season-rail slide, title open, window resize). Zero cost
+  unless Instruments or `XCTOSSignpostMetric` is attached. Scroll intervals are
+  per gesture (begin on move, end on settle). Empty signpost metrics fail the
+  UI test. `URLSessionResumeGuardTests` match `install` restoring pre-Pulse
+  `resume` (no Pulse re-enable). Playbook in `docs/engineering/performance.md`.
+
 - **tvOS console quiet (follow-up):** nav zoom no longer drives
   `_TVNavigationZoomAnimator` (that inserted `_UIReplicantView` under hosting
   views) — plain `UIImageView` scale/fade on the navigation controller; snapshots

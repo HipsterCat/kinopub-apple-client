@@ -1,7 +1,8 @@
 # Performance practice
 
 ## How we do it now
-UIKit for heavy tvOS surfaces; fixture-driven `TVDetailPageUITests`. CURRENT/AGENTS want numbers, but there is no repeatable perf harness.
+Playbook and harness: [docs/engineering/performance.md](../engineering/performance.md).
+`PerfSignpost` (`com.soda.kinopub.perf`) plus `PerformanceUITests` (fixture walks on tvOS, session-gated on iOS/Mac). This file stays as the competitive evidence that led there.
 
 ## What others do
 | Repo | What | Link |
@@ -13,4 +14,4 @@ UIKit for heavy tvOS surfaces; fixture-driven `TVDetailPageUITests`. CURRENT/AGE
 | Unwatched | Flattened player glass; `glassEffectContainer`; stopped decoding cover art 4×. | [936b63b](https://github.com/fer0n/Unwatched/commit/936b63b), [5ba2dbe](https://github.com/fer0n/Unwatched/commit/5ba2dbe) |
 
 ## Proposal — M · P2
-`os_signpost` around `TVPage` apply, banner apply and detail first paint, plus an XCUITest remote walk on the fixture build that logs hitch and memory numbers in CI. This turns the review's "PARTLY" perf verdicts into numbers.
+Landed as `PerfSignpost` + `PerformanceUITests` + the engineering playbook.

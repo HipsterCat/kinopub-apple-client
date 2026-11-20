@@ -1,8 +1,9 @@
 //
 //  URLSessionResumeGuardTests.swift
 //
-//  AVAggregateAssetDownloadTask throws from currentRequest. The resume guard
-//  has to decide from the class alone and call the pre-Pulse resume.
+//  After Pulse's `enableProxy`, `install` puts the pre-Pulse `resume` IMPs
+//  back. Every task uses those originals — aggregate / asset-download tasks
+//  throw from `currentRequest` if they ever enter the swizzle.
 //
 
 import XCTest
@@ -15,10 +16,9 @@ import AVFoundation
 
 final class URLSessionResumeGuardTests: XCTestCase {
 
-  /// The installed `resume` — not the helper — is what a task runs. A data task
-  /// still reaches the logging implementation. An aggregate-named task does not,
-  /// and its request getters stay unread.
-  func testInstalledSwizzleSkipsAggregateTasks() {
+  /// `install` restores `originals` on every method. Data tasks and
+  /// aggregate-named tasks both hit the original, never the logging IMP.
+  func testInstallRestoresOriginalsForEveryTask() {
     let methods = URLSessionResumeGuard.resumeMethods()
     XCTAssertFalse(methods.isEmpty)
     let saved = methods.map { method_getImplementation($0) }
@@ -50,53 +50,55 @@ final class URLSessionResumeGuardTests: XCTestCase {
     let data = URLSession.shared.dataTask(with: URL(string: "https://example.invalid/kinopub-installed-resume")!)
     let originalAfterAggregate = original.count
     data.resume()
-    XCTAssertGreaterThan(logging.count, 0)
-    XCTAssertEqual(original.count, originalAfterAggregate)
+    XCTAssertEqual(logging.count, 0)
+    XCTAssertGreaterThan(original.count, originalAfterAggregate)
     data.cancel()
   }
 
-  func testDataTaskReachesTheLoggingResume() {
-    let task = URLSession.shared.dataTask(with: URL(string: "https://example.invalid/kinopub-resume-guard")!)
-    let logging = Calls()
-    let original = Calls()
-    XCTAssertFalse(URLSessionResumeGuard.skipsLogging(task))
-    URLSessionResumeGuard.callResume(task, original: countingIMP(original), logging: countingIMP(logging))
-    XCTAssertEqual(logging.count, 1)
-    XCTAssertEqual(original.count, 0)
-    task.cancel()
-  }
-
-  func testPrivateAggregateClassSkipsLoggingWithoutReadingTheRequest() {
+  func testPrivateAggregateClassResumeDoesNotReadTheRequest() {
     let reads = RequestReads()
     let task = probeTask(superklass: URLSessionTask.self,
                          name: "KPBackgroundAVAggregateAssetDownloadTaskNoChild",
                          reads: reads)
-    assertSkipsWithoutReading(task, reads: reads)
+    assertOriginalResumeDoesNotRead(task, reads: reads)
   }
 
   #if os(iOS) || os(macOS)
-  func testAggregateAssetDownloadTaskSkipsLoggingWithoutReadingTheRequest() {
+  func testAggregateAssetDownloadTaskResumeDoesNotReadTheRequest() {
     let reads = RequestReads()
     let task = probeTask(superklass: AVAggregateAssetDownloadTask.self,
                          name: "KPAggregateAssetDownloadProbe",
                          reads: reads)
-    assertSkipsWithoutReading(task, reads: reads)
+    assertOriginalResumeDoesNotRead(task, reads: reads)
   }
 
-  func testAssetDownloadTaskSkipsLoggingWithoutReadingTheRequest() {
+  func testAssetDownloadTaskResumeDoesNotReadTheRequest() {
     let reads = RequestReads()
     let task = probeTask(superklass: AVAssetDownloadTask.self,
                          name: "KPAssetDownloadProbe",
                          reads: reads)
-    assertSkipsWithoutReading(task, reads: reads)
+    assertOriginalResumeDoesNotRead(task, reads: reads)
   }
   #endif
 
-  private func assertSkipsWithoutReading(_ task: URLSessionTask, reads: RequestReads) {
-    let logging = Calls()
+  private func assertOriginalResumeDoesNotRead(_ task: URLSessionTask, reads: RequestReads) {
+    let methods = URLSessionResumeGuard.resumeMethods()
+    XCTAssertFalse(methods.isEmpty)
+    let saved = methods.map { method_getImplementation($0) }
+    defer {
+      for (method, imp) in zip(methods, saved) {
+        method_setImplementation(method, imp)
+      }
+    }
     let original = Calls()
-    XCTAssertTrue(URLSessionResumeGuard.skipsLogging(task))
-    URLSessionResumeGuard.callResume(task, original: countingIMP(original), logging: countingIMP(logging))
+    let logging = Calls()
+    for method in methods {
+      method_setImplementation(method, countingIMP(logging))
+    }
+    URLSessionResumeGuard.install(
+      methods: methods,
+      originals: Array(repeating: countingIMP(original), count: methods.count))
+    task.resume()
     XCTAssertEqual(logging.count, 0, "the logging swizzle reads currentRequest")
     XCTAssertEqual(original.count, 1)
     XCTAssertEqual(reads.current, 0)

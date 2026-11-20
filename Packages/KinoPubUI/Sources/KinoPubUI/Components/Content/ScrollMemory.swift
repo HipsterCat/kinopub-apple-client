@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import KinoPubLogging
 #if os(macOS)
 import AppKit
 #endif
@@ -135,6 +136,7 @@ final class EnclosedScrollView {
       MainActor.assumeIsolated {
         guard let memory, let clip, let scroll = clip.enclosingScrollView else { return }
         memory.y = max(clip.bounds.origin.y + scroll.contentInsets.top, 0)
+        PerfSignpost.noteHomeScroll("mac")
       }
     }
   }

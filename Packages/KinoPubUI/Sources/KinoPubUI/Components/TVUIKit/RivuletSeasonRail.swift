@@ -18,6 +18,7 @@
 import SwiftUI
 import TVUIKit
 import UIKit
+import KinoPubLogging
 
 public extension Notification.Name {
   /// Menu on the season block. The detail page scrolls back to the hero.
@@ -496,6 +497,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
   }
 
   private func releasePageScroll() {
+    if scrollLink != nil { PerfSignpost.endSeasonScroll("released") }
     scrollLink?.invalidate()
     scrollLink = nil
     releaseHold()
@@ -553,6 +555,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     let link = CADisplayLink(target: self, selector: #selector(stepScroll))
     link.add(to: .main, forMode: .common)
     scrollLink = link
+    PerfSignpost.beginSeasonScroll("display-link")
   }
 
   @objc private func stepScroll(_ link: CADisplayLink) {
@@ -570,6 +573,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
       scrollLink = nil
       pageScroll?.setContentOffset(CGPoint(x: pageScroll?.contentOffset.x ?? 0, y: scrollTargetY), animated: false)
       settledY = scrollTargetY
+      PerfSignpost.endSeasonScroll("settled")
       let completion = scrollCompletion
       scrollCompletion = nil
       completion?()
@@ -1017,6 +1021,26 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     let section = NSCollectionLayoutSection(group: group)
     section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: contentInset, bottom: 0, trailing: contentInset)
     return section
+  }
+
+  public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.noteSeasonScroll("rail")
+  }
+
+  public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.endSeasonScroll("animation")
+  }
+
+  public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard scrollView === railView || scrollView === tabsView else { return }
+    PerfSignpost.endSeasonScroll("decelerate")
+  }
+
+  public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard (scrollView === railView || scrollView === tabsView), !decelerate else { return }
+    PerfSignpost.endSeasonScroll("drag")
   }
 
   public func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }

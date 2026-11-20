@@ -47,7 +47,12 @@ public struct URLSessionResumeGuard {
         return methods
     }
 
-    /// Reinstalls the original IMPs for the given methods.
+    /// Reinstalls the original IMPs for the given methods (the pre-Pulse
+    /// `resume`). After `NetworkLogger.enableProxy`, this is what keeps
+    /// aggregate / asset-download tasks from entering Pulse's swizzle, which
+    /// reads `currentRequest` and throws. Every task uses the original —
+    /// not a per-class wrapper that would send ordinary data tasks back
+    /// through Pulse.
     /// If the counts of methods and originals do not match, does nothing safely.
     public static func install(methods: [Method], originals: [IMP]) {
         guard methods.count == originals.count else { return }

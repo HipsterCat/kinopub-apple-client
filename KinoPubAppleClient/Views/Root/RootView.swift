@@ -13,6 +13,7 @@ import KinoPubLogging
 struct RootView: View {
 
   @Environment(\.appContext) var appContext
+  @Environment(\.displayScale) private var displayScale
   @EnvironmentObject var authState: AuthState
   @Environment(NavigationState.self) var navigationState
   /// Off unless switched on in Settings › Advanced › Diagnostics.
@@ -34,6 +35,10 @@ struct RootView: View {
     // macOS keeps the tab shell mounted and presents Auth as a non-dismissible sheet so
     // the window chrome does not jump from a title-less auth layout into the library.
     rootContent
+      .onAppear { Artwork.rememberDisplayScale() }
+      .onChange(of: displayScale) { _, _ in
+        Artwork.rememberDisplayScale()
+      }
       .networkActivityOverlay(isEnabled: showsActivityOverlay)
 #if os(tvOS)
       .focusDebugOverlay(isEnabled: showsFocusOverlay)

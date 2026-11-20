@@ -13,6 +13,7 @@
 #if os(tvOS)
 import SwiftUI
 import OSLog
+import KinoPubLogging
 
 private let backdropLog = Logger(subsystem: "com.soda.kinopub", category: "Backdrop")
 
@@ -267,6 +268,8 @@ struct PageBackdropHost: View {
   }
 
   private func show(_ next: PageBackdrop?) async {
+    let interval = PerfSignpost.beginHeroBackdrop(id: next?.id ?? "none")
+    defer { interval.end(next == nil ? "cleared" : "shown") }
     guard let next else {
       withAnimation(Self.fadeOut) { shown = nil }
       return
@@ -289,6 +292,7 @@ struct PageBackdropHost: View {
     for (index, url) in urls.enumerated() {
       if Task.isCancelled { return nil }
       if let loaded = try? await Artwork.imageWithSource(for: url) {
+        Artwork.noteDisplayed(loaded.image, url: url, size: .zero)
 #if os(tvOS)
         ArtworkLog.source("page.backdrop \(id)", id: nil, asked: url, answered: loaded.answered,
                           tier: loaded.tier, candidate: index, of: urls.count)

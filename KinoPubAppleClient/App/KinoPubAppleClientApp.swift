@@ -42,7 +42,10 @@ struct KinoPubAppleClientApp: App {
 
   init() {
     // Before anything reads a flag: the launch-time ones are pinned here for the session.
-    MainActor.assumeIsolated { FeatureFlag.applyAtLaunch() }
+    MainActor.assumeIsolated {
+      FeatureFlag.applyAtLaunch()
+      Artwork.startRememberingDisplayScale()
+    }
     // First thing: the proxy only records requests made after it is installed, and the
     // launch traffic is the whole reason it exists.
     NetworkDiagnostics.start()
