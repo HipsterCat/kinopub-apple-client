@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **tvOS console quiet (follow-up):** nav zoom no longer drives
+  `_TVNavigationZoomAnimator` (that inserted `_UIReplicantView` under hosting
+  views) — plain `UIImageView` scale/fade on the navigation controller. Home
+  hero / page stop preferring themselves while they already own focus so Up reaches
+  the tab bar. TSKTableView / TSK snapshot lines stay Apple-only.
+
 - **Shared watching-list cache + quieter Home/Search:** `/v1/watching/movies` and
   both `/v1/watching/serials` answers are one in-memory cache (~3 min, coalesced)
   for Continue Watching, Library Unwatched/Following and the sidebar badge.

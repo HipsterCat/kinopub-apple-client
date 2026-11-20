@@ -1282,6 +1282,9 @@ public final class TVPageCollectionViewController: UIViewController {
     // A retry button is the landing spot. An empty state with no button is not —
     // the header chips (or the sidebar) keep the remote.
     if !statusView.isHidden, statusView.claimsFocus { return [statusView] }
+    // While this page already owns focus, do not keep preferring the collection —
+    // that trapped Up from the Home hero into a reject instead of the tab bar.
+    if ownsFocus { return super.preferredFocusEnvironments }
     return [collectionView]
   }
 

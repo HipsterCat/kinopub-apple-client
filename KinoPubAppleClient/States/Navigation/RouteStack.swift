@@ -32,13 +32,43 @@ struct RouteStack<Content: View>: View {
   @Namespace private var zoomNamespace
 
   var body: some View {
-    NavigationStack(path: navigationState.path(for: tab)) {
+    // `@Bindable` projects `$navigationState.*Routes` so `NavigationStack` is not handed
+    // a brand-new `Binding` value from `path(for:)` on every body pass — that was one
+    // source of `Update NavigationAuthority bound path tried to update multiple times
+    // per frame` when several tab stacks stayed mounted.
+    @Bindable var navigationState = navigationState
+    NavigationStack(path: guardedPath(bindable: navigationState)) {
       content()
         .environment(\.scrollToTopRequest, navigationState.scrollToTopRequests[tab] ?? 0)
         .appRouteDestinations(zoom: zoom ? zoomNamespace : nil)
     }
     .environment(\.zoomTransitionNamespace, zoom ? zoomNamespace : nil)
     .navigationStackActive(for: tab, selected: navigationState.selectedTab)
+  }
+
+  /// The tab's route array as a Binding, with the unselected-empty and no-op guards that
+  /// `NavigationState.path(for:)` also applies for non-`RouteStack` call sites.
+  private func guardedPath(bindable state: NavigationState) -> Binding<[Route]> {
+    let tab = self.tab
+    let base = Binding<[Route]>(
+      get: {
+        guard let keyPath = NavigationState.routeKeyPath(for: tab) else { return [] }
+        return state[keyPath: keyPath]
+      },
+      set: { routes in
+        guard let keyPath = NavigationState.routeKeyPath(for: tab) else { return }
+        // A section's stack torn down on leaving it writes back an empty path; that is
+        // not the viewer going back (Sasha, 2026-10-31).
+        if routes.isEmpty, tab != state.selectedTab, !state[keyPath: keyPath].isEmpty {
+          return
+        }
+        guard state[keyPath: keyPath] != routes else { return }
+        state[keyPath: keyPath] = routes
+        let ids = MediaItemModelCache.itemIDs(in: routes)
+        MediaItemModelCache.shared.keep(only: ids, on: tab)
+      }
+    )
+    return base
   }
 }
 
