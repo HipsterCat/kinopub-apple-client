@@ -3,9 +3,8 @@
 # Secrets, first-time Apple setup, and how to trigger a run: docs/testflight.md.
 # Missing secrets skip this workflow with a notice; they do not fail the run.
 #
-# Archives run on `xcode-27`. This project is Xcode 27's `project.xcproj`;
-# Xcode 26 cannot open it, and Fastlane's xcodeproj gem / gym look for
-# `project.pbxproj` which does not exist here.
+# Archives run on `macos-latest` (macos-26 arm64, Xcode 26.x GM). App Store
+# Connect rejects beta Xcodes; do not move these jobs onto `xcode-27`.
 
 name: TestFlight
 
@@ -44,7 +43,9 @@ permissions:
 # Push is the reliable daily trigger (see schedule comment); the gate
 # allows at most one successful automatic archive per UTC day.
 concurrency:
-  group: testflight
+  # Distinct from the old `testflight` group so a leftover `xcode-27` upload
+  # sitting in that queue cannot block macos-26 archives.
+  group: testflight-xcode26-latest
   cancel-in-progress: false
 
 env:
@@ -55,6 +56,7 @@ jobs:
   gate:
     name: Should we upload?
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       should_upload: ${{ steps.decide.outputs.should_upload }}
       matrix: ${{ steps.decide.outputs.matrix }}
@@ -82,6 +84,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.should_upload == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       build_number: ${{ steps.reserve.outputs.build_number }}
       matrix: ${{ needs.gate.outputs.matrix }}
@@ -106,7 +109,7 @@ jobs:
     name: Upload ${{ matrix.platform }}
     needs: [gate, prepare]
     if: needs.gate.outputs.should_upload == 'true'
-    runs-on: xcode-27
+    runs-on: macos-latest
     timeout-minutes: 75
     strategy:
       fail-fast: false
@@ -128,8 +131,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Select Xcode 27
-        run: .github/scripts/select-xcode-27.sh
+      - name: Select Xcode 26
+        run: .github/scripts/select-xcode-26.sh
 
       - name: Toolchain versions
         run: |

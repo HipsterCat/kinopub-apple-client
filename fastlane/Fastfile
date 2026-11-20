@@ -22,23 +22,22 @@ opt_out_usage
 #   Rivulet   — unsigned compile on Actions; archives on Codemagic
 #   Sodalite  — universal TestFlight link, no release CI in the repo
 #
-# We stay on GitHub Actions (`xcode-27` for archives — the project is Xcode 27's
-# `project.xcproj`) and skip Match / Codemagic / Xcode Cloud unless someone asks.
-# Signing is a persistent Apple Distribution p12 (Swiftfin) plus sigh
-# profiles created from the App Store Connect API key — entitlements can
-# change without re-exporting a profile secret.
+# We stay on GitHub Actions (`macos-26` + Xcode 26 GM for archives) and skip
+# Match / Codemagic / Xcode Cloud unless someone asks. Signing is a persistent
+# Apple Distribution p12 (Swiftfin) plus sigh profiles created from the App
+# Store Connect API key — entitlements can change without re-exporting a
+# profile secret.
 #
-# Do not open this project with the Fastlane `xcodeproj` gem or gym.
-# `Xcodeproj::Project.open` and gym both look for `project.pbxproj`, which
-# this repo does not have. Sign by patching `project.xcproj`; archive with
-# `xcodebuild archive` / `exportArchive`.
+# Sign by patching the app / Top Shelf target keys in `project.pbxproj`; archive
+# with `xcodebuild archive` / `exportArchive`. Do not pass CODE_SIGN_* as xcargs
+# — those leak onto SPM package targets.
 #
 # Secrets, first-time Apple setup, and when CI uploads: docs/testflight.md.
 
 default_platform(:ios)
 
 PROJECT = File.expand_path("../KinoPubAppleClient.xcodeproj", __dir__)
-XCPROJ = File.join(PROJECT, "project.xcproj")
+PBXPROJ = File.join(PROJECT, "project.pbxproj")
 SCHEME = "KinoPubAppleClient"
 APP_TARGET = "KinoPubAppleClient"
 BUNDLE_ID = "com.soda.kinopub"
@@ -175,7 +174,7 @@ def changelog_text
 end
 
 def marketing_version
-  File.read(XCPROJ)[/"MARKETING_VERSION": "([^"]+)"/, 1] || "1.0"
+  File.read(PBXPROJ)[/MARKETING_VERSION = "?([^";]+)"?;/, 1] || "1.0"
 end
 
 # In-app What's New for this marketing version (Russian — Sasha's TestFlight).
@@ -276,110 +275,94 @@ def fetch_profile!(sigh_platform:, app_identifier: BUNDLE_ID, label: "KinoPub")
   lane_context[SharedValues::SIGH_NAME]
 end
 
-def require_xcproj!
-  UI.user_error!("Missing #{XCPROJ}. This repo is an Xcode 27 project.xcproj, not pbxproj.") unless File.exist?(XCPROJ)
-  pbx = File.join(PROJECT, "project.pbxproj")
-  return unless File.exist?(pbx)
-
-  UI.user_error!("Found #{pbx}; expected only project.xcproj. Do not add a pbxproj sidecar.")
+def require_pbxproj!
+  UI.user_error!("Missing #{PBXPROJ}. This repo is an Xcode 14-compatible project.pbxproj.") unless File.exist?(PBXPROJ)
+  leftover = File.join(PROJECT, "project.xcproj")
+  UI.user_error!("Found leftover #{leftover}; Xcode 26 opens project.pbxproj only.") if File.exist?(leftover)
 end
 
-def app_target_slice(text)
-  start = text.index(/"name": "#{APP_TARGET}"/)
-  UI.user_error!("Missing target #{APP_TARGET} in project.xcproj") if start.nil?
-
-  finish = text.index(/"name": "KinoPubAppleClientTests"/, start)
-  UI.user_error!("Could not bound #{APP_TARGET} build-settings in project.xcproj") if finish.nil?
-
-  [text[0...start], text[start...finish], text[finish..]]
+# Each `isa = XCBuildConfiguration` block, with nested braces counted.
+def each_xcconfig(text)
+  needle = "isa = XCBuildConfiguration;"
+  idx = 0
+  ranges = []
+  while (found = text.index(needle, idx))
+    start = text.rindex("{", found)
+    UI.user_error!("Unbalanced XCBuildConfiguration around #{found}") if start.nil?
+    depth = 0
+    finish = nil
+    (start...text.length).each do |i|
+      case text[i]
+      when "{" then depth += 1
+      when "}"
+        depth -= 1
+        if depth.zero?
+          finish = i
+          break
+        end
+      end
+    end
+    UI.user_error!("Unclosed XCBuildConfiguration at #{start}") if finish.nil?
+    ranges << [start, finish]
+    idx = finish + 1
+  end
+  ranges.each { |start, finish| yield start, finish, text[start..finish] }
 end
 
-def replace_once!(body, pattern, replacement, label:)
-  matches = body.scan(pattern)
-  UI.user_error!("Expected #{label} once in the app target, found #{matches.size}") unless matches.size == 1
-  body.sub(pattern, replacement)
+def patch_configs_for_bundle!(text, bundle_id, profile_name, macos_identity:)
+  replacements = []
+  each_xcconfig(text) do |start, finish, body|
+    next unless body.include?("PRODUCT_BUNDLE_IDENTIFIER = #{bundle_id};")
+
+    patched = body.dup
+    patched = patched.sub(
+      /CODE_SIGN_IDENTITY = "Apple Development";/,
+      'CODE_SIGN_IDENTITY = "Apple Distribution";'
+    )
+    if macos_identity
+      patched = patched.sub(
+        /"CODE_SIGN_IDENTITY\[sdk=macosx\*\]" = "Apple Development";/,
+        '"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Distribution";'
+      )
+    end
+    patched = patched.sub(/CODE_SIGN_STYLE = Automatic;/, "CODE_SIGN_STYLE = Manual;")
+    patched = patched.sub(
+      /PROVISIONING_PROFILE_SPECIFIER = "";/,
+      "PROVISIONING_PROFILE_SPECIFIER = #{JSON.generate(profile_name)};"
+    )
+    UI.user_error!("signing patch missed CODE_SIGN_STYLE in #{bundle_id}") unless patched.include?("CODE_SIGN_STYLE = Manual;")
+    replacements << [start, finish, patched]
+  end
+  UI.user_error!("Expected Debug+Release configs for #{bundle_id}, found #{replacements.size}") unless replacements.size == 2
+  replacements.reverse_each { |start, finish, patched| text[start..finish] = patched }
+  text
+end
+
+def configs_for_bundle(text, bundle_id)
+  bodies = []
+  each_xcconfig(text) { |_start, _finish, body| bodies << body if body.include?("PRODUCT_BUNDLE_IDENTIFIER = #{bundle_id};") }
+  bodies
 end
 
 # Sign the app target only. xcargs CODE_SIGN_IDENTITY / PROVISIONING_PROFILE_SPECIFIER
 # apply to every target in the graph — SPM packages then fail with "does not support
 # provisioning profiles", and `CODE_SIGN_IDENTITY[sdk=macosx*]` was parsed as the
 # identity `macosx*]=Apple Distribution`.
-#
-# The Fastlane xcodeproj gem cannot open Xcode 27's project.xcproj (it looks for
-# project.pbxproj). Patch the JSON5 keys in the app target's build-settings only.
 def apply_app_signing_to!(path, profile_name:)
   text = File.read(path)
-  head, body, tail = app_target_slice(text)
-
-  body = replace_once!(
-    body,
-    /"CODE_SIGN_IDENTITY": "Apple Development"/,
-    '"CODE_SIGN_IDENTITY": "Apple Distribution"',
-    label: "CODE_SIGN_IDENTITY"
-  )
-  body = replace_once!(
-    body,
-    /"CODE_SIGN_IDENTITY\[sdk=macosx\*\]": "Apple Development"/,
-    '"CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Distribution"',
-    label: "CODE_SIGN_IDENTITY[sdk=macosx*]"
-  )
-  body = replace_once!(
-    body,
-    /"CODE_SIGN_STYLE": "Automatic"/,
-    '"CODE_SIGN_STYLE": "Manual"',
-    label: "CODE_SIGN_STYLE"
-  )
-  body = replace_once!(
-    body,
-    /"PROVISIONING_PROFILE_SPECIFIER": ""/,
-    "\"PROVISIONING_PROFILE_SPECIFIER\": #{JSON.generate(profile_name)}",
-    label: "PROVISIONING_PROFILE_SPECIFIER"
-  )
-
-  File.write(path, head + body + tail)
+  text = patch_configs_for_bundle!(text, BUNDLE_ID, profile_name, macos_identity: true)
+  File.write(path, text)
 end
 
 def apply_app_signing!(profile_name:)
-  require_xcproj!
-  apply_app_signing_to!(XCPROJ, profile_name: profile_name)
-end
-
-# The Top Shelf target is the last one in the file; its build-settings end where the
-# project-level block begins.
-def topshelf_target_slice(text)
-  start = text.index(/"name": "#{TOPSHELF_TARGET}"/)
-  UI.user_error!("Missing target #{TOPSHELF_TARGET} in project.xcproj") if start.nil?
-
-  finish = text.index(/^  "build-settings": \{/, start)
-  UI.user_error!("Could not bound #{TOPSHELF_TARGET} build-settings in project.xcproj") if finish.nil?
-
-  [text[0...start], text[start...finish], text[finish..]]
+  require_pbxproj!
+  apply_app_signing_to!(PBXPROJ, profile_name: profile_name)
 end
 
 def apply_topshelf_signing_to!(path, profile_name:)
   text = File.read(path)
-  head, body, tail = topshelf_target_slice(text)
-
-  body = replace_once!(
-    body,
-    /"CODE_SIGN_IDENTITY": "Apple Development"/,
-    '"CODE_SIGN_IDENTITY": "Apple Distribution"',
-    label: "#{TOPSHELF_TARGET} CODE_SIGN_IDENTITY"
-  )
-  body = replace_once!(
-    body,
-    /"CODE_SIGN_STYLE": "Automatic"/,
-    '"CODE_SIGN_STYLE": "Manual"',
-    label: "#{TOPSHELF_TARGET} CODE_SIGN_STYLE"
-  )
-  body = replace_once!(
-    body,
-    /"PROVISIONING_PROFILE_SPECIFIER": ""/,
-    "\"PROVISIONING_PROFILE_SPECIFIER\": #{JSON.generate(profile_name)}",
-    label: "#{TOPSHELF_TARGET} PROVISIONING_PROFILE_SPECIFIER"
-  )
-
-  File.write(path, head + body + tail)
+  text = patch_configs_for_bundle!(text, TOPSHELF_BUNDLE_ID, profile_name, macos_identity: false)
+  File.write(path, text)
 end
 
 def xml_escape(value)
@@ -498,7 +481,7 @@ end
 def build_platform!(spec:, build_number:, profile_name:, extension_profiles: {})
   apply_app_signing!(profile_name: profile_name)
   if (topshelf = extension_profiles[TOPSHELF_BUNDLE_ID])
-    apply_topshelf_signing_to!(XCPROJ, profile_name: topshelf)
+    apply_topshelf_signing_to!(PBXPROJ, profile_name: topshelf)
   end
   write_release_notes!
   archive_and_export!(spec: spec, build_number: build_number, profile_name: profile_name,
@@ -570,41 +553,46 @@ before_all do
 end
 
 platform :ios do
-  desc "Secrets-free checks: xcproj layout, app-target signing patch, What to Test"
+  desc "Secrets-free checks: pbxproj layout, app-target signing patch, What to Test"
   lane :lint do
-    require_xcproj!
+    require_pbxproj!
 
     version = marketing_version
-    UI.user_error!("Could not read MARKETING_VERSION from project.xcproj") if version.to_s.strip.empty?
+    UI.user_error!("Could not read MARKETING_VERSION from project.pbxproj") if version.to_s.strip.empty?
     UI.message("MARKETING_VERSION=#{version}")
 
     notes = changelog_text
     UI.user_error!("What to Test text is empty") if notes.to_s.strip.empty?
     UI.message("What to Test:\n#{notes}")
 
-    original = File.read(XCPROJ)
+    original = File.read(PBXPROJ)
     Dir.mktmpdir do |dir|
-      copy = File.join(dir, "project.xcproj")
-      FileUtils.cp(XCPROJ, copy)
+      copy = File.join(dir, "project.pbxproj")
+      FileUtils.cp(PBXPROJ, copy)
       apply_app_signing_to!(copy, profile_name: "KinoPub tvos AppStore")
       patched = File.read(copy)
-
-      UI.user_error!("signing patch missed CODE_SIGN_STYLE Manual") unless patched.include?('"CODE_SIGN_STYLE": "Manual"')
-      UI.user_error!("signing patch missed Apple Distribution") unless patched.include?('"CODE_SIGN_IDENTITY": "Apple Distribution"')
-      UI.user_error!("signing patch missed macosx Distribution identity") unless patched.include?('"CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Distribution"')
-      UI.user_error!("signing patch missed profile specifier") unless patched.include?('"PROVISIONING_PROFILE_SPECIFIER": "KinoPub tvos AppStore"')
+      app = configs_for_bundle(patched, BUNDLE_ID)
+      UI.user_error!("Expected Debug+Release app configs after signing patch, found #{app.size}") unless app.size == 2
+      app.each do |body|
+        UI.user_error!("signing patch missed CODE_SIGN_STYLE Manual") unless body.include?("CODE_SIGN_STYLE = Manual;")
+        UI.user_error!("signing patch missed Apple Distribution") unless body.include?('CODE_SIGN_IDENTITY = "Apple Distribution";')
+        UI.user_error!("signing patch missed macosx Distribution identity") unless body.include?('"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Distribution";')
+        UI.user_error!("signing patch missed profile specifier") unless body.include?('PROVISIONING_PROFILE_SPECIFIER = "KinoPub tvos AppStore";')
+      end
 
       apply_topshelf_signing_to!(copy, profile_name: "KinoPub TopShelf tvos AppStore")
-      topshelf = topshelf_target_slice(File.read(copy))[1]
-      UI.user_error!("Top Shelf signing patch missed Manual") unless topshelf.include?('"CODE_SIGN_STYLE": "Manual"')
-      UI.user_error!("Top Shelf signing patch missed profile specifier") unless topshelf.include?('"PROVISIONING_PROFILE_SPECIFIER": "KinoPub TopShelf tvos AppStore"')
-      patched = File.read(copy)
+      shelf = configs_for_bundle(File.read(copy), TOPSHELF_BUNDLE_ID)
+      UI.user_error!("Expected Debug+Release Top Shelf configs, found #{shelf.size}") unless shelf.size == 2
+      shelf.each do |body|
+        UI.user_error!("Top Shelf signing patch missed Manual") unless body.include?("CODE_SIGN_STYLE = Manual;")
+        UI.user_error!("Top Shelf signing patch missed profile specifier") unless body.include?('PROVISIONING_PROFILE_SPECIFIER = "KinoPub TopShelf tvos AppStore";')
+      end
 
-      tests = patched[/"name": "KinoPubAppleClientTests".*?"name": "KinoPubAppleClientUITests"/m]
-      UI.user_error!("Could not find the unit-test target after the signing patch") if tests.nil?
-      UI.user_error!("signing patch leaked Manual onto the test target") if tests.include?('"CODE_SIGN_STYLE": "Manual"')
+      tests = configs_for_bundle(File.read(copy), "com.soda.kinopub.tests")
+      UI.user_error!("Could not find the unit-test target after the signing patch") if tests.empty?
+      UI.user_error!("signing patch leaked Manual onto the test target") if tests.any? { |body| body.include?("CODE_SIGN_STYLE = Manual;") }
     end
-    UI.user_error!("lint mutated the checkout's project.xcproj") unless File.read(XCPROJ) == original
+    UI.user_error!("lint mutated the checkout's project.pbxproj") unless File.read(PBXPROJ) == original
 
     export = write_export_options!(profile_name: "KinoPub tvos AppStore", mac: false)
     export_body = File.read(export)
