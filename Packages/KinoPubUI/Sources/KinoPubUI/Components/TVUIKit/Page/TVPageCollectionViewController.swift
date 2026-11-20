@@ -1343,19 +1343,15 @@ public final class TVPageCollectionViewController: UIViewController {
     collectionView.remembersLastFocusedIndexPath = false
     lastPublishedBelowTop = false
     onBelowTopRowChange?(false)
-    // Land the first cell in view before asking for focus — a preferred index path that
-    // is off-screen often made the engine focus the collection itself: caption colour
-    // updated, scale did not (Sasha, 2026-11-20, TV tab Menu).
-    scrollToTopIfNeeded(animated: false)
-    collectionView.layoutIfNeeded()
     // The collection holds focus and its delegate names the top row. Not this controller:
     // an ancestor's request wins over the collection's, and where the controller does not
     // claim focus (Search) it falls through to its view, so the engine picked the nearest
-    // visible card — one row up per press (2026-10-25).
+    // visible card — one row up per press (2026-10-25). The focus engine scrolls — no
+    // hand `contentOffset` settle (banner/hero rule).
     collectionView.setNeedsFocusUpdate()
     collectionView.updateFocusIfNeeded()
-    // If the engine still parked on the collection (or a non-top cell), try once more
-    // on the next turn — same shape as the collection-view safety net below.
+    // Caption lit without tile scale: the engine sometimes parks on the collection
+    // itself. One async retry (no hand scroll) is enough for the cell to own focus.
     if focusedPath != top || !cellOwnsFocus(at: top) {
       DispatchQueue.main.async { [weak self] in
         guard let self, self.wantsTopFocus || self.focusedPath != top else { return }

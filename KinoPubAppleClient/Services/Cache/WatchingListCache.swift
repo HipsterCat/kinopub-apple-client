@@ -31,7 +31,10 @@ final class WatchingListCache {
   }
 
   private var entries: [List: Entry] = [:]
-  private var inFlight: [List: Task<[WatchingItem], Error>] = [:]
+  /// Continuations waiting on an in-flight fetch for the same list (no `Task` — keeps
+  /// non-Sendable `WatchingItem` on the main actor).
+  private var waiters: [List: [CheckedContinuation<[WatchingItem], Error>]] = [:]
+  private var fetching: Set<List> = []
   /// Bumped on `invalidate` so a fetch that started before the clear cannot write back.
   private var generation = 0
 
@@ -57,38 +60,52 @@ final class WatchingListCache {
              force: Bool = false) async throws -> [WatchingItem] {
     if !force, let hit = cached(list) { return hit }
 
-    if let existing = inFlight[list] {
-      return try await existing.value
+    if fetching.contains(list) {
+      return try await withCheckedThrowingContinuation { cont in
+        waiters[list, default: []].append(cont)
+      }
     }
 
+    fetching.insert(list)
     let gen = generation
-    let task = Task { () throws -> [WatchingItem] in
+    do {
+      let items: [WatchingItem]
       switch list {
       case .movies:
-        return try await service.fetchWatchingMovies().items
+        items = try await service.fetchWatchingMovies().items
       case .serials(let subscribed):
-        return try await service.fetchWatchingSerials(subscribedOnly: subscribed).items
+        items = try await service.fetchWatchingSerials(subscribedOnly: subscribed).items
       }
-    }
-    inFlight[list] = task
-    do {
-      let items = try await task.value
-      inFlight[list] = nil
-      if generation == gen {
-        entries[list] = Entry(items: items, fetchedAt: Date())
+      fetching.remove(list)
+      guard generation == gen else {
+        // `invalidate` already cancelled waiters and cleared `fetching`.
+        return items
       }
+      entries[list] = Entry(items: items, fetchedAt: Date())
+      let pending = waiters.removeValue(forKey: list) ?? []
+      for waiter in pending { waiter.resume(returning: items) }
       return items
     } catch {
-      inFlight[list] = nil
+      fetching.remove(list)
+      guard generation == gen else { throw error }
+      let pending = waiters.removeValue(forKey: list) ?? []
+      for waiter in pending { waiter.resume(throwing: error) }
       throw error
     }
   }
 
-  /// Drop every list. Next caller refetches. In-flight work may still finish but
-  /// will not be cached (generation mismatch).
+  /// Drop every list. Next caller refetches. Cancels waiters coalesced on an in-flight
+  /// fetch so they do not receive a stale answer from a request that started earlier
+  /// (e.g. Home warming the shared cache before a unit test clears it).
   func invalidate() {
     generation += 1
     entries.removeAll()
+    fetching.removeAll()
+    let pending = waiters
+    waiters.removeAll()
+    for (_, waiters) in pending {
+      for waiter in waiters { waiter.resume(throwing: CancellationError()) }
+    }
   }
 
   func clear() {

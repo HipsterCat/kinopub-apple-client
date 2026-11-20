@@ -46,7 +46,7 @@ struct TVChannelsView: View {
         guard case .tile(let tile) = item,
               let id = Int(tile.id),
               let channel = model.channel(id: id),
-              TVChannelsModel.isPlayableStream(channel.stream) else { return }
+              !channel.stream.isEmpty else { return }
         navigationState.push(.livePlayer(channel, token: UUID()))
       },
       onRetry: { Task { await model.fetch() } },

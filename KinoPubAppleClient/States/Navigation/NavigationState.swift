@@ -214,8 +214,7 @@ final class NavigationState {
   /// Which array backs which tab. One table, because `push` and `popToRoot` used to
   /// carry a `switch` each over the same ten cases — two places to forget a tab in.
   /// `.settings` has no shared stack: tvOS Settings owns a local `NavigationPath`.
-  /// Shared with `RouteStack` so its `@Bindable` path can use the same key paths.
-  static func routeKeyPath(for tab: NavigationTabs) -> ReferenceWritableKeyPath<NavigationState, [Route]>? {
+  private static func routes(for tab: NavigationTabs) -> ReferenceWritableKeyPath<NavigationState, [Route]>? {
     switch tab {
     case .search: \.searchRoutes
     case .home: \.mainRoutes
@@ -233,10 +232,6 @@ final class NavigationState {
     case .genres: \.genresRoutes
     case .settings: nil
     }
-  }
-
-  private static func routes(for tab: NavigationTabs) -> ReferenceWritableKeyPath<NavigationState, [Route]>? {
-    routeKeyPath(for: tab)
   }
 
 #if os(tvOS)

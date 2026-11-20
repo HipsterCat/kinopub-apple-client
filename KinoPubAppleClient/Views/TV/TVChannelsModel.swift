@@ -29,6 +29,9 @@ final class TVChannelsModel: ObservableObject {
 
   private let contentService: VideoContentService
   private let epgService: EPGService
+  /// Disk file for the last successful `/v1/tv` answer. Injectable so unit tests use a
+  /// temp path and cannot pollute the app container's Caches (review on #123).
+  private let diskCacheURL: URL?
   private var fetchedAt: Date?
   /// Bumps when a newer `fetch` starts, so a guide asked for the previous list cannot
   /// land on top of the one this fetch is waiting for.
@@ -38,22 +41,30 @@ final class TVChannelsModel: ObservableObject {
 
   init(contentService: VideoContentService,
        epgService: EPGService = EPGServiceImpl.shared,
-       initialChannels: [TVChannel] = TVChannelCatalog.channels) {
+       initialChannels: [TVChannel] = TVChannelCatalog.channels,
+       diskCacheURL: URL? = TVChannelsModel.defaultDiskCacheURL) {
     self.contentService = contentService
     self.epgService = epgService
+    self.diskCacheURL = diskCacheURL
     self.channels = initialChannels
     self.isLoading = initialChannels.isEmpty
+  }
+
+  /// Default on-disk path under Caches. Tests pass a temp file instead.
+  static var defaultDiskCacheURL: URL? {
+    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("TVChannels", isDirectory: true)
+      .appendingPathComponent("v1-tv.json")
   }
 
   /// Tab entry: reuse a fresh list (memory, then disk); only hit `/v1/tv` when the TTL
   /// has expired. The guide still runs — it has its own cache.
   func load(now: Date = Date()) async {
-    if let fetchedAt, now.timeIntervalSince(fetchedAt) <= Self.freshness,
-       channels.contains(where: { Self.isPlayableStream($0.stream) }) {
+    if let fetchedAt, now.timeIntervalSince(fetchedAt) <= Self.freshness {
       await refreshGuide(for: channels)
       return
     }
-    if let cached = Self.loadCache(),
+    if let cached = loadDiskCache(),
        now.timeIntervalSince(cached.fetchedAt) <= Self.freshness,
        !cached.channels.isEmpty {
       channels = cached.channels
@@ -64,20 +75,6 @@ final class TVChannelsModel: ObservableObject {
       return
     }
     await fetch()
-  }
-
-  /// A stream URL the player can open — not empty, not a unit-test / fixture host.
-  /// XCTest writes `cdn.example` into the shared simulator Caches; loading that into the
-  /// app opened a live player that could not fail cleanly (Sasha, 2026-11-20).
-  static func isPlayableStream(_ stream: String) -> Bool {
-    guard let url = URL(string: stream), let host = url.host, !host.isEmpty else { return false }
-    let blocked: Set<String> = ["cdn.example", "cdn.example.com", "example.com", "fixture.invalid",
-                                "localhost", "127.0.0.1"]
-    if blocked.contains(host) { return false }
-    if host.hasSuffix(".example") || host.hasSuffix(".invalid") || host.hasSuffix(".test") {
-      return false
-    }
-    return true
   }
 
   func fetch() async {
@@ -99,8 +96,7 @@ final class TVChannelsModel: ObservableObject {
     do {
       // A channel with no stream cannot be played, so it is not offered. The baked
       // list keeps its order when the server sends that same set.
-      let fetched = try await contentService.fetchTVChannels()
-        .filter { Self.isPlayableStream($0.stream) }
+      let fetched = try await contentService.fetchTVChannels().filter { !$0.stream.isEmpty }
       let playable = TVChannelCatalog.matching(fetched) ?? fetched
       guard fetchGeneration == generation else { return }
       let sameIDs = playable.map(\.id) == shown.map(\.id)
@@ -109,9 +105,8 @@ final class TVChannelsModel: ObservableObject {
       let stamped = Date()
       fetchedAt = stamped
       isLoading = false
-      // Never persist fixture hosts — unit tests share this Caches folder on the simulator.
-      if playable.contains(where: { Self.isPlayableStream($0.stream) }) {
-        Self.saveCache(channels: playable, fetchedAt: stamped)
+      if !playable.isEmpty {
+        saveDiskCache(channels: playable, fetchedAt: stamped)
       }
       if sameIDs {
         await guideTask.value
@@ -159,32 +154,33 @@ final class TVChannelsModel: ObservableObject {
     let channels: [TVChannel]
   }
 
-  private static var cacheURL: URL? {
-    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-      .appendingPathComponent("TVChannels", isDirectory: true)
-      .appendingPathComponent("v1-tv.json")
-  }
-
-  private static func loadCache() -> CachedList? {
-    guard let url = cacheURL, let data = try? Data(contentsOf: url),
-          let cached = try? JSONDecoder().decode(CachedList.self, from: data) else { return nil }
-    let playable = cached.channels.filter { isPlayableStream($0.stream) }
-    guard !playable.isEmpty else {
-      // Drop a polluted file (e.g. XCTest wrote `cdn.example` into the app container).
+  private func loadDiskCache() -> CachedList? {
+    guard let url = diskCacheURL, let data = try? Data(contentsOf: url),
+          let cached = try? JSONDecoder().decode(CachedList.self, from: data),
+          !cached.channels.isEmpty else { return nil }
+    // Older XCTest runs wrote `cdn.example` into the shared app Caches. Tests now
+    // inject a temp URL; drop only the default path when it still has those hosts.
+    if url == Self.defaultDiskCacheURL,
+       cached.channels.contains(where: { Self.isLegacyFixtureHost($0.stream) }) {
       try? FileManager.default.removeItem(at: url)
       return nil
     }
-    return CachedList(fetchedAt: cached.fetchedAt, channels: playable)
+    return cached
   }
 
-  private static func saveCache(channels: [TVChannel], fetchedAt: Date) {
-    // XCTest shares the app container's Caches with the simulator run — never write there.
-    guard NSClassFromString("XCTestCase") == nil else { return }
-    guard let url = cacheURL else { return }
+  private func saveDiskCache(channels: [TVChannel], fetchedAt: Date) {
+    guard let url = diskCacheURL else { return }
     let directory = url.deletingLastPathComponent()
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let payload = CachedList(fetchedAt: fetchedAt, channels: channels)
     guard let data = try? JSONEncoder().encode(payload) else { return }
     try? data.write(to: url, options: .atomic)
+  }
+
+  /// Hosts that older unit tests wrote into the shared simulator Caches. Not a Select
+  /// denylist — only used to discard a polluted default on-disk file once.
+  private static func isLegacyFixtureHost(_ stream: String) -> Bool {
+    guard let host = URL(string: stream)?.host?.lowercased() else { return false }
+    return host == "cdn.example" || host.hasSuffix(".example") || host.hasSuffix(".invalid")
   }
 }

@@ -5,10 +5,16 @@
 
 import XCTest
 import KinoPubBackend
+import KinoPubUI
 @testable import KinoPub
 
 @MainActor
 final class WatchingListCacheTests: XCTestCase {
+
+  override func setUp() async throws {
+    try await super.setUp()
+    WatchingListCache.shared.clear()
+  }
 
   override func tearDown() async throws {
     WatchingListCache.shared.clear()

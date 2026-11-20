@@ -118,14 +118,22 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
   /// instead, from a snapshot of the page being left, once the new page is in place.
   private var shownCount = 0
   private var pendingSnapshot: UIImageView?
+  /// Direction of the transition that will finish in `didShow`. Depth alone is wrong:
+  /// title → related → Menu leaves depth 2, so `shownCount > 1` would play a push zoom
+  /// on a pop (review on #123).
+  private var pendingGrowing: Bool?
 
   func navigationController(_ navigationController: UINavigationController,
                             willShow viewController: UIViewController, animated: Bool) {
     let count = navigationController.viewControllers.count
     if count > shownCount {
+      pendingGrowing = true
       TabBarSlide.willPush(in: navigationController)
     } else if count < shownCount {
+      pendingGrowing = false
       TabBarSlide.willPop(in: navigationController, toRoot: count == 1)
+    } else {
+      pendingGrowing = nil
     }
     if !animated, shownCount > 0, count > shownCount,
        let leaving = navigationController.viewControllers.dropLast().last?.view,
@@ -141,13 +149,17 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
 
   func navigationController(_ navigationController: UINavigationController,
                             didShow viewController: UIViewController, animated: Bool) {
+    let growing = pendingGrowing
+    pendingGrowing = nil
     shownCount = navigationController.viewControllers.count
     (wrapped as? UINavigationControllerDelegate)?
       .navigationController?(navigationController, didShow: viewController, animated: animated)
     if shownCount > 1 { TabBarSlide.keepHidden(in: navigationController) }
     guard let snapshot = pendingSnapshot else { return }
     pendingSnapshot = nil
-    Zoom.play(snapshot: snapshot, over: navigationController.view, growing: shownCount > 1)
+    // Prefer the direction recorded in `willShow`; fall back to depth only if missing.
+    Zoom.play(snapshot: snapshot, over: navigationController.view,
+              growing: growing ?? (shownCount > 1))
   }
 
   /// SwiftUI answers the push through UIKit's private `animatorForOperation:` question,
@@ -178,7 +190,13 @@ private final class SwapAnimator: NSObject, UIViewControllerAnimatedTransitionin
   func animateTransition(using context: UIViewControllerContextTransitioning) {
     if let from = context.view(forKey: .from),
        let snapshot = Snapshot.imageView(of: from) {
-      snapshot.frame = from.frame
+      // Same space as the push path: navigation controller's view (container's superview).
+      // `from.frame` is in the transition container; both snapshots are added to the nav view.
+      if let navView = context.containerView.superview {
+        snapshot.frame = from.convert(from.bounds, to: navView)
+      } else {
+        snapshot.frame = from.frame
+      }
       snapshotTaken(snapshot)
     }
     if let to = context.view(forKey: .to), let toVC = context.viewController(forKey: .to) {
@@ -305,11 +323,11 @@ private enum Snapshot {
     let format = UIGraphicsImageRendererFormat()
     format.scale = view.traitCollection.displayScale
     format.opaque = false
-    // Always `layer.render` — `drawHierarchy(…, afterScreenUpdates: true)` inside a
-    // Core Animation commit (tab-bar slide / push) logs "drawing with afterScreenUpdates:YES
-    // inside CoreAnimation commit is not supported" and still hits hosting views.
-    let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { ctx in
-      view.layer.render(in: ctx.cgContext)
+    // `afterScreenUpdates: false` keeps materials (blur/glass) and avoids the
+    // "drawing with afterScreenUpdates:YES inside CoreAnimation commit" warning.
+    // Taken from `willShow` / the zero-duration swap animator, not mid-commit.
+    let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      _ = view.drawHierarchy(in: bounds, afterScreenUpdates: false)
     }
     let imageView = UIImageView(image: image)
     imageView.bounds = bounds

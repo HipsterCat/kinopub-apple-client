@@ -13,17 +13,46 @@ import KinoPubUI
 @MainActor
 final class TVChannelsModelTests: XCTestCase {
 
-  /// Host must pass `isPlayableStream` — `cdn.example` is rejected so tests cannot
-  /// pollute the simulator Caches folder the app also reads.
-  private nonisolated static func channel(_ id: Int, stream: String = "https://cdn.kinopub.mock/live.m3u8") -> TVChannel {
+  private var tempCacheURL: URL!
+
+  override func setUp() async throws {
+    try await super.setUp()
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("TVChannelsTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    tempCacheURL = dir.appendingPathComponent("v1-tv.json")
+  }
+
+  override func tearDown() async throws {
+    if let dir = tempCacheURL?.deletingLastPathComponent() {
+      try? FileManager.default.removeItem(at: dir)
+    }
+    tempCacheURL = nil
+    try await super.tearDown()
+  }
+
+  private nonisolated static func channel(_ id: Int, stream: String = "https://cdn.example/live.m3u8") -> TVChannel {
     TVChannel(id: id, title: "Channel \(id)", stream: stream)
+  }
+
+  private func makeModel(
+    tvChannels: @escaping @Sendable () -> [TVChannel] = { [] },
+    epgService: EPGService = EPGServiceImpl.shared,
+    initialChannels: [TVChannel] = TVChannelCatalog.channels
+  ) -> TVChannelsModel {
+    TVChannelsModel(
+      contentService: VideoContentServiceMock(tvChannels: tvChannels),
+      epgService: epgService,
+      initialChannels: initialChannels,
+      diskCacheURL: tempCacheURL
+    )
   }
 
   /// A channel with no stream cannot be played, so the grid never offers it.
   func testFetchDropsChannelsWithoutAStream() async {
-    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
+    let model = makeModel(tvChannels: {
       [Self.channel(1), Self.channel(2, stream: ""), Self.channel(3)]
-    }))
+    }, initialChannels: [])
     await model.fetch()
     XCTAssertEqual(model.channels.map(\.id), [1, 3])
     XCTAssertFalse(model.isLoading)
@@ -36,10 +65,10 @@ final class TVChannelsModelTests: XCTestCase {
   /// after the TTL (or `fetch`) hits the network again.
   func testRefreshOnlyWhenStale() async {
     let calls = Counter()
-    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
+    let model = makeModel(tvChannels: {
       calls.increment()
-      return [TVChannel(id: 1, title: "One", stream: "https://cdn.kinopub.mock/1.m3u8")]
-    }))
+      return [TVChannel(id: 1, title: "One", stream: "https://cdn.example/1.m3u8")]
+    }, initialChannels: [])
     await model.refreshIfStale()
     XCTAssertEqual(calls.value, 0, "nothing fetched yet is not stale — the first fetch is the page's")
     await model.fetch()
@@ -53,33 +82,30 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertEqual(TVChannelsModel.freshness, 60 * 60)
   }
 
-  func testRejectsFixtureStreamHosts() {
-    XCTAssertFalse(TVChannelsModel.isPlayableStream(""))
-    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://cdn.example/80.m3u8"))
-    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://cdn.example.com/80.m3u8"))
-    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://host.invalid/live.m3u8"))
-    XCTAssertTrue(TVChannelsModel.isPlayableStream("https://cdn.kinopub.mock/80.m3u8"))
-  }
-
-  func testFetchDropsFixtureHosts() async {
-    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
-      [Self.channel(1, stream: "https://cdn.example/1.m3u8"),
-       Self.channel(2, stream: "https://cdn.kinopub.mock/2.m3u8")]
-    }))
+  /// Tests write only to the injected temp file — never the app Caches folder.
+  func testDiskCacheUsesInjectedURL() async {
+    let model = makeModel(tvChannels: {
+      [Self.channel(9, stream: "https://cdn.example/9.m3u8")]
+    }, initialChannels: [])
     await model.fetch()
-    XCTAssertEqual(model.channels.map(\.id), [2])
+    XCTAssertTrue(FileManager.default.fileExists(atPath: tempCacheURL.path))
+    if let appCache = TVChannelsModel.defaultDiskCacheURL {
+      XCTAssertNotEqual(tempCacheURL.path, appCache.path)
+    }
   }
 
   /// The guide comes after the list and fills the second line: what is on air now, nothing
   /// for a channel the guide does not carry.
   func testScheduleFillsNowPlaying() async {
     let now = Date()
-    let model = TVChannelsModel(
-      contentService: VideoContentServiceMock(tvChannels: { [Self.channel(1), Self.channel(2)] }),
+    let model = makeModel(
+      tvChannels: { [Self.channel(1), Self.channel(2)] },
       epgService: EPGServiceMock { _ in
         [1: [EPGProgram(title: "Earlier", start: now.addingTimeInterval(-7_200), stop: now.addingTimeInterval(-600)),
              EPGProgram(title: "Now", start: now.addingTimeInterval(-600), stop: now.addingTimeInterval(600))]]
-      })
+      },
+      initialChannels: []
+    )
     await model.fetch()
     XCTAssertEqual(model.nowPlaying(channelID: 1, at: now)?.title, "Now")
     XCTAssertNil(model.nowPlaying(channelID: 1, at: now.addingTimeInterval(1_200)), "nothing after the schedule ends")
@@ -96,7 +122,7 @@ final class TVChannelsModelTests: XCTestCase {
   /// The tab opens on the whole baked grid, in the order the loaded list uses:
   /// Latin titles first, the Russian block at the bottom. No stream yet.
   func testOpensOnTheBakedGrid() {
-    let model = TVChannelsModel(contentService: VideoContentServiceMock())
+    let model = makeModel()
     XCTAssertEqual(model.channels.count, 51)
     XCTAssertEqual(model.channels.first?.title, "CBS Sports")
     XCTAssertEqual(model.channels.last?.title, "Футбол ТВ")
@@ -153,19 +179,20 @@ final class TVChannelsModelTests: XCTestCase {
     let asked = Streams()
     let shown = TVChannel(id: 7, title: "Матч! Футбол 3", stream: "")
     let now = Date()
-    let model = TVChannelsModel(
-      contentService: VideoContentServiceMock(tvChannels: {
-        [TVChannel(id: 7, title: "Матч! Футбол 3", stream: "https://cdn.kinopub.mock/7.m3u8")]
-      }),
+    let model = makeModel(
+      tvChannels: {
+        [TVChannel(id: 7, title: "Матч! Футбол 3", stream: "https://cdn.example/7.m3u8")]
+      },
       epgService: EPGServiceMock { channels in
         asked.record(channels.map(\.stream))
         return [7: [EPGProgram(title: "Now", start: now.addingTimeInterval(-600),
                                stop: now.addingTimeInterval(600))]]
       },
-      initialChannels: [shown])
+      initialChannels: [shown]
+    )
     await model.fetch()
     XCTAssertEqual(asked.value, [[""]])
-    XCTAssertEqual(model.channels.first?.stream, "https://cdn.kinopub.mock/7.m3u8")
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/7.m3u8")
     XCTAssertEqual(model.nowPlaying(channelID: 7, at: now)?.title, "Now")
   }
 
@@ -173,13 +200,13 @@ final class TVChannelsModelTests: XCTestCase {
   /// does not reshuffle when the list arrives.
   func testServerListKeepsTheBakedOrder() async {
     let reversed = TVChannelCatalog.channels.reversed().map {
-      TVChannel(id: $0.id, title: $0.title, logo: $0.logo, stream: "https://cdn.kinopub.mock/\($0.id).m3u8")
+      TVChannel(id: $0.id, title: $0.title, logo: $0.logo, stream: "https://cdn.example/\($0.id).m3u8")
     }
-    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: { reversed }),
-                                initialChannels: TVChannelCatalog.channels)
+    let model = makeModel(tvChannels: { reversed },
+                          initialChannels: TVChannelCatalog.channels)
     await model.fetch()
     XCTAssertEqual(model.channels.map(\.id), TVChannelCatalog.channels.map(\.id))
-    XCTAssertEqual(model.channels.first?.stream, "https://cdn.kinopub.mock/80.m3u8")
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/80.m3u8")
   }
 
   /// Live playback reports nothing, and has no Up Next or episodes: every gate in the
