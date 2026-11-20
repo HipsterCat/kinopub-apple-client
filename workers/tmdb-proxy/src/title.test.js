@@ -508,7 +508,7 @@ test("WESERV_DISABLED uses the legacy resize path", async () => {
 });
 
 
-test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", async () => {
+test("stamped thumbnail wraps the TMDB face / ladder URL through wsrv.nl as WebP", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       seasons: [{
@@ -523,7 +523,7 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
     fetched.push(String(url));
     return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
       status: 200,
-      headers: { "content-type": "image/jpeg" },
+      headers: { "content-type": "image/webp" },
     });
   };
   try {
@@ -531,12 +531,13 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
       ["300", "https://image.tmdb.org/t/p/w300/still.jpg"],
       ["320", "https://image.tmdb.org/t/p/w320_and_h180_face/still.jpg"],
       ["360", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
+      ["410", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["454", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["780", "https://image.tmdb.org/t/p/w780/still.jpg"],
       ["1280", "https://image.tmdb.org/t/p/w1280/still.jpg"],
       ["1920", "https://image.tmdb.org/t/p/w1920_and_h1080_face/still.jpg"],
     ];
-    for (const [w, upstream] of cases) {
+    for (const [w, ladder] of cases) {
       fetched.length = 0;
       const response = await handleImage(
         new Request(`https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=${w}&s=1&e=5`),
@@ -544,8 +545,14 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
         ctxSpy(),
       );
       assert.equal(response.status, 200, `w=${w}`);
-      assert.equal(response.headers.get("x-kinopub-image-via"), "legacy", `w=${w}`);
-      assert.equal(fetched[0], upstream, `w=${w}`);
+      assert.equal(response.headers.get("x-kinopub-image-via"), "weserv", `w=${w}`);
+      assert.equal(response.headers.get("content-type"), "image/webp");
+      const upstream = new URL(fetched[0]);
+      assert.equal(upstream.hostname, "wsrv.nl", `w=${w}`);
+      assert.equal(upstream.searchParams.get("url"), ladder, `w=${w}`);
+      assert.equal(upstream.searchParams.get("w"), w);
+      assert.equal(upstream.searchParams.get("q"), "80");
+      assert.equal(upstream.searchParams.get("output"), "webp");
     }
   } finally {
     globalThis.fetch = original;

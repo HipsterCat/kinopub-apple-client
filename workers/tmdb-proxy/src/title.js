@@ -1119,13 +1119,17 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   let fetched = null;
   let via = "legacy";
 
-  // Prefer wsrv.nl for logo / backdrop / poster: exact `w`, q=80, WebP (or
-  // `format=`). Thumbnails stay on the TMDB face-crop ladder — weserv cannot
-  // reproduce those crops. Kill switch: WESERV_DISABLED=1 (or true/yes).
-  if (weservEnabled(env) && stamp.kind !== "thumbnail") {
-    const origin = durableOrigin(asset);
-    if (origin) {
-      const transformed = weservURL(origin, imageRequest.w, format);
+  // Prefer wsrv.nl for every kind: q=80 + WebP (or `format=`). Logo / backdrop /
+  // poster feed the durable original so weserv can hit exact `w=` (incl. 2400).
+  // Thumbnails feed the TMDB ladder URL — face crops live in the size token
+  // (`w454_and_h254_face`, …); weserv only re-encodes that file, it does not
+  // invent the crop. Kill switch: WESERV_DISABLED=1 (or true/yes).
+  if (weservEnabled(env)) {
+    const source = stamp.kind === "thumbnail"
+      ? legacy
+      : durableOrigin(asset);
+    if (source) {
+      const transformed = weservURL(source, imageRequest.w, format);
       fetched = await fetch(transformed);
       if (fetched.ok) {
         via = "weserv";
