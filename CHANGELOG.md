@@ -1,12 +1,13 @@
 ## Unreleased
 
 - **CI on Xcode 26 GM:** project file is Xcode 14-compatible `project.pbxproj`
-  again (Xcode 26.6 opens it). CI and TestFlight run on `macos-26` with a
-  stable 26.x GM, not the scarce `xcode-27` pool. Full matrix only on
-  `pull_request` and push to `main`. Tests wait for compile; package tests
-  are one job; jobs have timeouts and a per-test 180s watchdog. iOS/macOS
-  deployment target is 26.5 (Xcode 26.6's SDK). Settings toggles use
-  `ToggleStyle.Configuration` so Release archives compile on 26.x.
+  again (Xcode 26.6 opens it). CI and TestFlight run on `macos-latest` (the
+  macos-26 arm64 image) with a stable 26.x GM, not the scarce `xcode-27` pool.
+  Full matrix only on `pull_request` and push to `main`. Tests wait for compile;
+  package tests are one job; jobs have timeouts and a per-test 180s watchdog.
+  iOS/macOS deployment target is 26.5 (Xcode 26.6's SDK). Settings toggles use
+  `ToggleStyle.Configuration`; `DownloadManager` is `final` so Swift 6 Release
+  archives compile.
 
 - **Performance measurement:** `OSSignposter` intervals under subsystem
   `com.soda.kinopub.perf` (artwork request/display, hero page and backdrop,
