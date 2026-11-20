@@ -489,9 +489,12 @@ struct SearchView: View {
       .macToolbarSearch()
       .navigationTitle("Search")
 #elseif os(iOS)
-      // App Store / Music / TV Search: field always under the large title — not pull-to-reveal
-      // (`.automatic`), which on iPhone with `.inlineLarge` often painted a dead, non-tappable
-      // drawer (KP-53). `navigationBarDrawer` is iOS-only; tvOS keeps `.automatic` below.
+      // Always-visible drawer under the title (App Store / Music / TV Search). Pull-to-reveal
+      // (`.automatic`) with `.inlineLarge` painted a dead field (KP-53 / #113). Keeping the
+      // drawer but still using the app-wide `.inlineLarge` left it painted and untappable on
+      // iPhone (KP-69) — phone Search uses a real `.large` title so the drawer can take hits;
+      // iPad keeps `.inlineLarge`. Settings search (#120) is a separate bottom-bar path and
+      // must not be regressed by this.
       .searchable(text: $searchFieldText,
                   placement: .navigationBarDrawer(displayMode: .always),
                   prompt: Text("Search"))
@@ -506,7 +509,10 @@ struct SearchView: View {
           }
         }
       }
-      .platformNavigationTitle(navigationTitleText)
+      .navigationTitle(navigationTitleText)
+      .toolbarTitleDisplayMode(
+        UIDevice.current.userInterfaceIdiom == .phone ? .large : .inlineLarge
+      )
 #else
       .searchable(text: $searchFieldText, placement: .automatic)
       .searchSuggestions {
