@@ -19,6 +19,8 @@ enum SettingsDetailRoute: Hashable {
   case featureFlags
   /// Settings › Integrations › one source.
   case integration(Integration)
+  /// Settings › Details › Items › one enrichment surface.
+  case detailsItem(DetailsEnrichmentItem)
   /// Playback › the ordered audio or subtitle languages.
   case languageList(PlaybackLanguageList.Kind)
 #if DEBUG

@@ -323,12 +323,33 @@ enum SettingsSearchCatalog {
           category: .appearance, route: .sections),
 
     // Details
+    .init("details-metadata-fetching", titleKey: "Metadata Fetching",
+          keywords: "metadata enrichment метаданные обогащение",
+          category: .details),
     .init("details-age-rating", titleKey: "Age rating badge",
           keywords: "age rating certification возраст",
-          category: .details),
-    .init("details-cast", titleKey: "Cast & crew",
+          category: .details, sectionKey: "Display"),
+    .init("details-spoilers-descriptions", titleKey: "Hide descriptions",
+          keywords: "spoilers spoilers описания спойлеры",
+          category: .details, sectionKey: "Spoilers"),
+    .init("details-spoilers-titles", titleKey: "Hide titles",
+          keywords: "spoilers titles названия спойлеры",
+          category: .details, sectionKey: "Spoilers"),
+    .init("details-spoilers-blur", titleKey: "Blur previews",
+          keywords: "spoilers blur кадры спойлеры",
+          category: .details, sectionKey: "Spoilers"),
+    .init("details-posters", titleKey: "Posters",
+          keywords: "posters постеры",
+          category: .details, route: .detailsItem(.posters), sectionKey: "Images"),
+    .init("details-cast", titleKey: "Cast & Team",
           keywords: "cast crew актёры состав",
-          category: .details),
+          category: .details, route: .detailsItem(.castAndTeam), sectionKey: "Info"),
+    .init("details-ratings", titleKey: "Ratings",
+          keywords: "ratings оценки",
+          category: .details, route: .detailsItem(.ratings), sectionKey: "Info"),
+    .init("details-skip", titleKey: "Skip timings",
+          keywords: "skip intro credits пропуск",
+          category: .details, route: .detailsItem(.skipTimings), sectionKey: "Info"),
 
     // Downloads
     .init("downloads-simultaneous", titleKey: "Simultaneous Downloads",
@@ -336,11 +357,11 @@ enum SettingsSearchCatalog {
           category: .downloads),
 
     // Notifications
-    .init("notifications-download", titleKey: "Download complete",
-          keywords: "notification download уведомление загрузка",
+    .init("notifications-badge", titleKey: "App Icon Badge",
+          keywords: "badge icon бейдж иконка уведомления",
           category: .notifications),
-    .init("notifications-episodes", titleKey: "New episodes",
-          keywords: "new episodes новые серии",
+    .init("notifications-badge-mode", titleKey: "Display the number of",
+          keywords: "unwatched episodes shows new непросмотренные серии",
           category: .notifications),
 
     // Network

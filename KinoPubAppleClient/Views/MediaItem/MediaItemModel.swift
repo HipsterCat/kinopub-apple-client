@@ -775,6 +775,10 @@ class MediaItemModel: ObservableObject {
         externalMetadataLoaded = true
       }
     }
+    guard DetailsEnrichmentPreferences.metadataFetchingEnabled else {
+      Logger.metadata.info("metadata skip kinopub=\(self.mediaItemId): Settings › Details off")
+      return
+    }
     guard let identity else {
       Logger.metadata.info("metadata skip kinopub=\(self.mediaItemId): no identity")
       return
