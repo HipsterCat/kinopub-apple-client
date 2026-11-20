@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer
+  `https://wsrv.nl/?url=…&w=&q=80&output=webp`, with legacy TMDB/tvoe/Kinopoisk
+  resize if weserv fails or `WESERV_DISABLED` is set. Logo / backdrop / poster
+  feed the durable original; **thumbnails** feed the TMDB ladder URL so face-crop
+  tokens (`w454_and_h254_face`, …) stay in `url=` and weserv only re-encodes.
+  Stamped answers are edge-cached 24h (`caches.default`);
+  `X-KinoPub-Image-Via: weserv|legacy`. Optional `format=webp|jpeg|png`.
+  MacBook backdrop `w=` cap **1920 → 2400**. Free-tier care: ~2500 uncached /
+  10 min / IP — rely on edge + Nuke coalesce, not a second client-side wrap.
+
 - **CI on Xcode 26 GM:** project file is Xcode 14-compatible `project.pbxproj`
   again (Xcode 26.6 opens it). CI and TestFlight run on `macos-latest` (the
   macos-26 arm64 image) with a stable 26.x GM, not the scarce `xcode-27` pool.

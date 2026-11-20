@@ -285,7 +285,7 @@ const SOURCE_ORDER = {
 export async function handleImage(request, env, ctx) {
   const url = new URL(request.url);
   const stamped = parseStampedPath(url.pathname);
-  if (stamped) return proxyStamped(request, url, env, stamped);
+  if (stamped) return proxyStamped(request, url, env, ctx, stamped);
   const route = parseImagePath(url.pathname);
   if (!route) return imageNotFound(QUERY_HINT);
   return handleImageQuery(request, url, env, ctx, route);
@@ -309,6 +309,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
     lang: route.kind === "backdrop" ? null : preferredLang(request),
     s: readIndex(url, "s"),
     e: readIndex(url, "e"),
+    format: readFormatQuery(url),
   };
   if (imageRequest.kind === "thumbnail" && (imageRequest.s == null || imageRequest.e == null)) {
     return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
@@ -1066,6 +1067,8 @@ function stampedURL(url, imageRequest, asset, rev) {
   if (imageRequest.w != null) params.set("w", String(imageRequest.w));
   if (imageRequest.s != null) params.set("s", String(imageRequest.s));
   if (imageRequest.e != null) params.set("e", String(imageRequest.e));
+  // Optional override; stamped proxy defaults to WebP via weserv when omitted.
+  if (imageRequest.format) params.set("format", imageRequest.format);
   if (rev) params.set("v", String(rev));
   const qs = params.toString();
   return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
@@ -1081,9 +1084,19 @@ function parseStampedPath(pathname) {
   return { kind: parts[1], id: parts[4], lang: parts[5] };
 }
 
-async function proxyStamped(request, url, env, stamp) {
+async function proxyStamped(request, url, env, ctx, stamp) {
   const id = numericId(stamp.id);
   if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+
+  // Edge-cache the stamped answer so repeat Home/detail hits never re-tax
+  // wsrv.nl. Key is the stamped URL (kind/id/lang/file + w/s/e/format).
+  const cache = edgeCache();
+  const cacheKey = cache ? new Request(url.toString(), { method: "GET" }) : null;
+  if (cache && cacheKey) {
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+  }
+
   const stored = await readDocument(env, id);
   const lang = stamp.lang === "und" ? null : stamp.lang;
   const imageRequest = {
@@ -1099,17 +1112,122 @@ async function proxyStamped(request, url, env, stamp) {
     ? selectQueryAsset(stored, imageRequest, hints)
     : assetInLang(stored, stamp.kind, lang, hints);
   if (asset && langTag(asset.lang) !== stamp.lang) asset = null;
-  const upstream = asset && resizeAsset(asset, stamp.kind, imageRequest.w);
-  if (!upstream) return imageNotFound(missHint({ ...imageRequest, lang }));
-  const fetched = await fetch(upstream);
+  if (!asset) return imageNotFound(missHint({ ...imageRequest, lang }));
+
+  const format = readOutputFormat(url, stamp.kind);
+  const legacy = resizeAsset(asset, stamp.kind, imageRequest.w);
+  let fetched = null;
+  let via = "legacy";
+
+  // Prefer wsrv.nl for logo / backdrop / poster: exact `w`, q=80, WebP (or
+  // `format=`). Thumbnails stay on the TMDB face-crop ladder — weserv cannot
+  // reproduce those crops. Kill switch: WESERV_DISABLED=1 (or true/yes).
+  if (weservEnabled(env) && stamp.kind !== "thumbnail") {
+    const origin = durableOrigin(asset);
+    if (origin) {
+      const transformed = weservURL(origin, imageRequest.w, format);
+      fetched = await fetch(transformed);
+      if (fetched.ok) {
+        via = "weserv";
+      } else {
+        fetched = null;
+      }
+    }
+  }
+
+  if (!fetched) {
+    if (!legacy) return imageNotFound(missHint({ ...imageRequest, lang }));
+    fetched = await fetch(legacy);
+    via = "legacy";
+  }
   if (!fetched.ok) return imageNotFound(missHint(imageRequest));
+
   const headers = new Headers();
   const type = fetched.headers.get("content-type");
-  headers.set("Content-Type", type || (stamp.kind === "logo" ? "image/png" : "image/jpeg"));
+  headers.set(
+    "Content-Type",
+    type || defaultContentType(stamp.kind, format, via),
+  );
   headers.set("Cache-Control", "public, max-age=86400");
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Content-Language", stamp.lang);
-  return new Response(fetched.body, { status: 200, headers });
+  headers.set("X-KinoPub-Image-Via", via);
+  const response = new Response(fetched.body, { status: 200, headers });
+  if (cache && cacheKey && ctx?.waitUntil) {
+    ctx.waitUntil(cache.put(cacheKey, response.clone()));
+  }
+  return response;
+}
+
+/** Cloudflare `caches.default`, or null under node --test. */
+function edgeCache() {
+  try {
+    return typeof caches !== "undefined" ? caches.default : null;
+  } catch {
+    return null;
+  }
+}
+
+function weservEnabled(env) {
+  const raw = String(env?.WESERV_DISABLED ?? "").trim().toLowerCase();
+  return !(raw === "1" || raw === "true" || raw === "yes");
+}
+
+/** Durable CDN / original URL — not a ladder token or tvoe `_next/image` URL. */
+function durableOrigin(asset) {
+  if (!asset?.url) return null;
+  const cdn = tvoeCdn(asset.url);
+  if (cdn) return cdn;
+  if (asset.source === "tmdb" || asset.url.includes("image.tmdb.org")) {
+    const match = asset.url.match(/\/t\/p\/[^/]+(\/.+)$/);
+    if (!match) return safeHttpURL(asset.url);
+    // TMDB serves the same logo as PNG when the path ends in .png (SVG breaks
+    // image views). Always ask for the original; weserv applies `w=`.
+    const path = match[1].replace(/\.svg$/i, ".png");
+    return `https://image.tmdb.org/t/p/original${path}`;
+  }
+  if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
+    return kinopoiskSized(asset.url, MAX_WIDTH);
+  }
+  if (asset.source === "kinopub" || isKinopubHost(asset.url)) return null;
+  return safeHttpURL(asset.url);
+}
+
+/**
+ * Free public transform CDN. Limit is ~2500 *uncached* requests / 10 min /
+ * visitor IP (https://wsrv.nl/faq/). Cached hits (theirs + our edge) do not
+ * count. We coalesce via `caches.default` on the stamped URL and fall back
+ * to `resizeAsset` when weserv fails or is disabled.
+ */
+function weservURL(source, w, output = "webp") {
+  const params = new URLSearchParams();
+  params.set("url", source);
+  params.set("output", output);
+  params.set("q", "80");
+  if (w != null && w > 0) {
+    params.set("w", String(Math.min(w, MAX_WIDTH)));
+  }
+  return `https://wsrv.nl/?${params.toString()}`;
+}
+
+/** `format=` on the stamped URL, or default WebP. */
+function readOutputFormat(url, _kind) {
+  return readFormatQuery(url) || "webp";
+}
+
+/** Optional `format=webp|jpeg|jpg|png` on the query or stamped URL. */
+function readFormatQuery(url) {
+  const raw = (url.searchParams.get("format") || "").trim().toLowerCase();
+  if (raw === "webp") return "webp";
+  if (raw === "jpeg" || raw === "jpg") return "jpg";
+  if (raw === "png") return "png";
+  return null;
+}
+
+function defaultContentType(kind, format, via) {
+  if (via === "weserv" || format === "webp") return "image/webp";
+  if (format === "png" || kind === "logo") return "image/png";
+  return "image/jpeg";
 }
 
 function assetInLang(document, kind, lang, hints) {

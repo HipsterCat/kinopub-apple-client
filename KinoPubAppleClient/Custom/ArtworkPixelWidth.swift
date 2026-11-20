@@ -21,7 +21,9 @@ import CoreGraphics
 @MainActor
 enum ArtworkPixelWidth {
   /// Full-screen textless backdrop: the screen's native width, capped on MacBook-class
-  /// panels so a ~1400 pt window does not pull a 3456 px / ~2 MB JPEG (Sasha, KP-32).
+  /// panels so a ~1400 pt window does not pull a 3456 px original (Sasha, KP-32).
+  /// Cap is **2400** once the worker serves via wsrv.nl WebP (KP-68) — still well
+  /// under native Retina, enough for a sharp banner on a laptop Retina strip.
   static var backdrop: Int {
 #if os(macOS)
     macBackdrop
@@ -63,12 +65,14 @@ enum ArtworkPixelWidth {
   }()
 
 #if os(macOS)
-  /// Worker `w=` for backdrops on Mac. MacBook panels (~286–360 mm wide) cap at 1920;
+  /// Worker `w=` for backdrops on Mac. MacBook panels (~286–360 mm wide) cap at 2400;
   /// iMac / Studio-class (≥ ~400 mm) keep native Retina width so a large desktop is not starved.
+  private static let macBookBackdropCap = 2400
+
   private static let macBackdrop: Int = {
-    guard let screen = NSScreen.main else { return min(Self.screen, 1920) }
+    guard let screen = NSScreen.main else { return min(Self.screen, macBookBackdropCap) }
     let native = Int(max(screen.frame.width, screen.frame.height) * screen.backingScaleFactor)
-    return isMacBookClassDisplay(screen) ? min(native, 1920) : native
+    return isMacBookClassDisplay(screen) ? min(native, macBookBackdropCap) : native
   }()
 
   /// Physical panel width separates laptops from desktop displays better than pixel count
