@@ -4,25 +4,28 @@ name: CI
 # Fastlane / docs / TestFlight yaml → nothing. xcassets / xcstrings →
 # compile only (a broken catalog still fails xcodebuild). Swift / pbxproj
 # → compile + UI tests. `workflow_dispatch` still runs everything.
+#
+# Full matrix only on pull_request, push to main, and workflow_dispatch.
+# Agent branches (`cursor/**`, `claude/**`) get the same jobs from the PR
+# event; a second run on push filled the runner queue and cancelled main.
 
 on:
   push:
-    # Agent branches too, not only main: nothing else compiles them. A player change sat
-    # on `claude/**` and broke iOS *and* tvOS in ways only xcodebuild could see, because a
-    # branch push ran no job at all and no PR was open yet. Ordinary feature branches keep
-    # getting their run from `pull_request`.
-    branches: [main, 'claude/**', 'cursor/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let a main run finish: frequent pushes used to cancel queued jobs before
+  # they ever started. PRs still cancel the previous attempt on the same ref.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   filter:
     name: What changed
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       compile: ${{ steps.out.outputs.compile }}
       test_app: ${{ steps.out.outputs.test_app }}
@@ -38,6 +41,9 @@ jobs:
           filters: |
             compile:
               - 'KinoPubAppleClient/**'
+              - 'KinoPubAppleClientTests/**'
+              - 'KinoPubAppleClientUITests/**'
+              - 'KinoPubTopShelf/**'
               - 'Packages/**'
               - 'KinoPubAppleClient.xcodeproj/**'
               - '.github/workflows/ci.yml'
@@ -79,7 +85,8 @@ jobs:
     name: Build (${{ matrix.platform }})
     needs: filter
     if: needs.filter.outputs.compile == 'true'
-    runs-on: xcode-27
+    runs-on: macos-26
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +100,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 27
-        run: .github/scripts/select-xcode-27.sh
+      - name: Select Xcode 26
+        run: .github/scripts/select-xcode-26.sh
 
       - name: Toolchain versions
         run: |
@@ -132,9 +139,10 @@ jobs:
   # that is what catches a symbol fenced to one platform and used on another.
   test-app:
     name: Test app (${{ matrix.platform }})
-    needs: filter
-    if: needs.filter.outputs.test_app == 'true'
-    runs-on: xcode-27
+    needs: [filter, build]
+    if: needs.filter.outputs.test_app == 'true' && needs.build.result == 'success'
+    runs-on: macos-26
+    timeout-minutes: 90
     # Write only for the screenshot ref below.
     permissions:
       contents: write
@@ -149,8 +157,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 27
-        run: .github/scripts/select-xcode-27.sh
+      - name: Select Xcode 26
+        run: .github/scripts/select-xcode-26.sh
 
       - name: Ensure Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain || echo "bundled with this Xcode"
@@ -205,6 +213,8 @@ jobs:
             -scheme KinoPubAppleClient \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -skipMacroValidation \
+            -test-timeouts-enabled YES \
+            -maximum-test-execution-time-allowance 180 \
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee /tmp/test-app.log
           then
@@ -260,19 +270,16 @@ jobs:
           python3 .github/scripts/ips-summary.py "${reports[@]}"
 
   test-packages:
-    name: Test ${{ matrix.package }}
-    needs: filter
-    if: needs.filter.outputs.packages == 'true'
-    runs-on: xcode-27
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [KinoPubKit, KinoPubUI, KinoPubBackend, KinoPubLogging, KinoPubMedia]
+    name: Test packages
+    needs: [filter, build]
+    if: needs.filter.outputs.packages == 'true' && needs.build.result == 'success'
+    runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 27
-        run: .github/scripts/select-xcode-27.sh
+      - name: Select Xcode 26
+        run: .github/scripts/select-xcode-26.sh
 
       - name: Toolchain versions
         run: |
@@ -287,10 +294,15 @@ jobs:
       - name: swift test
         run: |
           set -o pipefail
-          if ! swift test --package-path Packages/${{ matrix.package }} 2>&1 | tee /tmp/test.log
-          then
-            grep -E "error:|error " /tmp/test.log | sort -u | head -15 | while IFS= read -r line; do
-              echo "::error::${{ matrix.package }}: ${line}"
-            done
-            exit 1
-          fi
+          status=0
+          for package in KinoPubKit KinoPubUI KinoPubBackend KinoPubLogging KinoPubMedia KinoPubMetadata; do
+            echo "::group::swift test --package-path Packages/${package}"
+            if ! swift test --package-path Packages/${package} 2>&1 | tee /tmp/test-${package}.log; then
+              grep -E "error:|error " /tmp/test-${package}.log | sort -u | head -15 | while IFS= read -r line; do
+                echo "::error::${package}: ${line}"
+              done
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"

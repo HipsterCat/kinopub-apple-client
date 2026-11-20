@@ -5,20 +5,17 @@ App Store Connect. Not a public beta and not an App Store submission. Sasha inst
 on Apple TV from TestFlight.
 
 The workflow is `.github/workflows/testflight.yml`. Fastlane lives in `fastlane/`.
-Upload jobs run on GitHub's `xcode-27` image (Xcode 26 cannot open
-`KinoPubAppleClient.xcodeproj/project.xcproj`). `.github/scripts/select-xcode-27.sh`
-picks a 27.x GM, then an RC, then a beta — `sort -V | tail -1` prefers
-`Xcode_27.2_beta_2` over `Xcode_27.2_Release_Candidate`, and App Store Connect
-rejects a 27.2 beta (`Unsupported SDK or Xcode version`). Signing patches that
-JSON5 file for the app target only; archives are `xcodebuild archive` /
-`exportArchive`. Fastlane 2.240+ is required: Xcode 27's altool can log
+Upload jobs run on GitHub's `macos-26` image with Xcode 26.x GM
+(`.github/scripts/select-xcode-26.sh`). App Store Connect rejects beta Xcodes;
+do not move these jobs onto `xcode-27`. Signing patches the app / Top Shelf
+target keys in `project.pbxproj`; archives are `xcodebuild archive` /
+`exportArchive`. Do not pass `CODE_SIGN_*` as xcargs — those leak onto SPM
+package targets. Fastlane 2.240+ is required: altool can log
 `CDUploaderStateInfoResumeFilePath` after `UPLOAD SUCCEEDED`, and 2.238 treated
-that as failure (fastlane/fastlane#30130). The Fastlane `xcodeproj` gem and gym
-both look for `project.pbxproj`, which this repo does not have — do not bring
-them back.
+that as failure (fastlane/fastlane#30130).
 
 A secrets-free check is `.github/workflows/testflight-lint.yml` (`fastlane ios lint`
-plus `xcodebuild -list`). It runs on Fastlane / xcproj changes without Apple
+plus `xcodebuild -list`). It runs on Fastlane / pbxproj changes without Apple
 keys.
 
 ## When it runs
@@ -29,7 +26,7 @@ keys.
 | **Cron** (`06:23 UTC`) | Same rule. Best-effort only — keep it, do not rely on it |
 | **Actions → TestFlight → Run workflow** | Anytime, if secrets are present. Pick iOS / tvOS / macOS / all |
 
-At most **one successful automatic upload per UTC day**. A failed attempt does not consume the day; `workflow_dispatch` is not capped. Fastlane/xcproj lint on every change is still `.github/workflows/testflight-lint.yml`.
+At most **one successful automatic upload per UTC day**. A failed attempt does not consume the day; `workflow_dispatch` is not capped. Fastlane/pbxproj lint on every change is still `.github/workflows/testflight-lint.yml`.
 
 The build number is **not** committed. The job asks App Store Connect for the latest
 TestFlight number on iOS, tvOS and macOS and uses that max + 1, so two uploads cannot

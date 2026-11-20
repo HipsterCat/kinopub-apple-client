@@ -1,4 +1,4 @@
-# Secrets-free TestFlight checks. Catches xcproj / Fastlane layout mistakes
+# Secrets-free TestFlight checks. Catches pbxproj / Fastlane layout mistakes
 # without App Store Connect keys, a p12, or a full archive.
 #
 # The compile jobs in ci.yml skip Fastlane-only changes on purpose. This
@@ -8,7 +8,7 @@ name: TestFlight lint
 
 on:
   push:
-    branches: [main, 'claude/**', 'cursor/**']
+    branches: [main]
     paths:
       - 'fastlane/**'
       - 'Gemfile'
@@ -16,7 +16,7 @@ on:
       - '.github/workflows/testflight.yml'
       - '.github/workflows/testflight-lint.yml'
       - '.github/scripts/testflight-gate.sh'
-      - '.github/scripts/select-xcode-27.sh'
+      - '.github/scripts/select-xcode-26.sh'
       - 'KinoPubAppleClient.xcodeproj/**'
       - 'KinoPubAppleClient/Resources/whats-new.json'
       - 'KinoPubAppleClient/Info.plist'
@@ -28,7 +28,7 @@ on:
       - '.github/workflows/testflight.yml'
       - '.github/workflows/testflight-lint.yml'
       - '.github/scripts/testflight-gate.sh'
-      - '.github/scripts/select-xcode-27.sh'
+      - '.github/scripts/select-xcode-26.sh'
       - 'KinoPubAppleClient.xcodeproj/**'
       - 'KinoPubAppleClient/Resources/whats-new.json'
       - 'KinoPubAppleClient/Info.plist'
@@ -46,6 +46,7 @@ jobs:
   fastlane:
     name: Fastlane lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -66,13 +67,14 @@ jobs:
         run: bundle exec fastlane ios lint
 
   xcode-opens-project:
-    name: Xcode 27 opens xcproj
-    runs-on: xcode-27
+    name: Xcode opens pbxproj
+    runs-on: macos-26
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 27
-        run: .github/scripts/select-xcode-27.sh
+      - name: Select Xcode 26
+        run: .github/scripts/select-xcode-26.sh
 
       - name: xcodebuild -list
         run: xcodebuild -list -project KinoPubAppleClient.xcodeproj
