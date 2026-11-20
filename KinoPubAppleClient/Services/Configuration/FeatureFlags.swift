@@ -86,6 +86,17 @@ enum FeatureFlags {
   /// `testSearchTabDownFromTabBar`.
   static var tvUIKitSearch: Bool { FeatureFlag.tvUIKitSearch.isEnabled }
 
+  /// tvOS Search with the grid keyboard (Settings › General › Keyboard): **on**, the
+  /// keyboard stays on the left while focus is in the results, and the tab bar and the
+  /// search field stay put while the results scroll (Sasha, 2026-11-20). **Off** is the
+  /// behaviour Apple's apps have: the keyboard slides away with focus in the results and
+  /// the page takes the whole width, and the bar and field leave with the scroll.
+  ///
+  /// Read inside `KinoPubUI` (`TVSearchChrome.keepsGridKeyboardVisible`), handed over at
+  /// launch — the search stack is built and pre-warmed then, so this applies at launch.
+  /// Switched in Settings › Experiments on the TV.
+  static var gridKeyboardAlwaysVisible: Bool { FeatureFlag.gridKeyboardAlwaysVisible.isEnabled }
+
   /// tvOS detail page: everything under the hero is **one** `UICollectionView`
   /// (`TVEmbeddedPage`), laid out in columns — Ratings | Reviews, Director | Cast,
   /// Similar, Stills | Facts, Type · Year · Country · Genre, Collections, then
@@ -219,6 +230,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case tvUIKitPosters
   case tvPageSections
   case tvUIKitSearch
+  case gridKeyboardAlwaysVisible
   case tvDetailSections
   case seriesDetailsWithoutLinks
   case heroAmbientTrailer
@@ -250,6 +262,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: true
     case .tvPageSections: true
     case .tvUIKitSearch: true
+    case .gridKeyboardAlwaysVisible: true
     case .tvDetailSections: true
     case .seriesDetailsWithoutLinks: false
     case .heroAmbientTrailer: false
@@ -281,6 +294,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: "UIKit poster shelves"
     case .tvPageSections: "One collection view per page"
     case .tvUIKitSearch: "UIKit Search"
+    case .gridKeyboardAlwaysVisible: "Grid keyboard always visible"
     case .tvDetailSections: "Detail sections in columns"
     case .seriesDetailsWithoutLinks: "Series pages without links (nolinks=1)"
     case .heroAmbientTrailer: "Muted trailer behind the hero"
@@ -312,6 +326,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: "TVUIKit cells in a recycling collection view; off is SwiftUI cards."
     case .tvPageSections: "Watch Now, Movies and Series as one UICollectionView each."
     case .tvUIKitSearch: "UISearchContainerViewController with native suggestions; off is .searchable."
+    case .gridKeyboardAlwaysVisible: "Search with the grid keyboard: it stays on the left with focus in the results, and the tab bar and field stay put. Off: the keyboard slides away and the bar scrolls off, as in Apple's apps."
     case .tvDetailSections: "The detail page under the hero as one UICollectionView in columns; off is the SwiftUI stack."
     case .seriesDetailsWithoutLinks: "Lighter series payload; each episode's links fetched on play."
     case .heroAmbientTrailer: "A second, muted AVPlayer behind the detail hero."
@@ -337,7 +352,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// does nothing.
   var isRelevantHere: Bool {
     switch self {
-    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
+    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .gridKeyboardAlwaysVisible, .tvDetailSections,
+         .tvOSSidecarSubtitles,
          .playerTabsPlatter, .trailerInfoPanel, .rivuletSeasonRail:
 #if os(tvOS)
       true
@@ -367,7 +383,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var appliesAtLaunch: Bool {
     switch self {
     case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
-         .tvUIKitSearch, .combinedRating, .macSidebar, .macLegacySearchChrome:
+         .tvUIKitSearch, .gridKeyboardAlwaysVisible, .combinedRating, .macSidebar, .macLegacySearchChrome:
       true
     default:
       false
@@ -433,6 +449,9 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     migrateTitleCardSwitch()
     _ = launchValues
     RatingFeature.combinedEnabled = FeatureFlag.combinedRating.isEnabled
+#if os(tvOS)
+    TVSearchChrome.keepsGridKeyboardVisible = FeatureFlag.gridKeyboardAlwaysVisible.isEnabled
+#endif
   }
 }
 

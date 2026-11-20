@@ -34,6 +34,20 @@ public enum TVSearchChrome {
   /// real tab. `nil` until Search has appeared once.
   public private(set) static var lastFirstFrameMilliseconds: Double?
 
+  /// The grid keyboard (Settings › General › Keyboard) stays on the left while focus is
+  /// in the results, and the tab bar and the search field stay put while they scroll.
+  /// `false` is the system's own Search: the keyboard slides away and the page takes the
+  /// screen's width, the bar and the field leave with the scroll. The app sets this from
+  /// its feature flag before the first `prewarm()`; a change drops a waiting stack, and a
+  /// stack already on screen keeps the behaviour it was built with.
+  public static var keepsGridKeyboardVisible = true {
+    didSet {
+      guard keepsGridKeyboardVisible != oldValue, let prepared else { return }
+      unpark(prepared)
+      self.prepared = nil
+    }
+  }
+
   private static var prepared: Stack?
   private static var parkingWindow: UIWindow?
   private static var firstFrameOrigin: CFTimeInterval?
@@ -69,9 +83,12 @@ public enum TVSearchChrome {
     results.remembersFocus = false
     results.spansScreenWidth = true
     results.returnsToTopOnMenu = true
+    results.clipsAboveContentBesideGridKeyboard = keepsGridKeyboardVisible
     let search = UISearchController(searchResultsController: results)
     search.obscuresBackgroundDuringPresentation = false
-    search.hidesGridKeyboardWhenUnfocused()
+    if !keepsGridKeyboardVisible {
+      search.hidesGridKeyboardWhenUnfocused()
+    }
     let container = UISearchContainerViewController(searchController: search)
     let host = TVSearchPageHostViewController(searchController: search,
                                               searchContainer: container,

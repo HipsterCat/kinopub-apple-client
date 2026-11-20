@@ -303,6 +303,18 @@ public final class TVPageCollectionViewController: UIViewController {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
 
+  /// Search whose grid keyboard stays on screen (`TVSearchChrome.keepsGridKeyboardVisible`):
+  /// the search container then keeps the tab bar, the field and the suggestion row where
+  /// they are, and the results scroll up beneath them — the collection reaches the window
+  /// top (`extendToWindow`) and nothing clips it, so posters ran behind the suggestions and
+  /// the tab bar. While the keyboard narrows the host, the page's view is masked above the
+  /// line where its content starts at rest, and only above it: sideways and below, cards
+  /// still paint past the collection (2026-11-20).
+  public var clipsAboveContentBesideGridKeyboard = false {
+    didSet { if isViewLoaded { view.setNeedsLayout() } }
+  }
+  private var topClip: CALayer?
+
   /// The collection covers the whole window even when its controller does not. A
   /// collection view keeps a cell only while it is inside its *bounds*; the search
   /// container lays its results out from y = 157 (under the field), so a card scrolling
@@ -321,6 +333,7 @@ public final class TVPageCollectionViewController: UIViewController {
     // keyboard hid fought the search container and hung (`testGridKeyboardHidesWhileResultsHaveFocus`).
     // A narrowed host keeps the collection a full row wide; the screen clips the rest.
     let pinned = pinSpanningWidth()
+    updateTopClip(besideGridKeyboard: pinned)
     let trailing = pinned ? windowExtension[2].constant : CGFloat(0)
     let wanted = [-max(frame.minY, 0), CGFloat(0), trailing, -max(window.bounds.maxY - frame.maxY, 0)]
     var changed = false
@@ -329,6 +342,35 @@ public final class TVPageCollectionViewController: UIViewController {
       changed = true
     }
     if changed { updateContentInsets() }
+  }
+
+  /// `clipsAboveContentBesideGridKeyboard`: a mask on the page's own view (it does not
+  /// scroll) that starts where the content starts at rest — the collection's top plus its
+  /// adjusted inset, which steps over the suggestion row — and reaches far past every
+  /// other edge.
+  private func updateTopClip(besideGridKeyboard: Bool) {
+    guard clipsAboveContentBesideGridKeyboard, besideGridKeyboard else {
+      if topClip != nil {
+        view.layer.mask = nil
+        topClip = nil
+      }
+      return
+    }
+    let clip = topClip ?? CALayer()
+    if topClip == nil {
+      clip.backgroundColor = UIColor.black.cgColor
+      topClip = clip
+      view.layer.mask = clip
+    }
+    let top = collectionView.frame.minY + collectionView.adjustedContentInset.top
+    let reach: CGFloat = 4000
+    let frame = CGRect(x: -reach, y: top, width: view.bounds.width + 2 * reach,
+                       height: view.bounds.height - top + reach)
+    guard clip.frame != frame else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    clip.frame = frame
+    CATransaction.commit()
   }
 
   /// Keeps the collection as wide as the full row while the host is narrower than
@@ -1283,6 +1325,9 @@ public final class TVPageCollectionViewController: UIViewController {
     // A retry button is the landing spot. An empty state with no button is not —
     // the header chips (or the sidebar) keep the remote.
     if !statusView.isHidden, statusView.claimsFocus { return [statusView] }
+    // While this page already owns focus, do not keep preferring the collection —
+    // that trapped Up from the Home hero into a reject instead of the tab bar.
+    if ownsFocus { return super.preferredFocusEnvironments }
     return [collectionView]
   }
 
@@ -1335,18 +1380,38 @@ public final class TVPageCollectionViewController: UIViewController {
   /// consumed; `false` passes through to the tab bar.
   @discardableResult
   public func returnToTopRow() -> Bool {
-    guard isBelowTopRow, topIndexPath != nil else { return false }
+    guard isBelowTopRow, let top = topIndexPath else { return false }
     wantsTopFocus = true
+    handoffPath = nil
     collectionView.remembersLastFocusedIndexPath = false
     lastPublishedBelowTop = false
     onBelowTopRowChange?(false)
     // The collection holds focus and its delegate names the top row. Not this controller:
     // an ancestor's request wins over the collection's, and where the controller does not
     // claim focus (Search) it falls through to its view, so the engine picked the nearest
-    // visible card — one row up per press (2026-10-25).
+    // visible card — one row up per press (2026-10-25). The focus engine scrolls — no
+    // hand `contentOffset` settle (banner/hero rule).
     collectionView.setNeedsFocusUpdate()
     collectionView.updateFocusIfNeeded()
+    // Caption lit without tile scale: the engine sometimes parks on the collection
+    // itself. One async retry (no hand scroll) is enough for the cell to own focus.
+    if focusedPath != top || !cellOwnsFocus(at: top) {
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.wantsTopFocus || self.focusedPath != top else { return }
+        self.wantsTopFocus = true
+        self.collectionView.setNeedsFocusUpdate()
+        self.collectionView.updateFocusIfNeeded()
+      }
+    }
     return true
+  }
+
+  /// True when the focus leaf is the cell at `path` (not the collection wrapping it).
+  private func cellOwnsFocus(at path: IndexPath) -> Bool {
+    guard let cell = collectionView.cellForItem(at: path),
+          let item = UIFocusSystem.focusSystem(for: collectionView)?.focusedItem as? UIView
+    else { return false }
+    return item === cell || item.isDescendant(of: cell)
   }
 
   public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

@@ -27,10 +27,10 @@ struct PlayerView: View {
   @Environment(NavigationState.self) private var navigationState
 #endif
   @Environment(\.dismiss) private var dismiss
+  @Environment(ErrorHandler.self) private var errorHandler
   @State private var showsFailureAlert = false
 #if os(macOS)
   @Environment(\.dismissWindow) private var dismissWindow
-  @Environment(ErrorHandler.self) private var errorHandler
 #endif
 
   init(manager: PlayerManager) {
@@ -76,6 +76,19 @@ struct PlayerView: View {
     }
     .onChange(of: playerManager.playbackState) { _, state in
       if case .failed(let message) = state {
+#if os(tvOS)
+        // Live has no quality ladder to fall back on. A dead stream (DNS, 404) left
+        // AVKit in a width-0 / focus-broken chrome that ate Menu and sat over the TV
+        // grid half-focused (Sasha, 2026-11-20). Leave instead of trapping; toast so
+        // it reads as "channel unavailable", not a mis-press. Mid-play silent reload
+        // (`recoverAfterMidStreamFailure`) only runs while `.ready`, so prepare
+        // failures reach here without a prior reload.
+        if playerManager.watchMode == .live {
+          errorHandler.setMessage(message)
+          closeAfterFailure()
+          return
+        }
+#endif
         showsFailureAlert = true
 #if os(macOS)
         // Alert alone was easy to miss in the player window — toast the reason too (KP-35).

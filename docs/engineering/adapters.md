@@ -32,6 +32,11 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   General → Keyboard) hides while focus is in the results and the results take the full width,
   through UIKit's private `_shouldHideGridKeyboardUnfocused` (NO by default, no public switch;
   probed on tvOS 26.5 and 27.2). Guarded by `responds(to:)`: without it the keyboard just stays.
+  Since 2026-11-20 only with «Grid keyboard always visible» off (`TVSearchChrome.keepsGridKeyboardVisible`);
+  on, the private switch is not touched at all — the keyboard stays and the container keeps the
+  tab bar, field and suggestions in place by itself. The results then scroll beneath that
+  chrome, so the page masks itself above the line its content starts at
+  (`clipsAboveContentBesideGridKeyboard`, a top-only mask; no API is needed for the bar).
   Widening the results used to hang the main thread (the collection growing to the window
   fought the search container; losing focus on the rebuild showed the keyboard again).
   The page extends vertically only, and remembers the focused poster while results have it.
@@ -53,16 +58,15 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
 
 - **`TVNavigationZoom.swift`** (tvOS push and pop) — tvOS has no public page transition but
   the crossfade: `UIViewController.Transition.zoom` and `.navigationTransition(.zoom)` have no
-  effect there (Apple's docs; probed push and present on 27.2). The scale in/out of TVML apps is
-  TVMLKit's private `_TVNavigationZoomAnimator`, a plain `UIViewControllerAnimatedTransitioning`.
-  SwiftUI's tvOS stack pushes with `animated: false`, so every move swaps the pages at once and
-  the animator is driven from a snapshot of the page left, through a proxy in front of SwiftUI's
-  navigation delegate (it also hides UIKit's private `animatorForOperation:` question, which
-  SwiftUI answers first). Snapshots are `UIImageView`s from `drawHierarchy(…, afterScreenUpdates:
-  true)` — `snapshotView` returns `_UIReplicantView`, which UIKit refuses as a subview of a
-  `UIHostingController` view. The tab bar's hide and show are drawn as a slide up and back down
-  alongside (`TabBarSlide`); SwiftUI still decides when it is hidden. No class, or
-  `-KINOPUBSystemNavigationTransition YES`: the system crossfade. Re-probe on the next SDK.
+  effect there (Apple's docs; probed push and present on 27.2). The scale in/out of TVML apps
+  lived in TVMLKit's private `_TVNavigationZoomAnimator`; driving that under SwiftUI's
+  `UIHostingController` made it insert `_UIReplicantView` into the hosting view (runtime
+  fault). The look is now our own scale/fade of a `UIImageView` bitmap on the navigation
+  controller's view (common superview above every hosting controller), through a proxy in
+  front of SwiftUI's navigation delegate (it also hides UIKit's private
+  `animatorForOperation:` question). The tab bar's hide and show are a slide up and back
+  down alongside (`TabBarSlide`). `-KINOPUBSystemNavigationTransition YES`: system crossfade.
+  Re-probe on the next SDK.
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
   (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
   the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
