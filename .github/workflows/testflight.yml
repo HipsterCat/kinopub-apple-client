@@ -45,7 +45,7 @@ permissions:
 concurrency:
   # Distinct from the old `testflight` group so a leftover `xcode-27` upload
   # sitting in that queue cannot block macos-26 archives.
-  group: testflight-xcode26-latest
+  group: testflight-xcode26-v2
   cancel-in-progress: false
 
 env:

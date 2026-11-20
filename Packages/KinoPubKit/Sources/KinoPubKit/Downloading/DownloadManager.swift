@@ -25,7 +25,7 @@ public protocol DownloadFileNaming {
   var downloadFileBaseName: String? { get }
 }
 
-public class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject {
+public final class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject {
   @Published public var activeDownloads: [URL: Download<Meta>] = [:]
   private var fileSaver: FileSaving
   private var database: DownloadedFilesDatabase<Meta>

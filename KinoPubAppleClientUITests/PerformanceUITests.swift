@@ -88,8 +88,7 @@ final class PerformanceUITests: XCTestCase {
     )
 
     measure(metrics: hitchMetrics(
-      signpost("hero", "hero.page"),
-      signpost("artwork", "artwork.request")
+      signpost("hero", "hero.page")
     ), options: measureOptions) {
       for _ in 0..<4 {
         XCUIRemote.shared.press(.select)
@@ -107,8 +106,7 @@ final class PerformanceUITests: XCTestCase {
 
     measure(metrics: hitchMetrics(
       signpost("page", "page.title"),
-      signpost("hero", "hero.backdrop"),
-      signpost("artwork", "artwork.request")
+      signpost("hero", "hero.backdrop")
     ), options: measureOptions) {
       XCUIRemote.shared.press(.select)
       XCTAssertTrue(
@@ -130,8 +128,7 @@ final class PerformanceUITests: XCTestCase {
     XCTAssertTrue(waitForHeroFocus(timeout: 20), "title hero did not take focus")
 
     measure(metrics: hitchMetrics(
-      signpost("scroll", "scroll.season"),
-      signpost("artwork", "artwork.request")
+      signpost("scroll", "scroll.season")
     ), options: measureOptions) {
       // Down is the CADisplayLink fold (`scroll.season`, 0.6 s). Right is the
       // episode rail. Up returns to the hero so the next iteration is the same

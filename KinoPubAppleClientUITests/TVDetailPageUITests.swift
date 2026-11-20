@@ -220,10 +220,13 @@ final class TVDetailPageUITests: XCTestCase {
   /// The numbered rail is the one on screen (`FeatureFlag.rivuletSeasonRail` is off).
   /// This fixture's Play is S2E4.
   func testSeasonRailDownKeepsFocusOnScreen() throws {
-    launch("seasonStrip")
+    launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
     try waitForFocus(on: "play", timeout: 20, "open")
     try shoot("rail-0-hero")
     let entry = "kinopub.rail.item.\(9_900_008 * 1000 + 204)"
+    XCTAssertTrue(app.descendants(matching: .any).matching(identifier: entry)
+                    .firstMatch.waitForExistence(timeout: 15),
+                  "S2E4 never appeared on the rail: \(focusedDescription)")
 
     XCUIRemote.shared.press(.down)
     Thread.sleep(forTimeInterval: 1.4)

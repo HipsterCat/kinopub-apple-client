@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "История снова пишет день и время («27 января в 20:54»), а не только часы.",
         "Apple TV, Поиск с сеточной клавиатурой: клавиатура остаётся слева, пока вы листаете результаты, а вкладки и поле поиска не уезжают вверх. Прежний вариант — в Настройках › Эксперименты (Grid keyboard always visible, после перезапуска).",
         "Настройки: зелёными остаются только переключатели; крестик, пикеры и остальное снова как раньше. Поиск на iPhone снова нажимается. В поиске на Mac у пунктов — иконка раздела.",
         "Apple TV, ТВ: Menu возвращает фокус на первую карточку целиком; мёртвый live-поток больше не открывает плеер, из которого нельзя выйти.",
@@ -137,6 +138,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "History rows show the day and the time again (“27 January at 20:54”), not the clock alone.",
         "Apple TV, Search with the grid keyboard: the keyboard stays on the left while you browse the results, and the tabs and the search field no longer scroll away. The previous behaviour is in Settings › Experiments (Grid keyboard always visible, after a relaunch).",
         "Settings: only switches stay system green; the close button, pickers, and the rest are back as before. iPhone Settings search is tappable again. Mac search hits show the section icon.",
         "Apple TV, TV tab: Menu returns full focus to the first tile; a dead live stream no longer opens a player you cannot leave.",

@@ -137,8 +137,19 @@ final class PlayerTabsUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 1)
       try shoot("player-early-\(step)")
       if strip.exists {
-        XCTAssertTrue(goToShow.exists, "a strip without Info came up at step \(step)")
-        return
+        // AVKit can expose the collection a beat before Info's Go to Show is in
+        // the tree (empty strip while the stream is still opening). Wait that
+        // beat; fail only if the strip stays up without Info.
+        if !goToShow.exists {
+          Thread.sleep(forTimeInterval: 1.5)
+        }
+        if goToShow.exists {
+          return
+        }
+        if step >= 3 {
+          XCTAssertTrue(goToShow.exists, "a strip without Info came up at step \(step)")
+          return
+        }
       }
     }
     XCTFail("the stream never opened")
