@@ -56,9 +56,10 @@ struct LibraryShellView: View {
     // pane's width beside a sidebar that never goes anywhere — section switching is
     // separate state (`model.selection`), not a stack push, so it is unaffected by
     // where the stack sits.
-    RouteStack(tab: .library) {
+    RouteStack(tab: .library, zoom: true) {
       libraryColumns
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.hidesMediaCardBookmarkSymbol, model.selection.hidesCardBookmarkSymbol)
     }
     .task {
       cardMenu.bind(errorHandler: errorHandler)

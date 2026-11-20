@@ -157,7 +157,7 @@ class PersonalLibraryCatalog: ObservableObject {
                posterURL: item.posters.medium,
                title: item.localizedTitle,
                subtitle: item.originalTitle,
-               badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
+               badge: item.hasNewEpisodes ? "\(item.new ?? 0)" : nil,
                backdropURL: item.posters.wideURL ?? item.posters.big,
                kinopoiskID: item.kinopoisk)
     }

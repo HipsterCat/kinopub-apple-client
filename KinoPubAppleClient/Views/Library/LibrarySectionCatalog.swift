@@ -400,7 +400,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      title: item.localizedTitle,
                      subtitle: EpisodesLeftText(left)?.formatted(),
                      progress: item.progress,
-                     badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
+                     badge: item.hasNewEpisodes ? "\(item.new ?? 0)" : nil,
                      backdropURL: item.posters.wideURL ?? item.posters.big,
                      isSeries: true,
                      viewerState: ViewerState(isFollowing: true),
