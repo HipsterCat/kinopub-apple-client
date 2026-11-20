@@ -305,14 +305,11 @@ private enum Snapshot {
     let format = UIGraphicsImageRendererFormat()
     format.scale = view.traitCollection.displayScale
     format.opaque = false
+    // Always `layer.render` — `drawHierarchy(…, afterScreenUpdates: true)` inside a
+    // Core Animation commit (tab-bar slide / push) logs "drawing with afterScreenUpdates:YES
+    // inside CoreAnimation commit is not supported" and still hits hosting views.
     let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { ctx in
-      // Prefer the layer tree when the view has not been through a full screen update
-      // yet — avoids "Snapshotting a view that has not been rendered…" on first push.
-      if view.window != nil {
-        _ = view.drawHierarchy(in: bounds, afterScreenUpdates: true)
-      } else {
-        view.layer.render(in: ctx.cgContext)
-      }
+      view.layer.render(in: ctx.cgContext)
     }
     let imageView = UIImageView(image: image)
     imageView.bounds = bounds

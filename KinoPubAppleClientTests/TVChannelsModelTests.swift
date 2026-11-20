@@ -13,7 +13,9 @@ import KinoPubUI
 @MainActor
 final class TVChannelsModelTests: XCTestCase {
 
-  private nonisolated static func channel(_ id: Int, stream: String = "https://cdn.example/live.m3u8") -> TVChannel {
+  /// Host must pass `isPlayableStream` — `cdn.example` is rejected so tests cannot
+  /// pollute the simulator Caches folder the app also reads.
+  private nonisolated static func channel(_ id: Int, stream: String = "https://cdn.kinopub.mock/live.m3u8") -> TVChannel {
     TVChannel(id: id, title: "Channel \(id)", stream: stream)
   }
 
@@ -36,7 +38,7 @@ final class TVChannelsModelTests: XCTestCase {
     let calls = Counter()
     let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
       calls.increment()
-      return [TVChannel(id: 1, title: "One", stream: "https://cdn.example/1.m3u8")]
+      return [TVChannel(id: 1, title: "One", stream: "https://cdn.kinopub.mock/1.m3u8")]
     }))
     await model.refreshIfStale()
     XCTAssertEqual(calls.value, 0, "nothing fetched yet is not stale — the first fetch is the page's")
@@ -49,6 +51,23 @@ final class TVChannelsModelTests: XCTestCase {
 
   func testFreshnessIsOneHour() {
     XCTAssertEqual(TVChannelsModel.freshness, 60 * 60)
+  }
+
+  func testRejectsFixtureStreamHosts() {
+    XCTAssertFalse(TVChannelsModel.isPlayableStream(""))
+    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://cdn.example/80.m3u8"))
+    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://cdn.example.com/80.m3u8"))
+    XCTAssertFalse(TVChannelsModel.isPlayableStream("https://host.invalid/live.m3u8"))
+    XCTAssertTrue(TVChannelsModel.isPlayableStream("https://cdn.kinopub.mock/80.m3u8"))
+  }
+
+  func testFetchDropsFixtureHosts() async {
+    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
+      [Self.channel(1, stream: "https://cdn.example/1.m3u8"),
+       Self.channel(2, stream: "https://cdn.kinopub.mock/2.m3u8")]
+    }))
+    await model.fetch()
+    XCTAssertEqual(model.channels.map(\.id), [2])
   }
 
   /// The guide comes after the list and fills the second line: what is on air now, nothing
@@ -136,7 +155,7 @@ final class TVChannelsModelTests: XCTestCase {
     let now = Date()
     let model = TVChannelsModel(
       contentService: VideoContentServiceMock(tvChannels: {
-        [TVChannel(id: 7, title: "Матч! Футбол 3", stream: "https://cdn.example/7.m3u8")]
+        [TVChannel(id: 7, title: "Матч! Футбол 3", stream: "https://cdn.kinopub.mock/7.m3u8")]
       }),
       epgService: EPGServiceMock { channels in
         asked.record(channels.map(\.stream))
@@ -146,7 +165,7 @@ final class TVChannelsModelTests: XCTestCase {
       initialChannels: [shown])
     await model.fetch()
     XCTAssertEqual(asked.value, [[""]])
-    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/7.m3u8")
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.kinopub.mock/7.m3u8")
     XCTAssertEqual(model.nowPlaying(channelID: 7, at: now)?.title, "Now")
   }
 
@@ -154,13 +173,13 @@ final class TVChannelsModelTests: XCTestCase {
   /// does not reshuffle when the list arrives.
   func testServerListKeepsTheBakedOrder() async {
     let reversed = TVChannelCatalog.channels.reversed().map {
-      TVChannel(id: $0.id, title: $0.title, logo: $0.logo, stream: "https://cdn.example/\($0.id).m3u8")
+      TVChannel(id: $0.id, title: $0.title, logo: $0.logo, stream: "https://cdn.kinopub.mock/\($0.id).m3u8")
     }
     let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: { reversed }),
                                 initialChannels: TVChannelCatalog.channels)
     await model.fetch()
     XCTAssertEqual(model.channels.map(\.id), TVChannelCatalog.channels.map(\.id))
-    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/80.m3u8")
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.kinopub.mock/80.m3u8")
   }
 
   /// Live playback reports nothing, and has no Up Next or episodes: every gate in the

@@ -5,7 +5,9 @@
       "date": "2026-10-10",
       "ru": [
         "Настройки: зелёными остаются только переключатели; крестик, пикеры и остальное снова как раньше. Поиск на iPhone снова нажимается. В поиске на Mac у пунктов — иконка раздела.",
-        "Apple TV, ТВ: под карточкой канала всегда программа (и при фокусе — бегущая строка, если не влезает), без подмены на название канала; список каналов обновляется не чаще раза в час.",        "Apple TV: у части спортивных каналов логотипы из приложения; без фокуса под карточкой — что в эфире, а не название канала.",
+        "Apple TV, ТВ: Menu возвращает фокус на первую карточку целиком; мёртвый live-поток больше не открывает плеер, из которого нельзя выйти.",
+        "Apple TV, ТВ: под карточкой канала всегда программа (и при фокусе — бегущая строка, если не влезает), без подмены на название канала; список каналов обновляется не чаще раза в час.",
+        "Apple TV: у части спортивных каналов логотипы из приложения; без фокуса под карточкой — что в эфире, а не название канала.",
         "Mac: если при выходе были открыты Настройки, при следующем запуске снова открывается и главное окно — закрытие Настроек больше не оставляет приложение без интерфейса.",
         "Настройки › Внешний вид: тема — Система / Светлая / Тёмная (по умолчанию Система).",
         "iPhone и iPad: поиск по всем пунктам Настроек; на широком экране — сайдбар и детали, как на Mac (сначала Профиль). Баннер на Главной не крутится, пока открыты Настройки. Переключатели снова системно-зелёные.",
@@ -135,7 +137,9 @@
       ],
       "en": [
         "Settings: only switches stay system green; the close button, pickers, and the rest are back as before. iPhone Settings search is tappable again. Mac search hits show the section icon.",
-        "Apple TV, TV tab: the line under a channel tile stays the programme when focused (marquee when it is longer than the tile) — no swap to the channel name. The channel list refreshes at most once an hour.",        "Apple TV: some sports channels use in-app logos; unfocused tiles show what’s on air under the card, not the channel name.",
+        "Apple TV, TV tab: Menu returns full focus to the first tile; a dead live stream no longer opens a player you cannot leave.",
+        "Apple TV, TV tab: the line under a channel tile stays the programme when focused (marquee when it is longer than the tile) — no swap to the channel name. The channel list refreshes at most once an hour.",
+        "Apple TV: some sports channels use in-app logos; unfocused tiles show what’s on air under the card, not the channel name.",
         "Mac: quitting with Settings open restores the main library window too on next launch — closing Settings no longer leaves the app with no UI.",
         "Settings › Appearance: Theme is System / Light / Dark (System by default).",
         "iPhone and iPad: search across nested Settings; on a wide layout — sidebar and detail like Mac (Profile first). The Home banner pauses while Settings is open. Toggles use the system green again.",
