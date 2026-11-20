@@ -372,7 +372,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                                        using service: VideoContentService) async throws -> PageResult {
     switch section {
     case .watchlist:
-      let items = try await service.fetchWatchingSerials(subscribedOnly: true).items
+      let items = try await WatchingListCache.shared.serials(subscribedOnly: true, using: service)
       return PageResult(cards: items.map { followingCard(for: $0) }, pagination: nil)
     case .unwatched:
       return PageResult(cards: try await continueCards(using: service), pagination: nil)
@@ -446,13 +446,14 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
   /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
   nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
-    async let moviesTask = service.fetchWatchingMovies()
-    async let unfinishedTask = service.fetchWatchingSerials(subscribedOnly: false)
-    async let followedTask = service.fetchWatchingSerials(subscribedOnly: true)
+    let watching = WatchingListCache.shared
+    async let moviesTask = watching.movies(using: service)
+    async let unfinishedTask = watching.serials(subscribedOnly: false, using: service)
+    async let followedTask = watching.serials(subscribedOnly: true, using: service)
     async let historyTask = service.fetchHistory(page: nil, perPage: continueWatchingHistoryPerPage)
-    let movies = try await moviesTask.items
-    let unfinished = (try? await unfinishedTask)?.items ?? []
-    let followed = Set(((try? await followedTask)?.items ?? []).map(\.id))
+    let movies = try await moviesTask
+    let unfinished = (try? await unfinishedTask) ?? []
+    let followed = Set(((try? await followedTask) ?? []).map(\.id))
     let history = (try? await historyTask)?.history ?? []
     let newest = newestHistory(history)
     var seen = Set<Int>()

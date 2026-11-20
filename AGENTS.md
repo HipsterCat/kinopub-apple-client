@@ -203,8 +203,9 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 - **Stores:** `ContentStore` owns Home/Library rows; `MediaRecordStore` owns item facts (one
   `MediaRecord` per `MediaRef`); `MediaLibraryStore` owns optimistic per-item state; `Artwork` owns
   every remote image (use `CachedRemoteImage` / `ArtworkImage`, never `AsyncImage`); bookmarks are
-  `BookmarkMembershipStore` + `BookmarkFoldersStore`. No other cache. Local optimistic writes win
-  until the server contradicts them.
+  `BookmarkMembershipStore` + `BookmarkFoldersStore`; watching lists share `WatchingListCache`
+  (memory TTL, coalesce; invalidate on mark/follow/hide and playback end — not progress ticks).
+  No other cache. Local optimistic writes win until the server contradicts them.
 - A detail page fetches no bookmark list — membership is on the item payload.
 - A `nolinks` payload still lists `files` without URLs: ask `hasPlayableURL`, never assume one.
 - tvOS purges `Caches/` when the app is not running — lean on in-memory TTLs.

@@ -230,6 +230,7 @@
                 { "path": "ContentStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "MediaRecordStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "UserProfileCache.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "WatchingListCache.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -568,6 +569,7 @@
         { "path": "PlayerLiveModeTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "BestVideoQualityFinderTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "ContentStoreRecordTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "WatchingListCacheTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },

@@ -94,7 +94,9 @@ struct WatchlistView: View {
     let willFetch = force || store.isStale(.watchlist)
     let service = appContext.contentService
     let fetch: @Sendable () async throws -> [RowItem] = {
-      let items = try await service.fetchWatchingSerials(subscribedOnly: true).items // Capture of 'service' with non-Sendable type 'any VideoContentService' in a '@Sendable' closure
+      let items = try await WatchingListCache.shared.serials(subscribedOnly: true,
+                                                            using: service,
+                                                            force: force)
       return items.map { RowItem.card(Self.card(for: $0)) }
     }
     if force {

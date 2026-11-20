@@ -85,8 +85,11 @@ struct MainView: View {
           catalog.repaintFromLocalProgress()
         }
         .onChange(of: scenePhase) { _, phase in
+          // Session already holds watching state. Foreground only re-applies local
+          // progress — no `/v1/watching/*` / history / bookmarks. Cross-device sync
+          // waits for cold start, pull-to-refresh, or the next process.
           if phase == .active {
-            Task { await catalog.refreshContinueWatching() }
+            catalog.repaintFromLocalProgress()
           }
         }
         .onChange(of: homeBannerEnabled) { _, _ in

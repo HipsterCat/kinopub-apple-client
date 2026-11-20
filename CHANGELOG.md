@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Shared watching-list cache + quieter Home/Search:** `/v1/watching/movies` and
+  both `/v1/watching/serials` answers are one in-memory cache (~3 min, coalesced)
+  for Continue Watching, Library Unwatched/Following and the sidebar badge.
+  Cleared on mark/toggle/follow/hide and when playback ends — not on progress
+  ticks (#110). CW / Top Bookmarks / sidebar folders go through
+  `BookmarkFoldersStore` + ContentStore folder rows. Foreground only repaints
+  local progress (no in-session watching refetch). Search tab re-entry honors the
+  5 min TTL instead of force-refreshing every hop.
+
 - **TV tab polish:** channel caption stays the programme when focused (system
   marquee when long) — no channel-name swap under the tile. `GET /v1/tv` is reused
   for an hour (memory + Caches). Navigation path Binding skips no-op writes;

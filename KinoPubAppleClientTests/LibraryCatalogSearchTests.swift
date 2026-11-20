@@ -85,7 +85,7 @@ final class LibraryCatalogSearchTests: XCTestCase {
     XCTAssertFalse(catalog.isLoading)
   }
 
-  func testReenteringTheTabForcesASilentRefresh() async {
+  func testForceRevalidateRefreshesEvenWhenFresh() async {
     let box = FetchBox(items: [MediaItem.mock(id: 1)])
     let catalog = authorizedCatalog(box: box)
     await catalog.load()
@@ -94,6 +94,17 @@ final class LibraryCatalogSearchTests: XCTestCase {
     XCTAssertEqual(box.fetches, 2)
     XCTAssertEqual(catalog.items.map(\.id), [4])
     XCTAssertFalse(catalog.isLoading)
+  }
+
+  /// Tab re-entry uses `force: false` — a fresh page must not hit `/v1/items` again.
+  func testTabReentryRespectsStaleAfter() async {
+    let box = FetchBox(items: [MediaItem.mock(id: 1)])
+    let catalog = authorizedCatalog(box: box)
+    await catalog.load()
+    box.items = [MediaItem.mock(id: 4)]
+    await catalog.revalidate(force: false)
+    XCTAssertEqual(box.fetches, 1)
+    XCTAssertEqual(catalog.items.map(\.id), [1])
   }
 
   private func authorizedCatalog(box: FetchBox) -> LibraryCatalog {

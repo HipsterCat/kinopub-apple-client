@@ -789,10 +789,9 @@ class HomeCatalog: ObservableObject {
     assembleRows()
   }
 
-  /// Force a Continue Watching refetch and paint. Used when coming to the
-  /// foreground and when a watch-family invalidate fires — `refreshIfStale`
-  /// plus a 60 s TTL is why the row kept showing the last snapshot while the
-  /// network log still filled with requests (shelves, banner details, metadata).
+  /// Force a Continue Watching refetch and paint. Used when a watch-family
+  /// invalidate fires (mark / toggle / follow / hide) — not on every foreground.
+  /// Foreground only calls `repaintFromLocalProgress`.
   ///
   /// While the player is active, only re-apply local progress: the watch-mark
   /// path is the only network that should run then.
@@ -1133,9 +1132,10 @@ class HomeCatalog: ObservableObject {
     // Subscribed watching already carries enough for the row; skip `/v1/history`
     // when we fetched it minutes ago. Cap stays at 8 when we do ask.
     let skipHistory = Self.shouldSkipHistoryFetch(store: store)
-    async let moviesTask = try? itemsService.fetchWatchingMovies().items
-    async let allSerialsTask = try? itemsService.fetchWatchingSerials(subscribedOnly: false).items
-    async let watchlistTask = try? itemsService.fetchWatchingSerials(subscribedOnly: true).items
+    let watching = WatchingListCache.shared
+    async let moviesTask = try? watching.movies(using: itemsService)
+    async let allSerialsTask = try? watching.serials(subscribedOnly: false, using: itemsService)
+    async let watchlistTask = try? watching.serials(subscribedOnly: true, using: itemsService)
     async let bookmarksTask = recentBookmarks(rules: rules)
     // History is inlined (not an instance helper) so `async let` does not return a
     // non-Sendable `[HistoryEntry]?` from MainActor into a @concurrent child task.
@@ -1323,28 +1323,30 @@ class HomeCatalog: ObservableObject {
 
   /// Bookmark folders added to within the window, newest first, with their first page
   /// of items (newest first too). A failure is no bookmarks, not a failed row.
+  /// Folder list and pages go through `BookmarkFoldersStore` + `ContentStore` — no
+  /// parallel raw `/v1/bookmarks` from this path.
   private func recentBookmarks(rules: ContinueWatchingOrder.Rules) async -> [(updated: Date, items: [MediaItem])] {
-    guard rules.includesBookmarks,
-          let folders = try? await itemsService.fetchBookmarks().items else { return [] }
+    guard rules.includesBookmarks else { return [] }
+    let folders = await BookmarkFoldersStore.shared.refreshIfStale(using: itemsService)
     let now = Date()
     let fresh = folders
       .filter { $0.count != "0" && now.timeIntervalSince1970 - TimeInterval($0.updated) <= rules.window }
       .recentlyUpdatedFirst()
       .prefix(Self.bookmarkFolderLimit)
-    return await withTaskGroup(of: (Int, Date, [MediaItem])?.self) { group in
-      for (index, folder) in fresh.enumerated() {
-        group.addTask { [itemsService] in
-          guard let items = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items
-          else { return nil }
-          return (index, Date(timeIntervalSince1970: TimeInterval(folder.updated)), items)
-        }
-      }
-      var result: [(Int, Date, [MediaItem])] = []
-      for await entry in group {
-        if let entry { result.append(entry) }
-      }
-      return result.sorted { $0.0 < $1.0 }.map { ($0.1, $0.2) }
+    var result: [(updated: Date, items: [MediaItem])] = []
+    for folder in fresh {
+      let items = await folderMediaItems(id: folder.id)
+      result.append((Date(timeIntervalSince1970: TimeInterval(folder.updated)), items))
     }
+    return result
+  }
+
+  /// First page of a bookmark folder via `ContentStore` (coalesced + TTL).
+  private func folderMediaItems(id: Int) async -> [MediaItem] {
+    await store.refreshIfStale(.folder(id)) { [itemsService] in
+      try await itemsService.fetchBookmarkItems(id: "\(id)", page: nil).items.map(RowItem.title)
+    }
+    return store.cards(.folder(id)).compactMap { ListedItemCache.shared.item(id: $0.id) }
   }
 
   /// Folders looked into per refresh. The row takes at most `maxBookmarks` bookmarks,
@@ -1642,23 +1644,24 @@ class HomeCatalog: ObservableObject {
   }
 
   private func fetchTopBookmarksCards() async throws -> [MediaCard] {
-    let folders = try await itemsService.fetchBookmarks().items
+    let folders = await BookmarkFoldersStore.shared.refreshIfStale(using: itemsService)
     guard !folders.isEmpty else { return [] }
     var seen = Set<Int>()
-    var items: [MediaItem] = []
+    var cards: [MediaCard] = []
     for folder in folders.prefix(2) {
-      guard let page = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)",
-                                                                  page: 1,
-                                                                  perPage: Self.shelfPageSize) else {
-        continue
+      await store.refreshIfStale(.folder(folder.id)) { [itemsService] in
+        try await itemsService.fetchBookmarkItems(id: "\(folder.id)",
+                                                  page: 1,
+                                                  perPage: Self.shelfPageSize).items.map(RowItem.title)
       }
-      for item in page.items where seen.insert(item.id).inserted {
-        if item.playbackAction != .playAgain {
-          items.append(item)
+      for card in store.cards(.folder(folder.id)) where seen.insert(card.id).inserted {
+        let action = ListedItemCache.shared.item(id: card.id)?.playbackAction
+        if action != .playAgain {
+          cards.append(card)
         }
       }
     }
-    return items.prefix(Self.shelfPageSize).map { MediaCard($0) }
+    return Array(cards.prefix(Self.shelfPageSize))
   }
 
   private func fetchLiveChannelsIfNeeded() async {

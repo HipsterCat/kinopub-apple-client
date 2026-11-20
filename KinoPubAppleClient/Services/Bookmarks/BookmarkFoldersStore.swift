@@ -25,6 +25,10 @@ final class BookmarkFoldersStore: ObservableObject {
 
   static let shared = BookmarkFoldersStore()
 
+  /// How long a successful folder-list answer is reused by CW / Top Bookmarks / sidebar
+  /// before another `/v1/bookmarks`. Menus still use `ensureLoaded` (cold / invalidate).
+  static let freshness: TimeInterval = 5 * 60
+
   /// Last known folder list, in the order the server returned it. Restored from disk at
   /// launch so a cold detail page can draw a full folder menu without a request.
   @Published private(set) var folders: [Bookmark] = []
@@ -33,6 +37,9 @@ final class BookmarkFoldersStore: ObservableObject {
   private let defaultsKey = "com.soda.kinopub.bookmarkFolders"
   /// Set by `invalidate()` — the list on hand is known to be behind the account.
   private var needsRefresh = false
+  /// Last successful network (or `adopt`) stamp. Disk restore leaves this nil so the
+  /// first listing surface still asks once this process.
+  private var fetchedAt: Date?
   private var inFlight: Task<[Bookmark]?, Never>?
 
   init(defaults: UserDefaults = .standard) {
@@ -45,6 +52,18 @@ final class BookmarkFoldersStore: ObservableObject {
   @discardableResult
   func ensureLoaded(using service: VideoContentService) async -> [Bookmark] {
     guard folders.isEmpty || needsRefresh else { return folders }
+    return await reload(using: service)
+  }
+
+  /// CW / Top Bookmarks / sidebar: reuse until TTL expires or `invalidate`.
+  @discardableResult
+  func refreshIfStale(using service: VideoContentService) async -> [Bookmark] {
+    if !folders.isEmpty,
+       !needsRefresh,
+       let fetchedAt,
+       Date().timeIntervalSince(fetchedAt) < Self.freshness {
+      return folders
+    }
     return await reload(using: service)
   }
 
@@ -77,6 +96,7 @@ final class BookmarkFoldersStore: ObservableObject {
   /// folder the viewer can add this title to.
   func adopt(_ fetched: [Bookmark]) {
     needsRefresh = false
+    fetchedAt = Date()
     guard fetched != folders else { return }
     folders = fetched
     persist()
@@ -89,6 +109,7 @@ final class BookmarkFoldersStore: ObservableObject {
 
   func clear() {
     needsRefresh = false
+    fetchedAt = nil
     folders = []
     defaults.removeObject(forKey: defaultsKey)
   }
