@@ -69,6 +69,15 @@ enum LibrarySection: Hashable, Codable {
     }
   }
 
+  /// Following and bookmark grids are membership lists — a ribbon on every poster
+  /// would be noise. Continue / History / Downloads keep the normal bookmark glyph.
+  var hidesCardBookmarkSymbol: Bool {
+    switch self {
+    case .watchlist, .allBookmarks, .folder: return true
+    case .unwatched, .history, .downloads: return false
+    }
+  }
+
   /// Where this section's first page lives in `ContentStore`. `nil` for Downloads —
   /// those are local files owned by `DownloadsCenter`, nothing to cache from network.
   var rowKey: RowKey? {

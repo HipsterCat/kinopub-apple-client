@@ -124,6 +124,13 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(card.primaryAction, .openDetail)
   }
 
+  func testFollowingNewEpisodeBadgeHasNoLeadingPlus() {
+    let item = WatchingItem(id: 1, type: "serial", title: "Show",
+                            posters: posters, total: 10, watched: 3, new: 7)
+    let card = LibrarySectionCatalog.followingCard(for: item)
+    XCTAssertEqual(card.badge, "7")
+  }
+
   func testFollowingCaughtUpHasNoSubtitle() {
     let item = WatchingItem(id: 2, type: "serial", title: "The Bear",
                             posters: posters, total: 28, watched: 28, new: 0)

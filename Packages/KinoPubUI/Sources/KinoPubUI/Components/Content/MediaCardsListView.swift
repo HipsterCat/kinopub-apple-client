@@ -110,6 +110,9 @@ public struct MediaCardsListView: View {
           MediaCardView(card: card, caption: Self.cardCaption)
             .onAppear { onLoadMoreContent(card) }
         }
+        // Same source id as Home shelves (`media-{id}`) so a stack with
+        // `RouteStack(…, zoom: true)` can morph into the title page on iPhone/iPad.
+        .mediaZoomSource(id: "media-\(card.id)")
 #if os(tvOS)
         .buttonStyle(.borderless)
         .focused($focusedItemID, equals: card.id)

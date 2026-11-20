@@ -775,6 +775,7 @@ public struct MediaCardView: View {
   private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
   @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
   private var showBookmarkSymbol = MediaCardDisplayPreferences.defaultShowBookmarkSymbol
+  @Environment(\.hidesMediaCardBookmarkSymbol) private var hidesBookmarkSymbol
   @AppStorage(MediaCardDisplayPreferences.progressVisibilityKey)
   private var progressVisibilityRaw = MediaCardDisplayPreferences.defaultProgressVisibility.rawValue
   @AppStorage(MediaCardDisplayPreferences.watchedStyleKey)
@@ -956,8 +957,10 @@ public struct MediaCardView: View {
     }
   }
 
+  /// Bookmark ribbon only — never “following”. Subscribed surfaces hide it wholesale
+  /// via `hidesMediaCardBookmarkSymbol` (Sasha, 2026-11-20).
   private var showsBookmarkOnArtwork: Bool {
-    showBookmarkSymbol && (card.viewerState.isBookmarked || card.viewerState.isFollowing == true)
+    !hidesBookmarkSymbol && showBookmarkSymbol && card.viewerState.isBookmarked
   }
 
   private var landscapeTimeBadge: LandscapeTimeBadge? {

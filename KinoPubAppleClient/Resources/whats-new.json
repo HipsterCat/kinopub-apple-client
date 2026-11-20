@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "«Смотрю» / «Новые серии»: на постере больше нет ленточки закладки (она ошибочно ставилась на подписки); бейдж новых серий — число без «+»; открытие тайтла с iPhone и iPad — с тем же zoom, что на Главной.",
         "Apple TV, Поиск с сеточной клавиатурой: клавиатура остаётся слева, пока вы листаете результаты, а вкладки и поле поиска не уезжают вверх. Прежний вариант — в Настройках › Эксперименты (Grid keyboard always visible, после перезапуска).",
         "Настройки: зелёными остаются только переключатели; крестик, пикеры и остальное снова как раньше. Поиск на iPhone снова нажимается. В поиске на Mac у пунктов — иконка раздела.",
         "Apple TV, ТВ: Menu возвращает фокус на первую карточку целиком; мёртвый live-поток больше не открывает плеер, из которого нельзя выйти.",
@@ -137,6 +138,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Watching / New Episodes: posters no longer show a bookmark ribbon (it was wrongly tied to subscriptions); the new-episode badge is a plain count without “+”; opening a title on iPhone and iPad uses the same zoom as Home.",
         "Apple TV, Search with the grid keyboard: the keyboard stays on the left while you browse the results, and the tabs and the search field no longer scroll away. The previous behaviour is in Settings › Experiments (Grid keyboard always visible, after a relaunch).",
         "Settings: only switches stay system green; the close button, pickers, and the rest are back as before. iPhone Settings search is tappable again. Mac search hits show the section icon.",
         "Apple TV, TV tab: Menu returns full focus to the first tile; a dead live stream no longer opens a player you cannot leave.",
