@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "sky-sports-main-event.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
