@@ -118,7 +118,8 @@ Signposts: `hero.page`, `artwork.request` (look at `bytes` and `tier`).
 
 - **tvOS:** Open a series. Wait for Play. Down onto the season rail, Right along
   four episodes, Menu back to Play. Fixture: `-KINOPUBDetailFixture seasonStrip`
-  and, to hit the CADisplayLink slide, `-featureFlag.rivuletSeasonRail YES`.
+  and, to hit the CADisplayLink slide, `-featureFlag.rivuletSeasonRail <true/>`
+  (plist boolean; a string `YES` is ignored and the flag stays off).
 - **iPhone:** Open a series from Home, scroll the episode row.
 
 Signposts: `page.title`, `hero.backdrop`, `scroll.season`.
@@ -207,7 +208,7 @@ xcodebuild \
 | `testHomeShelfScroll` | tvOS | `-KINOPUBTemplatesGallery` |
 | `testHeroCarouselPaging` | tvOS | + `-KINOPUBTemplatesHero` |
 | `testTitlePageOpen` | tvOS | `-KINOPUBDetailFixture list`, Select `awaiting` |
-| `testSeasonRailScroll` | tvOS | `seasonStrip` + rivulet rail on |
+| `testSeasonRailScroll` | tvOS | `seasonStrip` + `-featureFlag.rivuletSeasonRail <true/>` |
 | `testHomeShelfScroll` | iOS | live session, else `XCTSkip` |
 | `testHeroCarouselPaging` | iOS | live session, else `XCTSkip` |
 | `testTitlePageOpen` | iOS | live session, else `XCTSkip` |

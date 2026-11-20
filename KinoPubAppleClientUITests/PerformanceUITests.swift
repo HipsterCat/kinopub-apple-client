@@ -62,6 +62,12 @@ final class PerformanceUITests: XCTestCase {
     launchTemplates(hero: true)
     XCTAssertTrue(waitForHeroFocus(timeout: 20), "hero did not take focus")
     focusHeroNext()
+    XCTAssertTrue(
+      app.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "kinopub.hero.next"))
+        .firstMatch.exists,
+      "Next did not take focus — Select would open a title instead of paging"
+    )
 
     measure(metrics: [
       XCTClockMetric(),
@@ -102,7 +108,9 @@ final class PerformanceUITests: XCTestCase {
   }
 
   func testSeasonRailScroll() throws {
-    launchDetail("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "YES"])
+    // `<true/>` is the UserDefaults plist boolean. `"YES"` stores a string and
+    // `FeatureFlag.storedValue` (`as? Bool`) falls back to the default, which is off.
+    launchDetail("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<true/>"])
     XCTAssertTrue(waitForHeroFocus(timeout: 20), "title hero did not take focus")
 
     measure(metrics: [
@@ -110,13 +118,15 @@ final class PerformanceUITests: XCTestCase {
       XCTMemoryMetric(),
       signpost("scroll", "scroll.season")
     ], options: measureOptions) {
+      // Down is the CADisplayLink fold (`scroll.season`). Up returns to the hero so
+      // the next iteration is the same walk; Menu would pop the page.
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 1.2)
       for _ in 0..<4 {
         XCUIRemote.shared.press(.right)
         Thread.sleep(forTimeInterval: 0.45)
       }
-      XCUIRemote.shared.press(.menu)
+      XCUIRemote.shared.press(.up)
       Thread.sleep(forTimeInterval: 1.0)
     }
   }

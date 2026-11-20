@@ -209,7 +209,7 @@ public final class PerfInterval: @unchecked Sendable {
 
   public func endArtwork(tier: String, bytes: Int, pixelSize: CGSize) {
     let size = pixelSize == .zero ? "full" : "\(Int(pixelSize.width))x\(Int(pixelSize.height))"
-    end("\(tier, privacy: .public) \(size, privacy: .public) \(bytes)B")
+    end("\(tier) \(size) \(bytes)B")
   }
 }
 
