@@ -43,6 +43,10 @@ final class SeasonsRailMemory {
   var leadingAnchor: String?
   /// Seasons folded down to their card: a click on it, or «Свернуть серии».
   var collapsedSeasonIDs: Set<Int> = []
+  /// Seasons whose episode cards are fully built. Everything else keeps placeholder
+  /// cells sized from kino.pub's episode counts so L/R scroll stays continuous without
+  /// materialising every season on appear (KP-70).
+  var hydratedSeasonIDs: Set<Int> = []
 }
 
 /// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
@@ -275,6 +279,9 @@ struct SeasonsRailView: View {
     /// On TMDB but not on kino.pub: announced, or aired and not uploaded — sometimes
     /// years ago. `MissingEpisodeAirState` says which.
     case unavailable(season: Season, schedule: EpisodeSchedule)
+    /// A known kino.pub episode whose season is not hydrated yet — same id as the
+    /// eventual `.playable`, so the collection can fill the cell in place.
+    case placeholder(season: Season, episode: Episode)
     /// Whole seasons between kino.pub's last and the next announced one — one dark
     /// info card instead of a row of untappable tabs.
     case missingSeasons(from: Int, to: Int, episodes: Int?, firstAir: Date?, lastAir: Date?)
@@ -283,7 +290,7 @@ struct SeasonsRailView: View {
 
     var id: Int {
       switch self {
-      case .playable(_, let episode, _):
+      case .playable(_, let episode, _), .placeholder(_, let episode):
         return episode.id
       case .unavailable(let season, let schedule):
         // Negative synthetic id — outside kino.pub's positive media ids. The official
@@ -299,7 +306,7 @@ struct SeasonsRailView: View {
 
     var season: Season? {
       switch self {
-      case .playable(let season, _, _), .unavailable(let season, _):
+      case .playable(let season, _, _), .unavailable(let season, _), .placeholder(let season, _):
         return season
       case .missingSeasons, .upcomingSeason:
         return nil
@@ -312,7 +319,7 @@ struct SeasonsRailView: View {
 
     var episodeNumber: Int {
       switch self {
-      case .playable(_, let episode, _): return episode.number
+      case .playable(_, let episode, _), .placeholder(_, let episode): return episode.number
       case .unavailable(_, let schedule): return schedule.episodeNumber
       case .missingSeasons, .upcomingSeason: return .max
       }
@@ -322,12 +329,17 @@ struct SeasonsRailView: View {
       switch self {
       case .playable(_, _, let schedule): return schedule
       case .unavailable(_, let schedule): return schedule
-      case .missingSeasons, .upcomingSeason: return nil
+      case .placeholder, .missingSeasons, .upcomingSeason: return nil
       }
     }
 
     var isPlayable: Bool {
       if case .playable = self { return true }
+      return false
+    }
+
+    var isPlaceholder: Bool {
+      if case .placeholder = self { return true }
       return false
     }
   }
@@ -340,46 +352,133 @@ struct SeasonsRailView: View {
   }
 
   private var entries: [RailEntry] {
-    let alignment = gridAlignment
-    // One selected season at a time — building every season's cards every paint hung
-    // the main thread on long shows (Instruments: railCard / titleSeasonNumber).
-    // Not on tvOS: `TVSeasonRail` is one collection of every season, its tabs move the
-    // rail to a season's entry and only dim the others. Fed one season, the rail opened
-    // on S1E1 whatever Play pointed at (the opening episode was not among its items) and
-    // a tab had no episodes to move to (KP-23 regression, TVDetail*UITests season walks).
-#if os(tvOS)
-    let visibleSeasons = seasons
-#else
-    let visibleSeasons: [Season] = {
-      if let selectedTabID, let season = seasons.first(where: { $0.id == selectedTabID }) {
-        return [season]
-      }
-      if let first = seasons.first { return [first] }
-      return []
-    }()
-#endif
-    let episodeEntries = visibleSeasons.flatMap { season -> [RailEntry] in
-      alignment.rows(for: season.id).compactMap { row -> RailEntry? in
-        switch row {
-        case .matched(let hit):
-          guard let episode = season.episodes.first(where: { $0.number == hit.kino.number }) else { return nil }
-          return .playable(season: season, episode: episode,
-                           schedule: KinoEpisodeGrid.schedule(hit.official))
-        case .extra(let extra):
-          guard let episode = season.episodes.first(where: { $0.number == extra.number }) else { return nil }
-          return .playable(season: season, episode: episode, schedule: nil)
-        case .hole(let official):
-          return .unavailable(season: season, schedule: KinoEpisodeGrid.schedule(official))
-        }
+    Self.buildEntries(
+      seasons: seasons,
+      hydratedSeasonIDs: rail.hydratedSeasonIDs,
+      selectedTabID: selectedTabID,
+      alignment: gridAlignment,
+      trailingCards: trailingCards)
+  }
+
+  /// Continuous rail across every kino.pub season. Hydrated seasons get real cards;
+  /// the rest keep one placeholder per known episode (`season.episodes.count`) so L/R
+  /// scroll never hits a hard end, and TMDB is only asked for the window that is open.
+  static func buildEntries(
+    seasons: [Season],
+    hydratedSeasonIDs: Set<Int>,
+    selectedTabID: Int?,
+    alignment: EpisodeGridMatch.Result,
+    trailingCards: [RailEntry]
+  ) -> [RailEntry] {
+    let hydrated = effectiveHydratedIDs(
+      seasons: seasons,
+      hydrated: hydratedSeasonIDs,
+      selectedTabID: selectedTabID)
+    var episodeEntries: [RailEntry] = []
+    episodeEntries.reserveCapacity(seasons.reduce(0) { $0 + $1.episodes.count })
+    for season in seasons {
+      if hydrated.contains(season.id) {
+        episodeEntries.append(contentsOf: materialize(season, alignment: alignment))
+      } else {
+        // Totals come from the item payload — no prefetch, no empty gap.
+        episodeEntries.append(contentsOf: season.episodes.map {
+          .placeholder(season: season, episode: $0)
+        })
       }
     }
-    let selectedIsTrailing = selectedTabID.map { id in trailingCards.contains { $0.id == id } } ?? false
-    if selectedIsTrailing {
-      return trailingCards.filter { $0.id == selectedTabID }
+    return episodeEntries + trailingCards
+  }
+
+  private static func materialize(
+    _ season: Season,
+    alignment: EpisodeGridMatch.Result
+  ) -> [RailEntry] {
+    let rows = alignment.rows(for: season.id)
+    if rows.isEmpty {
+      return season.episodes.map { .playable(season: season, episode: $0, schedule: nil) }
     }
-    // Trailing cards only when the last kino season is selected (or there is one season).
-    let showTrailing = visibleSeasons.last?.id == seasons.last?.id
-    return showTrailing ? episodeEntries + trailingCards : episodeEntries
+    return rows.compactMap { row -> RailEntry? in
+      switch row {
+      case .matched(let hit):
+        guard let episode = season.episodes.first(where: { $0.number == hit.kino.number }) else { return nil }
+        return .playable(season: season, episode: episode,
+                         schedule: KinoEpisodeGrid.schedule(hit.official))
+      case .extra(let extra):
+        guard let episode = season.episodes.first(where: { $0.number == extra.number }) else { return nil }
+        return .playable(season: season, episode: episode, schedule: nil)
+      case .hole(let official):
+        return .unavailable(season: season, schedule: KinoEpisodeGrid.schedule(official))
+      }
+    }
+  }
+
+  /// Persisted hydrations, or a seed window around the opening tab before the first
+  /// `hydrate` commits — so the first paint already has real cards where Down lands.
+  static func effectiveHydratedIDs(
+    seasons: [Season],
+    hydrated: Set<Int>,
+    selectedTabID: Int?,
+    radius: Int = 1
+  ) -> Set<Int> {
+    if !hydrated.isEmpty { return hydrated }
+    let seed = selectedTabID
+      ?? preferredOpeningTabID(seasons: seasons)
+      ?? seasons.first?.id
+    guard let seed else { return [] }
+    return neighborSeasonIDs(around: seed, seasons: seasons, radius: radius)
+  }
+
+  static func neighborSeasonIDs(around seasonID: Int, seasons: [Season], radius: Int) -> Set<Int> {
+    guard let index = seasons.firstIndex(where: { $0.id == seasonID }) else {
+      return seasons.contains(where: { $0.id == seasonID }) ? [seasonID] : []
+    }
+    var ids = Set<Int>()
+    for offset in -radius...radius {
+      let i = index + offset
+      if seasons.indices.contains(i) { ids.insert(seasons[i].id) }
+    }
+    return ids
+  }
+
+  /// Expand the hydrated window around a season the remote / scroll just reached.
+  static func expandingHydration(
+    displayedSeasonID: Int,
+    seasons: [Season],
+    hydrated: Set<Int>,
+    radius: Int = 1
+  ) -> Set<Int> {
+    hydrated.union(neighborSeasonIDs(around: displayedSeasonID, seasons: seasons, radius: radius))
+  }
+
+  /// Commit the window into memory and ask the model for schedules of newly opened seasons.
+  private func hydrate(around seasonID: Int) {
+    let before = rail.hydratedSeasonIDs
+    let seed = before.isEmpty
+      ? Self.effectiveHydratedIDs(seasons: seasons, hydrated: before, selectedTabID: seasonID)
+      : before
+    let next = Self.expandingHydration(
+      displayedSeasonID: seasonID,
+      seasons: seasons,
+      hydrated: seed)
+    let newly = next.subtracting(before)
+    guard !newly.isEmpty || before.isEmpty else { return }
+    rail.hydratedSeasonIDs = next
+    for id in (before.isEmpty ? next : newly) {
+      if let season = seasons.first(where: { $0.id == id }) {
+        onSeasonVisible?(season.number)
+      }
+    }
+  }
+
+  private func noteDisplayed(entryID: Int) {
+    // Season plate in front of a run.
+    if let season = seasons.first(where: { Self.seasonCardItemID($0.id) == entryID }) {
+      hydrate(around: season.id)
+      return
+    }
+    guard let entry = entries.first(where: { $0.id == entryID }),
+          let season = entry.season else { return }
+    hydrate(around: season.id)
   }
 
   /// What sits past kino.pub's last season: skipped seasons as one dark card, then
@@ -434,7 +533,7 @@ struct SeasonsRailView: View {
           .first { $0.seasonNumber == number }?.episodeCount
         return SeasonTab(id: entry.id, first: number, last: number, status: .soon,
                          premiereDate: date, episodeCount: episodes)
-      case .playable, .unavailable:
+      case .playable, .unavailable, .placeholder:
         return nil
       }
     }
@@ -581,6 +680,9 @@ struct SeasonsRailView: View {
         if selectedTabID == nil {
           // Cheap opener: do not build every season's rail just to pick a tab.
           selectedTabID = Self.preferredOpeningTabID(seasons: seasons) ?? tabs.first?.id
+        }
+        if let seed = selectedTabID ?? seasons.first?.id {
+          hydrate(around: seed)
         }
       }
       // Keyed on the rail's contents, not fired once on appear: the detail payload and
@@ -991,9 +1093,12 @@ struct SeasonsRailView: View {
       onTabSelected: { id in
         // Only a season kino.pub has can be asked about: there is no schedule to fetch
         // for a number it does not carry.
-        if let season = seasons.first(where: { $0.id == id }) {
-          onSeasonVisible?(season.number)
+        if seasons.contains(where: { $0.id == id }) {
+          hydrate(around: id)
         }
+      },
+      onItemDisplayed: { id in
+        noteDisplayed(entryID: id)
       },
       contextMenuProvider: { id in
         if let season = cardSeason(id) { return seasonContextEntries(season, entries: entries) }
@@ -1002,6 +1107,12 @@ struct SeasonsRailView: View {
         return contextEntries(for: episode, season: season)
       }
     )
+    .onAppear {
+      let seed = selectedTabID
+        ?? Self.preferredOpeningTabID(seasons: seasons)
+        ?? seasons.first?.id
+      if let seed { hydrate(around: seed) }
+    }
   }
 
   /// A folded season keeps only its card: its tab, and an opening inside it, land there.
@@ -1118,8 +1229,8 @@ struct SeasonsRailView: View {
         presentEpisodeInfo(entryID: id)
       },
       onTabSelected: { id in
-        if let season = seasons.first(where: { $0.id == id }) {
-          onSeasonVisible?(season.number)
+        if seasons.contains(where: { $0.id == id }) {
+          hydrate(around: id)
         }
       },
       onFoldProgress: { progress in
@@ -1128,6 +1239,12 @@ struct SeasonsRailView: View {
       onPageOffset: onPageOffset,
       focus: railFocus
     )
+    .onAppear {
+      let seed = selectedTabID
+        ?? Self.preferredOpeningTabID(seasons: seasons)
+        ?? seasons.first?.id
+      if let seed { hydrate(around: seed) }
+    }
   }
 
   private var rivuletRailContent: (tabs: [RivuletRailTab], items: [RivuletRailItem]) {
@@ -1173,6 +1290,11 @@ struct SeasonsRailView: View {
                              title: title,
                              year: schedule.airDate.map { String(Calendar.current.component(.year, from: $0)) },
                              rating: rating, progress: nil)
+    case .placeholder(_, let episode):
+      return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: nil, duration: nil,
+                             eyebrow: EpisodeText(season: nil, number: episode.number).formatted(.long).uppercased(),
+                             title: EpisodeText(season: nil, number: episode.number).formatted(.long),
+                             year: nil, rating: nil, progress: nil)
     case .missingSeasons(let from, let to, _, _, _):
       return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: nil, duration: nil,
                              eyebrow: "", title: String(format: "MediaItem_SeasonsRange".localized, from, to),
@@ -1297,6 +1419,13 @@ struct SeasonsRailView: View {
                               symbol: "calendar",
                               caption: String(format: "MediaItem_SeasonSingle".localized, number),
                               status: .upcoming(Self.airDateLabel(date, context: .beginningOfSentence)))
+
+    case .placeholder(_, let episode):
+      // Exact-geometry skeleton: focusable so L/R never dead-ends while the season loads.
+      return TVUIKitMediaItem(id: entry.id,
+                              tint: UIColor.tertiarySystemFill,
+                              caption: EpisodeText(season: nil, number: episode.number).formatted(.short),
+                              status: .ready)
     }
   }
 
@@ -1318,6 +1447,8 @@ struct SeasonsRailView: View {
       onUnavailableSelected?(message.text, message.systemImage)
     case .upcomingSeason(_, let date, _):
       onUnavailableSelected?(Self.unavailableMessage(date: date), "clock")
+    case .placeholder(let season, _):
+      hydrate(around: season.id)
     case .missingSeasons:
       break
     }
@@ -1452,11 +1583,11 @@ struct SeasonsRailView: View {
       let entry = leading.entry
       rail.leadingEntryID = entry.id
       rail.leadingAnchor = leading.anchor
+      if let season = entry.season {
+        hydrate(around: season.id)
+      }
       guard !isScrollingFromTab, entry.tabID != selectedTabID else { return }
       selectedTabID = entry.tabID
-      if let season = seasons.first(where: { $0.id == entry.tabID }) {
-        onSeasonVisible?(season.number)
-      }
     }
   }
 #endif
@@ -1538,6 +1669,15 @@ struct SeasonsRailView: View {
 
     case .upcomingSeason(let number, let date, let poster):
       UpcomingSeasonCard(number: number, date: date, poster: poster, stillHeight: stillHeight)
+
+    case .placeholder(let season, let episode):
+      // Skeleton while the season window expands — same footprint as a real episode card.
+      Color.clear
+        .frame(width: cardWidth, height: stillHeight)
+        .overlay {
+          MediaCardView(card: .placeholder(id: episode.id), caption: .always)
+        }
+        .onAppear { hydrate(around: season.id) }
     }
   }
 
@@ -1550,19 +1690,15 @@ struct SeasonsRailView: View {
   ///   initial resume jump (`scrollToFirstUnseen`) passes a specific target here.
   private func selectTab(_ tabID: Int, entryEpisodeID: Int? = nil, proxy: ScrollViewProxy, animated: Bool) {
     guard tabs.contains(where: { $0.id == tabID }) else { return }
-    // The rail builds one season's cards at a time (`entries`): another season has none
-    // until it is the selected one, so select it first or the press finds nothing to
-    // scroll to and is dropped — the pills did nothing on iPhone (Sasha, 2026-11-16).
-    if !entries.contains(where: { $0.tabID == tabID }) { selectedTabID = tabID }
+    // Hydrate first so the destination season has cards (or stable-id placeholders) to
+    // scroll to — a far tab used to land on an empty rail when only one season was built.
+    if seasons.contains(where: { $0.id == tabID }) {
+      hydrate(around: tabID)
+    }
     guard let first = entries.first(where: { $0.tabID == tabID }) else { return }
     let target = entryEpisodeID.flatMap { id in entries.first(where: { $0.id == id }) } ?? first
     selectedTabID = tabID
     seasonEntryEpisodeID = target.id
-    // Only a season kino.pub has can be asked about: there is no schedule to fetch for a
-    // number it does not carry. The trailing cards already hold what TMDB said of theirs.
-    if let season = seasons.first(where: { $0.id == tabID }) {
-      onSeasonVisible?(season.number)
-    }
     var anchor = Self.episodeAnchor(target.id)
 #if !os(tvOS)
     // The season itself was picked: its card opens the run, so it goes to the edge.
