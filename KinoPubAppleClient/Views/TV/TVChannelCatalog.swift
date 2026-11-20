@@ -85,7 +85,7 @@ enum TVChannelCatalog {
        5: .full("матч-футбол-1"),
        6: .full("матч-футбол-2"),
        7: .full("матч-футбол-3"),
-       172: .full("okko-прайм-спорт"),
+       172: .full("okko-prime-спорт"),
        157: .full("okko-спорт"),
        160: .full("okko-футбол"),
        175: .full("okko-чемпионат"),

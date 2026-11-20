@@ -32,8 +32,8 @@ struct TVChannelsView: View {
       }
       // Under the tab bar, as every tab's page is (`MainView.page`).
       .ignoresSafeArea()
-      .task { await model.fetch() }
-      .onAppear { Task { await model.refreshIfStale() } }
+      // `load` reuses a fresh `/v1/tv` answer (≤1 h); Retry still calls `fetch`.
+      .task { await model.load() }
     }
   }
 
@@ -83,18 +83,16 @@ struct TVChannelsView: View {
                    alpha: 1)
   }
 
-  /// At rest the line under the tile is what's on air (falling back to the channel
-  /// name). Focused: channel name under the tile, programme as the secondary line.
+  /// The line under the tile is what's on air (falling back to the channel name),
+  /// focused and at rest — no channel-name swap. Long programmes marquee while
+  /// focused (`TVMediaItemContentConfiguration` / system focus marquee).
   static func tile(for channel: TVChannel, onAir: EPGProgram? = nil) -> TVPageTile {
     let program = onAir?.title
     return TVPageTile(id: String(channel.id),
                       title: program ?? channel.title,
                       tint: Self.plate(for: channel.id),
                       style: .flat,
-                      logo: Self.logo(for: channel),
-                      focusedTitle: program.map { _ in channel.title },
-                      subtitle: program,
-                      subtitleOnFocus: program != nil)
+                      logo: Self.logo(for: channel))
   }
 
   /// Bundled asset when the catalog has one; otherwise the CDN / payload URL.

@@ -58,7 +58,9 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   SwiftUI's tvOS stack pushes with `animated: false`, so every move swaps the pages at once and
   the animator is driven from a snapshot of the page left, through a proxy in front of SwiftUI's
   navigation delegate (it also hides UIKit's private `animatorForOperation:` question, which
-  SwiftUI answers first). The tab bar's hide and show are drawn as a slide up and back down
+  SwiftUI answers first). Snapshots are `UIImageView`s from `drawHierarchy(…, afterScreenUpdates:
+  true)` — `snapshotView` returns `_UIReplicantView`, which UIKit refuses as a subview of a
+  `UIHostingController` view. The tab bar's hide and show are drawn as a slide up and back down
   alongside (`TabBarSlide`); SwiftUI still decides when it is hidden. No class, or
   `-KINOPUBSystemNavigationTransition YES`: the system crossfade. Re-probe on the next SDK.
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`

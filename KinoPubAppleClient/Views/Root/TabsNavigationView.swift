@@ -834,7 +834,10 @@ struct TabsNavigationView: View {
 
 #if os(tvOS)
   private var tvContent: some View {
-    TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService))
+    // Long-lived like Home's catalog: tab switches must not reset the 1 h `/v1/tv` cache.
+    TVChannelsView(model: sectionModels.model("tv") {
+      TVChannelsModel(contentService: appContext.contentService)
+    })
   }
 #endif
 

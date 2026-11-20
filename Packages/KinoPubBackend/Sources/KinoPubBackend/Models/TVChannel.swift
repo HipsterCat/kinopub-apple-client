@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct TVChannel: Decodable, Identifiable, Hashable, Sendable {
+public struct TVChannel: Codable, Identifiable, Hashable, Sendable {
   public let id: Int
   public let title: String
   public let name: String?
@@ -43,6 +43,16 @@ public struct TVChannel: Decodable, Identifiable, Hashable, Sendable {
     } else {
       logo = nil
     }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(title, forKey: .title)
+    try container.encodeIfPresent(name, forKey: .name)
+    try container.encode(stream, forKey: .stream)
+    // Round-trip as a plain string — `init(from:)` already accepts that shape.
+    try container.encodeIfPresent(logo, forKey: .logos)
   }
 }
 

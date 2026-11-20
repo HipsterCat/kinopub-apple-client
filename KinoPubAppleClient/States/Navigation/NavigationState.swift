@@ -268,6 +268,9 @@ final class NavigationState {
                      // path; that is not the viewer going back. Its titles stay for the
                      // next visit (Sasha, 2026-10-31: a title opened in Search was gone).
                      if routes.isEmpty, tab != self.selectedTab, !self[keyPath: keyPath].isEmpty { return }
+                     // `NavigationStack` can ask to write the same path more than once in a
+                     // frame (`Update NavigationAuthority bound path…`). Skip no-ops.
+                     guard self[keyPath: keyPath] != routes else { return }
                      self[keyPath: keyPath] = routes
                      let ids = MediaItemModelCache.itemIDs(in: routes)
                      MainActor.assumeIsolated {

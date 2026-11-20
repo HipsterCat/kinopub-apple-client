@@ -5,7 +5,9 @@
 
 import XCTest
 import KinoPubBackend
+#if os(tvOS)
 import KinoPubUI
+#endif
 @testable import KinoPub
 
 @MainActor
@@ -28,8 +30,8 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertNil(model.channel(id: 2))
   }
 
-  /// Stream links carry a token: coming back to the tab after a while fetches again,
-  /// coming back sooner keeps what it has.
+  /// Stream links carry a token: coming back to the tab within an hour reuses the list;
+  /// after the TTL (or `fetch`) hits the network again.
   func testRefreshOnlyWhenStale() async {
     let calls = Counter()
     let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: {
@@ -39,10 +41,14 @@ final class TVChannelsModelTests: XCTestCase {
     await model.refreshIfStale()
     XCTAssertEqual(calls.value, 0, "nothing fetched yet is not stale — the first fetch is the page's")
     await model.fetch()
-    await model.refreshIfStale(now: Date().addingTimeInterval(60))
-    XCTAssertEqual(calls.value, 1)
+    await model.load(now: Date().addingTimeInterval(60))
+    XCTAssertEqual(calls.value, 1, "load within the hour must not hit /v1/tv again")
     await model.refreshIfStale(now: Date().addingTimeInterval(TVChannelsModel.freshness + 1))
     XCTAssertEqual(calls.value, 2)
+  }
+
+  func testFreshnessIsOneHour() {
+    XCTAssertEqual(TVChannelsModel.freshness, 60 * 60)
   }
 
   /// The guide comes after the list and fills the second line: what is on air now, nothing
@@ -62,9 +68,9 @@ final class TVChannelsModelTests: XCTestCase {
 #if os(tvOS)
     let tile = TVChannelsView.tile(for: Self.channel(1), onAir: model.nowPlaying(channelID: 1, at: now))
     XCTAssertEqual(tile.title, "Now")
-    XCTAssertEqual(tile.focusedTitle, "Channel 1")
-    XCTAssertEqual(tile.subtitle, "Now")
-    XCTAssertTrue(tile.subtitleOnFocus)
+    XCTAssertNil(tile.focusedTitle)
+    XCTAssertNil(tile.subtitle)
+    XCTAssertFalse(tile.subtitleOnFocus)
 #endif
   }
 
@@ -81,18 +87,19 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertFalse(model.isLoading)
   }
 
-  /// A few sports channels ship logos in the asset catalog; the rest stay on the CDN URL.
+  /// Most sports channels ship logos in the asset catalog; a few still stay on the CDN URL.
   func testBundledLogosUseFullCards() {
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 80), .full("cbs-sports"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 27), .full("espn"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 145), .full("eleven-sports"))
-    XCTAssertNil(TVChannelCatalog.bundledLogo(for: 1), "МАТЧ! ТВ stays on the CDN")
+    XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 1), .full("матч"))
+    XCTAssertNil(TVChannelCatalog.bundledLogo(for: 13), "Setanta 1 stays on the CDN")
 #if os(tvOS)
     let cbs = TVChannelCatalog.channels.first { $0.id == 80 }!
-    let match = TVChannelCatalog.channels.first { $0.id == 1 }!
+    let setanta = TVChannelCatalog.channels.first { $0.id == 13 }!
     XCTAssertEqual(TVChannelsView.logo(for: cbs), .bundled("cbs-sports"))
-    XCTAssertEqual(TVChannelsView.logo(for: match),
-                   .remote(URL(string: "https://m.staticpop.net/channels/150x150/match_new.png")!))
+    XCTAssertEqual(TVChannelsView.logo(for: setanta),
+                   .remote(URL(string: "https://m.staticpop.net/channels/150x150/setanta_1.png")!))
     // Mark+focus-BG remains a supported logo kind even though no channel uses it now.
     XCTAssertEqual(TVPageLogo.bundledMark(logo: "cbs-sports_logo",
                                           focusBackground: "cbs-sports_bg"),
@@ -101,8 +108,8 @@ final class TVChannelsModelTests: XCTestCase {
   }
 
 #if os(tvOS)
-  /// Unfocused caption is the programme; focused caption returns to the channel name.
-  func testChannelTileShowsProgramWhenUnfocused() {
+  /// Caption stays the programme when focused (no channel-name / logo swap under the tile).
+  func testChannelTileKeepsProgramWhenFocused() {
     let channel = TVChannel(id: 27, title: "ESPN 1",
                             logo: "https://example/espn.png", stream: "https://example/live.m3u8")
     let onAir = EPGProgram(title: "LIVE: COLLEGE BASKETBALL",
@@ -110,9 +117,9 @@ final class TVChannelsModelTests: XCTestCase {
                            stop: Date().addingTimeInterval(600))
     let withProgram = TVChannelsView.tile(for: channel, onAir: onAir)
     XCTAssertEqual(withProgram.title, "LIVE: COLLEGE BASKETBALL")
-    XCTAssertEqual(withProgram.focusedTitle, "ESPN 1")
-    XCTAssertEqual(withProgram.subtitle, "LIVE: COLLEGE BASKETBALL")
-    XCTAssertTrue(withProgram.subtitleOnFocus)
+    XCTAssertNil(withProgram.focusedTitle)
+    XCTAssertNil(withProgram.subtitle)
+    XCTAssertFalse(withProgram.subtitleOnFocus)
 
     let idle = TVChannelsView.tile(for: channel, onAir: nil)
     XCTAssertEqual(idle.title, "ESPN 1")

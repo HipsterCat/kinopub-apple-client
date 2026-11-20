@@ -1409,8 +1409,7 @@ struct MediaItemHeroView: View {
           lead: synopsis.lead,
           focus: $focus,
           allowsFocus: actionEntryClaimed,
-          // The TV app's panel puts one genre under the title, not the original name.
-          popupSubtitle: mediaItem.genreNames.first,
+          popupSubtitle: popupOriginalTitle,
           summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
         )
         .padding(.vertical, Self.contentSpacing / 2)
