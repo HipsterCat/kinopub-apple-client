@@ -544,7 +544,7 @@ private extension View {
 /// Switch only — restores UISwitch’s system green under the app’s `.tint(.primary)`
 /// without painting close buttons, pickers, or chevrons green.
 private struct KinopubSystemToggleStyle: ToggleStyle {
-  func makeBody(configuration: Configuration) -> some View {
+  func makeBody(configuration: ToggleStyleConfiguration) -> some View {
     Toggle(isOn: configuration.$isOn) {
       configuration.label
     }

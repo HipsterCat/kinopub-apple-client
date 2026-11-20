@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Posters: Codable, Hashable {
+public struct Posters: Codable, Hashable, Sendable {
   public let small: String
   public let medium: String
   public let big: String

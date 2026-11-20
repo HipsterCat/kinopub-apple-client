@@ -302,6 +302,18 @@ public final class TVPageCollectionViewController: UIViewController {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
 
+  /// Search whose grid keyboard stays on screen (`TVSearchChrome.keepsGridKeyboardVisible`):
+  /// the search container then keeps the tab bar, the field and the suggestion row where
+  /// they are, and the results scroll up beneath them — the collection reaches the window
+  /// top (`extendToWindow`) and nothing clips it, so posters ran behind the suggestions and
+  /// the tab bar. While the keyboard narrows the host, the page's view is masked above the
+  /// line where its content starts at rest, and only above it: sideways and below, cards
+  /// still paint past the collection (2026-11-20).
+  public var clipsAboveContentBesideGridKeyboard = false {
+    didSet { if isViewLoaded { view.setNeedsLayout() } }
+  }
+  private var topClip: CALayer?
+
   /// The collection covers the whole window even when its controller does not. A
   /// collection view keeps a cell only while it is inside its *bounds*; the search
   /// container lays its results out from y = 157 (under the field), so a card scrolling
@@ -320,6 +332,7 @@ public final class TVPageCollectionViewController: UIViewController {
     // keyboard hid fought the search container and hung (`testGridKeyboardHidesWhileResultsHaveFocus`).
     // A narrowed host keeps the collection a full row wide; the screen clips the rest.
     let pinned = pinSpanningWidth()
+    updateTopClip(besideGridKeyboard: pinned)
     let trailing = pinned ? windowExtension[2].constant : CGFloat(0)
     let wanted = [-max(frame.minY, 0), CGFloat(0), trailing, -max(window.bounds.maxY - frame.maxY, 0)]
     var changed = false
@@ -328,6 +341,35 @@ public final class TVPageCollectionViewController: UIViewController {
       changed = true
     }
     if changed { updateContentInsets() }
+  }
+
+  /// `clipsAboveContentBesideGridKeyboard`: a mask on the page's own view (it does not
+  /// scroll) that starts where the content starts at rest — the collection's top plus its
+  /// adjusted inset, which steps over the suggestion row — and reaches far past every
+  /// other edge.
+  private func updateTopClip(besideGridKeyboard: Bool) {
+    guard clipsAboveContentBesideGridKeyboard, besideGridKeyboard else {
+      if topClip != nil {
+        view.layer.mask = nil
+        topClip = nil
+      }
+      return
+    }
+    let clip = topClip ?? CALayer()
+    if topClip == nil {
+      clip.backgroundColor = UIColor.black.cgColor
+      topClip = clip
+      view.layer.mask = clip
+    }
+    let top = collectionView.frame.minY + collectionView.adjustedContentInset.top
+    let reach: CGFloat = 4000
+    let frame = CGRect(x: -reach, y: top, width: view.bounds.width + 2 * reach,
+                       height: view.bounds.height - top + reach)
+    guard clip.frame != frame else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    clip.frame = frame
+    CATransaction.commit()
   }
 
   /// Keeps the collection as wide as the full row while the host is narrower than
