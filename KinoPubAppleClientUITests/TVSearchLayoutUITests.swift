@@ -6,9 +6,11 @@
 //  Search results against both system keyboards, on the search fixture (no session).
 //  The linear keyboard is a row on top and the results are full width; the grid keyboard
 //  (Settings → General → Keyboard) stands on the left and the
-//  system gives the results only the width beside it, and hides the keyboard while focus
-//  is in them. Results reaching the screen's left edge in grid mode lay over the keyboard
-//  (2026-10-18).
+//  system gives the results only the width beside it. With «Grid keyboard always visible»
+//  on (the default) it stays there and the tab bar and field stay put while the results
+//  scroll; off, it hides while focus is in the results and the bar leaves with the scroll,
+//  as in Apple's apps. Results reaching the screen's left edge in grid mode lay over the
+//  keyboard (2026-10-18).
 //
 
 import XCTest
@@ -51,12 +53,12 @@ final class TVSearchLayoutUITests: XCTestCase {
     assertBesideGridKeyboard(frame, width: app.frame.width)
   }
 
-  /// Focus below the keyboard: the grid keyboard slides away and the page takes the
-  /// screen's width, as in Apple's apps. Down from the suggestions lands on the filter row
+  /// «Grid keyboard always visible» off. Focus below the keyboard: the grid keyboard slides
+  /// away and the page takes the screen's width, as in Apple's apps. Down from the suggestions lands on the filter row
   /// (Genre), not a poster; the keyboard is already gone there. Left from the first column
   /// brings it back and the results move over.
   func testGridKeyboardHidesWhileResultsHaveFocus() throws {
-    let app = launch(gridKeyboard: true)
+    let app = launch(gridKeyboard: true, alwaysVisible: false)
     let width = app.frame.width
     // Tab pill → keyboard → along its top row to the suggestions → down into the results.
     press(.down)
@@ -68,6 +70,67 @@ final class TVSearchLayoutUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 1)
     try shoot(app, name: "grid-keyboard-back")
     assertBesideGridKeyboard(try resultsFrame(in: app), width: width)
+  }
+
+  /// «Grid keyboard always visible» on (Sasha, 2026-11-20). Focus walks down into the
+  /// results and four rows on: the keyboard stays on the left with the results beside it,
+  /// and the tab bar, the field and the keyboard do not move. Left from the first column
+  /// goes back to the keyboard, and Up from there reaches the tab bar.
+  func testGridKeyboardStaysBesideTheResultsAndTheChromeStays() throws {
+    let app = launch(gridKeyboard: true)
+    let width = app.frame.width
+    let focusedTab = app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    XCTAssertTrue(focusedTab.exists, "launch did not start on the Search tab")
+    let tab = app.tabBars.buttons[focusedTab.label]
+    let field = app.searchFields.firstMatch
+    let keyboard = app.keyboards.firstMatch
+    XCTAssertTrue(keyboard.exists, "no grid keyboard on screen")
+    let (tabFrame, fieldFrame, keyboardFrame) = (tab.frame, field.frame, keyboard.frame)
+
+    for _ in 0..<8 where focusedPoster(in: app) == nil {
+      press(.down, wait: 1)
+    }
+    let first = try XCTUnwrap(focusedPoster(in: app), "never reached the posters\n\(focusDescription(app))")
+    try shoot(app, name: "grid-always-0-first-poster")
+    press(.down, 4, wait: 1.2)
+    try shoot(app, name: "grid-always-1-four-rows-down")
+    let deep = try XCTUnwrap(focusedPoster(in: app), "focus left the posters\n\(focusDescription(app))")
+    XCTAssertNotEqual(deep, first, "Down did not move through the grid")
+    XCTAssertTrue(keyboard.exists, "the keyboard went away with focus in the results")
+    XCTAssertEqual(keyboard.frame.minX, keyboardFrame.minX, accuracy: 2, "keyboard moved \(keyboard.frame)")
+    XCTAssertEqual(keyboard.frame.minY, keyboardFrame.minY, accuracy: 2, "keyboard moved \(keyboard.frame)")
+    assertBesideGridKeyboard(try resultsFrame(in: app), width: width)
+    XCTAssertTrue(tab.exists, "the tab bar left with the scroll")
+    XCTAssertEqual(tab.frame.minY, tabFrame.minY, accuracy: 2, "tab bar moved \(tab.frame)")
+    XCTAssertEqual(field.frame.minY, fieldFrame.minY, accuracy: 2, "field moved \(field.frame)")
+
+    // Left along the row to its first column, then once more into the keyboard.
+    for _ in 0..<8 where !keyboardFocused(in: app) {
+      press(.left, wait: 0.8)
+    }
+    try shoot(app, name: "grid-always-2-left-to-keyboard")
+    XCTAssertTrue(keyboardFocused(in: app), "Left from the first column did not reach the keyboard\n\(focusDescription(app))")
+    XCTAssertEqual(tab.frame.minY, tabFrame.minY, accuracy: 2, "tab bar moved \(tab.frame)")
+    XCTAssertEqual(field.frame.minY, fieldFrame.minY, accuracy: 2, "field moved \(field.frame)")
+    for _ in 0..<8 where !tabBarFocused(in: app) {
+      press(.up, wait: 0.8)
+    }
+    XCTAssertTrue(tabBarFocused(in: app), "Up from the keyboard never reached the tab bar\n\(focusDescription(app))")
+  }
+
+  /// «Grid keyboard always visible» on: Up from the first row of posters climbs the filter
+  /// and suggestion rows to the tab bar.
+  func testGridKeyboardUpFromTheResultsReachesTheTab() throws {
+    let app = launch(gridKeyboard: true)
+    for _ in 0..<8 where focusedPoster(in: app) == nil {
+      press(.down, wait: 1)
+    }
+    XCTAssertNotNil(focusedPoster(in: app), "never reached the posters\n\(focusDescription(app))")
+    for _ in 0..<6 where !tabBarFocused(in: app) {
+      press(.up, wait: 1)
+    }
+    try shoot(app, name: "grid-always-3-up-to-tab")
+    XCTAssertTrue(tabBarFocused(in: app), "Up from the results never reached the tab bar\n\(focusDescription(app))")
   }
 
   /// A person among the top cards is the wide card Cast & Crew draws — the same cell, the
@@ -110,7 +173,9 @@ final class TVSearchLayoutUITests: XCTestCase {
   /// bar stayed hidden above the screen, the field sat under the top edge, and Up focused the
   /// bar off screen (2026-10-25).
   private func walkTheGridKeyboard(afterScrolledResults: Bool) throws {
-    let app = launch(gridKeyboard: true)
+    // The bar leaving with the scrolled results is the OFF variant's; ON keeps it
+    // (`testGridKeyboardStaysBesideTheResultsAndTheChromeStays`).
+    let app = launch(gridKeyboard: true, alwaysVisible: !afterScrolledResults)
     let focusedTab = app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).firstMatch
     XCTAssertTrue(focusedTab.exists, "launch did not start on the Search tab")
     let tab = app.tabBars.buttons[focusedTab.label]
@@ -209,6 +274,15 @@ final class TVSearchLayoutUITests: XCTestCase {
     }.joined(separator: "\n")
   }
 
+  /// The keyboard's keys report no focus to XCUITest (the focused «a» is drawn lifted, yet
+  /// `hasFocus` is false everywhere). Focus that left the results and is not on the tab bar
+  /// is the keyboard on this screen; the screenshots are the record.
+  private func keyboardFocused(in app: XCUIApplication) -> Bool {
+    let inResults = app.collectionViews["kinopub.page.search"].descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true")).count > 0
+    return !inResults && !tabBarFocused(in: app)
+  }
+
   private func tabBarFocused(in app: XCUIApplication) -> Bool {
     app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count > 0
   }
@@ -217,7 +291,9 @@ final class TVSearchLayoutUITests: XCTestCase {
     for _ in 0..<times { XCUIRemote.shared.press(button); Thread.sleep(forTimeInterval: wait) }
   }
 
-  private func launch(gridKeyboard: Bool, topCards: Bool = false) -> XCUIApplication {
+  /// `alwaysVisible`: «Grid keyboard always visible», passed every time so a switch left in
+  /// the simulator's Settings cannot decide the run.
+  private func launch(gridKeyboard: Bool, topCards: Bool = false, alwaysVisible: Bool = true) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture", "-KINOPUBForceColorScheme", "dark",
                             "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO",
@@ -225,7 +301,8 @@ final class TVSearchLayoutUITests: XCTestCase {
                             // 1 linear, 2 grid. On tvOS 26.5 `-ForceGridKeyboard NO` does not
                             // override a simulator set to grid, and the linear test met the
                             // grid keyboard (2026-11-20).
-                            "-UserPreferredKeyboardStyle", gridKeyboard ? "2" : "1"]
+                            "-UserPreferredKeyboardStyle", gridKeyboard ? "2" : "1",
+                            "-featureFlag.gridKeyboardAlwaysVisible", alwaysVisible ? "<true/>" : "<false/>"]
     if topCards { app.launchArguments.append("-KINOPUBSearchFixtureTopCards") }
     app.launch()
     XCTAssertTrue(app.collectionViews["kinopub.page.search"].cells.firstMatch.waitForExistence(timeout: 20),

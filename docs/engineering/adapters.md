@@ -32,6 +32,11 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   General → Keyboard) hides while focus is in the results and the results take the full width,
   through UIKit's private `_shouldHideGridKeyboardUnfocused` (NO by default, no public switch;
   probed on tvOS 26.5 and 27.2). Guarded by `responds(to:)`: without it the keyboard just stays.
+  Since 2026-11-20 only with «Grid keyboard always visible» off (`TVSearchChrome.keepsGridKeyboardVisible`);
+  on, the private switch is not touched at all — the keyboard stays and the container keeps the
+  tab bar, field and suggestions in place by itself. The results then scroll beneath that
+  chrome, so the page masks itself above the line its content starts at
+  (`clipsAboveContentBesideGridKeyboard`, a top-only mask; no API is needed for the bar).
   Widening the results used to hang the main thread (the collection growing to the window
   fought the search container; losing focus on the rebuild showed the keyboard again).
   The page extends vertically only, and remembers the focused poster while results have it.

@@ -10,6 +10,7 @@
 //  on `UISearchController` (property `_shouldHideGridKeyboardUnfocused`, NO by default;
 //  tvOS 26.5 and 27.2). Without it the keyboard stays on screen and the results keep
 //  two thirds of it. The linear keyboard is not affected. Re-probe on the next SDK.
+//  Used only with «Grid keyboard always visible» off (`TVSearchChrome.keepsGridKeyboardVisible`).
 //
 
 import UIKit
