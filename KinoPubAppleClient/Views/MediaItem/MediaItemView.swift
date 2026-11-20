@@ -1387,6 +1387,7 @@ struct MediaItemPosterWash: View {
       .overlay {
         // Paints from the memory cache on the first frame, as `CachedRemoteImage` did.
         FallbackRemoteImage(urls: url.map { [$0] } ?? [], contentMode: .fill,
+                            size: Self.buffer,
                             onLoaded: { onOutcome?(true) },
                             onFailed: { onOutcome?(false) })
           .frame(width: Self.buffer.width, height: Self.buffer.height)

@@ -77,7 +77,7 @@ public struct TitleLogoSlot<Title: View>: View {
 
   public var body: some View {
     // A cached decode must paint on this frame, before `.onAppear` runs the session.
-    let cached = resolution.url.flatMap { Artwork.cachedImage(for: $0) }
+    let cached = resolution.url.flatMap { Artwork.cachedLogo(for: $0) }
     let decodedLogo = session.image ?? cached
     // A logo taller than it is wide is a vertical lockup, unreadable at the slot's
     // height: the lettered title stands in (Sasha, 2026-10-30, Mission: Impossible).
@@ -156,7 +156,7 @@ public struct TitleLogoSlot<Title: View>: View {
   /// The decoded logo's width in pixels, not points: what the worker actually sent (the
   /// request asks for a width; TMDB's original can be far smaller).
   private func pixelWidth(of image: Image, size: CGSize?) -> CGFloat? {
-    let cached = resolution.url.flatMap { Artwork.cachedImage(for: $0) }
+    let cached = resolution.url.flatMap { Artwork.cachedLogo(for: $0) }
     guard let decoded = session.image ?? cached else { return nil }
 #if os(macOS)
     if let rep = decoded.representations.first, rep.pixelsWide > 0 { return CGFloat(rep.pixelsWide) }
@@ -176,7 +176,7 @@ public enum TitleLogoCaption {
   public static func resolvedMark(_ reported: TitleLogoMark, logoURL: URL?) -> TitleLogoMark {
     // The slot turned a cached logo down (too tall): it says so, and that wins.
     if reported == .text { return .text }
-    if let url = logoURL, Artwork.cachedImage(for: url) != nil { return .logo }
+    if let url = logoURL, Artwork.cachedLogo(for: url) != nil { return .logo }
     return reported
   }
 

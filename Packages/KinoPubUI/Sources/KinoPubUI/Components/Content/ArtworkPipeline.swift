@@ -70,30 +70,45 @@ public enum Artwork {
   /// No byte for this long and the request fails; the cell keeps its placeholder.
   static let requestTimeout: TimeInterval = 15
 
-  /// Decoded images. On tvOS this is the number that was measured: a 1 MB still decodes
-  /// to ~8 MB at full resolution, so 64 MB held about eight of them — at tile size the
-  /// same budget holds hundreds, and that is what stopped tiles going blank a short
-  /// scroll away. Apple TV HD has little headroom, so the TV budget stays there.
   /// Decoded-image budget. Settings shows usage against this, so the number
   /// the cache is created with and the number on the screen are the same one.
-  public static let memoryByteLimit: Int = {
+  ///
+  /// Scales with `ProcessInfo.physicalMemory`: ~1/16 of RAM on tvOS/iOS (192 MB on a
+  /// 3 GB Apple TV 4K, matching Plozz), ~1/32 on Mac. Floors keep Apple TV HD and
+  /// small iPhones from going below a working set; caps keep a 5K iMac from eating RAM.
+  public static let memoryByteLimit: Int = memoryByteLimit(
+    physicalMemory: ProcessInfo.processInfo.physicalMemory
+  )
+
+  /// - Parameter physicalMemory: injected so tests can pin a device class without
+  ///   reading this process.
+  public static func memoryByteLimit(physicalMemory: UInt64) -> Int {
+    let megabytes = Int(physicalMemory / (1024 * 1024))
 #if os(tvOS)
-    64 * 1024 * 1024
+    return clampMemoryMegabytes(megabytes / 16, minimum: 64, maximum: 192) * 1024 * 1024
+#elseif os(iOS)
+    return clampMemoryMegabytes(megabytes / 16, minimum: 128, maximum: 256) * 1024 * 1024
 #else
-    256 * 1024 * 1024
+    return clampMemoryMegabytes(megabytes / 32, minimum: 256, maximum: 512) * 1024 * 1024
 #endif
-  }()
+  }
+
+  private static func clampMemoryMegabytes(_ value: Int, minimum: Int, maximum: Int) -> Int {
+    min(max(value, minimum), maximum)
+  }
+
+  private static var memoryCountLimit: Int {
+#if os(tvOS)
+    1500
+#else
+    2000
+#endif
+  }
 
   private static let memoryCache: ImageCache = {
-#if os(tvOS)
-    ImageCache(costLimit: memoryByteLimit, countLimit: 500)
-#else
-    ImageCache(costLimit: memoryByteLimit, countLimit: 2000)
-#endif
+    ImageCache(costLimit: memoryByteLimit, countLimit: memoryCountLimit)
   }()
 
-  /// tvOS purges `Caches/` when the app is not running, so the TV budget is deliberately
-  /// small — it is a within-session cache there, and pretending otherwise buys nothing.
   /// Worker logo/backdrop request URL → language stamp from the last network answer.
   /// Nuke cache hits do not keep `urlResponse`; hero captions read this table.
   /// Written from the image task and read from hero captions, so it cannot live on
@@ -126,12 +141,32 @@ public enum Artwork {
     case fit
   }
 
+  /// Largest title-logo slot on this platform, in points. Every logo load (session,
+  /// slot cache hit, Home neighbour warmup, season-rail mark) uses this box and
+  /// ``ResizeMode/fit`` so they share one Nuke key. `TitleLogoFit` then sizes the
+  /// bitmap inside the real slot — it only reads `image.size`.
+  public static var logoDecodeSize: CGSize {
+#if os(tvOS)
+    CGSize(width: 680, height: 170)
+#elseif os(macOS)
+    CGSize(width: 440, height: 120)
+#else
+    CGSize(width: 360, height: 96)
+#endif
+  }
+
+  /// Longer side we will decode to, in pixels. Matches TMDB's last non-original
+  /// token: 1280 for `.fit` (logos / posters), 1920 for `.fill` (backdrops / stills).
+  public static func maxDecodePixels(for mode: ResizeMode) -> CGFloat {
+    mode == .fit ? 1280 : 1920
+  }
+
   /// - Parameter size: the box this art is going into, in points. Artwork is decoded
   ///   down to it, and the size is part of the cache key — the same still in a rail and
   ///   in a grid is a different decode, and handing one out for the other is either
   ///   blurry or wasteful. `.zero` keeps full resolution and should be rare.
   /// - Parameter mode: `.fill` (default) centre-crops; `.fit` preserves the whole cover
-  ///   for `TVPosterView` (see `ResizeMode`).
+  ///   for `TVPosterView` and title logos (see `ResizeMode`).
   public static func request(_ url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) -> ImageRequest {
     noteSeen(url, size: size, mode: mode)
     return makeRequest(url, size: size, mode: mode)
@@ -146,14 +181,38 @@ public enum Artwork {
     // Convert to pixels ourselves with the densest attached screen (≥2 when unknown).
     let target = macOSPixelSize(forPoints: size)
     let unit: ImageProcessingOptions.Unit = target.unit
+    let box = cappedSize(target.size, unit: unit, mode: mode)
     let processor: ImageProcessors.Resize
     switch mode {
     case .fill:
-      processor = ImageProcessors.Resize(size: target.size, unit: unit, contentMode: .aspectFill, crop: true)
+      processor = ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFill, crop: true)
     case .fit:
-      processor = ImageProcessors.Resize(size: target.size, unit: unit, contentMode: .aspectFit, crop: false)
+      processor = ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFit, crop: false)
     }
-    return ImageRequest(url: url, processors: [processor])
+    var request = ImageRequest(url: url, processors: [processor])
+    let pixels = pixelDimensions(box, unit: unit)
+    let maxPixel = max(pixels.width, pixels.height)
+    if maxPixel > 0 {
+      request.thumbnail = ImageRequest.ThumbnailOptions(maxPixelSize: Float(maxPixel))
+    }
+    return request
+  }
+
+  /// Shrink a request box so the longer side is at most ``maxDecodePixels(for:)``.
+  private static func cappedSize(_ size: CGSize, unit: ImageProcessingOptions.Unit,
+                                 mode: ResizeMode) -> CGSize {
+    let pixels = pixelDimensions(size, unit: unit)
+    let longest = max(pixels.width, pixels.height)
+    let cap = maxDecodePixels(for: mode)
+    guard longest > cap, longest > 0 else { return size }
+    let factor = cap / longest
+    return CGSize(width: size.width * factor, height: size.height * factor)
+  }
+
+  private static func pixelDimensions(_ size: CGSize, unit: ImageProcessingOptions.Unit) -> CGSize {
+    if unit == .pixels { return size }
+    let scale = displayScale
+    return CGSize(width: size.width * scale, height: size.height * scale)
   }
 
   /// Point box → Nuke resize unit. macOS always uses `.pixels` at display scale;
@@ -180,14 +239,29 @@ public enum Artwork {
 
   /// Already-decoded art at this size, or nil. Synchronous on purpose: a cell calls this
   /// while configuring so a recycled tile never paints a placeholder.
+  ///
+  /// `mode` is part of the cache key. A logo warmed with `.fit` is invisible to a
+  /// `.fill` probe (and the reverse would centre-crop the PNG).
   public static func cachedImage(for url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) -> PlatformImage? {
     pipeline.cache[request(url, size: size, mode: mode)]?.image
   }
 
+  /// Title-logo cache probe. Same key as ``logoImage(for:)`` / ``logoWithSource(for:)``.
+  public static func cachedLogo(for url: URL) -> PlatformImage? {
+    cachedImage(for: url, size: logoDecodeSize, mode: .fit)
+  }
+
   /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and
   /// `ArtworkImage` go through this so they never import Nuke.
-  public static func image(for url: URL, size: CGSize = .zero) async throws -> PlatformImage {
-    try await tracedResponse(url, size: size, mode: .fill).image
+  ///
+  /// `mode` defaults to `.fill` (stills / backdrops). Logos must pass `.fit`.
+  public static func image(for url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) async throws -> PlatformImage {
+    try await tracedResponse(url, size: size, mode: mode).image
+  }
+
+  /// Title-logo decode. Same key as ``cachedLogo(for:)``.
+  public static func logoImage(for url: URL) async throws -> PlatformImage {
+    try await image(for: url, size: logoDecodeSize, mode: .fit)
   }
 
   /// `image(for:)`, plus where it came from: the URL that answered after redirects
@@ -212,6 +286,12 @@ public enum Artwork {
       rememberWorkerLanguage(requestURL: url, language: language)
     }
     return (response.image, answered, language, tier)
+  }
+
+  /// Title-logo decode plus worker language stamp. Same key as ``cachedLogo(for:)``.
+  public static func logoWithSource(for url: URL) async throws
+    -> (image: PlatformImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String) {
+    try await imageWithSource(for: url, size: logoDecodeSize, mode: .fit)
   }
 
   /// Language stamp when the URL is already the worker's durable path (cache hit).
@@ -368,13 +448,12 @@ public enum Artwork {
   // MARK: - Decode size / signposts
 
   /// Drawn box in points → pixels the pipeline will actually decode. `.zero` means
-  /// full source resolution (no downsample).
-  public static func pixelSize(forPoints size: CGSize) -> CGSize {
+  /// full source resolution (no downsample). Caps at ``maxDecodePixels(for:)``.
+  public static func pixelSize(forPoints size: CGSize, mode: ResizeMode = .fill) -> CGSize {
     guard size != .zero else { return .zero }
     let target = macOSPixelSize(forPoints: size)
-    if target.unit == .pixels { return target.size }
-    let scale = displayScale
-    return CGSize(width: size.width * scale, height: size.height * scale)
+    let box = cappedSize(target.size, unit: target.unit, mode: mode)
+    return pixelDimensions(box, unit: target.unit)
   }
 
   /// Decoded bitmap bytes (row × height), or a 4-bytes-per-pixel estimate.
@@ -504,7 +583,7 @@ public enum Artwork {
   private static func tracedResponse(_ url: URL, size: CGSize, mode: ResizeMode) async throws
     -> ImageResponse {
     let imageRequest = request(url, size: size, mode: mode)
-    let pixels = pixelSize(forPoints: size)
+    let pixels = pixelSize(forPoints: size, mode: mode)
     let interval = PerfSignpost.beginArtworkRequest(url: url, pixelSize: pixels)
     do {
       let response = try await pipeline.imageTask(with: imageRequest).response

@@ -55,6 +55,45 @@ final class ArtworkPipelineTests: XCTestCase {
   }
 #endif
 
+  func testMemoryByteLimitScalesWithRAMAndCaps() {
+    let gb: UInt64 = 1024 * 1024 * 1024
+#if os(tvOS)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 2 * gb), 128 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 3 * gb), 192 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 4 * gb), 192 * 1024 * 1024)
+#elseif os(iOS)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 2 * gb), 128 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 8 * gb), 256 * 1024 * 1024)
+#else
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 8 * gb), 256 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 32 * gb), 512 * 1024 * 1024)
+#endif
+  }
+
+  func testLogoDecodeSizeIsTheLargestSlot() {
+#if os(tvOS)
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 680, height: 170))
+#elseif os(macOS)
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 440, height: 120))
+#else
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 360, height: 96))
+#endif
+    XCTAssertEqual(Artwork.maxDecodePixels(for: .fit), 1280)
+    XCTAssertEqual(Artwork.maxDecodePixels(for: .fill), 1920)
+  }
+
+  func testPixelSizeCapsFillAt1920() {
+    Artwork.cacheDisplayScale(2)
+    let pixels = Artwork.pixelSize(forPoints: CGSize(width: 1920, height: 1080), mode: .fill)
+    XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 1920 + 0.5)
+  }
+
+  func testPixelSizeCapsFitAt1280() {
+    Artwork.cacheDisplayScale(2)
+    let pixels = Artwork.pixelSize(forPoints: Artwork.logoDecodeSize, mode: .fit)
+    XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 1280 + 0.5)
+  }
+
   func testDecodedByteCountCountsRasterData() {
 #if os(macOS)
     let image = NSImage(size: NSSize(width: 8, height: 4))

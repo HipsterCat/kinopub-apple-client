@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import KinoPubMetadata
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -21,28 +22,40 @@ import CoreGraphics
 @MainActor
 enum ArtworkPixelWidth {
   /// Full-screen textless backdrop: the screen's native width, capped on MacBook-class
-  /// panels so a ~1400 pt window does not pull a 3456 px original (Sasha, KP-32).
-  /// Cap is **2400** once the worker serves via wsrv.nl WebP (KP-68) — still well
-  /// under native Retina, enough for a sharp banner on a laptop Retina strip.
+  /// panels at 2400 once the worker serves via wsrv.nl WebP (KP-68), and capped at
+  /// 1920 on Apple TV 4K to avoid large decodes. Snapped onto ``TitleImageRoute/bucketedWidth``.
   static var backdrop: Int {
+    TitleImageRoute.bucketedWidth(.backdrop, pixels: rawBackdrop)
+  }
+
+  /// One logo `w` per platform: largest slot × scale, then TMDB 780 / 1280 — never
+  /// `/original`. Slots are `MediaItemHeroView.logoMaxWidth` (680 tvOS / 440 Mac /
+  /// 360 iPhone). A 5K iMac used to send `screen/2` (2560) and get a 2000–4000 px PNG.
+  static var logo: Int {
+    TitleImageRoute.bucketedWidth(.logo, pixels: rawLogo)
+  }
+
+  private static var rawBackdrop: Int {
 #if os(macOS)
     macBackdrop
 #else
-    screen
+    min(screen, 1920)
+#endif
+  }
+    min(screen, 1920)
 #endif
   }
 
-  /// Title logo: the widest place it is drawn is the tvOS title page's hero, 680 pt of a
-  /// 1920 pt screen (`MediaItemHeroView.logoMaxWidth`); the banner draws it narrower
-  /// (28 %). So a little over a third of the screen's pixels, not half: 1360 px on an
-  /// Apple TV 4K instead of 1920, 680 on a 1080p one (Sasha, 2026-11-05).
-  /// iPhone, iPad and Mac keep half the screen: an iPhone's hero logo (360 pt at 3x) is
-  /// wider than a third of its long side.
-  static var logo: Int {
+  /// Drawn pixels of the largest logo slot. Scale is the platform's typical density
+  /// (2× tvOS 4K / Mac, 3× iPhone), not the live window — Home and the title page
+  /// must build the same URL.
+  private static var rawLogo: Int {
 #if os(tvOS)
-    Int((Double(screen) * 680 / 1920).rounded(.up))
+    Int((680 * 2 as CGFloat).rounded(.up))
+#elseif os(macOS)
+    Int((440 * 2 as CGFloat).rounded(.up))
 #else
-    screen / 2
+    Int((360 * 3 as CGFloat).rounded(.up))
 #endif
   }
 

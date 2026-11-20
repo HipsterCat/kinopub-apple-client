@@ -13,9 +13,10 @@ import Foundation
 /// final URL or header with ``WorkerArtworkLanguageTag`` — the `?lang=` query only
 /// states preference, not what was served.
 ///
-/// `w` is the pixel width the picture will be drawn at, so the size is the screen's
-/// decision, not a constant baked into the worker: a 4K banner gets TMDB's original,
-/// a card gets a small bucket.
+/// `w` is the pixel width the picture will be drawn at, snapped onto TMDB's ladder
+/// (`bucketedWidth`) so the worker never falls through to `/original` (a 5K Mac
+/// logo used to ask `w=2560` and get a 2000–4000 px PNG). Logos use 780 / 1280;
+/// everything else tops out at 1920.
 ///
 /// **One title, one URL.** The Home banner and the detail hero build it from the same
 /// inputs (kino.pub id + IMDb id + the same width), so the hero gets the banner's bytes
@@ -86,8 +87,22 @@ public struct TitleImageRoute: Sendable, Hashable {
     TitleLogoRequestKind(routeLanguage: language)
   }
 
+  /// TMDB size tokens the worker will honour without falling through to `/original`.
+  /// Logos skip `w1920` — a wordmark slot is hundreds of points, not a 4K plate.
+  public static let logoWidthBuckets = [780, 1280]
+  public static let imageWidthBuckets = [45, 92, 154, 185, 227, 300, 320, 342, 454, 500, 780, 1280, 1920]
+
+  /// Smallest ladder step that covers `pixels`. Caps logos at 1280 and every other
+  /// kind at 1920 so the worker cannot serve `/original`.
+  public static func bucketedWidth(_ kind: Kind, pixels: Int) -> Int {
+    let ladder = kind == .logo ? logoWidthBuckets : imageWidthBuckets
+    let target = max(pixels, 1)
+    return ladder.first { $0 >= target } ?? ladder[ladder.count - 1]
+  }
+
   /// - Parameters:
-  ///   - width: pixels the picture is drawn at; `nil` asks for the original.
+  ///   - width: pixels the picture is drawn at; snapped onto ``bucketedWidth``.
+  ///     `nil` omits `w` (the worker's original) — callers that know a slot must pass one.
   ///   - imdb: kino.pub's numeric IMDb id. It lets the worker resolve a title it has
   ///     never seen; without it a cold title only gets kino.pub's own art.
   ///   - season: with `.poster`, that season's poster; with `.thumbnail`, required.
@@ -104,7 +119,7 @@ public struct TitleImageRoute: Sendable, Hashable {
     )
     var query: [URLQueryItem] = []
     if let width, width > 0 {
-      query.append(URLQueryItem(name: "w", value: String(width)))
+      query.append(URLQueryItem(name: "w", value: String(Self.bucketedWidth(kind, pixels: width))))
     }
     if let season {
       query.append(URLQueryItem(name: "s", value: String(season)))

@@ -37,7 +37,7 @@ protocol TitleLogoImageLoading: Sendable {
 
 struct ArtworkTitleLogoImages: TitleLogoImageLoading {
   func cachedImage(for url: URL) -> TitleLogoImage? {
-    Artwork.cachedImage(for: url)
+    Artwork.cachedLogo(for: url)
   }
 
   func deliveredLanguage(for url: URL) -> WorkerArtworkLanguageTag? {
@@ -46,7 +46,7 @@ struct ArtworkTitleLogoImages: TitleLogoImageLoading {
 
   func load(for url: URL) async throws -> TitleLogoImageLoad {
     do {
-      let loaded = try await Artwork.imageWithSource(for: url)
+      let loaded = try await Artwork.logoWithSource(for: url)
 #if os(tvOS)
       ArtworkLog.source("logo", id: nil, asked: url, answered: loaded.answered, tier: loaded.tier)
 #endif

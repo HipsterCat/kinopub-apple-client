@@ -465,7 +465,7 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     logoView.image = nil
     guard let url else { return }
     Task { [weak self] in
-      let image = try? await Artwork.image(for: url)
+      let image = try? await Artwork.logoImage(for: url)
       guard let self, self.logoToken == token else { return }
       self.logoView.image = image
     }
@@ -1376,10 +1376,15 @@ final class RivuletRailEpisodeCell: UICollectionViewCell {
     still.image = nil
     let urls = [item.stillURL, item.fallbackStillURL].compactMap { $0 }
     guard !urls.isEmpty else { return }
+    let decodeSize: CGSize = {
+      if let slot, slot.contentSize.width > 1 { return slot.contentSize }
+      if still.contentSize.width > 1 { return still.contentSize }
+      return RivuletSeasonRailMetrics.cardSlot(containerWidth: 1920, inset: contentInsetGuess).contentSize
+    }()
     Task { [weak self] in
       var image: UIImage?
       for url in urls {
-        image = try? await Artwork.image(for: url)
+        image = try? await Artwork.image(for: url, size: decodeSize, mode: .fill)
         if image != nil { break }
       }
       guard let self, self.loadToken == token else { return }
