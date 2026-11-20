@@ -5,8 +5,8 @@
   Home shelf scroll, season-rail slide, title open, window resize). Zero cost
   unless Instruments or `XCTOSSignpostMetric` is attached. Scroll intervals are
   per gesture (begin on move, end on settle). Empty signpost metrics fail the
-  UI test. `URLSessionResumeGuard` tests match the current skip-aggregate API.
-  Playbook in `docs/engineering/performance.md`.
+  UI test. `URLSessionResumeGuardTests` match `install` restoring pre-Pulse
+  `resume` (no Pulse re-enable). Playbook in `docs/engineering/performance.md`.
 
 - **tvOS console quiet (follow-up):** nav zoom no longer drives
   `_TVNavigationZoomAnimator` (that inserted `_UIReplicantView` under hosting

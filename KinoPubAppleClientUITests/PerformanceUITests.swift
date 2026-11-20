@@ -338,46 +338,35 @@ final class PerformanceUITests: XCTestCase {
 }
 
 /// XCTest silently drops an `XCTOSSignpostMetric` with zero intervals, so the
-/// test stays green. Fail instead — empty samples are not a measurement.
-private final class RequiredOSSignpostMetric: NSObject, XCTMetric {
-  private let inner: XCTOSSignpostMetric
-  private let label: String
+/// test stays green. Subclass (do not wrap) so XCTest still enables app-side
+/// signpost collection for this metric class. Fail when there are no samples.
+private final class RequiredOSSignpostMetric: XCTOSSignpostMetric {
+  private let subsystemName: String
+  private let categoryName: String
+  private let intervalName: String
 
-  convenience init(subsystem: String, category: String, name: String) {
-    self.init(
-      inner: XCTOSSignpostMetric(subsystem: subsystem, category: category, name: name),
-      label: "\(category)/\(name)"
-    )
+  override init(subsystem: String, category: String, name: String) {
+    self.subsystemName = subsystem
+    self.categoryName = category
+    self.intervalName = name
+    super.init(subsystem: subsystem, category: category, name: name)
   }
 
-  private init(inner: XCTOSSignpostMetric, label: String) {
-    self.inner = inner
-    self.label = label
-    super.init()
-  }
-
-  func copy(with zone: NSZone? = nil) -> Any {
+  override func copy(with zone: NSZone? = nil) -> Any {
     RequiredOSSignpostMetric(
-      inner: inner.copy(with: zone) as! XCTOSSignpostMetric,
-      label: label
+      subsystem: subsystemName,
+      category: categoryName,
+      name: intervalName
     )
   }
 
-  func willBeginMeasuring() {
-    inner.willBeginMeasuring()
-  }
-
-  func didStopMeasuring() {
-    inner.didStopMeasuring()
-  }
-
-  func reportMeasurements(
+  override func reportMeasurements(
     from startTime: XCTPerformanceMeasurementTimestamp,
     to endTime: XCTPerformanceMeasurementTimestamp
   ) throws -> [XCTPerformanceMeasurement] {
-    let measurements = try inner.reportMeasurements(from: startTime, to: endTime)
+    let measurements = try super.reportMeasurements(from: startTime, to: endTime)
     if measurements.isEmpty {
-      XCTFail("signpost \(label) produced no samples; XCTest would drop an empty metric")
+      XCTFail("signpost \(categoryName)/\(intervalName) produced no samples; XCTest would drop an empty metric")
     }
     return measurements
   }

@@ -274,7 +274,8 @@ final class NavigationState {
                      guard self[keyPath: keyPath] != routes else { return }
                      let previous = self[keyPath: keyPath]
                      self[keyPath: keyPath] = routes
-                     if routes.count > previous.count,
+                     if PerfSignpost.page.isEnabled,
+                        routes.count > previous.count,
                         let id = routes.last?.detailsItemID {
                        PerfSignpost.beginTitleOpen(id: "\(id)")
                      }
@@ -338,7 +339,7 @@ final class NavigationState {
 #endif
     guard let keyPath = Self.routes(for: selectedTab) else { return }
     self[keyPath: keyPath].append(route)
-    if let id = route.detailsItemID {
+    if PerfSignpost.page.isEnabled, let id = route.detailsItemID {
       PerfSignpost.beginTitleOpen(id: "\(id)")
     }
   }

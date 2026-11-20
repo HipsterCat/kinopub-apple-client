@@ -141,27 +141,19 @@ public enum PerfSignpost {
     titleOpen.withLock { slot in
       if slot.id == id, slot.interval != nil { return }
       slot.interval?.end("replaced")
-      // `onChange(initial:)` can fire before `onAppear` and stash a ready reason.
-      // Consume it without opening a 0 ms interval, and do not leave readyID behind.
-      if slot.readyID == id {
-        slot = TitleOpenSlot()
-        return
-      }
       slot = TitleOpenSlot(interval: page.start("page.title", id), id: id)
     }
   }
 
+  /// Ends the open interval, or no-ops. Does not stash a leftover `readyID` —
+  /// a re-appear `end` would otherwise swallow the next push of the same title.
   public static func endTitleOpen(reason: String, id: String? = nil) {
     guard page.isEnabled else { return }
     titleOpen.withLock { slot in
-      if let interval = slot.interval {
-        if let id, slot.id != id { return }
-        interval.end(reason)
-        slot = TitleOpenSlot()
-      } else if let id {
-        slot.readyReason = reason
-        slot.readyID = id
-      }
+      guard let interval = slot.interval else { return }
+      if let id, slot.id != id { return }
+      interval.end(reason)
+      slot = TitleOpenSlot()
     }
   }
 
@@ -169,8 +161,6 @@ public enum PerfSignpost {
     titleOpen.withLock { slot in
       if slot.id == id {
         slot.interval?.end("disappear")
-        slot = TitleOpenSlot()
-      } else if slot.readyID == id {
         slot = TitleOpenSlot()
       }
     }
@@ -327,6 +317,4 @@ extension OSSignposter {
 private struct TitleOpenSlot: Sendable {
   var interval: PerfInterval?
   var id: String?
-  var readyReason: String?
-  var readyID: String?
 }

@@ -372,10 +372,9 @@ struct MediaItemView: View {
       // from what the player just wrote locally. No-op until the payload has loaded.
       .onAppear {
         itemModel.repaintFromLocalProgress()
-        // Navigation (`NavigationState.push` / path write) already began
-        // `page.title`. If the item is already in memory (fixture, listed
-        // cache), end here so the interval is push → first frame, not a
-        // leftover `onChange(initial:)` handshake that reports ~0.
+        // Navigation already began `page.title`. End on first paint. A
+        // re-appear (back from the player) with no open interval is a no-op —
+        // it must not stash a leftover that would swallow the next push.
         if itemModel.hasPaintedItem {
           PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
         } else {

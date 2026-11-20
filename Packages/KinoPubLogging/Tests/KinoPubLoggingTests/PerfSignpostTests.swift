@@ -35,13 +35,13 @@ final class PerfSignpostTests: XCTestCase {
     PerfSignpost.cancelTitleOpen(id: "1")
   }
 
-  /// `onChange(initial:)` can stash a ready reason before `onAppear`. A leftover
-  /// `readyID` after that handshake must not make the next open of the same
-  /// title report ~0 ms. `cancelTitleOpen` clears it; a second begin is a new interval.
-  func testTitleOpenDoesNotLeaveReadyIDAfterHandshake() {
+  /// `endTitleOpen` with no open interval is a no-op (re-appear). The next
+  /// `beginTitleOpen` of the same id still opens a real interval.
+  func testTitleOpenEndWithoutIntervalDoesNotSwallowTheNextBegin() {
     PerfSignpost.endTitleOpen(reason: "painted", id: "42")
     PerfSignpost.beginTitleOpen(id: "42")
-    PerfSignpost.cancelTitleOpen(id: "42")
+    PerfSignpost.endTitleOpen(reason: "painted", id: "42")
+    PerfSignpost.endTitleOpen(reason: "painted", id: "42")
     PerfSignpost.beginTitleOpen(id: "42")
     PerfSignpost.endTitleOpen(reason: "painted", id: "42")
     PerfSignpost.cancelTitleOpen(id: "42")

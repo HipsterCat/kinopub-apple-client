@@ -17,9 +17,6 @@
 
 import Foundation
 import ObjectiveC.runtime
-#if os(iOS) || os(macOS)
-import AVFoundation
-#endif
 
 /// A helper to bypass Pulse's swizzle on URLSessionTask resume methods.
 /// This is used to call the original implementations directly, to avoid
@@ -50,33 +47,18 @@ public struct URLSessionResumeGuard {
         return methods
     }
 
-    /// Installs a wrapper: aggregate / asset-download tasks call `originals`
-    /// (pre-Pulse); every other task still reaches the logging IMP that was
-    /// on the method when this ran (Pulse, after `enableProxy`).
+    /// Reinstalls the original IMPs for the given methods (the pre-Pulse
+    /// `resume`). After `NetworkLogger.enableProxy`, this is what keeps
+    /// aggregate / asset-download tasks from entering Pulse's swizzle, which
+    /// reads `currentRequest` and throws. Every task uses the original —
+    /// not a per-class wrapper that would send ordinary data tasks back
+    /// through Pulse.
     /// If the counts of methods and originals do not match, does nothing safely.
     public static func install(methods: [Method], originals: [IMP]) {
         guard methods.count == originals.count else { return }
         for (method, originalIMP) in zip(methods, originals) {
-            let loggingIMP = method_getImplementation(method)
-            let block: @convention(block) (AnyObject) -> Void = { target in
-                guard let task = target as? URLSessionTask else { return }
-                callResume(task, original: originalIMP, logging: loggingIMP)
-            }
-            method_setImplementation(method, imp_implementationWithBlock(block))
+            method_setImplementation(method, originalIMP)
         }
-    }
-
-    /// Decide from the class alone — `currentRequest` throws on aggregate tasks.
-    static func skipsLogging(_ task: URLSessionTask) -> Bool {
-#if os(iOS) || os(macOS)
-        if task is AVAssetDownloadTask { return true }
-#endif
-        let name = NSStringFromClass(type(of: task))
-        return name.contains("AVAggregate") || name.contains("AVAssetDownload")
-    }
-
-    static func callResume(_ task: URLSessionTask, original: IMP, logging: IMP) {
-        callOriginalResume(on: task, originalIMP: skipsLogging(task) ? original : logging)
     }
 
     /// Calls the original resume IMP on the given URLSessionTask.
