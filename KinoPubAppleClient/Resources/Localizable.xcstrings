@@ -20928,6 +20928,24 @@
         }
       }
     },
+    "WhatsNew_PreviousReleases" : {
+      "comment" : "Section header under the new bullets on the update popup for older marketing versions.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous Releases"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предыдущие версии"
+          }
+        }
+      }
+    },
     "When to show" : {
       "localizations" : {
         "en" : {

@@ -12,12 +12,12 @@
 //  not a trip sideways to an icon.
 //
 //  Presentation is the system's, per platform: a sheet everywhere, drawn as a centred
-//  panel over a scrim on tvOS (where Menu dismisses it for free), with medium/large
-//  detents for detail info on iPhone/iPad (large + `.presentationSizing(.page)` when
-//  `confirmTitle` is set — What's New), and a page-hosted panel on macOS. A UIKit
-//  screen presents the same view through `InfoPopupPresenter`. What's New, the
-//  changelog and the licences use it too. `.claude/skills/tvos-surface/SKILL.md` —
-//  `description handlesOverflow` is a popup, and there is exactly one of it.
+//  panel over a scrim on tvOS (where Menu dismisses it for free), large +
+//  `.presentationSizing(.page)` on iPhone/iPad (What's New and detail info), and a
+//  page-hosted panel on macOS. A UIKit screen presents the same view through
+//  `InfoPopupPresenter`. What's New, the changelog and the licences use it too.
+//  `.claude/skills/tvos-surface/SKILL.md` — `description handlesOverflow` is a popup,
+//  and there is exactly one of it.
 //
 
 import SwiftUI
@@ -115,11 +115,9 @@ private struct TVHeroSheetChrome: ViewModifier {
 /// owns the frame, the scroll, and the way out.
 ///
 /// `confirmTitle` adds a real button under the content: on tvOS What's New's «Готово»
-/// (entry focus; without it Menu alone dismisses, as every other popup does); on
-/// iPhone / iPad / Mac Apple's What's New «Продолжить» / Continue, pinned at the
-/// bottom with no leading cross — Continue is the primary dismiss. Elsewhere the
-/// glass cross in the leading corner closes it. Short content hugs the panel unless
-/// `confirmTitle` asks for a full-height, top-aligned layout; long content scrolls.
+/// (entry focus; without it Menu alone dismisses); on iPhone / iPad / Mac
+/// «Продолжить» / Continue at the bottom, with the same leading cross as detail info.
+/// Short content hugs the panel on Mac; on phone / pad the large sheet stays top-aligned.
 public struct InfoPopupView<Content: View>: View {
   let title: Text
   let subtitle: Text?
@@ -132,6 +130,9 @@ public struct InfoPopupView<Content: View>: View {
   @FocusState private var confirmFocused: Bool
   @State private var scrollPosition = ScrollPosition(edge: .top)
   @State private var scrollGeometry = ScrollPage.Geometry()
+#endif
+#if !os(tvOS)
+  @State private var isScrolled = false
 #endif
 
   /// `onDismiss` closes a popup presented outside SwiftUI (`InfoPopupPresenter`); a
@@ -189,95 +190,100 @@ public struct InfoPopupView<Content: View>: View {
     // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
     .onExitCommand(perform: close)
 #else
-    if confirmTitle != nil {
-      // Apple What's New / Reminders: title top-aligned, notes scroll, Continue pinned.
-      // No leading cross — Continue (and tap/click outside) dismiss.
-      confirmLayout
-    } else {
-      // Detail info: centred title + glass cross, content hugs or scrolls.
-      VStack(spacing: 0) {
-        header
-        scrollingText
-      }
-      .frame(maxWidth: InfoPopupMetrics.maxWidth)
-    }
+    // What's New and film info share one chrome: material toolbar + hierarchical X,
+    // top-aligned body, optional Continue footer (Sasha, 2026-11-21).
+    phonePadMacPanel
 #endif
   }
 
 #if !os(tvOS)
-  /// What's New on iPhone / iPad / Mac: title and version stay at the top even when
-  /// there is only one bullet; Continue is the primary dismiss at the bottom.
-  private var confirmLayout: some View {
+  private var phonePadMacPanel: some View {
     VStack(spacing: 0) {
-      confirmHeader
+      toolbarHeader
       ScrollView(.vertical) {
-        content()
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, InfoPopupMetrics.padding)
-          .padding(.top, InfoPopupMetrics.padding * 0.25)
-          .padding(.bottom, InfoPopupMetrics.padding)
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      if let confirmTitle {
-        Button(action: close) {
-          confirmTitle
-            .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+          if let subtitle {
+            subtitle
+              .font(.subheadline)
+              .foregroundStyle(Color.KinoPub.subtitle)
+              .multilineTextAlignment(.center)
+              .frame(maxWidth: .infinity)
+              .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+          }
+          content()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.glassProminent)
-        .controlSize(.large)
-        .keyboardShortcut(.defaultAction)
         .padding(.horizontal, InfoPopupMetrics.padding)
+        .padding(.top, InfoPopupMetrics.padding * 0.35)
         .padding(.bottom, InfoPopupMetrics.padding)
-        .padding(.top, 8)
+      }
+      .scrollBounceBehavior(.basedOnSize)
+      .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
+        isScrolled = scrolled
+      }
+      if let confirmTitle {
+        continueButton(confirmTitle)
       }
     }
     .frame(maxWidth: InfoPopupMetrics.maxWidth)
+#if os(macOS)
+    // Hug short notes; cap long ones — do not stretch one bullet to a full window.
+    .fixedSize(horizontal: false, vertical: true)
+    .frame(maxHeight: 560)
+#else
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+#endif
   }
 
-  private var confirmHeader: some View {
-    VStack(spacing: 4) {
-      title
-        .font(.title2.weight(.bold))
-        .foregroundStyle(Color.KinoPub.text)
-      if let subtitle {
-        subtitle
-          .font(.subheadline)
-          .foregroundStyle(Color.KinoPub.subtitle)
-      }
-    }
-    .multilineTextAlignment(.center)
-    .frame(maxWidth: .infinity, alignment: .top)
-    .padding(.horizontal, InfoPopupMetrics.padding)
-    .padding(.top, InfoPopupMetrics.padding)
-    .padding(.bottom, InfoPopupMetrics.padding * 0.35)
-  }
-
-  /// TestFlight's sheet head: a small centred title (and its subtitle), the glass cross
-  /// in the leading corner. It was «Готово» in a capsule at the trailing corner, the TV
-  /// app's (Sasha, 2026-11-10: "то же самое с обновлением и информацией детальной").
-  private var header: some View {
-    VStack(spacing: 2) {
+  /// Centred title with the version-settings cross; material bar fades in as you scroll
+  /// (same language as Settings / the title page toolbar).
+  private var toolbarHeader: some View {
+    ZStack {
       title
         .font(.headline)
         .foregroundStyle(Color.KinoPub.text)
-      if let subtitle {
-        subtitle
-          .font(.subheadline)
-          .foregroundStyle(Color.KinoPub.subtitle)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+      HStack {
+        SheetCloseButton(action: close)
+          .padding(.leading, SheetCloseButton.inset)
+        Spacer(minLength: 0)
       }
     }
-    .multilineTextAlignment(.center)
-    .frame(maxWidth: .infinity)
-    // The cross's width on either side keeps a long title centred and clear of it.
-    .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
     .frame(minHeight: SheetCloseButton.side + 12)
-    .overlay(alignment: .leading) {
-      SheetCloseButton(action: close)
-        .padding(.leading, SheetCloseButton.inset)
-    }
     .padding(.top, SheetCloseButton.inset)
-    .padding(.bottom, InfoPopupMetrics.padding * 0.4)
+    .padding(.bottom, 10)
+    .background {
+      Rectangle()
+        .fill(.bar)
+        .opacity(isScrolled ? 1 : 0)
+        .animation(.easeOut(duration: 0.2), value: isScrolled)
+        .ignoresSafeArea(edges: .top)
+    }
+  }
+
+  /// `.borderedProminent` + `Color.primary` tint: readable in light and dark.
+  /// `.glassProminent` was black-on-black on Mac and white-on-white on iPhone dark.
+  private func continueButton(_ title: Text) -> some View {
+    Button(action: close) {
+      title
+        .font(.body.weight(.semibold))
+        .frame(maxWidth: .infinity)
+    }
+    .buttonStyle(.borderedProminent)
+    .tint(Color.primary)
+    .controlSize(.large)
+    .keyboardShortcut(.defaultAction)
+    .padding(.horizontal, InfoPopupMetrics.padding)
+#if os(macOS)
+    .padding(.top, 16)
+    .padding(.bottom, InfoPopupMetrics.padding)
+#else
+    // Extra air above Continue on phone — the button was flush under short copy.
+    .padding(.top, 28)
+    .padding(.bottom, InfoPopupMetrics.padding)
+#endif
   }
 #endif
 
@@ -332,10 +338,6 @@ public struct InfoPopupView<Content: View>: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(InfoPopupMetrics.padding)
-#if !os(tvOS)
-    // The header carries the top; the text starts right under it.
-    .padding(.top, -InfoPopupMetrics.padding * 0.5)
-#endif
   }
 
   private func close() {
@@ -489,8 +491,7 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
   let onDismiss: (() -> Void)?
   @ViewBuilder let popupContent: () -> PopupContent
 
-  /// What's New uses `confirmTitle`: a large / page sheet, not the half-height
-  /// medium detent detail info uses.
+  /// What's New dims the Mac host; detail info stays undimmed but still outside-clickable.
   private var usesConfirmLayout: Bool { confirmTitle != nil }
 
   func body(content: Content) -> some View {
@@ -505,9 +506,8 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
       }
 #elseif os(macOS)
     if let host {
-      // Inside a page that hosts popups: the TV app's panel, not a sheet — it belongs to
-      // the page, the page behind stays live, and a click outside closes it. What's New
-      // (`confirmTitle`) also dims the page so it reads as a modal, not a floating card.
+      // Inside a page that hosts popups: the TV app's panel, not a sheet — click outside
+      // closes it. What's New also dims and blocks the page so it cannot scroll behind.
       content
         .onChange(of: isPresented) { _, presented in
           if presented {
@@ -522,13 +522,19 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
     } else {
       content
         .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
-          macSheetPanel
+          panel
+            .macSheetFrame(width: 520, height: usesConfirmLayout ? 480 : 560)
         }
     }
 #else
     content
       .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
-        phonePadSheetPanel
+        // What's New and film info: large / page at once — not a half-height drawer
+        // (Sasha, 2026-11-21).
+        panel
+          .presentationDetents([.large])
+          .presentationDragIndicator(.visible)
+          .presentationSizing(.page)
       }
 #endif
   }
@@ -541,33 +547,6 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
                   onDismiss: { isPresented = false },
                   content: popupContent)
       .pageColorScheme()
-  }
-
-  @ViewBuilder
-  private var macSheetPanel: some View {
-    if usesConfirmLayout {
-      panel
-        .macSheetFrame(width: 560, height: 640)
-    } else {
-      panel
-    }
-  }
-#endif
-
-#if os(iOS)
-  @ViewBuilder
-  private var phonePadSheetPanel: some View {
-    if usesConfirmLayout {
-      // Apple What's New / Reminders: large (or page-sized on iPad), not a mid-screen card.
-      panel
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .presentationSizing(.page)
-    } else {
-      panel
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
   }
 #endif
 
@@ -772,8 +751,11 @@ private struct InfoPopupHostOverlay: ViewModifier {
         if let panel = host.panel {
           ZStack {
             if host.dimsBackground {
+              // Absorb clicks and scroll so the page behind cannot move (Sasha, 2026-11-21).
               Color.black.opacity(InfoPopupMetrics.scrimOpacity)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { host.dismiss() }
                 .transition(.opacity)
             }
             hostedCard(panel)
@@ -791,31 +773,32 @@ private struct InfoPopupHostOverlay: ViewModifier {
       }
   }
 
-  /// Detail info hugs its text; What's New (`dimsBackground`) fills a Reminders-sized card.
-  @ViewBuilder
+  /// Content-sized card centred in the window — What's New and detail info both hug
+  /// their text; a lone bullet must not stretch to a full-height Reminders card.
   private func hostedCard(_ panel: AnyView) -> some View {
-    let card = panel
+    panel
       .background(Color(nsColor: .windowBackgroundColor), in: shape)
       .clipShape(shape)
       .overlay(shape.strokeBorder(.separator, lineWidth: 0.5))
       .shadow(color: .black.opacity(0.3), radius: 30, y: 12)
       .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { host.panelFrame = $0 }
+      .frame(maxWidth: 520)
       .padding(InfoPopupMetrics.padding * 2)
-    if host.dimsBackground {
-      card
-        .frame(maxWidth: 640, maxHeight: 720)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    } else {
-      card
-    }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   /// A click outside the panel closes it and still goes where it was aimed; Escape closes
-  /// it and goes nowhere.
+  /// it and goes nowhere. When the page is dimmed, scroll wheels are swallowed so the
+  /// sheet behind cannot move.
   private func startMonitoring() {
     stopMonitoring()
     let host = host
-    monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
+    monitor = NSEvent.addLocalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]
+    ) { event in
+      if event.type == .scrollWheel {
+        return host.dimsBackground ? nil : event
+      }
       if event.type == .keyDown {
         guard event.keyCode == 53 else { return event }
         host.dismiss()
