@@ -318,7 +318,8 @@ struct PageBackdropHost: View {
     if !sameTitle {
       // Never hold the previous title's picture: its placeholder, or nothing, now.
       let placeholder = Self.cachedPlaceholder(of: next.placeholderURLs)
-      let wash = await placeholder.asyncMap { await PageBackdropWash.make(from: $0) } ?? nil
+      var wash: UIImage?
+      if let placeholder { wash = await PageBackdropWash.make(from: placeholder) }
       guard !Task.isCancelled else { return }
       withAnimation(Self.handoff) {
         shown = Shown(backdrop: next, image: nil, wash: wash.map(Image.init(platformImage:)))
@@ -386,13 +387,6 @@ struct PageBackdropHost: View {
     }
     if logs, !Task.isCancelled { ArtworkLog.exhausted("page.backdrop \(id)", id: nil, tried: urls) }
     return nil
-  }
-}
-
-private extension Optional {
-  func asyncMap<T>(_ transform: (Wrapped) async -> T) async -> T? {
-    guard let self else { return nil }
-    return await transform(self)
   }
 }
 
