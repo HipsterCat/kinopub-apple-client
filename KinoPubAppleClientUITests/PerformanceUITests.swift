@@ -122,7 +122,9 @@ final class PerformanceUITests: XCTestCase {
   }
 
   /// Cold open of the Search tab from Watch Now. `page.search` is takePrepared →
-  /// field/keyboard first appear. One iteration: the stack is taken once per process.
+  /// first on-screen layout. XCTest discards a warmup iteration; the fixture
+  /// unmounts Search when leaving the tab (`if tab == 0`), so we return to
+  /// Watch Now before each measured Left. Clock is only the tab-switch wait.
   func testSearchTabFirstPaint() {
     app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture",
@@ -136,21 +138,23 @@ final class PerformanceUITests: XCTestCase {
 
     let options = XCTMeasureOptions()
     options.iterationCount = 1
-    // Clock is the tab-switch wait, which is the interval we want. Memory as usual.
+    options.invocationOptions = [.manuallyStart, .manuallyStop]
+    let search = app.collectionViews["kinopub.page.search"]
     measure(metrics: [
       XCTClockMetric(),
       XCTMemoryMetric(application: app),
       signpost("page", "page.search")
     ], options: options) {
+      if search.exists {
+        XCUIRemote.shared.press(.right)
+        _ = search.waitForNonExistence(timeout: 3)
+        Thread.sleep(forTimeInterval: 0.3)
+      }
+      startMeasuring()
       XCUIRemote.shared.press(.left)
-      XCTAssertTrue(
-        app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 5),
-        "Search chrome did not appear"
-      )
-      // `page.search` begins in takePrepared and ends on the host's first
-      // on-screen layout. Give that layout a beat so the interval closes
-      // inside this block — XCTest drops an open signpost.
+      XCTAssertTrue(search.waitForExistence(timeout: 5), "Search chrome did not appear")
       Thread.sleep(forTimeInterval: 0.4)
+      stopMeasuring()
     }
   }
 

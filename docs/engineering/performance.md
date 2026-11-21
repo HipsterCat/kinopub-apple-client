@@ -131,7 +131,9 @@ Signposts: `page.title`, `hero.backdrop`, `scroll.season`.
 
 From Watch Now, Left onto Search. Fixture: `-KINOPUBSearchFixture
 -KINOPUBSearchFixtureStartOnWatchNow`. Signpost: `page.search` (takePrepared →
-first on-screen layout). Catalog posters are not part of this interval.
+first on-screen layout). XCTest discards a warmup iteration; the test returns
+to Watch Now before the measured Left so take runs inside the recorded block.
+Catalog posters are not part of this interval.
 
 ### E. Mac window resize on Home
 
