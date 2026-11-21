@@ -33,9 +33,48 @@ final class TrailerPreviewModel: ObservableObject {
   private var isSuspended = false
   private var canPlay: Bool { isActive && !isSuspended }
 
+#if os(macOS)
+  /// macOS: the film plays in its own window and this page stays on screen under it, so
+  /// the page never disappears and never suspends the preview. While anything plays
+  /// (`PlaybackSession`, the player window or its Picture in Picture), the hero is the
+  /// still artwork: the trailer is dropped, and comes back from the top once the film is
+  /// closed (Sasha, 2026-11-21).
+  private var isPlayerActive = false
+  /// The trailer asked for (or dropped) while the player was up.
+  private var deferredURL: URL?
+  private var playerObservation: AnyCancellable?
+
+  init() {
+    playerObservation = PlaybackSession.shared.$manager
+      .map { $0 != nil }
+      .removeDuplicates()
+      .sink { [weak self] active in
+        MainActor.assumeIsolated { self?.setPlayerActive(active) }
+      }
+  }
+
+  private func setPlayerActive(_ active: Bool) {
+    guard isPlayerActive != active else { return }
+    isPlayerActive = active
+    if active {
+      if let startedURL { deferredURL = startedURL }
+      stop()
+    } else if let url = deferredURL {
+      deferredURL = nil
+      start(url: url)
+    }
+  }
+#endif
+
   /// Plays the trailer muted behind the artwork. A repeat call for the URL already
   /// running is ignored, so a re-rendered hero doesn't restart it from the top.
   func start(url: URL) {
+#if os(macOS)
+    if isPlayerActive {
+      deferredURL = url
+      return
+    }
+#endif
     guard startedURL != url else { return }
     teardown()
     startedURL = url

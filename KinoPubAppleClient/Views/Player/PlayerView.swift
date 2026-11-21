@@ -677,7 +677,10 @@ private struct MacVideoPlayer: NSViewRepresentable {
     view.showsFullScreenToggleButton = true
     view.showsSharingServiceButton = true
     view.speeds = AVPlaybackSpeed.systemDefaultSpeeds
+    view.delegate = context.coordinator
+    context.coordinator.manager = manager
     context.coordinator.skip.install(on: view, manager: manager)
+    context.coordinator.idleControls.attach(to: view)
     return view
   }
 
@@ -685,19 +688,178 @@ private struct MacVideoPlayer: NSViewRepresentable {
     if nsView.player !== manager.player {
       nsView.player = manager.player
     }
+    context.coordinator.manager = manager
     context.coordinator.skip.install(on: nsView, manager: manager)
     context.coordinator.skip.bringToFront()
   }
 
   static func dismantleNSView(_ nsView: AVPlayerView, coordinator: Coordinator) {
     coordinator.skip.detach()
+    coordinator.idleControls.detach()
+    nsView.delegate = nil
   }
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
+  /// **The player window steps aside while the picture is elsewhere.** AVKit's full screen
+  /// and Picture in Picture both take the video out of this view into a window of their
+  /// own and leave a black «playing in full screen / Picture in Picture» placeholder
+  /// behind — a second, empty window over the main one (it covered the whole monitor
+  /// when zoomed, Sasha 2026-11-21). The `AVPlayerViewDelegate` hooks are Apple's answer
+  /// for exactly this: hide the source window once the picture has left, bring it back
+  /// in `restoreUserInterfaceFor…` when the picture comes home, and treat a Picture in
+  /// Picture closed with its own ✕ as the film being closed.
   @MainActor
-  final class Coordinator {
+  final class Coordinator: NSObject, AVPlayerViewDelegate {
     let skip = SkipChipHost()
+    let idleControls = MacIdleControlsHider()
+    weak var manager: PlayerManager?
+    /// The player window, held while it is ordered out (a hidden window still owns the
+    /// `AVPlayerView`, so the picture can animate back into it).
+    private weak var hiddenWindow: NSWindow?
+    private var isFullScreen = false
+    private var isPictureInPicture = false
+    private var restoresFromPictureInPicture = false
+
+    private func stepAside(_ playerView: AVPlayerView) {
+      guard let window = playerView.window, window.isVisible else { return }
+      hiddenWindow = window
+      window.orderOut(nil)
+    }
+
+    private func comeBack(_ playerView: AVPlayerView) {
+      guard !isFullScreen, !isPictureInPicture else { return }
+      let window = playerView.window ?? hiddenWindow
+      hiddenWindow = nil
+      window?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: Full screen
+
+    func playerViewWillEnterFullScreen(_ playerView: AVPlayerView) {
+      isFullScreen = true
+    }
+
+    func playerViewDidEnterFullScreen(_ playerView: AVPlayerView) {
+      stepAside(playerView)
+    }
+
+    func playerView(_ playerView: AVPlayerView,
+                    restoreUserInterfaceForFullScreenExitWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+      isFullScreen = false
+      comeBack(playerView)
+      completionHandler(true)
+    }
+
+    func playerViewDidExitFullScreen(_ playerView: AVPlayerView) {
+      isFullScreen = false
+      comeBack(playerView)
+    }
+
+    // MARK: Picture in Picture
+
+    func playerViewWillStartPictureInPicture(_ playerView: AVPlayerView) {
+      isPictureInPicture = true
+      restoresFromPictureInPicture = false
+      // Before the window goes: closing it now must not end the film (`endPlayback`).
+      manager?.setPictureInPictureActive(true)
+    }
+
+    func playerViewDidStartPictureInPicture(_ playerView: AVPlayerView) {
+      stepAside(playerView)
+    }
+
+    func playerView(_ playerView: AVPlayerView, failedToStartPictureInPictureWithError error: any Error) {
+      Logger.app.error("PiP: failed to start: \(error.localizedDescription)")
+      isPictureInPicture = false
+      manager?.setPictureInPictureActive(false)
+      comeBack(playerView)
+    }
+
+    func playerView(_ playerView: AVPlayerView,
+                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+      restoresFromPictureInPicture = true
+      isPictureInPicture = false
+      comeBack(playerView)
+      completionHandler(true)
+    }
+
+    func playerViewDidStopPictureInPicture(_ playerView: AVPlayerView) {
+      isPictureInPicture = false
+      manager?.setPictureInPictureActive(false)
+      if restoresFromPictureInPicture {
+        restoresFromPictureInPicture = false
+        comeBack(playerView)
+        return
+      }
+      // Closed from the Picture in Picture window: the film is over, as closing the
+      // player window is. Closing the scene's window runs `PlayerView.onDisappear`.
+      let window = playerView.window ?? hiddenWindow
+      hiddenWindow = nil
+      window?.close()
+    }
+  }
+}
+
+/// Hides AVKit's floating controls once the pointer has been away from them for 15 s
+/// (Sasha, 2026-11-21). AVKit hides them by itself only while the pointer idles over the
+/// video; with the pointer on another display or window, the panel stayed up for good.
+@MainActor
+final class MacIdleControlsHider {
+  static let timeout: TimeInterval = 15
+
+  private weak var playerView: AVPlayerView?
+  private var timer: Timer?
+  private var awaySince: Date?
+
+  func attach(to view: AVPlayerView) {
+    playerView = view
+    guard timer == nil else { return }
+    let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.tick() }
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    self.timer = timer
+  }
+
+  func detach() {
+    timer?.invalidate()
+    timer = nil
+    awaySince = nil
+  }
+
+  private func tick() {
+    guard let view = playerView, let window = view.window, window.isVisible,
+          let panel = controlsPanel(in: view), !panel.isHidden, panel.alphaValue > 0.05,
+          NSApp.windows.allSatisfy({ !$0.isVisible || !PlayerTransportMenu.looksLikeMenu(String(describing: type(of: $0))) })
+    else {
+      awaySince = nil
+      return
+    }
+    let frame = window.convertToScreen(panel.convert(panel.bounds, to: nil))
+    if frame.contains(NSEvent.mouseLocation) {
+      awaySince = nil
+      return
+    }
+    let since = awaySince ?? Date()
+    awaySince = since
+    if Date().timeIntervalSince(since) >= Self.timeout {
+      awaySince = nil
+      hideControls(view)
+    }
+  }
+
+  /// The floating panel: AVKit's controls view controller's view.
+  private func controlsPanel(in view: AVPlayerView) -> NSView? {
+    (view.value(forKey: "playbackControlsViewController") as? NSViewController)?.view
+  }
+
+  /// No public call hides `AVPlayerView`'s controls. `controlsHidden` is the private,
+  /// KVO-compliant key `PlayerChromeMonitor` already observes; its setter is probed, and
+  /// a missing one leaves the controls to AVKit.
+  private func hideControls(_ view: AVPlayerView) {
+    guard view.responds(to: NSSelectorFromString("setControlsHidden:")) else { return }
+    view.setValue(true, forKey: "controlsHidden")
   }
 }
 
