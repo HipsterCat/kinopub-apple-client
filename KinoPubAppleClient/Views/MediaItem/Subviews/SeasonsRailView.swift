@@ -191,7 +191,10 @@ struct SeasonsRailView: View {
   /// An episode still at a pixel width: `/img/thumbnail/by/kinopub/{id}?w=&s=&e=`.
   /// Same logo-parity pattern as the banner logo — always a URL so Artwork kicks the
   /// worker fetch; a 404 is the confirmed miss, not a blank while metadata is cold.
-  var episodeStillURL: ((_ seasonNumber: Int, _ episodeNumber: Int, _ pixelWidth: Int) -> URL?)? = nil
+  /// `kinopubThumb` is the episode's staticpop URL when the payload has one — the worker
+  /// seeds and resizes it when TMDB has no still yet (`?src=`).
+  var episodeStillURL: ((_ seasonNumber: Int, _ episodeNumber: Int, _ pixelWidth: Int,
+                         _ kinopubThumb: String?) -> URL?)? = nil
   /// The season menu (a season card, a season tab), iOS / macOS: watched for all of it, or
   /// none of it when it is all watched already.
   var onToggleSeasonWatched: ((Season) -> Void)? = nil
@@ -1136,10 +1139,10 @@ struct SeasonsRailView: View {
     switch entry {
     case .playable(let season, let episode, let schedule):
       let name = Self.displayTitle(episode: episode, schedule: schedule)
-      // Under the tile: «1 серия · 24 сен» — season lives in the tabs (Sasha, 2026-11-14).
+      // Same listItem ruleset as TVUIKit / MediaCard — «7. Name» / «7 серия».
+      let title = EpisodeText(season: nil, number: episode.number,
+                              name: name.isEmpty ? nil : name).text(for: .episodeTile)
       let dateCaption = schedule?.airDate.map { Self.absoluteAirDate($0, now: Date()) }
-      let episodeCaption = EpisodeText(season: nil, number: episode.number).formatted(.long)
-      let year = [episodeCaption, dateCaption].compactMap { $0 }.joined(separator: " · ")
       let duration = episode.duration >= 60 ? RuntimeText(seconds: episode.duration).text(for: .timeBadge) : nil
       // Worker `s=` is the kino.pub season index, never a year-in-the-title
       // (displaySeason → 2006 for title 17262 → not_found).
@@ -1148,15 +1151,18 @@ struct SeasonsRailView: View {
       return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: still,
                              fallbackStillURL: still == kinopubStill ? nil : kinopubStill,
                              duration: duration,
-                             eyebrow: EpisodeText(season: nil, number: episode.number).formatted(.long).uppercased(),
-                             title: name.isEmpty ? EpisodeText(season: nil, number: episode.number).formatted(.long) : name,
-                             year: year, rating: rating,
+                             eyebrow: "",
+                             title: title,
+                             year: dateCaption, rating: rating,
                              progress: episode.watchProgress.resumeFraction)
     case .unavailable(_, let schedule):
+      let title = EpisodeText(season: nil, number: schedule.episodeNumber,
+                              name: EpisodeTitle.meaningful(schedule.name))
+        .text(for: .episodeTile)
       return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider,
                              stillURL: schedule.still ?? seriesBackdropURL, duration: nil,
-                             eyebrow: EpisodeText(season: nil, number: schedule.episodeNumber).formatted(.long).uppercased(),
-                             title: EpisodeTitle.meaningful(schedule.name) ?? EpisodeText(season: nil, number: schedule.episodeNumber).formatted(.long),
+                             eyebrow: "",
+                             title: title,
                              year: schedule.airDate.map { String(Calendar.current.component(.year, from: $0)) },
                              rating: rating, progress: nil)
     case .missingSeasons(let from, let to, _, _, _):
@@ -1196,9 +1202,9 @@ struct SeasonsRailView: View {
   /// and a bespoke card: an unaired episode is `.upcoming` with its date in the badge,
   /// not a dimmed copy of a playable one.
   ///
-  /// The caption is `7. "Episode Name"` — the season is already named by the tab above,
-  /// so repeating it here is noise, and the air date lives in the badge rather than
-  /// under the artwork.
+  /// The caption is `7. "Episode Name"` — same `EpisodeText.listItem` / `.episodeTile`
+  /// ruleset as iPhone, macOS, and future/unavailable tiles. The season is already named
+  /// by the tab above; the air date lives in the badge rather than under the artwork.
   private func railItem(for entry: RailEntry) -> TVUIKitMediaItem {
     switch entry {
     case .playable(let season, let episode, let schedule):
@@ -1208,27 +1214,22 @@ struct SeasonsRailView: View {
                                            fallbackEpisode: episode.number)
       let card = card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
-      let seasonNumber = seasons.count > 1
-        ? (tabs.first { $0.id == season.id }?.first ?? KinoPubMediaMapping.seasonNumber(season))
-        : nil
       let title = Self.displayTitle(episode: episode, schedule: schedule)
-      let episodeRef = EpisodeText(season: seasonNumber, number: episode.number).formatted(.short)
       let isFinale = schedule?.isSeasonFinale == true
       let finaleMark = isFinale ? "MediaItem_SeasonFinale".localized : nil
-      // Title on the primary line when TMDB/kino has one; grey line keeps «N сезон, M серия»
-      // (and finale). No title → grey line is the only caption (Sasha checklist).
-      let caption: String
-      let detail: String?
-      if title.isEmpty {
-        caption = [episodeRef, finaleMark].compactMap { $0 }.joined(separator: " · ")
-        detail = nil
-      } else {
-        caption = title
-        detail = [episodeRef, finaleMark].compactMap { $0 }.joined(separator: " · ")
+      // One line: «7. Name» / «7 серия». Do not park the number in secondaryText —
+      // it does not render on these cells (TVUIKitCardText).
+      var caption = EpisodeText(season: nil, number: episode.number,
+                                name: title.isEmpty ? nil : title)
+        .text(for: .episodeTile)
+      if let finaleMark {
+        caption = "\(caption) · \(finaleMark)"
       }
       let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
       let playable = !Self.clocksOut(episode, schedule)
       let unique = uniqueStillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+      // Raw staticpop is a last-rung ladder only; the worker URL already carries `src=`
+      // when the payload has a catalogue thumb, so this rarely fires.
       let kinopub = episode.thumbnail.isEmpty ? nil : URL(string: episode.thumbnail)
       // Finale is a corner badge when premiere/lock is not already occupying it.
       let statusOwnsBadge: Bool = {
@@ -1246,7 +1247,6 @@ struct SeasonsRailView: View {
                               tint: UIColor.secondaryLabel,
                               symbol: "play.rectangle.on.rectangle",
                               caption: caption,
-                              detail: detail,
                               status: status,
                               timeLabel: base.timeLabel,
                               badgeText: base.badgeText ?? finaleBadge,
@@ -1773,11 +1773,21 @@ struct SeasonsRailView: View {
   /// kino.pub block index (`season.number`), never a year from the title.
   private func uniqueStillURL(episode: Episode, schedule: EpisodeSchedule?,
                               seasonNumber: Int) -> URL? {
-    let pixels = Int((cardWidth * displayScale / 100).rounded(.up)) * 100
-    if let worker = episodeStillURL?(seasonNumber, episode.number, max(pixels, 300)) {
+    // Slot pixels, not "round up to the next 100" — that asked w=600 for a ~584 px
+    // iPhone tile and oversize staticpop masters when the worker missed.
+    let pixels = Self.stillPixelWidth(cardWidth: cardWidth, scale: displayScale)
+    let thumb = episode.thumbnail.isEmpty ? nil : episode.thumbnail
+    if let worker = episodeStillURL?(seasonNumber, episode.number, pixels, thumb) {
       return worker
     }
     return schedule?.still
+  }
+
+  /// Pixel width for `/img/thumbnail?w=`. Cap at the worker's practical top bucket;
+  /// floor at 300 so a tiny slot does not ask for a postage-stamp face crop.
+  static func stillPixelWidth(cardWidth: CGFloat, scale: CGFloat) -> Int {
+    let raw = Int((cardWidth * scale).rounded(.up))
+    return min(max(raw, 300), 1280)
   }
 
   /// Preferred photograph for callers that want one URL (Info sheet, rivulet).

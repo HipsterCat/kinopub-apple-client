@@ -10,8 +10,11 @@
  * serve, 3840). Language is the `Accept-Language` header, default ru — it is
  * not a query parameter. Backdrop ignores that header completely: it is always
  * a textless wide frame, never a titled banner and never a poster. `s` / `e`
- * pick a season poster or an episode thumbnail. We never redirect at a
- * kino.pub CDN; the app already has those, and the host depends on the viewer.
+ * pick a season poster or an episode thumbnail. Logos / posters / backdrops
+ * never redirect at a kino.pub CDN (the app already has those). Episode
+ * thumbnails may: a staticpop still is resized through wsrv.nl so the client
+ * does not pull a raw 1280×720 JPEG into a 300–600 px rail slot. Optional
+ * `src=` (staticpop host only) seeds a thumb the document never stored.
  *
  * Two rules shape the whole file:
  *
@@ -279,7 +282,9 @@ const SOURCE_ORDER = {
   logo: ["tvoe", "tmdb"],
   backdrop: ["tvoe", "tmdb"],
   poster: ["tvoe", "kinopoisk", "tmdb"],
-  thumbnail: ["tvoe", "tmdb"],
+  // kinopub last: real stills beat a catalogue thumb, but a catalogue thumb
+  // beats a 404 that forces the client to download a giant staticpop JPEG.
+  thumbnail: ["tvoe", "tmdb", "kinopub"],
 };
 
 export async function handleImage(request, env, ctx) {
@@ -352,11 +357,29 @@ async function handleImageQuery(request, url, env, ctx, route) {
     }
   }
 
+  // Client-known kino.pub episode thumb (staticpop only). Last resort after
+  // tvoe/tmdb, so a missing TMDB still still serves a resized WebP instead of
+  // forcing the app to pull the raw CDN file. Seeded into the document so the
+  // stamped follow-up (no `src=`) still finds it.
+  if (!asset && imageRequest.kind === "thumbnail") {
+    const src = readKinopubThumbSrc(url);
+    if (src) {
+      asset = { source: "kinopub", url: src, lang: null, width: null, height: null };
+      const base = stored || draftDocument(id, hints);
+      const seeded = seedEpisodeThumb(base, imageRequest.s, imageRequest.e, src);
+      if (seeded !== stored) {
+        await writeDocument(env, id, seeded);
+        stored = seeded;
+      }
+    }
+  }
+
   if (!asset) {
     noteImage(env, ctx, "missing", imageRequest, Date.now() - started);
-    // A logo 404 must not sit on the edge, or a logo added on TMDB stays invisible.
-    const logoMiss = imageRequest.kind === "logo";
-    return imageNotFound(missHint(imageRequest), vary, { store: !logoMiss });
+    // Logo and thumbnail misses must not sit on the edge: a still added on
+    // TMDB (or a newly-released episode) would stay invisible until the TTL.
+    const stickyMiss = imageRequest.kind !== "logo" && imageRequest.kind !== "thumbnail";
+    return imageNotFound(missHint(imageRequest), vary, { store: stickyMiss });
   }
   const location = stampedURL(url, imageRequest, asset, stored?.art_rev);
   if (!location) return imageNotFound(missHint(imageRequest), vary);
@@ -1193,7 +1216,10 @@ function durableOrigin(asset) {
   if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
     return kinopoiskSized(asset.url, MAX_WIDTH);
   }
-  if (asset.source === "kinopub" || isKinopubHost(asset.url)) return null;
+  // Episode thumbs only — logos/posters/backdrops never select a kinopub asset.
+  if (asset.source === "kinopub" || isKinopubHost(asset.url)) {
+    return safeHttpURL(asset.url);
+  }
   return safeHttpURL(asset.url);
 }
 
@@ -1453,9 +1479,48 @@ function episodeAsset(document, seasonNumber, episodeNumber) {
   if (!episode) return null;
   const raw = episode.thumbnail || episode.still || episode.image;
   if (Array.isArray(raw)) {
-    return dropKinopub(bestAsset(raw.map(normalizeAsset).filter(Boolean), "thumbnail", null));
+    return bestAsset(raw.map(normalizeAsset).filter(Boolean), "thumbnail", null);
   }
-  return dropKinopub(normalizeAsset(raw));
+  return normalizeAsset(raw);
+}
+
+/**
+ * Optional `src=` on `/img/thumbnail` — the episode's kino.pub CDN thumb the
+ * client already holds. Only `*.staticpop.net` (and http/https) are accepted.
+ */
+function readKinopubThumbSrc(url) {
+  const raw = (url.searchParams.get("src") || "").trim();
+  if (!raw) return null;
+  let parsed;
+  try { parsed = new URL(raw); } catch { return null; }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  if (!/(^|\.)staticpop\.net$/i.test(parsed.hostname)) return null;
+  return parsed.toString();
+}
+
+/** Persist a client-seeded staticpop thumb so the next hit needs no `src=`. */
+function seedEpisodeThumb(document, seasonNumber, episodeNumber, url) {
+  if (!document || seasonNumber == null || episodeNumber == null || !url) return document;
+  const seasons = [...(document.seasons || [])];
+  const index = seasons.findIndex((item) => Number(item.number) === seasonNumber);
+  const previous = index >= 0 ? seasons[index] : { number: seasonNumber, episodes: [] };
+  const episodes = [...(previous.episodes || [])];
+  const epIndex = episodes.findIndex((item) => {
+    const number = item.number ?? item.episode ?? item.episode_number;
+    return Number(number) === episodeNumber;
+  });
+  const existing = epIndex >= 0 ? episodes[epIndex] : { number: episodeNumber };
+  const current = existing.thumbnail || existing.still || existing.image;
+  // Never overwrite a real (non-kinopub) still with a catalogue thumb.
+  if (current && !String(current).includes("staticpop.net")) return document;
+  if (current === url) return document;
+  const next = { ...existing, number: episodeNumber, thumbnail: url };
+  if (epIndex >= 0) episodes[epIndex] = next;
+  else episodes.push(next);
+  const season = { ...previous, number: seasonNumber, episodes };
+  if (index >= 0) seasons[index] = season;
+  else seasons.push(season);
+  return { ...document, seasons };
 }
 
 function normalizeAsset(asset) {
@@ -1502,7 +1567,8 @@ function bestAsset(assets, kind, lang, { strict = false } = {}) {
   let bestKey = null;
   for (const asset of assets) {
     if (!asset?.url) continue;
-    if (asset.source === "kinopub" || isKinopubHost(asset.url)) continue;
+    // Episode thumbs may be a kino.pub catalogue file; every other kind must not.
+    if (kind !== "thumbnail" && (asset.source === "kinopub" || isKinopubHost(asset.url))) continue;
     // Backdrop is textless or it is a miss. Language never promotes a titled frame.
     if (kind === "backdrop" && (asset.lang ?? null) !== null) continue;
     if (kind === "backdrop" && !isWideFrame(asset)) continue;
@@ -1562,8 +1628,11 @@ function resizeAsset(asset, kind, w) {
   if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
     return kinopoiskSized(asset.url, w);
   }
-  // kino.pub's CDN is the app's own picture. Never send it back.
-  if (asset.source === "kinopub" || isKinopubHost(asset.url)) return null;
+  // Episode stills: hand the staticpop URL to weserv (`w=` + WebP). Other
+  // kinds never reach here with a kinopub asset.
+  if (asset.source === "kinopub" || isKinopubHost(asset.url)) {
+    return safeHttpURL(asset.url);
+  }
   return safeHttpURL(asset.url);
 }
 

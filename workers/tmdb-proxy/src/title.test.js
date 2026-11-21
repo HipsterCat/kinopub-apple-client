@@ -559,14 +559,14 @@ test("stamped thumbnail wraps the TMDB face / ladder URL through wsrv.nl as WebP
   }
 });
 
-test("thumbnail is the episode still, needs both s and e, and refuses a kino.pub thumb", async () => {
+test("thumbnail is the episode still, needs both s and e, and accepts a kino.pub thumb last", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       seasons: [{
         number: 1,
         episodes: [
           { number: 5, thumbnail: TVOE_COVER },
-          { number: 6, thumbnail: "https://m.staticpop.net/poster/item/wide/82852.jpg" },
+          { number: 6, thumbnail: "https://m.staticpop.net/thumb/item/123/1280.jpg" },
         ],
       }],
     },
@@ -577,12 +577,76 @@ test("thumbnail is the episode still, needs both s and e, and refuses a kino.pub
     hit.headers.get("location"),
     "https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=1000&s=1&e=5",
   );
-  const kinopubThumb = await handleImage(imageRequest("thumbnail", { query: "s=1&e=6" }), env, ctxSpy());
-  assert.equal(kinopubThumb.status, 404);
+  const kinopubThumb = await handleImage(imageRequest("thumbnail", { query: "s=1&e=6&w=584" }), env, ctxSpy());
+  assert.equal(kinopubThumb.status, 302);
+  assert.equal(
+    kinopubThumb.headers.get("location"),
+    "https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=584&s=1&e=6",
+  );
   const ctx = ctxSpy();
   const missing = await handleImage(imageRequest("thumbnail", { query: "s=1" }), kvEnv(), ctx);
   assert.equal(missing.status, 400);
   assert.equal(ctx.pending.length, 0);
+});
+
+test("thumbnail miss is not edge-cached; src= seeds a staticpop thumb through weserv", async () => {
+  const documents = {};
+  const env = {
+    DOCUMENTS: {
+      async get(key, opts) {
+        const raw = documents[key];
+        if (raw == null) return null;
+        return opts?.type === "json" ? raw : JSON.stringify(raw);
+      },
+      async put(key, value) { documents[key] = JSON.parse(value); },
+    },
+  };
+  const miss = await handleImage(
+    imageRequest("thumbnail", { id: "128431", query: "s=1&e=6&w=584" }),
+    env,
+    ctxSpy(),
+  );
+  assert.equal(miss.status, 404);
+  assert.equal(miss.headers.get("cache-control"), "no-store");
+
+  const src = "https://m.staticpop.net/thumb/item/abc/1280.jpg";
+  const original = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
+      status: 200,
+      headers: { "content-type": "image/webp" },
+    });
+  };
+  try {
+    const redirect = await handleImage(
+      new Request(
+        `https://example.test/img/thumbnail/by/kinopub/128431?s=1&e=6&w=584&src=${encodeURIComponent(src)}`,
+      ),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(redirect.status, 302);
+    assert.equal(
+      documents["title:kinopub:128431"].seasons[0].episodes[0].thumbnail,
+      src,
+    );
+    const stamped = await handleImage(
+      new Request(redirect.headers.get("location")),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(stamped.status, 200);
+    assert.equal(stamped.headers.get("x-kinopub-image-via"), "weserv");
+    const upstream = new URL(fetched[0]);
+    assert.equal(upstream.hostname, "wsrv.nl");
+    assert.equal(upstream.searchParams.get("url"), src);
+    assert.equal(upstream.searchParams.get("w"), "584");
+    assert.equal(upstream.searchParams.get("output"), "webp");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("backdrop ignores season params and stays on the title frame", async () => {
