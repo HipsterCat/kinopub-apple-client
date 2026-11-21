@@ -27,10 +27,10 @@ import OSLog
 /// first page and is unrelated to searching.
 ///
 /// **Where the text comes from is not the same on every platform.**
-/// - iOS / iPadOS: `.searchable` in `SearchView` with
-///   `.navigationBarDrawer(displayMode: .always)`. iPhone uses `.large` title display
-///   (not app-wide `.inlineLarge`) so the drawer is hittable; iPad keeps `.inlineLarge`.
-///   tvOS fallback path keeps `.automatic`. Bound to `@State`.
+/// - iPhone: `.searchable` (`.automatic`) plus `DefaultToolbarItem(kind: .search)` in
+///   the bottom bar — a nav-bar drawer inside `Tab(role: .search)` never drew a field.
+///   iPad keeps `.navigationBarDrawer(displayMode: .always)`. tvOS fallback stays
+///   `.automatic`. Bound to `@State`.
 /// - macOS: the field is in the *window toolbar* (`macToolbarSearch`), bound to
 ///   `NavigationState.macSearchFieldText`, and it exists on every tab — including tabs
 ///   where `SearchView` is not mounted at all. Typing there is what mounts it.

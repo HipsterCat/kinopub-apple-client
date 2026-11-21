@@ -489,30 +489,12 @@ struct SearchView: View {
       .macToolbarSearch()
       .navigationTitle("Search")
 #elseif os(iOS)
-      // Always-visible drawer under the title (App Store / Music / TV Search). Pull-to-reveal
-      // (`.automatic`) with `.inlineLarge` painted a dead field (KP-53 / #113). Keeping the
-      // drawer but still using the app-wide `.inlineLarge` left it painted and untappable on
-      // iPhone (KP-69) — phone Search uses a real `.large` title so the drawer can take hits;
-      // iPad keeps `.inlineLarge`. Settings search (#120) is a separate bottom-bar path and
-      // must not be regressed by this.
-      .searchable(text: $searchFieldText,
-                  placement: .navigationBarDrawer(displayMode: .always),
-                  prompt: Text("Search"))
-      .searchSuggestions {
-        // Only while the field is empty: once there is a query, the results below are
-        // the better answer and a menu over them is in the way.
-        if searchFieldText.isEmpty {
-          Section("Try Searching") {
-            ForEach(SearchStarters.queries, id: \.self) { starter in
-              Text(starter).searchCompletion(starter)
-            }
-          }
-        }
-      }
-      .navigationTitle(navigationTitleText)
-      .toolbarTitleDisplayMode(
-        UIDevice.current.userInterfaceIdiom == .phone ? .large : .inlineLarge
-      )
+      // iPhone: the nav-bar drawer never produced a field inside `Tab(role: .search)`
+      // (KP-53 / #113 / the title-mode follow-up). Same control as Settings: `.searchable`
+      // plus a bottom-bar search item, so the field is a real control above the keyboard.
+      // iPad keeps the always-visible drawer. Title mode stays the app-wide inline large.
+      .modifier(IOSCatalogSearchField(text: $searchFieldText))
+      .platformNavigationTitle(navigationTitleText)
 #else
       .searchable(text: $searchFieldText, placement: .automatic)
       .searchSuggestions {
@@ -1111,6 +1093,51 @@ extension GenreKind {
     case .tvshow: "TV Show".localized
     case .music: "Concert".localized
     }
+  }
+}
+#endif
+
+#if os(iOS)
+/// iPhone Search tab: the system search item in the bottom bar (same as Settings).
+/// A nav-bar drawer on `Tab(role: .search)` drew no field. iPad keeps the drawer.
+private struct IOSCatalogSearchField: ViewModifier {
+  @Binding var text: String
+  @State private var isPresented = false
+
+  private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
+  func body(content: Content) -> some View {
+    Group {
+      if isPhone {
+        searchableContent(content)
+          .toolbar {
+            DefaultToolbarItem(kind: .search, placement: .bottomBar)
+          }
+      } else {
+        searchableContent(content)
+      }
+    }
+  }
+
+  private func searchableContent(_ content: Content) -> some View {
+    content
+      .searchable(
+        text: $text,
+        isPresented: $isPresented,
+        placement: isPhone
+          ? .automatic
+          : .navigationBarDrawer(displayMode: .always),
+        prompt: Text("Search")
+      )
+      .searchSuggestions {
+        if text.isEmpty {
+          Section("Try Searching") {
+            ForEach(SearchStarters.queries, id: \.self) { starter in
+              Text(starter).searchCompletion(starter)
+            }
+          }
+        }
+      }
   }
 }
 #endif
