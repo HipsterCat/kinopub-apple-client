@@ -138,6 +138,7 @@ public enum Artwork {
   }
 
   private static func makeRequest(_ url: URL, size: CGSize, mode: ResizeMode) -> ImageRequest {
+    let url = WideArtwork.sized(url, forPoints: size)
     guard size != .zero else { return ImageRequest(url: url) }
     // Nuke's `unit: .points` multiplies by `Screen.scale`. On iOS/tvOS that is the
     // display scale; on **macOS Nuke hardcodes scale to 1** (see Nuke `Graphics.swift`
@@ -598,6 +599,61 @@ extension Image {
     self.init(nsImage: platformImage)
 #else
     self.init(uiImage: platformImage)
+#endif
+  }
+}
+
+/// kino.pub's `wide` stills are whatever someone uploaded — 1280 px one title, 3050 px
+/// the next, 366 KB for a card drawn 400 pt wide (Sasha, 2026-11-21). They are fetched
+/// through wsrv.nl at the width they are drawn at, as WebP: the same still is ~8 KB at
+/// 500 px. Only kino.pub's wide path is rewritten; the worker's own `/img` answers are
+/// already sized and served through wsrv by the worker (KP-68).
+///
+/// `-KINOPUBWideOriginal YES` loads the originals, to compare.
+enum WideArtwork {
+  /// Widths are rounded up to this step so a few card sizes share one file.
+  static let step = 160
+  /// Full-screen use (`size == .zero`) on the largest screen.
+  static let fullScreenPixels = 3840
+
+  static var isEnabled: Bool {
+    !UserDefaults.standard.bool(forKey: "KINOPUBWideOriginal")
+  }
+
+  static func isKinopubWide(_ url: URL) -> Bool {
+    url.path.contains("/poster/item/wide/") && url.host?.contains("wsrv.nl") != true
+  }
+
+  static func sized(_ url: URL, forPoints size: CGSize) -> URL {
+    guard isEnabled, isKinopubWide(url) else { return url }
+    let pixels: Int
+    if size == .zero {
+      pixels = fullScreenPixels
+    } else {
+      // Filled into its box: as wide as the box, or as the box's height at 16:9 when
+      // the box is taller than the still. Two pixels a point covers a 4K screen.
+      let points = max(size.width, size.height * 16 / 9)
+      pixels = Int((points * scale).rounded(.up))
+    }
+    let width = min(fullScreenPixels, ((pixels + step - 1) / step) * step)
+    var components = URLComponents(string: "https://wsrv.nl/")
+    components?.queryItems = [
+      URLQueryItem(name: "url", value: url.absoluteString),
+      URLQueryItem(name: "w", value: String(width)),
+      URLQueryItem(name: "we", value: nil),
+      URLQueryItem(name: "q", value: "80"),
+      URLQueryItem(name: "output", value: "webp"),
+    ]
+    return components?.url ?? url
+  }
+
+  /// Pixels per point asked for. macOS sizes already arrive in pixels' worth of points
+  /// at the request scale; elsewhere 2× covers Apple TV 4K and Retina screens.
+  private static var scale: CGFloat {
+#if os(macOS)
+    Artwork.macOSRequestScale
+#else
+    2
 #endif
   }
 }
