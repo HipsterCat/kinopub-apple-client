@@ -4,7 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
-        "Кадры серий: если TMDB ещё пуст, свой thumbnail kino.pub идёт через воркер (уменьшение + WebP), а не гигантским JPEG; промах воркера больше не залипает. Под карточкой снова «7. Название» / «7 серия» на Apple TV, iPhone и Mac — как у будущих серий.",
+        "Описание тайтла: «Ещё» больше не уезжает на бейджи звука/субтитров, пока текст ещё подгружается.",
         "«Смотрю» / карточки: круглое кол-во непросмотренных серий (только при подписке) — на постере или отдельной строкой под названием, как на Apple TV, в том числе в «Продолжить»; ленточки закладки на подписках больше нет; zoom с iPhone/iPad как на Главной. В Настройках › Внешний вид пункт переименован.",
         "Картинки тайтлов (баннеры, фоны, логотипы, кадры серий) чаще приходят как WebP меньшего размера — быстрее грузятся; при сбое остаётся прежний JPEG/PNG.",
         "История снова пишет день и время («27 января в 20:54»), а не только часы.",
@@ -141,7 +141,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
-        "Episode stills: when TMDB has none yet, the kino.pub thumbnail goes through the worker (resize + WebP) instead of a giant JPEG; a worker miss no longer sticks. Under the tile again: “7. Title” / “Ep 7” on Apple TV, iPhone and Mac — same rule as upcoming episodes.",
+        "Title synopsis: More no longer drifts onto the audio/subtitle badges while the plot is still loading.",
         "Watching / cards: round unwatched-episode count for subscribed series — on the poster or on its own line under the title like Apple TV, including Continue Watching; no bookmark ribbon on subscriptions; iPhone/iPad zoom like Home. Appearance setting renamed.",
         "Title artwork (banners, backdrops, logos, episode stills) more often arrives as smaller WebP — faster to load; JPEG/PNG remains if the transform path fails.",
         "History rows show the day and the time again (“27 January at 20:54”), not the clock alone.",
