@@ -185,8 +185,8 @@ public enum HomeHeroWarmup {
   static let offsets = [1, -1, 2]
 
   /// - Parameter backdropSize: the size the backdrop is decoded to where it is drawn
-  ///   (`.zero` for full resolution), so the warm copy is the one the hero asks for;
-  ///   `nil` while that size is not known yet: logos only.
+  ///   (must match the display request; `.zero` is full resolution and should be rare);
+  ///   `nil` while that size is not known yet: logos only, at ``Artwork/logoDecodeSize``.
   public static func warm(_ features: [HomeHeroFeature], around index: Int, backdropSize: CGSize?) {
     let count = features.count
     guard count > 1 else { return }
@@ -195,17 +195,17 @@ public enum HomeHeroWarmup {
       let at = ((index + offset) % count + count) % count
       guard seen.insert(at).inserted else { continue }
       let feature = features[at]
-      if let logo = feature.logoURL { load(logo, size: .zero) }
+      if let logo = feature.logoURL { load(logo, size: Artwork.logoDecodeSize, mode: .fit) }
       if let backdropSize, let backdrop = feature.backdropCandidates.first {
-        load(backdrop, size: backdropSize)
+        load(backdrop, size: backdropSize, mode: .fill)
       }
     }
   }
 
-  private static func load(_ url: URL, size: CGSize) {
-    guard Artwork.cachedImage(for: url, size: size) == nil else { return }
+  private static func load(_ url: URL, size: CGSize, mode: Artwork.ResizeMode) {
+    guard Artwork.cachedImage(for: url, size: size, mode: mode) == nil else { return }
     Task(priority: .utility) {
-      _ = try? await Artwork.imageWithSource(for: url, size: size)
+      _ = try? await Artwork.imageWithSource(for: url, size: size, mode: mode)
     }
   }
 }

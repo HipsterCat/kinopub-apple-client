@@ -328,7 +328,7 @@ final class TVPageHeroBackdropView: UIView {
     let size = bounds.size
     let urls = feature.backdropCandidates
     if let next {
-      TVUIKitRemoteImage.prefetch([next.backdropCandidates.first])
+      TVUIKitRemoteImage.prefetch([next.backdropCandidates.first], size: size)
     }
     for url in urls {
       if let hit = TVUIKitRemoteImage.cached(url: url, size: size) {

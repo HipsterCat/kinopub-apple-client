@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **Artwork cache eviction:** decoded images expire after 15 minutes even under
+  the RAM budget; memory warning clears them; background keeps a tenth.
+  Disk is still LRU by last access with the size cap, plus a 7-day unused
+  floor, swept off the main thread at launch and on background.
+
+- **Artwork decode at drawn size:** backdrops, title logos and season-rail stills
+  go through Nuke thumbnail + resize at the slot (logos `.fit` so PNG alpha
+  stays; never TMDB `/original`). One logo bucket per platform (`w780`/`w1280`).
+  Decoded-image RAM cache scales with device memory (192 MB on a 3 GB Apple TV
+  4K). Home neighbour warmup, `TitleLogoSession` and the season-rail mark share
+  request keys. Follow-ups not in this change: SwiftUI Home hero rebuild,
+  `shadowPath`, season-rail CADisplayLink / fold blur.
+
 - **Episode stills / rail labels (KP-75):** `/img/thumbnail` accepts a kino.pub
   catalogue thumb last (document or `?src=` staticpop-only), serves it via
   wsrv.nl `w=` + WebP, and no longer edge-caches thumbnail 404s. Missing stills

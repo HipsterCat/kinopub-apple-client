@@ -51,18 +51,23 @@ class TVUIKitDeferredPosterView: TVPosterView {
 @MainActor
 public enum TVUIKitRemoteImage {
 
-  /// Prefetching stops at the **data** cache: it downloads bytes and does not decode.
+  /// Bytes-only prefetch when the tile size is not known yet (catalog rails).
+  /// Destination `.diskCache`: original bytes, one entry per URL.
   ///
-  /// A cell decodes to its own tile size, and the controller doing the prefetching does
-  /// not know that size — decoding here would either fill an Apple TV's memory with
-  /// full-resolution art or warm a cache key no cell ever asks for. Bytes are keyed by
-  /// URL alone, so warming those helps every size. (The tasks this replaced did decode,
-  /// at full resolution, under a key the poster and wide cells never read.)
+  /// When the caller knows the drawn box (Home hero, a cell that already has a slot),
+  /// ``prefetch(_:size:mode:)`` uses `.memoryCache` with the same `Artwork.request`
+  /// the display path will ask for, so the first paint is a memory hit.
   ///
   /// Low priority so on-screen art never queues behind art that might scroll into view,
   /// and cancellable — the fire-and-forget tasks were not.
-  private static let prefetcher: ImagePrefetcher = {
+  private static let diskPrefetcher: ImagePrefetcher = {
     let prefetcher = ImagePrefetcher(pipeline: Artwork.pipeline, destination: .diskCache)
+    prefetcher.priority = .low
+    return prefetcher
+  }()
+
+  private static let memoryPrefetcher: ImagePrefetcher = {
+    let prefetcher = ImagePrefetcher(pipeline: Artwork.pipeline, destination: .memoryCache)
     prefetcher.priority = .low
     return prefetcher
   }()
@@ -161,16 +166,35 @@ public enum TVUIKitRemoteImage {
 
   /// Warm the data cache for art that is about to scroll into view.
   public static func prefetch(_ urls: [URL?]) {
-    prefetcher.startPrefetching(with: requests(urls))
+    diskPrefetcher.startPrefetching(with: requests(urls, size: .zero, mode: .fill))
+  }
+
+  /// Decode into the memory cache at the size the view will draw, so display is a
+  /// cache hit. `size == .zero` falls back to bytes-only.
+  public static func prefetch(_ urls: [URL?], size: CGSize, mode: Artwork.ResizeMode = .fill) {
+    guard size != .zero else {
+      prefetch(urls)
+      return
+    }
+    memoryPrefetcher.startPrefetching(with: requests(urls, size: size, mode: mode))
   }
 
   /// Stop warming art that scrolled back out of range before it was needed.
   public static func cancelPrefetch(_ urls: [URL?]) {
-    prefetcher.stopPrefetching(with: requests(urls))
+    let requests = requests(urls, size: .zero, mode: .fill)
+    diskPrefetcher.stopPrefetching(with: requests)
   }
 
-  private static func requests(_ urls: [URL?]) -> [ImageRequest] {
-    urls.compactMap { $0 }.map { Artwork.request($0) }
+  public static func cancelPrefetch(_ urls: [URL?], size: CGSize, mode: Artwork.ResizeMode = .fill) {
+    guard size != .zero else {
+      cancelPrefetch(urls)
+      return
+    }
+    memoryPrefetcher.stopPrefetching(with: requests(urls, size: size, mode: mode))
+  }
+
+  private static func requests(_ urls: [URL?], size: CGSize, mode: Artwork.ResizeMode) -> [ImageRequest] {
+    urls.compactMap { $0 }.map { Artwork.request($0, size: size, mode: mode) }
   }
 
   private static func reuseOptions(placeholder: UIImage?) -> ImageLoadingOptions {

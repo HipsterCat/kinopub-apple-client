@@ -289,10 +289,10 @@ public struct HomeHeroCarousel: View {
     }
     .onChange(of: current.index) { _, index in
       if index != shownIndex { shownIndex = index }
-      HomeHeroWarmup.warm(features, around: index, backdropSize: .zero)
+      HomeHeroWarmup.warm(features, around: index, backdropSize: warmupBackdropSize)
     }
     .onChange(of: features.map(\.card.id), initial: true) {
-      HomeHeroWarmup.warm(features, around: current.index, backdropSize: .zero)
+      HomeHeroWarmup.warm(features, around: current.index, backdropSize: warmupBackdropSize)
     }
     .onChange(of: features.count) { _, count in
       // The banner set is topped up or trimmed: keep a title that still exists.
@@ -300,6 +300,13 @@ public struct HomeHeroCarousel: View {
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("kinopub.hero")
+  }
+
+  /// Same box `HeroBackdrop` / `CompactHeroPicture` decode into, so warmup hits the
+  /// memory cache on the first paint of a neighbour.
+  private var warmupBackdropSize: CGSize {
+    HeroBackdrop.decodeSize(width: size.width, height: size.height + topBleed,
+                            topBleed: topBleed, isCompact: isCompact)
   }
 
   /// How long one title stays before the next — tvOS's `TVPageHeroCarousel.dwell`.
@@ -646,11 +653,23 @@ private struct HeroBackdrop: View {
   let isCompact: Bool
 
   /// How far a picture drifts against a whole page of scroll.
-  private static let drift: CGFloat = 0.12
+  static let drift: CGFloat = 0.12
 
   /// Each picture is wider than the hero by its drift on both sides, so a drifting one
   /// never shows its edge (a narrower layer left seams and a white strip mid-turn).
   private var pictureWidth: CGFloat { (width * (1 + 2 * Self.drift)).rounded() }
+
+  static func decodeSize(width: CGFloat, height: CGFloat, topBleed: CGFloat,
+                         isCompact: Bool) -> CGSize {
+    let wide = (width * (1 + 2 * drift)).rounded()
+#if os(iOS)
+    if isCompact {
+      let still = min((width * CompactHeroStill.tallness).rounded(), max(height - topBleed, 0))
+      return CGSize(width: wide, height: still)
+    }
+#endif
+    return CGSize(width: wide, height: height)
+  }
 
   var body: some View {
     let (from, to, fraction) = pager.blend(over: slots)
@@ -697,7 +716,8 @@ private struct HeroBackdrop: View {
   }
 
   private func croppedPicture(_ feature: HomeHeroFeature, width: CGFloat) -> some View {
-    FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+    FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill,
+                        size: CGSize(width: width, height: height))
       .frame(width: width, height: height, alignment: .top)
       .clipped()
   }

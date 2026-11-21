@@ -61,13 +61,16 @@ public struct CompactHeroPicture: View {
     let picture = topBleed + (stillHeight ?? Self.stillHeight(width: width))
     let below = max(height - picture, 0)
     return ZStack(alignment: .top) {
-      FallbackRemoteImage(urls: urls, contentMode: .fill)
+      FallbackRemoteImage(urls: urls, contentMode: .fill,
+                          size: CGSize(width: pictureWidth, height: picture))
         .frame(width: pictureWidth, height: picture)
         .clipped()
         .backgroundExtensionEffect()
         .safeAreaPadding(.bottom, below)
         .blur(radius: width * 0.06, opaque: true)
-      FallbackRemoteImage(urls: urls, contentMode: .fill, onLoaded: onLoaded, onFailed: onFailed)
+      FallbackRemoteImage(urls: urls, contentMode: .fill,
+                          size: CGSize(width: pictureWidth, height: picture),
+                          onLoaded: onLoaded, onFailed: onFailed)
         .frame(width: pictureWidth, height: picture)
         .clipped()
         .mask {
@@ -85,14 +88,17 @@ public struct CompactHeroPicture: View {
     let still = stillHeight ?? Self.stillHeight(width: width)
     let below = max(height - topBleed - still, 0)
     return ZStack(alignment: .top) {
-      FallbackRemoteImage(urls: urls, contentMode: .fill)
+      FallbackRemoteImage(urls: urls, contentMode: .fill,
+                          size: CGSize(width: pictureWidth, height: still))
         .frame(width: pictureWidth, height: still)
         .clipped()
         .backgroundExtensionEffect()
         .safeAreaPadding(.top, topBleed)
         .safeAreaPadding(.bottom, below)
         .blur(radius: width * 0.06, opaque: true)
-      FallbackRemoteImage(urls: urls, contentMode: .fill, onLoaded: onLoaded, onFailed: onFailed)
+      FallbackRemoteImage(urls: urls, contentMode: .fill,
+                          size: CGSize(width: pictureWidth, height: still),
+                          onLoaded: onLoaded, onFailed: onFailed)
         .frame(width: pictureWidth, height: still)
         .clipped()
         .mask {
