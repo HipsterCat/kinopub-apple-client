@@ -8,8 +8,8 @@
 //
 
 import XCTest
-@testable import KinoPubAppleClient
-import KinoPubBackend
+@testable import KinoPub
+@testable import KinoPubBackend
 
 final class SeasonRailPagingTests: XCTestCase {
 
