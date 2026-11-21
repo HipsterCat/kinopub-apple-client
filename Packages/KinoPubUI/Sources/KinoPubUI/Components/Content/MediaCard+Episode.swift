@@ -15,14 +15,12 @@ public extension MediaCard {
   /// An episode as a landscape `MediaCard`.
   ///
   /// The caller owns the strings the payload cannot compose on its own: `title`
-  /// (kino.pub's name, or a schedule's when the episode has none), `episodeLabel`
-  /// (default: an unnamed `EpisodeText.listItem` — «Episode 9», «Серия 9») and
-  /// `dateLabel` (already formatted — the UI package does not know this app's date rules). `stillURL` overrides the episode thumbnail when an
-  /// external schedule carries a better one.
-  ///
-  /// A name that is only the episode's own number — "Эпизод 1" against
-  /// `Episode 1`, whatever the UI language — is treated as no name at all, so the
-  /// caption never says the same thing twice.
+  /// (kino.pub's name, or a schedule's when the episode has none) and
+  /// `dateLabel` (already formatted — the UI package does not know this app's date rules).
+  /// `stillURL` overrides the episode thumbnail when an external schedule carries a
+  /// better one. The visible title is always `EpisodeText.listItem` («7. Name» /
+  /// «7 серия») so tvOS, iPhone and macOS share one labeling ruleset with future
+  /// episode tiles. `episodeLabel` is kept for call-site compatibility only.
   init(episode: Episode,
        in season: Season? = nil,
        title: String? = nil,
@@ -88,22 +86,19 @@ public extension MediaCard {
 
   /// Title line + meta line for an episode caption.
   ///
-  /// Named episode → name on top, "Episode 9 · 5 Mar 2026" under it. Unnamed (or named
-  /// after its own number) → "Episode 9" is the title and the date stands alone, so the
-  /// two lines never repeat each other.
+  /// One ruleset with the tvOS season rail and future/unavailable tiles:
+  /// `EpisodeText.listItem` — «7. Name» / «7 серия» / «Ep 7». The date (when there
+  /// is one) sits alone under it. `episodeLabel` is ignored when building the title
+  /// so platforms cannot drift back to "name only, number on focus".
   private static func episodeCaption(name: String,
                                      number: Int,
                                      episodeLabel: String?,
                                      dateLabel: String?,
                                      fallbackTitle: String) -> (title: String, meta: String?) {
-    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    let hasName = EpisodeTitle.meaningful(trimmed) != nil
-    guard hasName else {
-      return (episodeLabel ?? fallbackTitle, dateLabel)
-    }
-    let meta = [episodeLabel, dateLabel]
-      .compactMap { $0?.isEmpty == false ? $0 : nil }
-      .joined(separator: " · ")
-    return (trimmed, meta.isEmpty ? nil : meta)
+    let meaningful = EpisodeTitle.meaningful(name)
+    let title = EpisodeText(season: nil, number: number, name: meaningful).listItem()
+    let meta = dateLabel.flatMap { $0.isEmpty ? nil : $0 }
+    // Keep a non-empty title even if listItem somehow cannot form one.
+    return (title.isEmpty ? (episodeLabel ?? fallbackTitle) : title, meta)
   }
 }

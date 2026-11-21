@@ -81,17 +81,22 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    **Backdrop ignores `Accept-Language`.** It is a textless wide frame, or 404.
    A titled banner, a portrait, and any kino.pub CDN url are not a backdrop.
    `s` on `poster` is that season's poster. `s` and `e` on `thumbnail` is that
-   episode's still. A Russian poster uses tvoe, or the Kinopoisk image when we
-   have that id, or a TMDB `ru` file when we don't — never a kino.pub url, and
-   never an English poster in its place. A logo falls through to the other
-   language (an English logo is sent when Russian was asked and only English
-   exists).    We store links, not files. **Stamped bytes** go through
+   episode's still. Optional `src=` on `thumbnail` may seed a
+   `*.staticpop.net` catalogue thumb when TMDB has none yet (other hosts are
+   rejected). Thumbnail **404s are not edge-cached** (`no-store`); a season
+   with only missing/staticpop stills is re-fetched from TMDB after six hours.
+   A Russian poster uses tvoe, or the Kinopoisk image when we have that id, or
+   a TMDB `ru` file when we don't — never a kino.pub url, and never an English
+   poster in its place. A logo falls through to the other language (an English
+   logo is sent when Russian was asked and only English exists). We store
+   links, not files. **Stamped bytes** go through
    **[wsrv.nl](https://wsrv.nl/)** first (`w=`, `q=80`, `output=webp` by
    default; optional `format=jpeg|png|webp` on the route). Logo / backdrop /
    poster pass the durable original as `url=`. **Thumbnails** pass the TMDB
-   ladder URL (face-crop tokens like `w454_and_h254_face` stay in that path —
-   weserv only re-encodes, it does not invent the crop), e.g.
-   `https://wsrv.nl/?url=https://image.tmdb.org/t/p/w454_and_h254_face/….jpg&w=410&q=80&output=webp`.
+   ladder URL when the still is from TMDB (face-crop tokens like
+   `w454_and_h254_face` stay in that path — weserv only re-encodes), or the
+   staticpop URL when the still is a kino.pub catalogue thumb, e.g.
+   `https://wsrv.nl/?url=https://m.staticpop.net/thumb/…/1280.jpg&w=584&q=80&output=webp`.
    On weserv failure, or with Worker var `WESERV_DISABLED=1`, we fall back to
    the legacy path: tvoe files through `tvoe.live/_next/image` (their widths
    only, their CDN only); TMDB files on that kind's ladder; `original` only

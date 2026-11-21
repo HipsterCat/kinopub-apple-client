@@ -92,8 +92,11 @@ public struct TitleImageRoute: Sendable, Hashable {
   ///     never seen; without it a cold title only gets kino.pub's own art.
   ///   - season: with `.poster`, that season's poster; with `.thumbnail`, required.
   ///   - episode: with `.thumbnail`, the episode whose still is asked for.
+  ///   - kinopubThumb: with `.thumbnail`, optional `https://…staticpop.net/…` URL the
+  ///     worker may seed and resize via wsrv.nl when TMDB has no still yet.
   public func url(_ kind: Kind, kinopubID: Int, imdb: Int?, width: Int?,
-                  season: Int? = nil, episode: Int? = nil) -> URL? {
+                  season: Int? = nil, episode: Int? = nil,
+                  kinopubThumb: String? = nil) -> URL? {
     guard let baseURL, kinopubID > 0 else { return nil }
     var components = URLComponents(
       url: baseURL.appendingPathComponent("img/\(kind.rawValue)/by/kinopub/\(kinopubID)"),
@@ -115,8 +118,17 @@ public struct TitleImageRoute: Sendable, Hashable {
     if let language {
       query.append(URLQueryItem(name: "lang", value: language))
     }
+    if kind == .thumbnail, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
+      query.append(URLQueryItem(name: "src", value: kinopubThumb))
+    }
     components?.queryItems = query.isEmpty ? nil : query
     return components?.url
+  }
+
+  /// Only kino.pub's own CDN may ride on `src=` — the worker rejects anything else.
+  public static func isStaticpopThumb(_ raw: String) -> Bool {
+    guard let host = URL(string: raw)?.host?.lowercased() else { return false }
+    return host == "staticpop.net" || host.hasSuffix(".staticpop.net")
   }
 
   /// Title logo, drawn at `width` pixels.
