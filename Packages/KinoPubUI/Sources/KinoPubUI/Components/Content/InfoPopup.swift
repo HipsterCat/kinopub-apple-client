@@ -12,10 +12,12 @@
 //  not a trip sideways to an icon.
 //
 //  Presentation is the system's, per platform: a sheet everywhere, drawn as a centred
-//  panel over a scrim on tvOS (where Menu dismisses it for free), with detents on
-//  iPhone/iPad, and a panel on macOS. A UIKit screen presents the same view through
-//  `InfoPopupPresenter`. What's New, the changelog and the licences use it too. `.claude/skills/tvos-surface/SKILL.md` —
-//  `description handlesOverflow` is a popup, and there is exactly one of it.
+//  panel over a scrim on tvOS (where Menu dismisses it for free), large +
+//  `.presentationSizing(.page)` on iPhone/iPad (What's New and detail info), and a
+//  page-hosted panel on macOS. A UIKit screen presents the same view through
+//  `InfoPopupPresenter`. What's New, the changelog and the licences use it too.
+//  `.claude/skills/tvos-surface/SKILL.md` — `description handlesOverflow` is a popup,
+//  and there is exactly one of it.
 //
 
 import SwiftUI
@@ -112,10 +114,10 @@ private struct TVHeroSheetChrome: ViewModifier {
 /// The popup's own chrome. Everything inside is content the caller supplies — this
 /// owns the frame, the scroll, and the way out.
 ///
-/// `confirmTitle` adds a real button under the content on tvOS (What's New's «Готово») and
-/// takes the entry focus; without it tvOS leaves with Menu, as every other popup does.
-/// Elsewhere the cross in the leading corner closes it. Short content hugs the panel,
-/// long content scrolls inside it.
+/// `confirmTitle` adds a real button under the content: on tvOS What's New's «Готово»
+/// (entry focus; without it Menu alone dismisses); on iPhone / iPad / Mac
+/// «Продолжить» / Continue at the bottom, with the same leading cross as detail info.
+/// Short content hugs the panel on Mac; on phone / pad the large sheet stays top-aligned.
 public struct InfoPopupView<Content: View>: View {
   let title: Text
   let subtitle: Text?
@@ -128,6 +130,9 @@ public struct InfoPopupView<Content: View>: View {
   @FocusState private var confirmFocused: Bool
   @State private var scrollPosition = ScrollPosition(edge: .top)
   @State private var scrollGeometry = ScrollPage.Geometry()
+#endif
+#if !os(tvOS)
+  @State private var isScrolled = false
 #endif
 
   /// `onDismiss` closes a popup presented outside SwiftUI (`InfoPopupPresenter`); a
@@ -185,43 +190,100 @@ public struct InfoPopupView<Content: View>: View {
     // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
     .onExitCommand(perform: close)
 #else
-    // The TV app's info sheet on a Mac: the title and its subtitle centred at the top,
-    // «Готово» at the top trailing corner, the content scrolling under them. It was a
-    // left-aligned alert with a blue «Закрыть» under the text (Sasha, 2026-10-30).
-    VStack(spacing: 0) {
-      header
-      scrollingText
-    }
-    .frame(maxWidth: InfoPopupMetrics.maxWidth)
+    // What's New and film info share one chrome: material toolbar + hierarchical X,
+    // top-aligned body, optional Continue footer (Sasha, 2026-11-21).
+    phonePadMacPanel
 #endif
   }
 
 #if !os(tvOS)
-  /// TestFlight's sheet head: a small centred title (and its subtitle), the cross in the
-  /// leading corner. It was «Готово» in a capsule at the trailing corner, the TV app's
-  /// (Sasha, 2026-11-10: "то же самое с обновлением и информацией детальной").
-  private var header: some View {
-    VStack(spacing: 2) {
+  private var phonePadMacPanel: some View {
+    VStack(spacing: 0) {
+      toolbarHeader
+      ScrollView(.vertical) {
+        VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+          if let subtitle {
+            subtitle
+              .font(.subheadline)
+              .foregroundStyle(Color.KinoPub.subtitle)
+              .multilineTextAlignment(.center)
+              .frame(maxWidth: .infinity)
+              .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+          }
+          content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, InfoPopupMetrics.padding)
+        .padding(.top, InfoPopupMetrics.padding * 0.35)
+        .padding(.bottom, InfoPopupMetrics.padding)
+      }
+      .scrollBounceBehavior(.basedOnSize)
+      .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
+        isScrolled = scrolled
+      }
+      if let confirmTitle {
+        continueButton(confirmTitle)
+      }
+    }
+    .frame(maxWidth: InfoPopupMetrics.maxWidth)
+#if os(macOS)
+    // Hug short notes; cap long ones — do not stretch one bullet to a full window.
+    .fixedSize(horizontal: false, vertical: true)
+    .frame(maxHeight: 560)
+#else
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+#endif
+  }
+
+  /// Centred title with the version-settings cross; material bar fades in as you scroll
+  /// (same language as Settings / the title page toolbar).
+  private var toolbarHeader: some View {
+    ZStack {
       title
         .font(.headline)
         .foregroundStyle(Color.KinoPub.text)
-      if let subtitle {
-        subtitle
-          .font(.subheadline)
-          .foregroundStyle(Color.KinoPub.subtitle)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+      HStack {
+        SheetCloseButton(action: close)
+          .padding(.leading, SheetCloseButton.inset)
+        Spacer(minLength: 0)
       }
     }
-    .multilineTextAlignment(.center)
-    .frame(maxWidth: .infinity)
-    // The cross's width on either side keeps a long title centred and clear of it.
-    .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
     .frame(minHeight: SheetCloseButton.side + 12)
-    .overlay(alignment: .leading) {
-      SheetCloseButton(action: close)
-        .padding(.leading, SheetCloseButton.inset)
-    }
     .padding(.top, SheetCloseButton.inset)
-    .padding(.bottom, InfoPopupMetrics.padding * 0.4)
+    .padding(.bottom, 10)
+    .background {
+      Rectangle()
+        .fill(.bar)
+        .opacity(isScrolled ? 1 : 0)
+        .animation(.easeOut(duration: 0.2), value: isScrolled)
+        .ignoresSafeArea(edges: .top)
+    }
+  }
+
+  /// `.borderedProminent` + `Color.primary` tint: readable in light and dark.
+  /// `.glassProminent` was black-on-black on Mac and white-on-white on iPhone dark.
+  private func continueButton(_ title: Text) -> some View {
+    Button(action: close) {
+      title
+        .font(.body.weight(.semibold))
+        .frame(maxWidth: .infinity)
+    }
+    .buttonStyle(.borderedProminent)
+    .tint(Color.primary)
+    .controlSize(.large)
+    .keyboardShortcut(.defaultAction)
+    .padding(.horizontal, InfoPopupMetrics.padding)
+#if os(macOS)
+    .padding(.top, 16)
+    .padding(.bottom, InfoPopupMetrics.padding)
+#else
+    // Extra air above Continue on phone — the button was flush under short copy.
+    .padding(.top, 28)
+    .padding(.bottom, InfoPopupMetrics.padding)
+#endif
   }
 #endif
 
@@ -276,10 +338,6 @@ public struct InfoPopupView<Content: View>: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(InfoPopupMetrics.padding)
-#if !os(tvOS)
-    // The header carries the top; the text starts right under it.
-    .padding(.top, -InfoPopupMetrics.padding * 0.5)
-#endif
   }
 
   private func close() {
@@ -433,6 +491,9 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
   let onDismiss: (() -> Void)?
   @ViewBuilder let popupContent: () -> PopupContent
 
+  /// What's New dims the Mac host; detail info stays undimmed but still outside-clickable.
+  private var usesConfirmLayout: Bool { confirmTitle != nil }
+
   func body(content: Content) -> some View {
 #if os(tvOS)
     // A cover, not a sheet: our own scrim + panel draw the popup, and a tvOS sheet frames
@@ -445,12 +506,14 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
       }
 #elseif os(macOS)
     if let host {
-      // Inside a page that hosts popups: the TV app's panel, not a sheet — it belongs to
-      // the page, the page behind stays live, and a click outside closes it.
+      // Inside a page that hosts popups: the TV app's panel, not a sheet — click outside
+      // closes it. What's New also dims and blocks the page so it cannot scroll behind.
       content
         .onChange(of: isPresented) { _, presented in
           if presented {
-            host.present(AnyView(hostedPanel), onClose: { isPresented = false })
+            host.present(AnyView(hostedPanel),
+                         dimsBackground: usesConfirmLayout,
+                         onClose: { isPresented = false })
           } else {
             host.dismiss()
             onDismiss?()
@@ -460,14 +523,18 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
       content
         .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
           panel
+            .macSheetFrame(width: 520, height: usesConfirmLayout ? 480 : 560)
         }
     }
 #else
     content
       .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
+        // What's New and film info: large / page at once — not a half-height drawer
+        // (Sasha, 2026-11-21).
         panel
-          .presentationDetents([.medium, .large])
+          .presentationDetents([.large])
           .presentationDragIndicator(.visible)
+          .presentationSizing(.page)
       }
 #endif
   }
@@ -631,19 +698,27 @@ public enum InfoPopupTriggerStyle {
 public final class InfoPopupHost {
   fileprivate var panel: AnyView?
   fileprivate var onClose: (() -> Void)?
+  /// What's New dims the page; detail info leaves it live and undimmed.
+  fileprivate var dimsBackground: Bool = false
   /// The panel's frame in the window, top-left origin, for the outside-click test.
   fileprivate var panelFrame: CGRect = .zero
 
   public init() {}
 
-  fileprivate func present(_ view: AnyView, onClose: @escaping () -> Void) {
+  fileprivate func present(
+    _ view: AnyView,
+    dimsBackground: Bool = false,
+    onClose: @escaping () -> Void
+  ) {
     self.onClose = onClose
+    self.dimsBackground = dimsBackground
     panel = view
   }
 
   fileprivate func dismiss() {
     guard panel != nil else { return }
     panel = nil
+    dimsBackground = false
     let close = onClose
     onClose = nil
     close?()
@@ -674,14 +749,18 @@ private struct InfoPopupHostOverlay: ViewModifier {
       .environment(\.infoPopupHost, host)
       .overlay {
         if let panel = host.panel {
-          panel
-            .background(Color(nsColor: .windowBackgroundColor), in: shape)
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(.separator, lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.3), radius: 30, y: 12)
-            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { host.panelFrame = $0 }
-            .padding(InfoPopupMetrics.padding * 2)
-            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+          ZStack {
+            if host.dimsBackground {
+              // Absorb clicks and scroll so the page behind cannot move (Sasha, 2026-11-21).
+              Color.black.opacity(InfoPopupMetrics.scrimOpacity)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { host.dismiss() }
+                .transition(.opacity)
+            }
+            hostedCard(panel)
+              .transition(.opacity.combined(with: .scale(scale: 0.97)))
+          }
         }
       }
       .animation(.easeOut(duration: 0.2), value: host.panel != nil)
@@ -694,12 +773,32 @@ private struct InfoPopupHostOverlay: ViewModifier {
       }
   }
 
+  /// Content-sized card centred in the window — What's New and detail info both hug
+  /// their text; a lone bullet must not stretch to a full-height Reminders card.
+  private func hostedCard(_ panel: AnyView) -> some View {
+    panel
+      .background(Color(nsColor: .windowBackgroundColor), in: shape)
+      .clipShape(shape)
+      .overlay(shape.strokeBorder(.separator, lineWidth: 0.5))
+      .shadow(color: .black.opacity(0.3), radius: 30, y: 12)
+      .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { host.panelFrame = $0 }
+      .frame(maxWidth: 520)
+      .padding(InfoPopupMetrics.padding * 2)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
   /// A click outside the panel closes it and still goes where it was aimed; Escape closes
-  /// it and goes nowhere.
+  /// it and goes nowhere. When the page is dimmed, scroll wheels are swallowed so the
+  /// sheet behind cannot move.
   private func startMonitoring() {
     stopMonitoring()
     let host = host
-    monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
+    monitor = NSEvent.addLocalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]
+    ) { event in
+      if event.type == .scrollWheel {
+        return host.dimsBackground ? nil : event
+      }
       if event.type == .keyDown {
         guard event.keyCode == 53 else { return event }
         host.dismiss()
