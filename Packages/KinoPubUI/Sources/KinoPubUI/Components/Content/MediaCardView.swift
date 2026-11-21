@@ -1191,12 +1191,29 @@ public struct MediaCardView: View {
     }
   }
 
-  /// Capability chips + optional bookmark on the artwork (bookmark is rightmost).
-  /// Landscape keeps +N out of this corner — it becomes a caption label instead.
+  /// Unwatched episodes on a **subscribed** series — drives the Appearance chrome
+  /// (on-poster round count / under-title line like tvOS). Nil when not following or
+  /// caught up; never invents a count from `card.badge` (Continue Watching still uses
+  /// that for «+N more»).
+  private var unwatchedEpisodeCount: Int? {
+    guard card.viewerState.isFollowing == true,
+          let count = card.unwatchedEpisodes, count > 0 else { return nil }
+    return count
+  }
+
+  private var showsUnwatchedOnArtwork: Bool {
+    editorialPlacement == .onArtwork && unwatchedEpisodeCount != nil
+  }
+
+  private var showsUnwatchedUnderTitle: Bool {
+    editorialPlacement == .inCaption && unwatchedEpisodeCount != nil
+  }
+
+  /// Capability chips + optional unwatched count + bookmark (bookmark is rightmost).
   private var artworkTopTrailing: some View {
     HStack(alignment: .top, spacing: 6) {
-      if !card.isLandscape, editorialPlacement == .onArtwork, let badge = card.badge {
-        editorialBadge(badge)
+      if showsUnwatchedOnArtwork, let count = unwatchedEpisodeCount {
+        editorialBadge("\(count)")
       }
       if capabilityPlacement == .onArtwork, !capabilityChips.isEmpty {
         capabilityBadgesRow
@@ -1230,13 +1247,25 @@ public struct MediaCardView: View {
     }
   }
 
+  /// Round count chip: +4pt horizontal padding vs the old capsule, and `minWidth ==
+  /// height` so a single digit stays a circle at every Dynamic Type size.
   private func editorialBadge(_ badge: String) -> some View {
     Text(badge)
       .font(.caption.weight(.bold))
-      .padding(.horizontal, 4)
-      .padding(.vertical, 3)
-      .background(Color.KinoPub.accent, in: Capsule())
+      .monospacedDigit()
       .foregroundStyle(.black)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 3)
+      .background {
+        GeometryReader { geo in
+          Capsule()
+            .fill(Color.KinoPub.accent)
+            .frame(width: max(geo.size.width, geo.size.height),
+                   height: geo.size.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
+      .accessibilityLabel(Text(EpisodesLeftText(Int(badge.filter(\.isNumber)))?.formatted() ?? badge))
 //#if !os(tvOS)
 //      .shadow(radius: 4)
 //#endif
@@ -1430,6 +1459,18 @@ public struct MediaCardView: View {
           .frame(maxWidth: .infinity, alignment: .center)
       }
 
+      // Subscribed unwatched count **under** the title — its own line, same words as
+      // tvOS Following (`EpisodesLeftText`), not a chip beside the title (Sasha, 2026-11-21).
+      if showsUnwatchedUnderTitle,
+         let text = EpisodesLeftText(unwatchedEpisodeCount)?.formatted() {
+        Text(text)
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .lineLimit(1)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, alignment: .center)
+      }
+
       if card.isLandscape, let line = landscapeEpisodeLine {
         Text(line)
           .font(TypeScale.cardMeta)
@@ -1467,7 +1508,9 @@ public struct MediaCardView: View {
         .frame(maxWidth: .infinity, alignment: .center)
       }
 
-      if !captionMetaParts.isEmpty {
+      // Year / genre yield to the unwatched line when that placement is on — tvOS
+      // Following does the same (`TVPageCells.posterSubtitle`).
+      if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty {
         Text(captionMetaParts.joined(separator: " · "))
           .font(TypeScale.cardMeta)
           .foregroundStyle(Color.KinoPub.subtitle)
@@ -1516,10 +1559,11 @@ public struct MediaCardView: View {
        let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
       lines += 1
     }
+    if showsUnwatchedUnderTitle { lines += 1 }
     if card.isLandscape, landscapeEpisodeLine != nil { lines += 1 }
     if showsCaptionScores { lines += 1 }
     if !card.captionStats.isEmpty { lines += 1 }
-    if !captionMetaParts.isEmpty { lines += 1 }
+    if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty { lines += 1 }
     return lines
   }
 
@@ -1531,7 +1575,9 @@ public struct MediaCardView: View {
     card.isLandscape ? 3 : 2
   }
 
-  /// Title + optional caption chips hug as one group, then the group is centered.
+  /// Title + optional quality chips hug as one group, then the group is centered.
+  /// Unwatched count is never here — when "Under title" it is its own line below
+  /// (`showsUnwatchedUnderTitle`), matching tvOS.
   private var titleRow: some View {
     HStack(spacing: 0) {
       Spacer(minLength: 0)
@@ -1546,11 +1592,6 @@ public struct MediaCardView: View {
           style: .title
         )
         .frame(minWidth: 0)
-
-        if !card.isLandscape, editorialPlacement == .inCaption, let badge = card.badge {
-          editorialBadge(badge)
-            .fixedSize()
-        }
 
         if capabilityPlacement == .inCaption, !capabilityChips.isEmpty {
           capabilityBadgesRow

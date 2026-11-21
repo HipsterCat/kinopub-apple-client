@@ -85,19 +85,20 @@ final class ContentStoreRecordTests: XCTestCase {
   }
 
   /// Following cards are stored as `.card`, then painted with today's viewer state.
-  /// The unwatched count must survive that overlay or every cover has an empty subtitle.
+  /// The unwatched count must survive that overlay.
   func testAFollowingCardKeepsItsUnwatchedCountWhenTheViewerStateIsLaidOver() {
     let viewer = ViewerStateReaderMock()
     viewer.overlays[.title(1)] = ViewerOverlay(isFollowing: true)
     let store = makeStore(viewer: viewer)
-    let card = LibrarySectionCatalog.followingCard(for: WatchingItem(
+    let item = WatchingItem(
       id: 1, type: "serial", title: "Дом Дракона / House of the Dragon",
       posters: Posters(small: "", medium: "https://x/m.jpg", big: "", wide: nil),
-      total: 18, watched: 16, new: 2))
+      total: 18, watched: 16, new: 2)
+    let card = LibrarySectionCatalog.followingCard(for: item)
     store.setItems([.card(card)], for: .watchlist)
     let painted = store.cards(.watchlist).first
     XCTAssertEqual(painted?.unwatchedEpisodes, 2)
-    XCTAssertEqual(painted?.subtitle, EpisodesLeftText(2)?.formatted())
+    XCTAssertEqual(painted?.subtitle, item.originalTitle)
   }
 
   func testCardsThatAreNotOnTheModelStayCards() {

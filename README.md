@@ -36,9 +36,9 @@ Verification gaps and unfinished edges are Asana subtasks ([Kinopub Engineering 
 
 ## Requirements
 
-- Xcode with tvOS / iOS / macOS **26** SDKs. tvOS deployment target **26.5**
-  (the minimum tvOS 26 simulator runtime; real devices can all update to 26.6,
-  but the simulator cannot). iOS and macOS stay at **26.6**.
+- Xcode 26.x with tvOS / iOS / macOS **26** SDKs. Deployment target **26.5** on
+  every platform (Xcode 26.6 GM's SDKs are 26.5; tvOS 26.5 is also the oldest
+  tvOS 26 simulator runtime).
 - Swift 5 language mode in packages (`swift-tools-version: 6.2`)
 - Single multiplatform target `KinoPubAppleClient` (product name `KinoPub`)
 - tvOS follows the system light/dark setting; iOS and macOS are forced dark until their pass

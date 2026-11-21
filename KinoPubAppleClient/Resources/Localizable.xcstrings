@@ -1887,6 +1887,7 @@
       }
     },
     "Bookmark sits top-trailing, right of the quality chips." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13538,6 +13539,7 @@
       }
     },
     "New-episode badge" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19448,6 +19450,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Непросмотренные в сезоне"
+          }
+        }
+      }
+    },
+    "Unwatched episode count" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unwatched episode count"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кол-во непросмотренных серий"
+          }
+        }
+      }
+    },
+    "Unwatched episode count is for subscribed series only — on the poster or under the title like on Apple TV. Bookmark sits top-trailing, right of the quality chips." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unwatched episode count is for subscribed series only — on the poster or under the title like on Apple TV. Bookmark sits top-trailing, right of the quality chips."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кол-во непросмотренных серий — только для сериалов с подпиской: на постере или под названием, как на Apple TV. Закладка справа сверху, правее чипов качества."
           }
         }
       }

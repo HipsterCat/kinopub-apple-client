@@ -398,7 +398,7 @@ test("season poster lang map prefers ru then falls through to en", async () => {
   assert.equal(hit.headers.get("content-language"), "en");
 });
 
-test("stamped logo snaps w onto 780 / 1280 / 1920", async () => {
+test("stamped logo goes through wsrv.nl with w, q=80, output=webp", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 2000, height: 400 }] },
@@ -410,11 +410,11 @@ test("stamped logo snaps w onto 780 / 1280 / 1920", async () => {
     fetched.push(String(url));
     return new Response(Uint8Array.from([1, 2, 3]), {
       status: 200,
-      headers: { "content-type": "image/png" },
+      headers: { "content-type": "image/webp" },
     });
   };
   try {
-    for (const [w, token] of [["780", "w780"], ["1280", "w1280"], ["1920", "w1920"]]) {
+    for (const w of ["780", "1280", "1920", "2400"]) {
       fetched.length = 0;
       const response = await handleImage(
         new Request(`https://example.test/img/logo/by/kinopub/82852/en/logo.png?w=${w}`),
@@ -422,15 +422,93 @@ test("stamped logo snaps w onto 780 / 1280 / 1920", async () => {
         ctxSpy(),
       );
       assert.equal(response.status, 200, `w=${w}`);
-      assert.match(fetched[0], new RegExp(`/t/p/${token}/`), `w=${w} → ${fetched[0]}`);
+      assert.equal(response.headers.get("x-kinopub-image-via"), "weserv", `w=${w}`);
+      assert.equal(response.headers.get("content-type"), "image/webp");
+      const upstream = new URL(fetched[0]);
+      assert.equal(upstream.hostname, "wsrv.nl", `w=${w}`);
+      assert.equal(upstream.searchParams.get("w"), w);
+      assert.equal(upstream.searchParams.get("q"), "80");
+      assert.equal(upstream.searchParams.get("output"), "webp");
+      assert.equal(
+        upstream.searchParams.get("url"),
+        "https://image.tmdb.org/t/p/original/logo-en.png",
+      );
     }
   } finally {
     globalThis.fetch = original;
   }
 });
 
+test("stamped logo falls back to TMDB ladder when weserv fails", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 2000, height: 400 }] },
+    },
+  });
+  const original = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    fetched.push(href);
+    if (href.includes("wsrv.nl")) {
+      return new Response("nope", { status: 502 });
+    }
+    return new Response(Uint8Array.from([1, 2, 3]), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+  };
+  try {
+    const response = await handleImage(
+      new Request("https://example.test/img/logo/by/kinopub/82852/en/logo.png?w=400"),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-kinopub-image-via"), "legacy");
+    assert.equal(fetched.length, 2);
+    assert.match(fetched[0], /wsrv\.nl/);
+    assert.match(fetched[1], /\/t\/p\/w454\//);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
 
-test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", async () => {
+test("WESERV_DISABLED uses the legacy resize path", async () => {
+  const env = {
+    ...kvEnv({
+      "title:kinopub:82852": {
+        artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 2000, height: 400 }] },
+      },
+    }),
+    WESERV_DISABLED: "1",
+  };
+  const original = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(Uint8Array.from([1, 2, 3]), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+  };
+  try {
+    const response = await handleImage(
+      new Request("https://example.test/img/logo/by/kinopub/82852/en/logo.png?w=780"),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-kinopub-image-via"), "legacy");
+    assert.equal(fetched.length, 1);
+    assert.match(fetched[0], /\/t\/p\/w780\//);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("stamped thumbnail wraps the TMDB face / ladder URL through wsrv.nl as WebP", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       seasons: [{
@@ -445,7 +523,7 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
     fetched.push(String(url));
     return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
       status: 200,
-      headers: { "content-type": "image/jpeg" },
+      headers: { "content-type": "image/webp" },
     });
   };
   try {
@@ -453,12 +531,13 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
       ["300", "https://image.tmdb.org/t/p/w300/still.jpg"],
       ["320", "https://image.tmdb.org/t/p/w320_and_h180_face/still.jpg"],
       ["360", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
+      ["410", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["454", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["780", "https://image.tmdb.org/t/p/w780/still.jpg"],
       ["1280", "https://image.tmdb.org/t/p/w1280/still.jpg"],
       ["1920", "https://image.tmdb.org/t/p/w1920_and_h1080_face/still.jpg"],
     ];
-    for (const [w, upstream] of cases) {
+    for (const [w, ladder] of cases) {
       fetched.length = 0;
       const response = await handleImage(
         new Request(`https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=${w}&s=1&e=5`),
@@ -466,7 +545,14 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
         ctxSpy(),
       );
       assert.equal(response.status, 200, `w=${w}`);
-      assert.equal(fetched[0], upstream, `w=${w}`);
+      assert.equal(response.headers.get("x-kinopub-image-via"), "weserv", `w=${w}`);
+      assert.equal(response.headers.get("content-type"), "image/webp");
+      const upstream = new URL(fetched[0]);
+      assert.equal(upstream.hostname, "wsrv.nl", `w=${w}`);
+      assert.equal(upstream.searchParams.get("url"), ladder, `w=${w}`);
+      assert.equal(upstream.searchParams.get("w"), w);
+      assert.equal(upstream.searchParams.get("q"), "80");
+      assert.equal(upstream.searchParams.get("output"), "webp");
     }
   } finally {
     globalThis.fetch = original;
@@ -526,7 +612,7 @@ test("a taller smaller PNG logo beats a wide SVG", async () => {
   assert.equal(response.headers.get("content-language"), "ru");
 });
 
-test("the stamped logo URL proxies an SVG as PNG", async () => {
+test("the stamped logo URL asks weserv for the PNG twin of an SVG path", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       artwork: {
@@ -540,7 +626,7 @@ test("the stamped logo URL proxies an SVG as PNG", async () => {
     fetched = String(url);
     return new Response(Uint8Array.from([1, 2, 3]), {
       status: 200,
-      headers: { "content-type": "image/png" },
+      headers: { "content-type": "image/webp" },
     });
   };
   try {
@@ -551,7 +637,11 @@ test("the stamped logo URL proxies an SVG as PNG", async () => {
     );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-language"), "en");
-    assert.equal(fetched, "https://image.tmdb.org/t/p/original/mark.png");
+    assert.equal(response.headers.get("x-kinopub-image-via"), "weserv");
+    const upstream = new URL(fetched);
+    assert.equal(upstream.hostname, "wsrv.nl");
+    assert.equal(upstream.searchParams.get("url"), "https://image.tmdb.org/t/p/original/mark.png");
+    assert.equal(upstream.searchParams.get("output"), "webp");
   } finally {
     globalThis.fetch = original;
   }

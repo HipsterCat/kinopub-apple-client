@@ -88,12 +88,27 @@ final class ContentStore {
                            kinopubWideSpecified: record.kinopubWideSpecified)
       // The same two steps a cached card took: the payload's card, then today's state
       // over it (the card's builder does not fill watched or progress).
-      guard let viewer else { return card }
-      return card.withViewerState(viewer.state(for: ref, reported: record.reported))
+      guard let viewer else { return Self.applyingSubscriptionChrome(card) }
+      return Self.applyingSubscriptionChrome(
+        card.withViewerState(viewer.state(for: ref, reported: record.reported)))
     case .card(let card):
-      guard let viewer, !card.opensCollection, card.ref.kind == .title else { return card }
-      return card.withViewerState(viewer.state(for: card.ref, reported: card.reportedState))
+      guard let viewer, !card.opensCollection, card.ref.kind == .title else {
+        return Self.applyingSubscriptionChrome(card)
+      }
+      return Self.applyingSubscriptionChrome(
+        card.withViewerState(viewer.state(for: card.ref, reported: card.reportedState)))
     }
+  }
+
+  /// When a series is followed and `WatchingListCache` already holds its watching row,
+  /// paint `unwatchedEpisodes` so Appearance chrome works on every cover — Home CW,
+  /// Catalog, Search — without another `/v1/watching` hit (Sasha, 2026-11-21).
+  private static func applyingSubscriptionChrome(_ card: MediaCard) -> MediaCard {
+    guard card.isSeries, card.viewerState.isFollowing == true else { return card }
+    guard let item = WatchingListCache.shared.cachedItem(id: card.id, subscribed: true) else {
+      return card
+    }
+    return card.withUnwatchedEpisodes(item.unwatchedCount)
   }
 
   func lastError(_ key: RowKey) -> Error? {

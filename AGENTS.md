@@ -17,7 +17,8 @@ semantic component is fine; two components for one idea on one platform is a def
 
 - **Target:** `KinoPubAppleClient` (product `KinoPub`), tvOS · iOS · iPadOS · macOS. Mark
   27-only API explicitly. **tvOS floor 26.5** (the oldest tvOS 26 simulator runtime; packages
-  declare `.tvOS("26.5")`), iOS and macOS 26.6 (packages `.v26`).
+  declare `.tvOS("26.5")`). iOS and macOS are **26.5** too: Xcode 26.6 GM ships SDK 26.5, so a
+  26.6 floor cannot compile without Xcode 27. Packages stay `.v26`.
 - **Scope now:** [CURRENT.md](CURRENT.md).
 - **Language:** Swift 5 mode in packages (`swift-tools-version: 6.2`).
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.
@@ -228,9 +229,10 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **The project file is `KinoPubAppleClient.xcodeproj/project.xcproj`** (Xcode 27 JSON; no
-  `project.pbxproj`). A new `.swift` file is not compiled until it is listed in its group's
-  `children` with `"target-membership": [ "KinoPubAppleClient/compile-sources" ]` — the symptom is
+- **The project file is `KinoPubAppleClient.xcodeproj/project.pbxproj`** (Xcode 14-compatible;
+  objectVersion 56). Xcode 26.x opens it; do not convert back to Xcode 27's `project.xcproj`
+  (that pinned CI to the scarce `xcode-27` runner pool). A new `.swift` file is not compiled
+  until it is a `PBXBuildFile` in the target's Sources phase — the symptom is
   `Cannot find 'TypeName' in scope` everywhere it is used.
 - **TestFlight:** `.github/workflows/testflight.yml`, at most one automatic upload a day, iOS +
   tvOS + macOS. Details and secrets: [docs/testflight.md](docs/testflight.md). Sasha tests on the

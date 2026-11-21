@@ -188,6 +188,8 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertFalse(seasonTab("5").exists, "season 5 has a tab of its own inside the run")
 
     let s2e4 = railItem(season: 2, number: 4)
+    XCTAssertTrue(s2e4.waitForExistence(timeout: 15),
+                  "S2E4 never appeared on the rail: \(focusedDescription)")
     try move(.down, "seasons-01-down-from-hero")
     XCTAssertTrue(s2e4.hasFocus, "Down from the hero did not land on S2E4: \(focusedDescription)")
     XCTAssertTrue(seasonTab("2").isSelected, "S2E4 has focus but «2» is not the selected tab")
@@ -246,6 +248,8 @@ final class TVDetailLayoutUITests: XCTestCase {
     launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
     try waitForHeroFocus()
     let s2e4 = railItem(season: 2, number: 4)
+    XCTAssertTrue(s2e4.waitForExistence(timeout: 15),
+                  "S2E4 never appeared on the rail: \(focusedDescription)")
     try move(.down, "playglyph-01-down")
     XCTAssertTrue(s2e4.hasFocus, "Down from hero missed S2E4: \(focusedDescription)")
     let play = app.descendants(matching: .any).matching(identifier: "kinopub.rail.playGlyph").firstMatch
@@ -618,7 +622,12 @@ final class TVDetailLayoutUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 2.0)
       note("menu at level \(level): to the title before")
       try shoot("menu-depth-\(level)-popped")
-      XCTAssertTrue(focusedDescription.contains("kinopub.poster.\(9_901_000 + level - 1)"),
+      let poster = "kinopub.poster.\(9_901_000 + level - 1)"
+      let deadline = Date().addingTimeInterval(4)
+      while Date() < deadline, !focusedDescription.contains(poster) {
+        Thread.sleep(forTimeInterval: 0.4)
+      }
+      XCTAssertTrue(focusedDescription.contains(poster),
                     "level \(level): the title before is not on the card that opened it: \(focusedDescription)")
     }
   }

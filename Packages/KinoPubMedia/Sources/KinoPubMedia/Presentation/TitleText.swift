@@ -32,8 +32,9 @@ public struct SeasonCountText: Hashable, Sendable {
   }
 }
 
-/// **How many episodes are still unwatched, as a Library header** — «156 непросмотренных
-/// серий», «156 unwatched episodes». Plural-correct, including the Russian adjective.
+/// **How many episodes are still unwatched, as a Library header** — «156 серий»,
+/// «156 episodes». Plural-correct; the count is the header, the section title
+/// already says they are unwatched.
 public struct UnwatchedEpisodesCountText: Hashable, Sendable {
   public let count: Int
 
