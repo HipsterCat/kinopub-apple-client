@@ -184,6 +184,20 @@ public enum Artwork {
     pipeline.cache[request(url, size: size, mode: mode)]?.image
   }
 
+  /// Any size of this URL already decoded in memory — the largest this session asked
+  /// for — or nil. For a stand-in that only has to be there at once (the title page's
+  /// blurred backdrop placeholder is the card's poster, decoded at the card's size).
+  public static func anyCachedImage(for url: URL) -> PlatformImage? {
+    let variants = seen.withLock { $0[url] ?? [] }
+      .sorted { $0.size.width * $0.size.height > $1.size.width * $1.size.height }
+    for variant in variants {
+      if let image = pipeline.cache[makeRequest(url, size: variant.size, mode: variant.mode)]?.image {
+        return image
+      }
+    }
+    return nil
+  }
+
   /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and
   /// `ArtworkImage` go through this so they never import Nuke.
   public static func image(for url: URL, size: CGSize = .zero) async throws -> PlatformImage {

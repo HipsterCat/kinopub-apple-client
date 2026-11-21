@@ -12,6 +12,7 @@
 
 #if os(tvOS)
 import SwiftUI
+import CoreImage
 import OSLog
 import KinoPubLogging
 
@@ -24,13 +25,20 @@ public struct PageBackdrop: Equatable, Sendable {
   public var id: String
   /// Tried in order; the first that loads is the picture. Empty draws the palette alone.
   public var imageURLs: [URL]
+  /// Art the page already has on screen or in cache — the poster of the card that opened
+  /// it. Shown blurred the moment the page is in front, until the picture itself has
+  /// loaded: opening a title never waits on the network with the previous title's
+  /// picture still up (Sasha, 2026-11-21). Not part of the identity: it never decides
+  /// whether the picture has to be loaded again.
+  public var placeholderURLs: [URL]
   /// The picture's mean colours, top-leading → bottom-trailing. Drawn under the picture
   /// and on its own where there is none. Empty until a source supplies them.
   public var palette: [Color]
 
-  public init(id: String, imageURLs: [URL], palette: [Color] = []) {
+  public init(id: String, imageURLs: [URL], placeholderURLs: [URL] = [], palette: [Color] = []) {
     self.id = id
     self.imageURLs = imageURLs
+    self.placeholderURLs = placeholderURLs
     self.palette = palette
   }
 }
@@ -219,17 +227,29 @@ private struct PageBackdropDetailsReporter: ViewModifier {
 }
 
 /// Draws the stage's current backdrop, full screen, never focusable, never in a scroll.
-/// A new picture is decoded before it is shown, so the crossfade goes from one picture
-/// to the next rather than through an empty frame.
+///
+/// A new page's picture never waits behind the previous one (Sasha, 2026-11-21: the old
+/// backdrop stayed up until the worker answered, ~5 s on a cold title, swapping together
+/// with the logo). On a new id, at once: the picture itself when it is already decoded,
+/// else a blurred copy of the art the page already has (the card's poster), else nothing
+/// — the old picture is gone either way. The picture crossfades in when it has loaded.
+///
+/// Every picture also keeps a small blurred copy (`PageBackdropWash`), made once off the
+/// main thread. The details sit on it instead of on an empty page (Rivulet's look), and it
+/// costs one tiny bitmap stretched by the GPU — no live blur over the scroll.
 struct PageBackdropHost: View {
   let stage: PageBackdropStage
 
   private struct Shown: Equatable {
     var backdrop: PageBackdrop
+    /// The picture; nil while it loads, or when nothing loaded.
     var image: Image?
+    /// Small blurred copy — of the picture once it is in, of the placeholder before.
+    var wash: Image?
   }
 
   @State private var shown: Shown?
+  @Environment(\.colorScheme) private var colorScheme
 
   /// From one title's picture to the next.
   static let crossfade = Animation.easeInOut(duration: 0.7)
@@ -240,18 +260,21 @@ struct PageBackdropHost: View {
   /// To nothing: quick, and started as the pop starts, so the picture is gone by the time
   /// the page underneath has focus.
   static let fadeOut = Animation.easeOut(duration: 0.35)
+  /// Off the previous title onto the next one's placeholder: as quick as the push.
+  static let handoff = Animation.easeOut(duration: 0.3)
 
   var body: some View {
     ZStack {
       if let shown {
-        PageBackdropLayer(palette: shown.backdrop.palette, image: shown.image)
+        PageBackdropLayer(palette: shown.backdrop.palette,
+                          image: shown.image,
+                          wash: shown.wash,
+                          inDetails: stage.foldBlur == nil && stage.showsDetails,
+                          colorScheme: colorScheme)
           .id(shown.backdrop.id)
           .transition(.opacity)
       }
     }
-    // The below-fold scrubs a blur over the picture and leaves it up. Everywhere
-    // else, moving into the details fades the picture out.
-    .opacity((stage.foldBlur == nil && stage.showsDetails) ? 0 : 1)
     .animation(stage.foldBlur == nil ? Self.details : nil, value: stage.showsDetails)
     .overlay {
       FoldBlurOverlay(progress: stage.foldBlur ?? 0)
@@ -278,32 +301,128 @@ struct PageBackdropHost: View {
       withAnimation(Self.crossfade) { self.shown?.backdrop = next }
       return
     }
-    let image = await Self.firstImage(of: next.imageURLs, id: next.id)
-    guard !Task.isCancelled else { return }
-    stage.notePicture(image != nil, for: next.id)
-    withAnimation(shown == nil ? Self.fadeIn : Self.crossfade) {
-      shown = Shown(backdrop: next, image: image)
+    let sameTitle = shown?.backdrop.id == next.id
+
+    // Already decoded (the Home banner drew the same URL): straight to it.
+    if let cached = Self.cachedPicture(of: next.imageURLs) {
+      let wash = await PageBackdropWash.make(from: cached)
+      guard !Task.isCancelled else { return }
+      stage.notePicture(true, for: next.id)
+      withAnimation(shown == nil ? Self.fadeIn : Self.crossfade) {
+        shown = Shown(backdrop: next, image: Image(platformImage: cached), wash: wash.map(Image.init(platformImage:)))
+      }
+      return
     }
+
+    if !sameTitle {
+      // Never hold the previous title's picture: its placeholder, or nothing, now.
+      let placeholder = Self.cachedPlaceholder(of: next.placeholderURLs)
+      let wash = await placeholder.asyncMap { await PageBackdropWash.make(from: $0) } ?? nil
+      guard !Task.isCancelled else { return }
+      withAnimation(Self.handoff) {
+        shown = Shown(backdrop: next, image: nil, wash: wash.map(Image.init(platformImage:)))
+      }
+      if wash == nil, !next.placeholderURLs.isEmpty {
+        // Not in memory: from disk or the network, racing the picture — whichever is
+        // first is drawn; the picture always wins once it is in.
+        Task {
+          guard let loaded = await Self.firstImage(of: next.placeholderURLs, id: next.id, logs: false),
+                let wash = await PageBackdropWash.make(from: loaded),
+                self.shown?.backdrop.id == next.id, self.shown?.image == nil, self.shown?.wash == nil
+          else { return }
+          withAnimation(Self.handoff) { self.shown?.wash = Image(platformImage: wash) }
+        }
+      }
+    }
+
+    let loaded = await Self.firstImage(of: next.imageURLs, id: next.id, logs: true)
+    guard !Task.isCancelled else { return }
+    stage.notePicture(loaded != nil, for: next.id)
+    guard let loaded else {
+      // Nothing loaded: the placeholder wash stays as the page's picture.
+      if shown?.backdrop.id != next.id {
+        withAnimation(Self.crossfade) { shown = Shown(backdrop: next, image: nil, wash: nil) }
+      } else {
+        shown?.backdrop = next
+      }
+      return
+    }
+    let wash = await PageBackdropWash.make(from: loaded)
+    guard !Task.isCancelled else { return }
+    withAnimation(shown?.image == nil && shown?.wash == nil ? Self.fadeIn : Self.crossfade) {
+      shown = Shown(backdrop: next, image: Image(platformImage: loaded), wash: wash.map(Image.init(platformImage:)))
+    }
+  }
+
+  /// The first candidate already decoded at full size in memory.
+  private static func cachedPicture(of urls: [URL]) -> PlatformImage? {
+    for url in urls {
+      if let image = Artwork.cachedImage(for: url) { return image }
+    }
+    return nil
+  }
+
+  /// Any decoded size of a placeholder candidate — the card drew it at its own size.
+  private static func cachedPlaceholder(of urls: [URL]) -> PlatformImage? {
+    for url in urls {
+      if let image = Artwork.anyCachedImage(for: url) { return image }
+    }
+    return nil
   }
 
   /// Wide → big → medium, the same chain `FallbackRemoteImage` walks, through the same
   /// `Artwork` cache — the card that opened the page has usually decoded it already.
-  private static func firstImage(of urls: [URL], id: String) async -> Image? {
+  private static func firstImage(of urls: [URL], id: String, logs: Bool) async -> PlatformImage? {
     for (index, url) in urls.enumerated() {
       if Task.isCancelled { return nil }
       if let loaded = try? await Artwork.imageWithSource(for: url) {
+        guard logs else { return loaded.image }
         Artwork.noteDisplayed(loaded.image, url: url, size: .zero)
-#if os(tvOS)
         ArtworkLog.source("page.backdrop \(id)", id: nil, asked: url, answered: loaded.answered,
                           tier: loaded.tier, candidate: index, of: urls.count)
-#endif
-        return Image(platformImage: loaded.image)
+        return loaded.image
       }
     }
-#if os(tvOS)
-    if !Task.isCancelled { ArtworkLog.exhausted("page.backdrop \(id)", id: nil, tried: urls) }
-#endif
+    if logs, !Task.isCancelled { ArtworkLog.exhausted("page.backdrop \(id)", id: nil, tried: urls) }
     return nil
+  }
+}
+
+private extension Optional {
+  func asyncMap<T>(_ transform: (Wrapped) async -> T) async -> T? {
+    guard let self else { return nil }
+    return await transform(self)
+  }
+}
+
+/// A picture's blurred stand-in: shrunk to a few dozen pixels and blurred once, then
+/// stretched over the screen by the GPU. Made off the main thread, cached per bitmap.
+enum PageBackdropWash {
+  /// Long side of the blurred bitmap. Stretched to 1920 pt it reads as a heavy blur.
+  static let side: CGFloat = 64
+
+  nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+  static func make(from image: PlatformImage) async -> PlatformImage? {
+    guard let source = image.cgImage else { return nil }
+    let result: CGImage? = await Task.detached(priority: .userInitiated) {
+      Self.blurred(source)
+    }.value
+    return result.map { UIImage(cgImage: $0) }
+  }
+
+  nonisolated private static func blurred(_ source: CGImage) -> CGImage? {
+    let width = CGFloat(source.width), height = CGFloat(source.height)
+    guard width > 0, height > 0 else { return nil }
+    let scale = side / max(width, height)
+    let input = CIImage(cgImage: source)
+      .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    let extent = input.extent.integral
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
+    blur.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(2.5, forKey: kCIInputRadiusKey)
+    guard let output = blur.outputImage?.cropped(to: extent) else { return nil }
+    return context.createCGImage(output, from: extent)
   }
 }
 
@@ -317,9 +436,14 @@ struct PageBackdropHost: View {
 private struct PageBackdropLayer: View {
   let palette: [Color]
   let image: Image?
+  let wash: Image?
+  /// Focus is in the sections: the picture gives way to its blurred copy, tinted to the
+  /// appearance, instead of fading out to an empty page (Sasha, 2026-11-21).
+  var inDetails: Bool = false
+  var colorScheme: ColorScheme = .dark
 
   var body: some View {
-    if image == nil, palette.isEmpty {
+    if image == nil, wash == nil, palette.isEmpty {
       Color.clear
     } else {
       layers
@@ -336,17 +460,30 @@ private struct PageBackdropLayer: View {
         only
       }
 
+      if let wash {
+        Color.clear
+          .overlay { wash.resizable().interpolation(.high).aspectRatio(contentMode: .fill) }
+          .clipped()
+      }
+
       if let image {
         // A clear frame of the screen's size with the picture laid over it: an
         // aspect-filled image left to size itself reports the overflow as its size.
         Color.clear
           .overlay { image.resizable().aspectRatio(contentMode: .fill) }
           .clipped()
+          .opacity(inDetails && wash != nil ? 0 : 1)
       }
 
       // The Home hero's tuned shading, as on the Mac title page (Sasha, 2026-10-30): the
       // flat bands that were here read as a top and a bottom slab.
       HeroLegibilityTexture(tone: .black)
+        .opacity(inDetails ? 0 : 1)
+
+      // The details: one flat tint of the appearance over the blur, so the sections'
+      // text (which follows the appearance there) reads in light and dark alike.
+      (colorScheme == .dark ? Color.black.opacity(0.45) : Color.white.opacity(0.62))
+        .opacity(inDetails ? 1 : 0)
     }
     .animation(PageBackdropHost.crossfade, value: palette)
   }
@@ -400,7 +537,7 @@ private final class FoldBlurView: UIVisualEffectView {
 #Preview("Palette only") {
   PageBackdropLayer(palette: [Color(red: 0.32, green: 0.22, blue: 0.14),
                               Color(red: 0.08, green: 0.10, blue: 0.16)],
-                    image: nil)
+                    image: nil, wash: nil)
 }
 #endif
 #endif

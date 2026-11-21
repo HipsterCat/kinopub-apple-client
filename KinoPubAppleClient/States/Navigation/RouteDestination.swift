@@ -160,9 +160,10 @@ struct RouteDestination: View {
       // title this session already has paints the page while the details load — the
       // last details payload, else the listing the card was drawn from.
       MediaItemModel(mediaItemId: id,
-                     knownItem: knownItem
+                     knownItem: (knownItem
                        ?? appContext.localProgressStore.snapshot(for: id)
-                       ?? ListedItemCache.shared.item(id: id),
+                       ?? ListedItemCache.shared.item(id: id))
+                       .map(WatchingListCache.shared.reconciled),
                      itemsService: appContext.contentService,
                      downloadManager: appContext.downloadManager,
                      linkProvider: linkProvider,

@@ -3,7 +3,8 @@
 //  KinoPubUI
 //
 //  Hero action controls. These are the **system** button styles with a border shape,
-//  and nothing else.
+//  and nothing else: bordered (prominent, tinted white, for Play) on tvOS and macOS,
+//  glass on iOS (Sasha, 2026-11-21).
 //
 //  They used to be three hand-written `ButtonStyle`s: capsule and circle plates painted
 //  by hand, a hairline stroke, `Color.white.opacity(0.22)` fills, black-on-white
@@ -107,50 +108,58 @@ public extension View {
 // MARK: - System styles
 
 public extension View {
-  /// Entry Play / Resume capsule. Glass adapts with the environment; white elevated
-  /// fill is **focus**, not a forced tint. Do not add `.tint(.primary)` — that froze
-  /// Play white at rest (the preview only painted it white as default focus).
+  /// The main Play: a **solid white capsule with a dark label**, in every state and both
+  /// appearances, over any picture — the Apple TV app's primary (Sasha, 2026-11-21). The
+  /// prominent glass it replaced sampled the picture and the page under it, so on the
+  /// light appearance it slowly turned white as focus left the hero, and on the device
+  /// every focus move between the buttons repainted it.
   ///
-  /// iOS / macOS: monochrome — the primary colour of the hero's (dark) chrome, white,
-  /// with the label in the page's background colour (`MediaActionLabel` sets it), the
-  /// way the TV app's Play reads on a Mac (Sasha, 2026-10-29). The accent blue was the
-  /// loudest thing on the artwork.
+  /// tvOS and macOS: the system's bordered prominent button tinted white — the focus lift
+  /// and press stay the system's. iOS keeps the monochrome prominent glass.
   func mediaActionPlayPillStyle() -> some View {
 #if os(tvOS)
-    buttonStyle(.glassProminent)
+    buttonStyle(.borderedProminent)
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
+      .tint(.white)
 #else
     modifier(MonochromePlayTint())
 #endif
   }
 
-  /// Labelled secondary capsule (Trailer, Mark Watched, Replay). System `.glass` so
-  /// the plate tracks light/dark / materials instead of a flat bordered fill.
+  /// Labelled secondary capsule (Trailer, Mark Watched, a second version). tvOS and
+  /// macOS: the system's bordered button — on tvOS a dark see-through platter at rest
+  /// (the row is forced dark) that the focus engine turns white, the look of Rivulet and
+  /// Plozaa and of this row before glass. iOS: glass.
   func mediaActionPillStyle() -> some View {
+#if os(tvOS)
+    buttonStyle(.bordered)
+      .buttonBorderShape(.capsule)
+      .controlSize(MediaActionMetrics.controlSize)
+#elseif os(macOS)
+    buttonStyle(.bordered)
+      .buttonBorderShape(.capsule)
+      .modifier(MediaActionControlSize())
+#else
     buttonStyle(.glass)
       .buttonBorderShape(.capsule)
-#if os(tvOS)
-      .controlSize(MediaActionMetrics.controlSize)
-#else
       .modifier(MediaActionControlSize())
 #endif
   }
 
-  /// Icon-only circle. Same glass family as the labelled pills — focus owns the
-  /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
+  /// Icon-only circle, the same family as the labelled pills; the glyph slot is fixed so
+  /// a wider SF Symbol does not shove neighbours.
   ///
   /// iOS / macOS: a `Menu` (Bookmarks) is the same circle as a `Button` — no indicator,
-  /// `.button` menu style so it wears the same glass. A capsule shape here let the
+  /// `.button` menu style so it wears the same chrome. A capsule shape here let the
   /// extra-large padding stretch every lone glyph into a pill (Sasha, 2026-10-29). On a
   /// Mac, Bookmarks is a toolbar item instead (`MediaItemView`).
   func mediaActionCircleStyle() -> some View {
 #if os(tvOS)
-    buttonStyle(.glass)
+    buttonStyle(.bordered)
       .buttonBorderShape(.circle)
       .controlSize(MediaActionMetrics.controlSize)
 #else
-  
     modifier(MediaActionCircleChrome())
 #endif
   }
@@ -359,28 +368,40 @@ private struct MonochromePlayTint: ViewModifier {
   @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
+#if os(macOS)
+    // The Mac: the plain prominent button, no glass (Sasha, 2026-11-21: «попроще на маке»).
+    content
+      .buttonStyle(.borderedProminent)
+      .buttonBorderShape(.capsule)
+      .modifier(MediaActionControlSize())
+      .tint(colorScheme == .dark ? Color.white : Color.black)
+#else
     content
       .buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
       .modifier(MediaActionControlSize())
       .tint(colorScheme == .dark ? Color.white : Color.black)
+#endif
   }
 }
 #endif
 
 private struct MediaActionCircleChrome: ViewModifier {
   func body(content: Content) -> some View {
+#if os(macOS)
+    content
+      .buttonStyle(.bordered)
+      .menuStyle(.button)
+      .menuIndicator(.hidden)
+      .buttonBorderShape(.circle)
+      .modifier(MediaActionControlSize())
+#else
     content
       .buttonStyle(.glass)
       .menuStyle(.button)
       .menuIndicator(.hidden)
       .buttonBorderShape(.circle)
       .modifier(MediaActionControlSize())
-#if os(macOS)
-      // A Mac `Menu` takes no glass from `.buttonStyle(.glass)`: the Bookmarks glyph
-      // hung bare between Play and Details (Sasha, 2026-10-31). The same circle of glass
-      // drawn under it; a `Button` keeps its own.
-      .glassEffect(.regular.interactive(), in: Circle())
 #endif
   }
 }
