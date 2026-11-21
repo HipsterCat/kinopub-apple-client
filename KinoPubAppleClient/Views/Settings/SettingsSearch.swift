@@ -119,7 +119,12 @@ struct SettingsSearchIndex {
   }
 
   func results(for query: String) -> [SettingsSearchEntry] {
-    let tokens = Self.tokens(query.lowercased()).filter { !Self.fillers.contains($0) }
+    let rawTokens = Self.tokens(query.lowercased())
+    // Drop filler words only when something else remains. A lone «в» / «на» / «и»
+    // must still prefix-match («Воспроизведение», «Настройки», …) — System Settings
+    // does the same for short queries.
+    let meaningful = rawTokens.filter { !Self.fillers.contains($0) }
+    let tokens = meaningful.isEmpty ? rawTokens : meaningful
     guard !tokens.isEmpty else { return [] }
 
     var scored: [(SettingsSearchEntry, Int)] = []
@@ -201,6 +206,41 @@ enum SettingsSearchCatalog {
   /// Shared across iOS and macOS. No `#if` inside this literal — Swift rejects
   /// conditional compilation in container literals.
   private static let base: [SettingsSearchEntry] = [
+    // Category roots — so the sidebar names themselves are searchable (EN + RU).
+    .init("category-general", titleKey: "General",
+          keywords: "основные general",
+          category: .general),
+    .init("category-playback", titleKey: "Playback",
+          keywords: "воспроизведение playback player плеер",
+          category: .playback),
+    .init("category-integrations", titleKey: "Integrations",
+          keywords: "интеграции integrations sources источники",
+          category: .integrations),
+    .init("category-downloads", titleKey: "Downloads",
+          keywords: "загрузки downloads",
+          category: .downloads),
+    .init("category-devices", titleKey: "Devices",
+          keywords: "устройства devices",
+          category: .devices),
+    .init("category-appearance", titleKey: "Appearance",
+          keywords: "внешний вид appearance оформление",
+          category: .appearance),
+    .init("category-notifications", titleKey: "Notifications",
+          keywords: "уведомления notifications",
+          category: .notifications),
+    .init("category-details", titleKey: "Details",
+          keywords: "детали details enrichment метаданные",
+          category: .details),
+    .init("category-backups", titleKey: "Backups",
+          keywords: "backups резервные копии",
+          category: .backups),
+    .init("category-network", titleKey: "Network",
+          keywords: "сеть network подключение",
+          category: .network),
+    .init("category-advanced", titleKey: "Advanced",
+          keywords: "дополнительно advanced",
+          category: .advanced),
+
     // Account / Profile
     .init("account-profile", titleKey: "Account",
           keywords: "profile user logout аккаунт профиль выход",
@@ -222,7 +262,7 @@ enum SettingsSearchCatalog {
 
     // Playback
     .init("playback-quality", titleKey: "Stream quality",
-          keywords: "quality hls 4k stream качество поток",
+          keywords: "quality hls 4k stream качество поток воспроизведение",
           category: .playback),
     .init("playback-auto-next", titleKey: "Auto-Play Next Episode",
           keywords: "autoplay next episode следующая серия авто",
