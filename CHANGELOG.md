@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **Title open never waits (tvOS):** the previous title's backdrop is dropped at once
+  for a blurred copy of the card's poster; the worker backdrop crossfades in when it
+  has loaded. Hero logo/backdrop URLs are built immediately from the kino.pub id, not
+  after the details call. Below the hero the picture stays as a blurred copy with an
+  appearance tint instead of fading to an empty page.
+- **Hero buttons:** Play is a solid white capsule with a dark label in every state
+  (Replay too), the rest dark see-through bordered buttons on tvOS and macOS; iOS keeps
+  glass. The main Play no longer changes control while the page loads, so focus stays
+  on it instead of falling onto the synopsis.
+- **Series from the listing:** a serial opened from a listing (no seasons yet) shows
+  as a series from the first frame (bell, facts). A kept copy whose episode count
+  differs from the watching list drops its stale seasons («Replay E1» → «Play E3»).
+
 - **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer
   `https://wsrv.nl/?url=…&w=&q=80&output=webp`, with legacy TMDB/tvoe/Kinopoisk
   resize if weserv fails or `WESERV_DISABLED` is set. Logo / backdrop / poster
