@@ -61,10 +61,11 @@ final class TVSearchLayoutUITests: XCTestCase {
     XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar never appeared")
     let opened = Date()
     press(.left, wait: 0.2)
+    // The collection id is assigned when the tab takes the pre-warmed stack —
+    // not on a parking window. `searchFields` / `keyboards` would match that
+    // window if it were visible to XCTest.
     XCTAssertTrue(
-      app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 3)
-        || app.searchFields.firstMatch.waitForExistence(timeout: 3)
-        || app.keyboards.firstMatch.waitForExistence(timeout: 3),
+      app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 3),
       "Search chrome did not appear after opening the tab"
     )
     let elapsed = Date().timeIntervalSince(opened)

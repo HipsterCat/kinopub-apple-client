@@ -52,7 +52,7 @@ Subsystem **`com.soda.kinopub.perf`**. Zero cost unless a recording or an
 | `scroll` | `scroll.home` | One interval per scroll gesture: begin on first move, end on settle (`didEndDecelerating` / `didEndScrollingAnimation` / ~80 ms idle) | `TVPageCollectionViewController`, `MediaRowsView`, Mac `ScrollMemory` |
 | `scroll` | `scroll.season` | One interval per gesture: Rivulet CADisplayLink fold (begin on start, end on settle) and horizontal episode/tab scroll | `RivuletSeasonRail`, numbered `TVSeasonRail` |
 | `page` | `page.title` | Navigation push of a details route → first painted item | `NavigationState`, `MediaItemView` |
-| `page` | `page.search` | Search tab selected → field / keyboard first appear | `TVSearchChrome.takePrepared` → host `viewDidAppear` |
+| `page` | `page.search` | Search tab selected → first on-screen layout | `TVSearchChrome.takePrepared` → host on-screen layout |
 | `page` | `page.resize` | iPad / Mac window size bucket changed, then 0.3 s settle | `MediaRowsView` |
 
 Instruments → **os_signpost** instrument → filter subsystem `com.soda.kinopub.perf`.
@@ -131,7 +131,7 @@ Signposts: `page.title`, `hero.backdrop`, `scroll.season`.
 
 From Watch Now, Left onto Search. Fixture: `-KINOPUBSearchFixture
 -KINOPUBSearchFixtureStartOnWatchNow`. Signpost: `page.search` (takePrepared →
-field/keyboard appear). Catalog posters are not part of this interval.
+first on-screen layout). Catalog posters are not part of this interval.
 
 ### E. Mac window resize on Home
 
