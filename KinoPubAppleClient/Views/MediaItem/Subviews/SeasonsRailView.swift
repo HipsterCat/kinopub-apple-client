@@ -360,7 +360,7 @@ struct SeasonsRailView: View {
   /// Continuous rail across every kino.pub season. Hydrated seasons get real cards;
   /// the rest keep one placeholder per known episode (`season.episodes.count`) so L/R
   /// scroll never hits a hard end, and TMDB is only asked for the window that is open.
-  static func buildEntries(
+  private static func buildEntries(
     seasons: [Season],
     hydratedSeasonIDs: Set<Int>,
     selectedTabID: Int?,
