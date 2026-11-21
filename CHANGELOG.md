@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **tvOS Search first paint:** pre-warm loads the system search stack in a hidden
+  scene window at launch. The window stays out of the accessibility tree; after
+  the tab takes the stack, later pre-warms do not build a second search UI (a
+  visible parking window laid results over the keyboard). First Search body is
+  the filter chips; posters wait until the tab has appeared. `page.search`
+  signpost is takePrepared → first on-screen layout. Check:
+  `TVSearchLayoutUITests.testSearchTabChromeAppearsWhenOpenedFromWatchNow`,
+  `PerformanceUITests.testSearchTabFirstPaint` (`-KINOPUBSearchFixtureStartOnWatchNow`).
+
 - **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer
   `https://wsrv.nl/?url=…&w=&q=80&output=webp`, with legacy TMDB/tvoe/Kinopoisk
   resize if weserv fails or `WESERV_DISABLED` is set. Logo / backdrop / poster
