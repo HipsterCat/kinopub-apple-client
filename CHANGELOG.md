@@ -1,10 +1,20 @@
 ## Unreleased
 
+- **Episode stills / rail labels (KP-75):** `/img/thumbnail` accepts a kino.pub
+  catalogue thumb last (document or `?src=` staticpop-only), serves it via
+  wsrv.nl `w=` + WebP, and no longer edge-caches thumbnail 404s. Missing stills
+  re-check TMDB after 6h (`fetched_at`). Client passes `src=` and asks slot
+  pixels (not round-up-to-100). Season-rail captions use one
+  `EpisodeText.listItem` / `.episodeTile` ruleset on tvOS, iPhone and macOS
+  (`7. Name` / `7 серия`) — numbers no longer live only in invisible
+  `secondaryText` or focus chrome.
+
 - **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer
   `https://wsrv.nl/?url=…&w=&q=80&output=webp`, with legacy TMDB/tvoe/Kinopoisk
   resize if weserv fails or `WESERV_DISABLED` is set. Logo / backdrop / poster
   feed the durable original; **thumbnails** feed the TMDB ladder URL so face-crop
-  tokens (`w454_and_h254_face`, …) stay in `url=` and weserv only re-encodes.
+  tokens (`w454_and_h254_face`, …) stay in `url=` and weserv only re-encodes
+  (kinopub catalogue thumbs pass the staticpop URL as `url=`).
   Stamped answers are edge-cached 24h (`caches.default`);
   `X-KinoPub-Image-Via: weserv|legacy`. Optional `format=webp|jpeg|png`.
   MacBook backdrop `w=` cap **1920 → 2400**. Free-tier care: ~2500 uncached /
