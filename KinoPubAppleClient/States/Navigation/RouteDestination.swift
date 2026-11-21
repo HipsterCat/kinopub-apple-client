@@ -38,6 +38,7 @@ struct RouteDestination: View {
       // and a popup in Catalog (Sasha, 2026-11-21; lldb: `_hideBarWithTransition` from a
       // SwiftUI update). `.hidden` stays for stacks without the proxy.
       .toolbar(TVNavigationZoom.isAvailable ? .automatic : .hidden, for: .tabBar)
+      .tvNavigationZoom()
 #endif
   }
 
