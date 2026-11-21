@@ -11,6 +11,7 @@ import XCTest
 @testable import KinoPub
 @testable import KinoPubBackend
 
+@MainActor
 final class SeasonRailPagingTests: XCTestCase {
 
   private func seasons(_ counts: [Int]) -> [Season] {
