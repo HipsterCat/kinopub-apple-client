@@ -119,17 +119,26 @@ final class LibrarySectionCardsTests: XCTestCase {
                             posters: posters, total: 18, watched: 16, new: nil)
     let card = LibrarySectionCatalog.followingCard(for: item)
     XCTAssertEqual(card.unwatchedEpisodes, 2)
-    XCTAssertEqual(card.subtitle, EpisodesLeftText(2)?.formatted())
+    XCTAssertEqual(card.subtitle, item.originalTitle,
+                   "unwatched count is on unwatchedEpisodes, not stuffed into subtitle")
     XCTAssertFalse(card.isLandscape)
     XCTAssertEqual(card.primaryAction, .openDetail)
   }
 
-  func testFollowingCaughtUpHasNoSubtitle() {
+  func testFollowingUnwatchedCountHasNoLeadingPlusBadge() {
+    let item = WatchingItem(id: 1, type: "serial", title: "Show",
+                            posters: posters, total: 10, watched: 3, new: 7)
+    let card = LibrarySectionCatalog.followingCard(for: item)
+    XCTAssertEqual(card.unwatchedEpisodes, 7)
+    XCTAssertNil(card.badge, "chrome reads unwatchedEpisodes, not card.badge")
+  }
+
+  func testFollowingCaughtUpHasNoUnwatchedCount() {
     let item = WatchingItem(id: 2, type: "serial", title: "The Bear",
                             posters: posters, total: 28, watched: 28, new: 0)
     let card = LibrarySectionCatalog.followingCard(for: item)
-    XCTAssertEqual(card.unwatchedEpisodes, 0)
-    XCTAssertNil(card.subtitle)
+    XCTAssertNil(card.unwatchedEpisodes)
+    XCTAssertEqual(card.subtitle, item.originalTitle)
   }
 
   func testFollowingUnwatchedHidesCaughtUpSeries() {

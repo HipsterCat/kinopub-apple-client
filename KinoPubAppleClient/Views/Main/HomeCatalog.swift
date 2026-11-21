@@ -1558,6 +1558,9 @@ class HomeCatalog: ObservableObject {
     }
     let hoverStill = offered?.thumbnail ?? offeredVersion?.thumbnail
       ?? (isResuming ? history?.media?.thumbnail : nil)
+    let unwatched = (isSeries && isInWatchlist)
+      ? item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
+      : nil
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
                      title: title,
@@ -1579,6 +1582,7 @@ class HomeCatalog: ObservableObject {
                      isSeries: isSeries,
                      isInHistory: isInHistory,
                      viewerState: ViewerState(isFollowing: isSeries ? isInWatchlist : nil),
+                     unwatchedEpisodes: unwatched,
                      durationSeconds: durationSeconds,
                      primaryAction: .play,
                      kinopoiskID: item.kinopoisk)

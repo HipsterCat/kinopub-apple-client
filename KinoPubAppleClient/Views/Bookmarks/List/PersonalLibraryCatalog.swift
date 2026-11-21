@@ -153,12 +153,15 @@ class PersonalLibraryCatalog: ObservableObject {
   private func fetchWatchlistCards() async throws -> [MediaCard] {
     let items = try await WatchingListCache.shared.serials(subscribedOnly: true, using: contentService)
     return items.map { item in
-      MediaCard(id: item.id,
+      let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
+      return MediaCard(id: item.id,
                posterURL: item.posters.medium,
                title: item.localizedTitle,
                subtitle: item.originalTitle,
-               badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
                backdropURL: item.posters.wideURL ?? item.posters.big,
+               isSeries: true,
+               viewerState: ViewerState(isFollowing: true),
+               unwatchedEpisodes: left,
                kinopoiskID: item.kinopoisk)
     }
   }

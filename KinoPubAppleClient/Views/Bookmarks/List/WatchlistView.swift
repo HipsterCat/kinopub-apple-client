@@ -33,7 +33,7 @@ struct WatchlistView: View {
     if embedded {
       page
     } else {
-      RouteStack(tab: .watchlist) { page }
+      RouteStack(tab: .watchlist, zoom: true) { page }
     }
   }
 
@@ -47,6 +47,9 @@ struct WatchlistView: View {
         .navigationSubtitle(newEpisodesSubtitle)
 #endif
         .background(Color.KinoPub.background)
+        // Every poster here is a subscription — a bookmark ribbon would sit on all of
+        // them and mean nothing (Sasha, 2026-11-20).
+        .environment(\.hidesMediaCardBookmarkSymbol, true)
         .task {
           cardMenu.bind(errorHandler: errorHandler)
           await load()
@@ -114,22 +117,23 @@ struct WatchlistView: View {
     }
   }
 
-  /// Episodes out and not watched across the followed serials: the badges' «+N», summed.
+  /// Episodes still unwatched across the followed serials — the same numbers the
+  /// poster chrome paints, summed.
   private var newEpisodesSubtitle: String {
-    let total = cards.compactMap { card in card.badge.flatMap { Int($0.filter(\.isNumber)) } }
-      .reduce(0, +)
+    let total = cards.compactMap(\.unwatchedEpisodes).filter { $0 > 0 }.reduce(0, +)
     return total > 0 ? String.localizedStringWithFormat("NewEpisodesCount".localized, total) : ""
   }
 
   private nonisolated static func card(for item: WatchingItem) -> MediaCard {
-    MediaCard(id: item.id,
+    let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
+    return MediaCard(id: item.id,
               posterURL: item.posters.medium,
               title: item.localizedTitle,
               subtitle: item.originalTitle,
-              badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
               backdropURL: item.posters.wideURL ?? item.posters.big,
               isSeries: true,
               viewerState: ViewerState(isFollowing: true),
+              unwatchedEpisodes: left,
               kinopoiskID: item.kinopoisk)
   }
 }

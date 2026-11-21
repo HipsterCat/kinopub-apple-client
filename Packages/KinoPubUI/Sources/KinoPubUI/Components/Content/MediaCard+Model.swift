@@ -102,4 +102,27 @@ public extension MediaCard {
                      primaryAction: primaryAction, opensCollection: opensCollection,
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
   }
+
+  /// Subscribed unwatched count from `/v1/watching/serials` — drives the Appearance
+  /// chrome. Zero / nil clears the field so a caught-up series does not keep a stale N.
+  public func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {
+    let left = count.flatMap { $0 > 0 ? $0 : nil }
+    guard left != unwatchedEpisodes else { return self }
+    return MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+                     watchedAt: watchedAt, scores: scores,
+                     progress: progress,
+                     badge: badge, backdropURL: backdropURL,
+                     hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
+                     overview: overview, landscapeImageURL: landscapeImageURL,
+                     overlayLabel: overlayLabel, offeredName: offeredName, hoverStillURL: hoverStillURL, itemID: itemID, video: video, season: season,
+                     seasonCount: seasonCount, mediaID: mediaID, isWatched: isWatched,
+                     isSeries: isSeries, isInHistory: isInHistory,
+                     viewerState: viewerState,
+                     is4K: is4K, isHDR: isHDR, isHD: isHD, is3D: is3D,
+                     hasClosedCaptions: hasClosedCaptions, year: year, yearEnd: yearEnd,
+                     unwatchedEpisodes: left,
+                     durationSeconds: durationSeconds, genres: genres, country: country,
+                     primaryAction: primaryAction, opensCollection: opensCollection,
+                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+  }
 }

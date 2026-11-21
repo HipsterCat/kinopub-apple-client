@@ -176,7 +176,7 @@ struct AppearanceSettingsPane: View {
         Toggle("HD", isOn: $showHD)
         Toggle("3D", isOn: $show3D)
         Toggle("CC", isOn: $showCC)
-        Picker("New-episode badge", selection: $editorialPlacement) {
+        Picker("Unwatched episode count", selection: $editorialPlacement) {
           ForEach(MediaCardChromePlacement.allCases) { placement in
             Text(LocalizedStringKey(placement.titleKey)).tag(placement.rawValue)
           }
@@ -185,7 +185,7 @@ struct AppearanceSettingsPane: View {
       } header: {
         Text("Badges")
       } footer: {
-        Text("Bookmark sits top-trailing, right of the quality chips.")
+        Text("Unwatched episode count is for subscribed series only — on the poster or under the title like on Apple TV. Bookmark sits top-trailing, right of the quality chips.")
       }
 
       Section {
