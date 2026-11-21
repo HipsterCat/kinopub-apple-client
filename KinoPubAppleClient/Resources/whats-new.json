@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Mac, плеер: при полном экране и «Картинке в картинке» окно плеера больше не остаётся пустым чёрным прямоугольником; ✕ в «Картинке в картинке» закрывает фильм. Панель управления прячется через 15 секунд, когда курсор не на ней. Пока идёт фильм, у страницы тайтла вместо фонового трейлера — обложка.",
         "Картинки на Главной и на странице тайтла грузятся в том размере, в каком рисуются — логотипы без обрезки, без полноразмерных PNG с TMDB. На Apple TV меньше подёргиваний при листании баннера и серий.",
         "Описание тайтла: «Ещё» больше не уезжает на бейджи звука/субтитров, пока текст ещё подгружается.",
         "«Смотрю» / карточки: круглое кол-во непросмотренных серий (только при подписке) — на постере или отдельной строкой под названием, как на Apple TV, в том числе в «Продолжить»; ленточки закладки на подписках больше нет; zoom с iPhone/iPad как на Главной. В Настройках › Внешний вид пункт переименован.",
@@ -142,6 +143,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Mac player: full screen and Picture in Picture no longer leave an empty black player window behind; Picture in Picture’s ✕ closes the film. The controls hide after 15 seconds with the pointer off them. While a film plays, the title page shows its artwork instead of the background trailer.",
         "Home and title-page pictures load at the size they are drawn — logos keep their alpha, no full-size TMDB PNGs. Less hitching on Apple TV when turning the banner or the episode rail.",
         "Title synopsis: More no longer drifts onto the audio/subtitle badges while the plot is still loading.",
         "Watching / cards: round unwatched-episode count for subscribed series — on the poster or on its own line under the title like Apple TV, including Continue Watching; no bookmark ribbon on subscriptions; iPhone/iPad zoom like Home. Appearance setting renamed.",

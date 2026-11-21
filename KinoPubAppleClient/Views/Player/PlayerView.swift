@@ -678,6 +678,8 @@ private struct MacVideoPlayer: NSViewRepresentable {
     view.showsSharingServiceButton = true
     view.speeds = AVPlaybackSpeed.systemDefaultSpeeds
     view.delegate = context.coordinator
+    // PiP callbacks are a protocol of their own, on a property of their own.
+    view.pictureInPictureDelegate = context.coordinator
     context.coordinator.manager = manager
     context.coordinator.skip.install(on: view, manager: manager)
     context.coordinator.idleControls.attach(to: view)
@@ -697,6 +699,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
     coordinator.skip.detach()
     coordinator.idleControls.detach()
     nsView.delegate = nil
+    nsView.pictureInPictureDelegate = nil
   }
 
   func makeCoordinator() -> Coordinator { Coordinator() }
@@ -709,8 +712,16 @@ private struct MacVideoPlayer: NSViewRepresentable {
   /// for exactly this: hide the source window once the picture has left, bring it back
   /// in `restoreUserInterfaceFor…` when the picture comes home, and treat a Picture in
   /// Picture closed with its own ✕ as the film being closed.
+  ///
+  /// Seen on macOS 27.2 (2026-11-22): full screen is `AVDetachedFullscreenWindow`, a window
+  /// of AVKit's; the window is ordered out here on did-enter and brought back in
+  /// `restoreUserInterfaceForFullScreenExit…`, which AVKit calls before will-exit. With a
+  /// `pictureInPictureDelegate` set, AVKit orders the window out at PiP start and back in
+  /// on Restore by itself; `stepAside` / `comeBack` are then no-ops. PiP's ✕ calls
+  /// did-stop with no restore first — that is the close branch.
   @MainActor
-  final class Coordinator: NSObject, AVPlayerViewDelegate {
+  final class Coordinator: NSObject, @preconcurrency AVPlayerViewDelegate,
+    @preconcurrency AVPlayerViewPictureInPictureDelegate {
     let skip = SkipChipHost()
     let idleControls = MacIdleControlsHider()
     weak var manager: PlayerManager?
@@ -758,14 +769,14 @@ private struct MacVideoPlayer: NSViewRepresentable {
 
     // MARK: Picture in Picture
 
-    func playerViewWillStartPictureInPicture(_ playerView: AVPlayerView) {
+    func playerViewWillStartPicture(inPicture playerView: AVPlayerView) {
       isPictureInPicture = true
       restoresFromPictureInPicture = false
       // Before the window goes: closing it now must not end the film (`endPlayback`).
       manager?.setPictureInPictureActive(true)
     }
 
-    func playerViewDidStartPictureInPicture(_ playerView: AVPlayerView) {
+    func playerViewDidStartPicture(inPicture playerView: AVPlayerView) {
       stepAside(playerView)
     }
 
@@ -784,7 +795,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
       completionHandler(true)
     }
 
-    func playerViewDidStopPictureInPicture(_ playerView: AVPlayerView) {
+    func playerViewDidStopPicture(inPicture playerView: AVPlayerView) {
       isPictureInPicture = false
       manager?.setPictureInPictureActive(false)
       if restoresFromPictureInPicture {
@@ -829,8 +840,8 @@ final class MacIdleControlsHider {
   }
 
   private func tick() {
-    guard let view = playerView, let window = view.window, window.isVisible,
-          let panel = controlsPanel(in: view), !panel.isHidden, panel.alphaValue > 0.05,
+    guard let view = playerView, controlsShown(view),
+          let panel = controlsPanel(in: view), let window = panel.window, window.isVisible,
           NSApp.windows.allSatisfy({ !$0.isVisible || !PlayerTransportMenu.looksLikeMenu(String(describing: type(of: $0))) })
     else {
       awaySince = nil
@@ -849,17 +860,35 @@ final class MacIdleControlsHider {
     }
   }
 
-  /// The floating panel: AVKit's controls view controller's view.
-  private func controlsPanel(in view: AVPlayerView) -> NSView? {
-    (view.value(forKey: "playbackControlsViewController") as? NSViewController)?.view
+  /// `controlsHidden`: the private, KVO-compliant getter `PlayerChromeMonitor` observes.
+  /// The panel's own `isHidden` / `alphaValue` stay put while it is faded out.
+  private func controlsShown(_ view: AVPlayerView) -> Bool {
+    guard view.responds(to: NSSelectorFromString("controlsHidden")) else { return false }
+    return (view.value(forKey: "controlsHidden") as? Bool) == false
   }
 
-  /// No public call hides `AVPlayerView`'s controls. `controlsHidden` is the private,
-  /// KVO-compliant key `PlayerChromeMonitor` already observes; its setter is probed, and
-  /// a missing one leaves the controls to AVKit.
+  /// The floating panel: AVKit's controls view controller's view, in whichever window it
+  /// is in now. In AVKit's full screen that is its own `AVDetachedFullscreenWindow`, with
+  /// a different controller (`AVFloatingPlaybackControlsViewController`) — so the window
+  /// is the panel's, never the player view's (probed on macOS 27.2, 2026-11-22).
+  private func controlsPanel(in view: AVPlayerView) -> NSView? {
+    guard let controller = view.value(forKey: "playbackControlsViewController") as? NSViewController,
+          controller.isViewLoaded else { return nil }
+    return controller.view
+  }
+
+  /// No public call hides `AVPlayerView`'s controls, and there is no `setControlsHidden:`.
+  /// AVKit's own idle hide is `-[AVDesktopPlayerViewContentView _hideControlsWithTrigger:]`
+  /// (`NSUInteger`); trigger 0 fades the panel out in the window and in full screen, and the
+  /// next pointer move brings it back as usual. Missing on a future SDK → AVKit's behaviour.
   private func hideControls(_ view: AVPlayerView) {
-    guard view.responds(to: NSSelectorFromString("setControlsHidden:")) else { return }
-    view.setValue(true, forKey: "controlsHidden")
+    guard let ivar = class_getInstanceVariable(AVPlayerView.self, "_contentView"),
+          let content = object_getIvar(view, ivar) as? NSView else { return }
+    let selector = NSSelectorFromString("_hideControlsWithTrigger:")
+    guard content.responds(to: selector),
+          let imp = class_getMethodImplementation(type(of: content), selector) else { return }
+    typealias Hide = @convention(c) (AnyObject, Selector, UInt) -> Void
+    unsafeBitCast(imp, to: Hide.self)(content, selector, 0)
   }
 }
 
