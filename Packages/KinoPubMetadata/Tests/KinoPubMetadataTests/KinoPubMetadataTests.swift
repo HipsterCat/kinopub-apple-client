@@ -175,6 +175,15 @@ final class TitleImageRouteTests: XCTestCase {
       route.url(.thumbnail, kinopubID: 7, imdb: nil, width: 300, season: 1, episode: 5)?.absoluteString,
       "https://kinopub-tmdb-proxy.example.workers.dev/img/thumbnail/by/kinopub/7?w=300&s=1&e=5"
     )
+    let thumb = "https://m.staticpop.net/thumb/item/abc/1280.jpg"
+    let withSrc = route.url(.thumbnail, kinopubID: 128431, imdb: 39_980_704, width: 584,
+                            season: 1, episode: 6, kinopubThumb: thumb)?.absoluteString
+    XCTAssertEqual(
+      withSrc,
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/thumbnail/by/kinopub/128431?w=584&s=1&e=6&imdb=tt39980704&src=https://m.staticpop.net/thumb/item/abc/1280.jpg"
+    )
+    XCTAssertFalse(TitleImageRoute.isStaticpopThumb("https://image.tmdb.org/t/p/original/x.jpg"))
+    XCTAssertTrue(TitleImageRoute.isStaticpopThumb(thumb))
   }
 
   func testSameInputsSameURL() {

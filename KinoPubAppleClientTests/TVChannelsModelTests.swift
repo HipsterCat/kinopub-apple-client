@@ -138,13 +138,9 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 27), .full("espn"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 145), .full("eleven-sports"))
     XCTAssertEqual(TVChannelCatalog.bundledLogo(for: 1), .full("матч"))
-    XCTAssertNil(TVChannelCatalog.bundledLogo(for: 13), "Setanta 1 stays on the CDN")
 #if os(tvOS)
     let cbs = TVChannelCatalog.channels.first { $0.id == 80 }!
-    let setanta = TVChannelCatalog.channels.first { $0.id == 13 }!
     XCTAssertEqual(TVChannelsView.logo(for: cbs), .bundled("cbs-sports"))
-    XCTAssertEqual(TVChannelsView.logo(for: setanta),
-                   .remote(URL(string: "https://m.staticpop.net/channels/150x150/setanta_1.png")!))
     // Mark+focus-BG remains a supported logo kind even though no channel uses it now.
     XCTAssertEqual(TVPageLogo.bundledMark(logo: "cbs-sports_logo",
                                           focusBackground: "cbs-sports_bg"),

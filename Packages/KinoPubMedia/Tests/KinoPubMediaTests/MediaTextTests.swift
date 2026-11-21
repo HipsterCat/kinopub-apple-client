@@ -250,8 +250,8 @@ final class MediaTextTests: XCTestCase {
   }
 
   func testListItemDropsSeasonEvenWhenSet() {
-    // episodeTile surface uses listItem — rail captions must not rely on it for
-    // multi-season «N сезон, M серия»; they format(.short) instead.
+    // Season rail captions use listItem / episodeTile on every platform
+    // (`7. Name` / `7 серия`) — the tab above already names the season.
     XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "7 серия")
   }
 

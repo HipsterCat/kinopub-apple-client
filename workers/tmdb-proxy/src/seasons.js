@@ -61,6 +61,10 @@ export function parseSeasonSpec(spec) {
   return numbers;
 }
 
+/** Recheck TMDB for a missing still after this many ms (a newly-aired episode
+ * often gains artwork hours after the first miss was written into the document). */
+const STILL_RECHECK_MS = 6 * 60 * 60 * 1000;
+
 /** One season, when a thumbnail or season poster is asked and the episodes were never loaded. */
 export async function ensureEpisodeStill(env, document, seasonNumber, episodeNumber, lang) {
   if (!document || seasonNumber == null || episodeNumber == null) return document;
@@ -68,7 +72,13 @@ export async function ensureEpisodeStill(env, document, seasonNumber, episodeNum
   const episode = (season?.episodes || []).find((item) => Number(item.number) === episodeNumber);
   const thumb = episode?.thumbnail || episode?.still || episode?.image;
   if (thumb && !String(thumb).includes("staticpop.net")) return document;
-  if (season?.fetched_langs?.includes(lang) && episode) return document;
+  // A prior fetch that found no still must not stick forever — ep art often
+  // lands after the episode is already playable on kino.pub.
+  const fetchedAt = Number(season?.fetched_at) || 0;
+  const freshMiss = season?.fetched_langs?.includes(lang)
+    && episode
+    && (Date.now() - fetchedAt) < STILL_RECHECK_MS;
+  if (freshMiss) return document;
   const tvId = tmdbTvId(document);
   if (!tvId || !env?.TMDB_READ_TOKEN) return document;
   let payload = null;
@@ -190,6 +200,7 @@ function mergeSeason(document, number, lang, payload) {
     tmdb: seasonRating(payload) || previous.tmdb || null,
     episodes,
     fetched_langs: [...fetched],
+    fetched_at: Date.now(),
   };
   if (index >= 0) seasons[index] = next;
   else seasons.push(next);
