@@ -2,10 +2,10 @@
 //  SheetCloseButton.swift
 //  KinoPubUI
 //
-//  The cross in the leading corner of a sheet, as TestFlight and the App Store draw it:
-//  a glass circle with an `xmark`, Escape on a keyboard. One control for the code sign-in
-//  and detail info popups instead of «Готово» and «Отмена» buttons that differ per screen
-//  (Sasha, 2026-11-10). What's New on phone / pad / Mac omits this and uses Continue.
+//  The cross in the leading corner of a sheet — same control as Choose a Version /
+//  Settings: hierarchical `xmark.circle.fill`, Escape on a keyboard. Used by What's New,
+//  detail info popups and the code sign-in (Sasha, 2026-11-21: replace the solid glass
+//  disc that read as a black ball on Mac).
 //
 
 import SwiftUI
@@ -20,25 +20,25 @@ public struct SheetCloseButton: View {
 
   public var body: some View {
     Button(action: action) {
-      Image(systemName: "xmark")
+      Image(systemName: "xmark.circle.fill")
+        .symbolRenderingMode(.hierarchical)
         .font(SheetCloseButton.glyphFont)
+        .foregroundStyle(.secondary)
         .frame(width: SheetCloseButton.side, height: SheetCloseButton.side)
+        .contentShape(Rectangle())
     }
-    .buttonStyle(.glass)
-    .buttonBorderShape(.circle)
+    .buttonStyle(.plain)
     .keyboardShortcut(.cancelAction)
     .accessibilityLabel(Text("Close"))
   }
 
-  /// The glyph's square inside the circle; the glass adds its own margin around it.
 #if os(macOS)
-  public static let side: CGFloat = 20
-  static let glyphFont: Font = .body.weight(.semibold)
-  /// From the sheet's edges to the circle.
+  public static let side: CGFloat = 28
+  static let glyphFont: Font = .title2
   public static let inset: CGFloat = 14
 #else
-  public static let side: CGFloat = 28
-  static let glyphFont: Font = .body.weight(.semibold)
+  public static let side: CGFloat = 30
+  static let glyphFont: Font = .title2
   public static let inset: CGFloat = 16
 #endif
 }

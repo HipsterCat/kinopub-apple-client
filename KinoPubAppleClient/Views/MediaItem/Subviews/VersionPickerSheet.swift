@@ -159,12 +159,7 @@ struct VersionPickerSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
           ToolbarItem(placement: .topBarTrailing) {
-            Button { dismiss() } label: {
-              Image(systemName: "xmark.circle.fill")
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.secondary)
-            }
-            .accessibilityLabel(Text("Close"))
+            SheetCloseButton(action: { dismiss() })
           }
         }
 #endif
