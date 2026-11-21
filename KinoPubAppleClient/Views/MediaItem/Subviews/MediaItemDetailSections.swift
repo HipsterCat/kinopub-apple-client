@@ -4623,7 +4623,7 @@ struct MediaItemPlotView: View {
   /// Lines before the clamp, when not the platform's (`lineLimit`): two under the phone
   /// hero's Play (Sasha, 2026-11-16).
   var maxLines: Int? = nil
-  /// Every line centred (the phone hero), the hint after the last word or under it.
+  /// Every line centred (the phone hero).
   var centered: Bool = false
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
@@ -4647,11 +4647,6 @@ struct MediaItemPlotView: View {
   @State private var fullHeight: CGFloat = 0
   @State private var clampedHeight: CGFloat = 0
   @State private var isPresented = false
-  /// The clamped copy's layout and measure — where its lines end, which the hint and
-  /// the plate follow (`PlotLines`).
-  @State private var textLayout: Text.Layout?
-  @State private var measuredWidth: CGFloat = 0
-  private var lines: PlotLines? { PlotLines(textLayout, availableWidth: measuredWidth) }
 
   /// The full copy needs more room than the clamped three lines leave it. A point of
   /// slack absorbs sub-pixel rounding so a paragraph that exactly fills the clamp is
@@ -4664,15 +4659,13 @@ struct MediaItemPlotView: View {
   }
 
   var body: some View {
-    // The measuring copy is a sibling that always takes the whole measure, not a
-    // background of the paragraph: the paragraph hugs its widest line, so measured
-    // behind it the copy rewrapped at that narrower width, the lines it reported were
-    // not the lines on screen («ЕЩЁ» rode the line above the last), and a width set
-    // once never grew or shrank again with the window (Sasha, 2026-11-09).
-    //
-    // Measured outside the button. The unclamped copy used to live in the label,
-    // and the tvOS focus effect snapshots that label — the full text is much
-    // taller than the six lines on screen, so the focus shape was a tall slab.
+    // Heights only, measured outside the button. The unclamped copy used to live in
+    // the label, and the tvOS focus effect snapshots that label — the full text is
+    // much taller than the lines on screen, so the focus shape was a tall slab.
+    // Placement of «ЕЩЁ» no longer reads `Text.Layout`: that absolute offset could
+    // leave the hint on a phantom next line while truncation was still unknown, and
+    // on the phone's fixed plot slot that painted over the playback badges
+    // (KP-77; layout from ryanashcraft/Expandable).
     ZStack(alignment: .topLeading) {
       plotMeasurement
       content
@@ -4681,6 +4674,10 @@ struct MediaItemPlotView: View {
     .environment(\.plotCentered, centered)
     .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
     .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
+    .onChange(of: popupPlot) { _, _ in
+      fullHeight = 0
+      clampedHeight = 0
+    }
   }
 
   /// Always the control, on every platform — the synopsis is the canonical "there is
@@ -4704,7 +4701,7 @@ struct MediaItemPlotView: View {
         Button {
           isPresented = true
         } label: {
-          PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
+          PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lineLimit: lineLimit)
         }
         .focused($focus, equals: .plot)
         .buttonStyle(.borderless)
@@ -4725,7 +4722,7 @@ struct MediaItemPlotView: View {
       } else {
         // Identical paint to the button label, not in the focus chain — Play owns
         // entry until an action has claimed focus (then this swaps to the Button).
-        PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
+        PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lineLimit: lineLimit)
           .padding(.horizontal, -Self.focusInsetH)
           .padding(.vertical, -Self.focusInsetV)
           .accessibilityIdentifier("hero.plot")
@@ -4734,7 +4731,7 @@ struct MediaItemPlotView: View {
 #else
     // The tvOS popup's content (facts line, synopsis, audio, subtitles, information) in
     // the system sheet (Sasha, 2026-10-30).
-    PlotParagraph(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
+    PlotParagraph(text: paragraphText, isTruncated: isTruncated, lineLimit: lineLimit)
       .modifier(PlotHoverPlate())
       .expandsIntoInfoPopup(title: Text(title),
                             subtitle: popupSubtitle.map { Text(verbatim: $0) },
@@ -4782,12 +4779,7 @@ struct MediaItemPlotView: View {
       .lineLimit(lineLimit)
       .multilineTextAlignment(centered ? .center : .leading)
       .frame(maxWidth: .infinity, alignment: .leading)
-      // The clamped copy's own lines, at the full measure: the visible paragraph may be
-      // narrower (it hugs its widest line), this one never is.
-      .onGeometryChange(for: CGFloat.self, of: \.size.width) { measuredWidth = $0 }
-      .onPreferenceChange(Text.LayoutKey.self) { layouts in
-        textLayout = layouts.first?.layout
-      }
+      .fixedSize(horizontal: false, vertical: true)
       .opacity(0)
       .accessibilityHidden(true)
       .allowsHitTesting(false)
@@ -4811,10 +4803,8 @@ struct MediaItemPlotView: View {
       }
   }
 
-     
-
-  /// Room between the last word and the hint when the paragraph ends short of the clamp.
-  static let moreGap: CGFloat = 10
+  /// Fade width ahead of «ЕЩЁ», matching Expandable's trailing cutout gradient.
+  static let moreFadeWidth: CGFloat = 60
 
   /// System text styles rather than hand-picked point sizes: the synopsis sits next
   /// to real tvOS controls and has to be on the same scale they are. The label is a
@@ -4848,53 +4838,59 @@ struct MediaItemPlotView: View {
   static let font: Font = TypeScale.detailBody
 }
 
-/// The clamped synopsis with the «ЕЩЁ» hint at its end, as the Apple TV app draws it: a
-/// light capsule at the end of the last line, the words before it fading out rather than
-/// cut by an ellipsis (Sasha, 2026-11-08). Always there — the synopsis always opens the
-/// full text — but only a clipped paragraph fades: a short one ends, then the hint.
+/// The clamped synopsis with the «ЕЩЁ» hint at the trailing end of the last line, as
+/// the Apple TV app draws it: a light capsule, the words before it fading out rather
+/// than cut by an ellipsis (Sasha, 2026-11-08).
 ///
-/// The fade is Plozz's (`ExpandableOverviewText`, `InlineOverviewTailMask`): a mask over
-/// the last line only, solid up to the hint, a gradient as long as the hint is tall,
-/// then clear under the hint. Its sizes come from the hint's measured size, not points.
+/// Layout follows [Expandable](https://github.com/ryanashcraft/Expandable) (MIT): a
+/// `ZStack(alignment: .bottomTrailing)` keeps the hint glued to the text frame, with an
+/// inverted mask cutting glyphs out under it. Absolute `Text.Layout` placement is gone —
+/// that orphaned the hint onto a phantom next line (and over the playback badges) when
+/// the plot arrived after first layout. The hint shows only once truncation is measured;
+/// the paragraph itself stays the open-the-popup control either way.
 struct PlotParagraph: View {
   let text: AttributedString
   let isTruncated: Bool
-  let lines: PlotLines?
   let lineLimit: Int?
 
-  @State private var hintSize: CGSize = .zero
   @Environment(\.plotCentered) private var centered
 
   var body: some View {
-    if let lines, hintSize != .zero {
-      let place = HintPlacement(lines: lines, hint: hintSize, isTruncated: isTruncated,
-                                gap: MediaItemPlotView.moreGap, centered: centered)
+    ZStack(alignment: .bottomTrailing) {
       paragraph
-        .frame(width: place.textWidth, alignment: .leading)
-        .mask {
+        .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
+        .plotInvertedMask {
           if isTruncated {
-            PlotTailMask(clearWidth: hintSize.width, fadeWidth: hintSize.height * 2,
-                         lineHeight: lines.lastLineHeight)
-          } else {
-            Rectangle()
+            moreCutout
           }
         }
-        .padding(.bottom, place.extraBottom)
-        .frame(width: place.width, alignment: .leading)
-        .overlay(alignment: .topLeading) {
-          hint.offset(x: place.origin.x, y: place.origin.y)
-        }
-    } else {
-      // First pass, before the lines are known: the text alone, the hint measured unseen.
-      paragraph
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .topLeading) { hint.opacity(0) }
+
+      if isTruncated {
+        // Visual only — the surrounding control opens the popup.
+        SynopsisMoreHint()
+          .allowsHitTesting(false)
+      }
     }
   }
 
-  private var hint: some View {
-    SynopsisMoreHint()
-      .onGeometryChange(for: CGSize.self, of: \.size) { hintSize = $0 }
+  /// Invisible stand-in for the hint, plus a leading fade, punched out of the text
+  /// (Expandable's `expandButtonCutout`).
+  private var moreCutout: some View {
+    Color.clear
+      .overlay(alignment: .bottomTrailing) {
+        SynopsisMoreHint()
+          .hidden()
+          .overlay(Color.black)
+          .overlay(alignment: .leading) {
+            LinearGradient(
+              colors: [.clear, .black],
+              startPoint: .leading,
+              endPoint: .trailing
+            )
+            .frame(width: MediaItemPlotView.moreFadeWidth)
+            .offset(x: -MediaItemPlotView.moreFadeWidth)
+          }
+      }
   }
 
   private var paragraph: some View {
@@ -4910,73 +4906,6 @@ struct PlotParagraph: View {
 extension EnvironmentValues {
   /// The synopsis is centred (`MediaItemPlotView.centered`), for the paragraph inside it.
   @Entry var plotCentered: Bool = false
-}
-
-/// The lines of the clamped synopsis, from its `Text.Layout`.
-struct PlotLines: Equatable {
-  /// The measure the text was laid out in.
-  var availableWidth: CGFloat
-  /// The longest line — the paragraph and its plate are this wide, not the measure.
-  var widest: CGFloat
-  var lastLineEnd: CGFloat
-  var lastLineMidY: CGFloat
-  var lastLineHeight: CGFloat
-  var height: CGFloat
-
-  init?(_ layout: Text.Layout?, availableWidth: CGFloat) {
-    guard let layout, let last = layout.last, availableWidth > 0 else { return nil }
-    let rects = layout.map(\.typographicBounds.rect)
-    self.availableWidth = availableWidth
-    widest = min(availableWidth, (rects.map(\.maxX).max() ?? 0).rounded(.up))
-    lastLineEnd = last.typographicBounds.rect.maxX
-    lastLineMidY = last.typographicBounds.rect.midY
-    lastLineHeight = last.typographicBounds.rect.height
-    height = rects.map(\.maxY).max() ?? 0
-  }
-}
-
-/// Where «ЕЩЁ» goes. Clipped text: at the end of the full last line, the words fading
-/// under it. Text that ends short: right after the last word, centred on that line —
-/// or, when the line has no room left, on a line of its own under it.
-private struct HintPlacement {
-  var origin: CGPoint
-  var textWidth: CGFloat
-  var width: CGFloat
-  var extraBottom: CGFloat = 0
-
-  init(lines: PlotLines, hint: CGSize, isTruncated: Bool, gap: CGFloat, centered: Bool = false) {
-    let midY = lines.lastLineMidY - hint.height / 2
-    // Centred: the paragraph keeps the whole measure, so the lines sit where they were
-    // measured; the hint follows the last word, or is centred on a line of its own.
-    if centered, !isTruncated {
-      textWidth = lines.availableWidth
-      width = lines.availableWidth
-      let end = lines.lastLineEnd + gap
-      if end + hint.width <= lines.availableWidth {
-        origin = CGPoint(x: end, y: midY)
-      } else {
-        origin = CGPoint(x: (lines.availableWidth - hint.width) / 2, y: lines.height + gap)
-        extraBottom = hint.height + gap
-      }
-      return
-    }
-    if isTruncated {
-      textWidth = lines.availableWidth
-      width = lines.availableWidth
-      origin = CGPoint(x: width - hint.width, y: midY)
-      return
-    }
-    textWidth = lines.widest
-    let end = lines.lastLineEnd + gap
-    if end + hint.width <= lines.availableWidth {
-      width = max(lines.widest, end + hint.width)
-      origin = CGPoint(x: end, y: midY)
-    } else {
-      width = lines.widest
-      origin = CGPoint(x: 0, y: lines.height + gap)
-      extraBottom = hint.height + gap
-    }
-  }
 }
 
 /// «ЕЩЁ» in a light capsule — the label's colour at 20 % behind it, so it reads on the
@@ -4998,27 +4927,20 @@ struct SynopsisMoreHint: View {
   }
 }
 
-/// White where text stays, clear where it goes: every line but the last whole; on the
-/// last, solid, then a fade `fadeWidth` long, then clear for `clearWidth` at the end.
-private struct PlotTailMask: View {
-  let clearWidth: CGFloat
-  let fadeWidth: CGFloat
-  let lineHeight: CGFloat
-
-  var body: some View {
-    GeometryReader { geometry in
-      VStack(spacing: 0) {
-        Rectangle().fill(.white)
-          .frame(height: max(0, geometry.size.height - lineHeight))
-        HStack(spacing: 0) {
-          Rectangle().fill(.white)
-          LinearGradient(colors: [.white, .clear], startPoint: .leading, endPoint: .trailing)
-            .frame(width: min(fadeWidth, geometry.size.width))
-          Color.clear
-            .frame(width: min(clearWidth, geometry.size.width))
+extension View {
+  /// Expandable's inverted mask: punch `mask` out of an otherwise opaque rectangle so
+  /// text clears under «ЕЩЁ» and its fade.
+  fileprivate func plotInvertedMask<Mask: View>(
+    alignment: Alignment = .center,
+    @ViewBuilder _ mask: () -> Mask
+  ) -> some View {
+    self.mask {
+      Rectangle()
+        .overlay(alignment: alignment) {
+          mask()
+            .blendMode(.destinationOut)
         }
-        .frame(height: lineHeight)
-      }
+        .compositingGroup()
     }
   }
 }
@@ -5032,13 +4954,12 @@ private struct PlotTailMask: View {
 private struct PlotParagraphLabel: View {
   let text: AttributedString
   let isTruncated: Bool
-  let lines: PlotLines?
   let lineLimit: Int?
 
   @Environment(\.isFocused) private var isFocused
 
   var body: some View {
-    PlotParagraph(text: text, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
+    PlotParagraph(text: text, isTruncated: isTruncated, lineLimit: lineLimit)
     .padding(.horizontal, MediaItemPlotView.focusInsetH)
     .padding(.vertical, MediaItemPlotView.focusInsetV)
     .background {
