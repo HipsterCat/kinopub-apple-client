@@ -659,7 +659,12 @@ struct MediaItemHeroView: View {
       for delay in [0, 80, 120, 150, 200, 250, 400] {
         try? await Task.sleep(for: .milliseconds(delay))
         guard !isCovered, actionEntryTarget == new, focus != new else { return }
-        if focus == old || (focus == nil && TVFocusProbe.nothingFocused) {
+        // Before the entry control has ever had focus, the claim is still ours to make:
+        // the old control can be rebuilt by this very change (Replay leaves the white
+        // chrome as Follow takes the lead), and the engine then parks focus on a view
+        // `@FocusState` does not name — not nothing, so the old test never claimed and
+        // the page opened with nothing a viewer could see focused (#138 CI).
+        if focus == old || (focus == nil && (TVFocusProbe.nothingFocused || !actionEntryClaimed)) {
           claim(new, reason: "entry control changed \(old) → \(new)")
         } else if focus != nil {
           return
