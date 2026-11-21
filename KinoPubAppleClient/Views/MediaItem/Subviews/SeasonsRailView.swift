@@ -471,11 +471,13 @@ struct SeasonsRailView: View {
   }
 
   private func noteDisplayed(entryID: Int) {
-    // Season plate in front of a run.
+#if os(tvOS)
+    // Season plate in front of a run (tvOS synthetic id).
     if let season = seasons.first(where: { Self.seasonCardItemID($0.id) == entryID }) {
       hydrate(around: season.id)
       return
     }
+#endif
     guard let entry = entries.first(where: { $0.id == entryID }),
           let season = entry.season else { return }
     hydrate(around: season.id)
@@ -1422,8 +1424,9 @@ struct SeasonsRailView: View {
 
     case .placeholder(_, let episode):
       // Exact-geometry skeleton: focusable so L/R never dead-ends while the season loads.
+      // tvOS has no system fills — quiet plate is the empty-still recipe (KP-23).
       return TVUIKitMediaItem(id: entry.id,
-                              tint: UIColor.tertiarySystemFill,
+                              tint: TVUIKitTileArtwork.quietFill(),
                               caption: EpisodeText(season: nil, number: episode.number).formatted(.short),
                               status: .ready)
     }
