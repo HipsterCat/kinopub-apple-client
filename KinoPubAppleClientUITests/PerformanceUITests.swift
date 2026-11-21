@@ -144,11 +144,13 @@ final class PerformanceUITests: XCTestCase {
     ], options: options) {
       XCUIRemote.shared.press(.left)
       XCTAssertTrue(
-        app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 5)
-          || app.searchFields.firstMatch.waitForExistence(timeout: 2)
-          || app.keyboards.firstMatch.waitForExistence(timeout: 2),
+        app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 5),
         "Search chrome did not appear"
       )
+      // `page.search` begins in takePrepared and ends on the host's first
+      // on-screen layout. Give that layout a beat so the interval closes
+      // inside this block — XCTest drops an open signpost.
+      Thread.sleep(forTimeInterval: 0.4)
     }
   }
 

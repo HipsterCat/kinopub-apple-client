@@ -1,10 +1,12 @@
 ## Unreleased
 
-- **tvOS Search first paint:** pre-warm now presents the system search stack in
-  an off-screen window (a hidden window skipped `viewDidAppear`, so the first
-  Search visit still built the keyboard). First Search body is the filter chips;
-  posters wait until the tab has appeared. `page.search` signpost is takePrepared
-  → field/keyboard. Check: `TVSearchLayoutUITests.testSearchTabChromeAppearsWhenOpenedFromWatchNow`,
+- **tvOS Search first paint:** pre-warm loads the system search stack in a hidden
+  scene window at launch. The window stays out of the accessibility tree; after
+  the tab takes the stack, later pre-warms do not build a second search UI (a
+  visible parking window laid results over the keyboard). First Search body is
+  the filter chips; posters wait until the tab has appeared. `page.search`
+  signpost is takePrepared → first on-screen layout. Check:
+  `TVSearchLayoutUITests.testSearchTabChromeAppearsWhenOpenedFromWatchNow`,
   `PerformanceUITests.testSearchTabFirstPaint` (`-KINOPUBSearchFixtureStartOnWatchNow`).
 
 - **Artwork via wsrv.nl (KP-68):** stamped `/img` bytes prefer

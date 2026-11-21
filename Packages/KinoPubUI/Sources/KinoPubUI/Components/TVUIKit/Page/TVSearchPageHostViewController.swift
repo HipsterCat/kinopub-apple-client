@@ -24,8 +24,8 @@ final class TVSearchPageHostViewController: UIViewController {
   private weak var results: TVPageCollectionViewController?
   /// First appearance in the real tab (not the pre-warm parking window).
   var onFirstAppearance: (() -> Void)?
-  /// The host is in the off-screen pre-warm window. `viewDidAppear` still runs
-  /// so the keyboard is built; first-frame metrics wait until the real tab.
+  /// The host is in the hidden pre-warm window. First-frame metrics wait until
+  /// the real tab is on screen.
   var isParked = false
   private var didReportFirstAppearance = false
 
@@ -78,6 +78,7 @@ final class TVSearchPageHostViewController: UIViewController {
     if tabEntryGuideHeight?.constant != height {
       tabEntryGuideHeight?.constant = height
     }
+    reportFirstAppearanceIfOnScreen()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -86,7 +87,15 @@ final class TVSearchPageHostViewController: UIViewController {
     // Pre-warm may have focused the keyboard in the parking window and left the
     // guide off. The real tab opens on the bar, and Down needs the guide on.
     syncEntryGuide()
-    guard !didReportFirstAppearance else { return }
+    reportFirstAppearanceIfOnScreen()
+  }
+
+  /// `page.search` must close once the real tab is on screen. Parking's appear
+  /// is skipped (`isParked`); moving the host from that window to SwiftUI can
+  /// skip `viewDidAppear`, so layout in a visible window is the fallback.
+  private func reportFirstAppearanceIfOnScreen() {
+    guard !isParked, !didReportFirstAppearance else { return }
+    guard let window = view.window, !window.isHidden, window.alpha > 0.5 else { return }
     didReportFirstAppearance = true
     onFirstAppearance?()
   }
