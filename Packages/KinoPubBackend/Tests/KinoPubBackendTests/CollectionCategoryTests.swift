@@ -16,9 +16,9 @@ final class CollectionCategoryTests: XCTestCase {
   }
 
   func testLooksUpACollectionsCategory() {
-    XCTAssertEqual(CollectionCategory.containing(collectionID: 33)?.title, "Кинокомиксы")
+    XCTAssertEqual(CollectionCategory.containing(collectionID: 33)?.title, "Комиксы")
     // Its anchor is malformed in kpapp's page; the title was recovered by hand.
-    XCTAssertEqual(CollectionCategory.containing(collectionID: 231)?.title, "Киножанры")
+    XCTAssertEqual(CollectionCategory.containing(collectionID: 231)?.title, "Суб-жанры")
     XCTAssertNil(CollectionCategory.containing(collectionID: 999_999))
   }
 }
