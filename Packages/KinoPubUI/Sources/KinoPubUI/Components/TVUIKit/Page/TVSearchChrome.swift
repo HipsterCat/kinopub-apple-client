@@ -92,6 +92,7 @@ public enum TVSearchChrome {
     firstFrameOrigin = CACurrentMediaTime()
     lastFirstFrameMilliseconds = nil
     PerfSignpost.beginSearchTab()
+    NSLog("TVSEARCH take")
     if let prepared {
       self.prepared = nil
       unpark(prepared)
