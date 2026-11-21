@@ -13,6 +13,7 @@
 #if os(tvOS)
 import SwiftUI
 import CoreImage
+import UIKit
 import OSLog
 import KinoPubLogging
 
@@ -355,7 +356,7 @@ struct PageBackdropHost: View {
   }
 
   /// The first candidate already decoded at full size in memory.
-  private static func cachedPicture(of urls: [URL]) -> PlatformImage? {
+  private static func cachedPicture(of urls: [URL]) -> UIImage? {
     for url in urls {
       if let image = Artwork.cachedImage(for: url) { return image }
     }
@@ -363,7 +364,7 @@ struct PageBackdropHost: View {
   }
 
   /// Any decoded size of a placeholder candidate — the card drew it at its own size.
-  private static func cachedPlaceholder(of urls: [URL]) -> PlatformImage? {
+  private static func cachedPlaceholder(of urls: [URL]) -> UIImage? {
     for url in urls {
       if let image = Artwork.anyCachedImage(for: url) { return image }
     }
@@ -372,7 +373,7 @@ struct PageBackdropHost: View {
 
   /// Wide → big → medium, the same chain `FallbackRemoteImage` walks, through the same
   /// `Artwork` cache — the card that opened the page has usually decoded it already.
-  private static func firstImage(of urls: [URL], id: String, logs: Bool) async -> PlatformImage? {
+  private static func firstImage(of urls: [URL], id: String, logs: Bool) async -> UIImage? {
     for (index, url) in urls.enumerated() {
       if Task.isCancelled { return nil }
       if let loaded = try? await Artwork.imageWithSource(for: url) {
@@ -403,7 +404,7 @@ enum PageBackdropWash {
 
   nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
 
-  static func make(from image: PlatformImage) async -> PlatformImage? {
+  static func make(from image: UIImage) async -> UIImage? {
     guard let source = image.cgImage else { return nil }
     let result: CGImage? = await Task.detached(priority: .userInitiated) {
       Self.blurred(source)
