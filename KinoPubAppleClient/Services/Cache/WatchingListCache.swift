@@ -45,6 +45,12 @@ final class WatchingListCache {
     return entry.items
   }
 
+  /// One title from a warm watching list — for painting `unwatchedEpisodes` on any
+  /// cover that is already known to be followed. Never fetches.
+  func cachedItem(id: Int, subscribed: Bool, now: Date = Date()) -> WatchingItem? {
+    cached(.serials(subscribed: subscribed), now: now)?.first { $0.id == id }
+  }
+
   func movies(using service: VideoContentService, force: Bool = false) async throws -> [WatchingItem] {
     try await items(.movies, using: service, force: force)
   }

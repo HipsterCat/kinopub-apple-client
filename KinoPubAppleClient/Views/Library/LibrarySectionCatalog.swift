@@ -391,16 +391,16 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// `/v1/watching/serials?subscribed=1` — the Library's Following. The line under the
-  /// cover is how many episodes are still unwatched (`total − watched`, else `new`).
+  /// `/v1/watching/serials?subscribed=1` — the Library's Following. Unwatched count
+  /// lives on `unwatchedEpisodes` (Appearance chrome / tvOS caption); subtitle stays
+  /// the original title like every other poster.
   nonisolated static func followingCard(for item: WatchingItem) -> MediaCard {
-    let left = item.unwatchedCount
+    let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
                      title: item.localizedTitle,
-                     subtitle: EpisodesLeftText(left)?.formatted(),
+                     subtitle: item.originalTitle,
                      progress: item.progress,
-                     badge: item.hasNewEpisodes ? "\(item.new ?? 0)" : nil,
                      backdropURL: item.posters.wideURL ?? item.posters.big,
                      isSeries: true,
                      viewerState: ViewerState(isFollowing: true),

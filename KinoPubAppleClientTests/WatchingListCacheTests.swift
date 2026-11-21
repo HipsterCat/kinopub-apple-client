@@ -77,6 +77,40 @@ final class WatchingListCacheTests: XCTestCase {
     XCTAssertEqual(box.serialFetchesUnsubscribed, 2)
   }
 
+  func testCachedItemReadsWarmSubscribedSerialWithoutFetch() async throws {
+    let box = WatchingFetchBox()
+    let service = box.service()
+    let cache = WatchingListCache.shared
+    cache.clear()
+
+    XCTAssertNil(cache.cachedItem(id: 2, subscribed: true))
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+    let item = cache.cachedItem(id: 2, subscribed: true)
+    XCTAssertEqual(item?.id, 2)
+    XCTAssertEqual(item?.unwatchedCount, 9)
+    XCTAssertEqual(box.serialFetchesSubscribed, 1,
+                   "lookup must not hit the network again")
+  }
+
+  func testContentStorePaintsUnwatchedCountFromWarmWatchingCache() async throws {
+    let box = WatchingFetchBox()
+    let service = box.service()
+    let cache = WatchingListCache.shared
+    cache.clear()
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+
+    let viewer = ViewerStateReaderMock()
+    viewer.overlays[.title(2)] = ViewerOverlay(isFollowing: true)
+    let disk = FileManager.default.temporaryDirectory
+      .appendingPathComponent("WatchingListCacheChrome-\(UUID().uuidString)", isDirectory: true)
+    let store = ContentStore(disk: RowSnapshotStore(directory: disk), viewer: viewer)
+    // Catalog-shaped card: following, but no unwatchedEpisodes of its own.
+    store.setItems([.card(MediaCard(id: 2, posterURL: "", title: "S", isSeries: true,
+                                    viewerState: ViewerState(isFollowing: true)))],
+                   for: .homeSection("chrome-test"))
+    XCTAssertEqual(store.cards(.homeSection("chrome-test")).first?.unwatchedEpisodes, 9)
+  }
+
   func testContentStoreWatchInvalidateClearsWatchingCache() async throws {
     let box = WatchingFetchBox()
     let service = box.service()
