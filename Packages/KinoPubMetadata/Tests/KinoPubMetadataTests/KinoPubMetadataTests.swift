@@ -153,7 +153,7 @@ final class TitleImageRouteTests: XCTestCase {
     let route = TitleImageRoute(baseURL: worker, language: "en")
     XCTAssertEqual(
       route.backdrop(kinopubID: 7, imdb: nil, width: 3840)?.absoluteString,
-      "https://kinopub-tmdb-proxy.example.workers.dev/img/backdrop/by/kinopub/7?w=1920&lang=en"
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/backdrop/by/kinopub/7?w=2400&lang=en"
     )
   }
 
@@ -163,8 +163,9 @@ final class TitleImageRouteTests: XCTestCase {
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 1360), 1280)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 2560), 1280)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 1920), 1920)
-    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 3840), 1920)
-    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 5120), 1920)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 2400), 2400)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 3840), 2400)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 5120), 2400)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.poster, pixels: 400), 454)
   }
 

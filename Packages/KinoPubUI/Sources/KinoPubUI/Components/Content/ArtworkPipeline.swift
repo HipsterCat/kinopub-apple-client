@@ -460,7 +460,7 @@ public enum Artwork {
   private static let seen = Mutex<[URL: Set<SeenVariant>]>([:])
 
   private static func noteSeen(_ url: URL, size: CGSize, mode: ResizeMode) {
-    seen.withLock { $0[url, default: []].insert(SeenVariant(size: size, mode: mode)) }
+    seen.withLock { _ = $0[url, default: []].insert(SeenVariant(size: size, mode: mode)) }
   }
 
   // MARK: - Decode size / signposts
@@ -648,7 +648,8 @@ public enum Artwork {
     let cutoff = now.addingTimeInterval(-maxAge)
     return urls.filter { url in
       let accessed = (try? url.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
-        ?? .distantPast
+        ?? (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+        ?? Date()
       return accessed < cutoff
     }
   }

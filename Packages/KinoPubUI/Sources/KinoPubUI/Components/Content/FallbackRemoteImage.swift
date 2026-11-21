@@ -51,9 +51,16 @@ public struct FallbackRemoteImage: View {
           Color.clear
       }
     }
-    .onGeometryChange(for: CGSize.self) { proxy in
-      proxy.size
-    } action: { measured = $0 }
+    .background {
+      Color.clear
+        .onGeometryChange(for: CGSize.self) { proxy in
+          proxy.size
+        } action: { newSize in
+          if measured != newSize && newSize.width > 1 && newSize.height > 1 {
+            measured = newSize
+          }
+        }
+    }
     .task(id: taskKey) {
       await load()
     }

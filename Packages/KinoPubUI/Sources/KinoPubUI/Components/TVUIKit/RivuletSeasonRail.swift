@@ -1373,14 +1373,23 @@ final class RivuletRailEpisodeCell: UICollectionViewCell {
     still.apply(duration: item.duration, progress: item.progress)
     loadToken &+= 1
     let token = loadToken
-    still.image = nil
     let urls = [item.stillURL, item.fallbackStillURL].compactMap { $0 }
-    guard !urls.isEmpty else { return }
+    guard !urls.isEmpty else {
+      still.image = nil
+      return
+    }
     let decodeSize: CGSize = {
       if let slot, slot.contentSize.width > 1 { return slot.contentSize }
       if still.contentSize.width > 1 { return still.contentSize }
       return RivuletSeasonRailMetrics.cardSlot(containerWidth: 1920, inset: contentInsetGuess).contentSize
     }()
+    for url in urls {
+      if let hit = Artwork.cachedImage(for: url, size: decodeSize, mode: .fill) {
+        still.image = hit
+        return
+      }
+    }
+    still.image = nil
     Task { [weak self] in
       var image: UIImage?
       for url in urls {

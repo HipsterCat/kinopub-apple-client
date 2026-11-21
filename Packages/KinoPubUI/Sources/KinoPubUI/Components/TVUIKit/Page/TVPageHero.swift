@@ -95,8 +95,7 @@ final class TVPageHeroCarousel {
     } else {
       index = 0
     }
-    let size = backdrop?.bounds.size ?? .zero
-    TVUIKitRemoteImage.prefetch(features.map { $0.backdropCandidates.first }, size: size)
+    TVUIKitRemoteImage.prefetch(features.map { $0.backdropCandidates.first })
     backdrop?.show(current, direction: 0, next: next)
     warmNeighbours()
     cell?.render(direction: 0)

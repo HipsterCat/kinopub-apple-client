@@ -13,10 +13,10 @@ import Foundation
 /// final URL or header with ``WorkerArtworkLanguageTag`` — the `?lang=` query only
 /// states preference, not what was served.
 ///
-/// `w` is the pixel width the picture will be drawn at, snapped onto TMDB's ladder
-/// (`bucketedWidth`) so the worker never falls through to `/original` (a 5K Mac
+/// `w` is the pixel width the picture will be drawn at, snapped onto TMDB/worker
+/// buckets (`bucketedWidth`) so the worker never falls through to `/original` (a 5K Mac
 /// logo used to ask `w=2560` and get a 2000–4000 px PNG). Logos use 780 / 1280;
-/// everything else tops out at 1920.
+/// backdrops top out at 1920 (tvOS) / 2400 (MacBook, KP-68).
 ///
 /// **One title, one URL.** The Home banner and the detail hero build it from the same
 /// inputs (kino.pub id + IMDb id + the same width), so the hero gets the banner's bytes
@@ -87,13 +87,13 @@ public struct TitleImageRoute: Sendable, Hashable {
     TitleLogoRequestKind(routeLanguage: language)
   }
 
-  /// TMDB size tokens the worker will honour without falling through to `/original`.
+  /// TMDB/worker size tokens the client asks for to avoid `/original`.
   /// Logos skip `w1920` — a wordmark slot is hundreds of points, not a 4K plate.
   public static let logoWidthBuckets = [780, 1280]
-  public static let imageWidthBuckets = [45, 92, 154, 185, 227, 300, 320, 342, 454, 500, 780, 1280, 1920]
+  public static let imageWidthBuckets = [45, 92, 154, 185, 227, 300, 320, 342, 454, 500, 780, 1280, 1920, 2400]
 
-  /// Smallest ladder step that covers `pixels`. Caps logos at 1280 and every other
-  /// kind at 1920 so the worker cannot serve `/original`.
+  /// Smallest ladder step that covers `pixels`. Caps logos at 1280 and other
+  /// kinds at 2400 (MacBook cap) so the worker does not serve `/original`.
   public static func bucketedWidth(_ kind: Kind, pixels: Int) -> Int {
     let ladder = kind == .logo ? logoWidthBuckets : imageWidthBuckets
     let target = max(pixels, 1)
@@ -119,7 +119,8 @@ public struct TitleImageRoute: Sendable, Hashable {
     )
     var query: [URLQueryItem] = []
     if let width, width > 0 {
-      query.append(URLQueryItem(name: "w", value: String(Self.bucketedWidth(kind, pixels: width))))
+      let resolvedWidth = kind == .thumbnail ? min(width, 1280) : Self.bucketedWidth(kind, pixels: width)
+      query.append(URLQueryItem(name: "w", value: String(resolvedWidth)))
     }
     if let season {
       query.append(URLQueryItem(name: "s", value: String(season)))

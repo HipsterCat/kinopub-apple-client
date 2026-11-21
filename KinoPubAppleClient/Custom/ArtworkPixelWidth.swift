@@ -42,9 +42,6 @@ enum ArtworkPixelWidth {
     min(screen, 1920)
 #endif
   }
-    min(screen, 1920)
-#endif
-  }
 
   /// Drawn pixels of the largest logo slot. Scale is the platform's typical density
   /// (2× tvOS 4K / Mac, 3× iPhone), not the live window — Home and the title page
