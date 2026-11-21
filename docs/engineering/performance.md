@@ -271,16 +271,16 @@ cells when the Test app job finishes. Do not copy them onto a device row.
 From the 2026-11-20 static reading. Treat as unconfirmed until a row above
 has numbers:
 
-1. Backdrops **and title logos** decode at full source resolution (`artwork.request` end `full`). Logos: see §9.
-2. tvOS decoded-image cache is 64 MB, smaller than a few 4K backdrops (`tier=disk` on every hero turn).
-3. iOS/Mac Home hero rebuilds every page every scroll frame (SwiftUI instrument, `HeroBackdrop`).
-4. Hero text/logo shadows without `shadowPath` (Color Offscreen-Rendered).
-5. Season rail CADisplayLink + fold blur (`scroll.season` vs native scroll).
-6. Prefetch stops at disk; cells decode on first show (`artwork.request` `tier=disk` on cell appear).
+1. ~~Backdrops and title logos decode at full source resolution.~~ **Shipped (Part B):** thumbnail decode at the drawn / platform-bucket size; worker `w` snapped onto TMDB 780/1280 (logos) or ≤1920 (else). See §9.
+2. ~~tvOS decoded-image cache is a flat 64 MB.~~ **Shipped (Part B):** RAM-scaled budget (192 MB on a 3 GB Apple TV 4K).
+3. iOS/Mac Home hero rebuilds every page every scroll frame (SwiftUI instrument, `HeroBackdrop`). **Follow-up — changes UI behaviour, not this PR.**
+4. Hero text/logo shadows without `shadowPath` (Color Offscreen-Rendered). **Follow-up.**
+5. Season rail CADisplayLink + fold blur (`scroll.season` vs native scroll). **Follow-up.**
+6. Catalog-rail prefetch is still bytes-only when the controller does not know the tile size. Hero warmup / season-rail cells now decode at drawn size. Remaining catalog first-paint disk→decode is a **follow-up**, not a UI rewrite.
 
-## 9. Part B — title logos (verified, not started)
+## 9. Title logos and decode buckets (Part B)
 
-Do not implement this until the owner confirms [#126](https://github.com/HipsterCat/kinopub-apple-client/pull/126) numbers are meaningful. The claims below were re-read in the tree, not inferred from the lag report.
+Verified 2026-11-20, then implemented. `Artwork.makeRequest` with `size == .zero` is still a bare `ImageRequest` (full decode) and should be rare.
 
 **Request / decode today is full-size.** `Artwork.makeRequest` with `size == .zero` builds a bare `ImageRequest(url:)` — no Nuke thumbnail processors (`ArtworkPipeline.swift`). Every title-logo load uses that default:
 
@@ -295,12 +295,28 @@ Do not implement this until the owner confirms [#126](https://github.com/Hipster
 
 **`TitleLogoFit` only reads `image.size`.** `TitleLogoFit.size(of:pixelWidth:maxWidth:maxHeight:displayScale:)` (`TitleLogoSlot.swift`) fits the bitmap in the box and caps upscale at 1.25× native pixels. Call sites pass `image.size` and `image.size.width * image.scale`. A smaller decode changes the bitmap’s size; the fitter does not need a second code path.
 
-**`Artwork.image` / `imageWithSource` default `ResizeMode.fill`.** With `size == .zero` that is a no-op (no processors). A thumbnail size with `.fill` centre-crops and can drop PNG alpha at the edges. Logos need `.fit` (`crop: false` in Nuke’s processors). `Artwork.image(for:)` does not take `mode` today — Part B has to thread `.fit` through the logo loads, including the season-rail call.
+Logo-first presentation (`TitleLogoPresentationPolicy.whenResolved`) and `TitleLogoFit` are unchanged. `Artwork.image(for:size:mode:)` threads `.fit` for logos; `Artwork.cachedLogo` / `logoWithSource` / `logoImage` are the one key.
 
-When Part B runs, logos are in the same change as backdrops:
+| Platform | Logo slot (pt) | Worker `w` | Decode cap (px) | Backdrop worker `w` | RAM cache |
+| --- | --- | --- | --- | --- | --- |
+| tvOS | 680×170 | 1280 | 1280 `.fit` | 1920 | 64–192 MB (RAM/16; 192 on 3 GB 4K) |
+| iPhone | 360×96 | 1280 | 1280 `.fit` | ≤1920 | 128–256 MB |
+| Mac | 440×120 | 1280 | 1280 `.fit` | 1920 (was native on 5K) | 256–512 MB |
 
-- One size bucket per platform: the largest logo slot on that platform × scale, then TMDB `w780` or `w1280`, never `/original` (cap `ArtworkPixelWidth.logo` so the worker cannot miss the ladder).
-- Thumbnail decode at that bucket, `ResizeMode.fit`, so alpha stays.
-- Identical Nuke request keys for warmup, `TitleLogoSession` load, `TitleLogoSlot` cache hit, and `RivuletSeasonRail.setLogo`. A key split would make the warm copy miss and decode full-size on first paint.
-- Leave logo-first presentation alone (`TitleLogoPresentationPolicy.whenResolved` / `TitleLogoSession`: empty until a logo or a confirmed miss; a late URL must not swap text → logo).
-- Leave `TitleLogoFit` alone; it already sizes from the decoded bitmap.
+Remeasure after this change: `artwork.request` end should show `px1280×…` / `px1920×…` rather than `full`, `tier=memory` on a neighbour hero turn, and `XCTMemoryMetric` on `testHomeHeroTurn` / `testTitleOpenFromHome` should drop on tvOS 4K (a 1920×1080×4 backdrop is ~8 MB vs a 4K original ~33 MB). Season-rail cells should no longer log `full` on first appear.
+
+## 10. Cache eviction
+
+What was already true (Nuke defaults + our limits, before this slice):
+
+| Layer | Limit | TTL | Sweep |
+| --- | --- | --- | --- |
+| Memory `ImageCache` | RAM-scaled cost (64–192 MB tvOS) + count 1500/2000 | `nil` (never expire) | CLOCK/LRU when over budget. `DispatchSourceMemoryPressure` → `removeAll`. iOS/tvOS background → trim to 10 % (Nuke). `entryCostLimit` 0.1 (unset). |
+| Disk `DataCache` | 128 MB tvOS / 512 MB else | none | LRU by `contentAccessDate` only when over size, down to 70 %. First sweep ~5 s after init on Nuke's utility queue, then every 30 min. |
+
+What we set:
+
+| Layer | Change |
+| --- | --- |
+| Memory | `ttl` = `memoryEntryTTL` (15 min from **insert**, not last access — Nuke has no idle TTL). `entryCostLimit` = 0.2 so an 8 MB 1080p backdrop fits at the 64 MB floor. UIKit memory-warning → `removeAll`; background → trim to 10 % (same as Nuke, so a warning that missed the DispatchSource still fires). |
+| Disk | Size LRU unchanged. `diskEntryMaxAge` = 7 days: files not accessed that long are deleted even under the byte cap. Age + size sweeps run off the main thread at launch and on background. |

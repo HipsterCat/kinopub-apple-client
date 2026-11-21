@@ -55,6 +55,76 @@ final class ArtworkPipelineTests: XCTestCase {
   }
 #endif
 
+  func testMemoryByteLimitScalesWithRAMAndCaps() {
+    let gb: UInt64 = 1024 * 1024 * 1024
+#if os(tvOS)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 2 * gb), 128 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 3 * gb), 192 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 4 * gb), 192 * 1024 * 1024)
+#elseif os(iOS)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 2 * gb), 128 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 8 * gb), 256 * 1024 * 1024)
+#else
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 8 * gb), 256 * 1024 * 1024)
+    XCTAssertEqual(Artwork.memoryByteLimit(physicalMemory: 32 * gb), 512 * 1024 * 1024)
+#endif
+  }
+
+  func testLogoDecodeSizeIsTheLargestSlot() {
+#if os(tvOS)
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 680, height: 170))
+#elseif os(macOS)
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 440, height: 120))
+#else
+    XCTAssertEqual(Artwork.logoDecodeSize, CGSize(width: 360, height: 96))
+#endif
+    XCTAssertEqual(Artwork.maxDecodePixels(for: .fit), 1280)
+    XCTAssertEqual(Artwork.maxDecodePixels(for: .fill), 1920)
+  }
+
+  func testPixelSizeCapsFillAt1920() {
+    Artwork.cacheDisplayScale(2)
+    let pixels = Artwork.pixelSize(forPoints: CGSize(width: 1920, height: 1080), mode: .fill)
+    XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 1920 + 0.5)
+  }
+
+  func testPixelSizeCapsFitAt1280() {
+    Artwork.cacheDisplayScale(2)
+    let pixels = Artwork.pixelSize(forPoints: Artwork.logoDecodeSize, mode: .fit)
+    XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 1280 + 0.5)
+  }
+
+  func testEvictionConstants() {
+    XCTAssertEqual(Artwork.memoryEntryTTL, 15 * 60)
+    XCTAssertEqual(Artwork.memoryEntryCostLimit, 0.2, accuracy: 0.0001)
+    XCTAssertEqual(Artwork.diskEntryMaxAge, 7 * 24 * 60 * 60)
+  }
+
+  func testExpiredDiskURLsUsesAccessAgeAndSkipsHidden() throws {
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("ArtworkDiskSweep-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let visible = dir.appendingPathComponent("poster.bin")
+    let hidden = dir.appendingPathComponent(".data-cache-info")
+    try Data([1]).write(to: visible)
+    try Data([2]).write(to: hidden)
+
+    XCTAssertTrue(
+      Artwork.expiredDiskURLs(in: dir, olderThan: Artwork.diskEntryMaxAge).isEmpty
+    )
+    XCTAssertTrue(
+      Artwork.expiredDiskURLs(in: dir, olderThan: 0).isEmpty
+    )
+
+    let eightDays = Date().addingTimeInterval(8 * 24 * 60 * 60)
+    let expired = Artwork.expiredDiskURLs(
+      in: dir, olderThan: Artwork.diskEntryMaxAge, now: eightDays
+    )
+    XCTAssertEqual(Set(expired.map(\.lastPathComponent)), ["poster.bin"])
+  }
+
   func testDecodedByteCountCountsRasterData() {
 #if os(macOS)
     let image = NSImage(size: NSSize(width: 8, height: 4))

@@ -145,7 +145,7 @@ final class TitleImageRouteTests: XCTestCase {
     let route = TitleImageRoute(baseURL: worker, language: nil)
     XCTAssertEqual(
       route.logo(kinopubID: 128209, imdb: 903_747, width: 960)?.absoluteString,
-      "https://kinopub-tmdb-proxy.example.workers.dev/img/logo/by/kinopub/128209?w=960&imdb=tt0903747"
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/logo/by/kinopub/128209?w=1280&imdb=tt0903747"
     )
   }
 
@@ -153,8 +153,20 @@ final class TitleImageRouteTests: XCTestCase {
     let route = TitleImageRoute(baseURL: worker, language: "en")
     XCTAssertEqual(
       route.backdrop(kinopubID: 7, imdb: nil, width: 3840)?.absoluteString,
-      "https://kinopub-tmdb-proxy.example.workers.dev/img/backdrop/by/kinopub/7?w=3840&lang=en"
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/backdrop/by/kinopub/7?w=2400&lang=en"
     )
+  }
+
+  func testBucketedWidthNeverOriginal() {
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 680), 780)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 1080), 1280)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 1360), 1280)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 2560), 1280)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 1920), 1920)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 2400), 2400)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 3840), 2400)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 5120), 2400)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.poster, pixels: 400), 454)
   }
 
   func testNoWidthAsksForOriginal() {

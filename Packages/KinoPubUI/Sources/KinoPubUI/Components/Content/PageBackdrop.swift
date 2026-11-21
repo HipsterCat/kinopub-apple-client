@@ -359,7 +359,7 @@ struct PageBackdropHost: View {
   /// The first candidate already decoded at full size in memory.
   private static func cachedPicture(of urls: [URL]) -> UIImage? {
     for url in urls {
-      if let image = Artwork.cachedImage(for: url) { return image }
+      if let image = Artwork.cachedImage(for: url, size: decodeSize, mode: .fill) { return image }
     }
     return nil
   }
@@ -372,14 +372,18 @@ struct PageBackdropHost: View {
     return nil
   }
 
+  /// HIG 1920×1080 point box. Nuke multiplies by scale; `Artwork` then caps pixels at
+  /// 1920 so a 4K Apple TV does not decode `/original`.
+  private static let decodeSize = CGSize(width: 1920, height: 1080)
+
   /// Wide → big → medium, the same chain `FallbackRemoteImage` walks, through the same
   /// `Artwork` cache — the card that opened the page has usually decoded it already.
   private static func firstImage(of urls: [URL], id: String, logs: Bool) async -> UIImage? {
     for (index, url) in urls.enumerated() {
       if Task.isCancelled { return nil }
-      if let loaded = try? await Artwork.imageWithSource(for: url) {
+      if let loaded = try? await Artwork.imageWithSource(for: url, size: Self.decodeSize, mode: .fill) {
         guard logs else { return loaded.image }
-        Artwork.noteDisplayed(loaded.image, url: url, size: .zero)
+        Artwork.noteDisplayed(loaded.image, url: url, size: Self.decodeSize)
         ArtworkLog.source("page.backdrop \(id)", id: nil, asked: url, answered: loaded.answered,
                           tier: loaded.tier, candidate: index, of: urls.count)
         return loaded.image

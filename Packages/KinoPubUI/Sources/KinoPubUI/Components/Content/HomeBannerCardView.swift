@@ -110,7 +110,7 @@ public struct HomeBannerCardView: View {
   /// Prefer API `wide`, then derived `/wide/`, then `big`/`medium` as a fill.
   private func backdrop(size: CGSize) -> some View {
     let candidates = Self.backdropCandidates(for: card)
-    return FallbackRemoteImage(urls: candidates, contentMode: .fill)
+    return FallbackRemoteImage(urls: candidates, contentMode: .fill, size: size)
       .frame(width: size.width, height: size.height)
       .clipped()
       .onAppear {
