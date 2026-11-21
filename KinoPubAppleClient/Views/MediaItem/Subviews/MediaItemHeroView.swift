@@ -418,8 +418,11 @@ struct MediaItemHeroView: View {
     return onPicture ? .dark : systemColorScheme
   }
 #endif
+  /// A series from the first frame: a listing copy names the type but carries no
+  /// seasons, and «Nocturne» opened from one painted as a film — no «Series», no bell —
+  /// then rebuilt its row and facts when the details came (Sasha, 2026-11-21).
   private var isSeries: Bool {
-    !(mediaItem.seasons?.isEmpty ?? true)
+    !(mediaItem.seasons?.isEmpty ?? true) || mediaItem.isEpisodicType
   }
 
   /// Films and series both get the checkmark, in progress or not started. It only
@@ -2325,9 +2328,7 @@ struct MediaItemHeroView: View {
     return MediaActionContext(
       playback: playback,
       kind: mediaItem.presentation.kind,
-      // `isSeries` waits for `seasons`. The type is known from the card, and a
-      // series must not read "Watch Movie" until that payload arrives.
-      isSeries: isSeries || mediaItem.isEpisodicType,
+      isSeries: isSeries,
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
       showsMarkWatched: showsWatchedButton && !promote,

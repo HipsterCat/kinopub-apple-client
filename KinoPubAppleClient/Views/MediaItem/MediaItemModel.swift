@@ -163,15 +163,15 @@ class MediaItemModel: ObservableObject {
 
   /// The hero's logo: the worker's image route by kino.pub id, the very URL the Home
   /// banner loads, so a title opened from the banner paints it from the artwork cache
-  /// on the first frame. Waits for an item that carries its IMDb id (or the loaded
-  /// payload), so the URL is built once and never swaps under the slot. The TMDB
-  /// overlay's logo only when no worker is configured.
+  /// on the first frame. Built at once and kept (`latchedHeroURL`), so it never swaps
+  /// under the slot. The TMDB overlay's logo only when no worker is configured.
   var heroLogoURL: URL? {
     if usesTitleCard { return externalMetadata.titleLogoURL }
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.titleLogoURL }
-    guard heroImagesReady else { return nil }
-    return images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo)
+    return latchedHeroURL("logo") {
+      images.logo(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.logo)
+    }
   }
 
   /// Same route and rule as ``heroLogoURL``, for the textless backdrop.
@@ -179,16 +179,16 @@ class MediaItemModel: ObservableObject {
     if usesTitleCard { return externalMetadata.backdropURL }
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.backdropURL }
-    guard heroImagesReady else { return nil }
-    return images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb,
-                           width: ArtworkPixelWidth.backdrop)
+    return latchedHeroURL("backdrop") {
+      images.backdrop(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.backdrop)
+    }
   }
 
   /// The logo lookup is over: the route answers by itself (its 404 is the miss), or
   /// the TMDB overlay has finished. The title card's logo is the card's own URL.
   var heroLogoResolved: Bool {
     if usesTitleCard { return externalMetadataLoaded }
-    return metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
+    return metadataService.images.isConfigured ? true : externalMetadataLoaded
   }
 
   /// Fallback caption rules from the `?lang=` query when the served stamp is not known yet.
@@ -245,8 +245,22 @@ class MediaItemModel: ObservableObject {
     return nil
   }
 
-  private var heroImagesReady: Bool {
-    hasPaintedItem && (mediaItem.imdb != nil || itemLoaded)
+  /// The hero's worker URLs, built **at once** from the kino.pub id and kept for the
+  /// page's life. They used to wait for an item carrying its IMDb id (or for the details
+  /// call), and the page held the previous title's backdrop all that time (Sasha,
+  /// 2026-11-21: «конченная идея ждать чего-то ещё»). The IMDb id is only a hint for a
+  /// title the worker has never seen; every listing carries it, so the URL is the very
+  /// one the card's banner built. Kept, never rebuilt: an id that arrived later must not
+  /// swap the URL — and the picture — under a hero that already shows it.
+  private var heroURLs: [String: URL] = [:]
+
+  private var heroImageIMDb: Int? { hasPaintedItem ? mediaItem.imdb : nil }
+
+  private func latchedHeroURL(_ kind: String, make: () -> URL?) -> URL? {
+    if let url = heroURLs[kind] { return url }
+    guard let url = make() else { return nil }
+    heroURLs[kind] = url
+    return url
   }
 
   /// The people behind the author shelf — **one request each**, because `/v1/items`

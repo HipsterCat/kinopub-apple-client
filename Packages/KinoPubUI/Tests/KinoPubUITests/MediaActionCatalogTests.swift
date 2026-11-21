@@ -52,12 +52,14 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row[1].title, "Encore")
   }
 
-  func testMovieWatchedUsesQuieterReplay() {
+  /// Replay keeps the main Play's chrome: a state change while the page loads must not
+  /// build another control under the focused one (2026-11-21).
+  func testMovieWatchedReplayKeepsThePrimaryChrome() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .playAgain(season: nil, episode: nil),
       isSeries: false
     ))
-    XCTAssertEqual(play.chrome, .pill)
+    XCTAssertEqual(play.chrome, .playPill)
     XCTAssertEqual(play.systemImage, "arrow.clockwise")
     XCTAssertEqual(play.title, MediaActionCopy.localized("Play Again"))
   }
@@ -175,7 +177,7 @@ final class MediaActionCatalogTests: XCTestCase {
       playback: .playAgain(season: 1, episode: 1),
       isSeries: true
     ))
-    XCTAssertEqual(play.chrome, .pill)
+    XCTAssertEqual(play.chrome, .playPill)
     XCTAssertEqual(play.title, MediaActionCopy.replayEpisodeTitle(season: 1, episode: 1))
     XCTAssertEqual(play.title, "Replay S1, E1")
   }

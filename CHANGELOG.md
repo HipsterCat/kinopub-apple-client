@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Title open never waits (tvOS):** the previous title's backdrop is dropped at once
+  for a blurred copy of the card's poster; the worker backdrop crossfades in when it
+  has loaded. Hero logo/backdrop URLs are built immediately from the kino.pub id, not
+  after the details call. Below the hero the picture stays as a blurred copy with an
+  appearance tint instead of fading to an empty page.
+- **Hero buttons:** Play is a solid white capsule with a dark label in every state
+  (Replay too), the rest dark see-through bordered buttons on tvOS and macOS; iOS keeps
+  glass. The main Play no longer changes control while the page loads, so focus stays
+  on it instead of falling onto the synopsis.
+- **Series from the listing:** a serial opened from a listing (no seasons yet) shows
+  as a series from the first frame (bell, facts). A kept copy whose episode count
+  differs from the watching list drops its stale seasons («Replay E1» → «Play E3»).
 - **Artwork cache eviction:** decoded images expire after 15 minutes even under
   the RAM budget; memory warning clears them; background keeps a tenth.
   Disk is still LRU by last access with the size cap, plus a 7-day unused

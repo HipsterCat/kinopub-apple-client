@@ -1397,54 +1397,51 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     }
     markImage = nil
     focusBackgroundImage = nil
-    // Ladder (KP-23): iconic tint/symbol at rest → series backdrop while unique
-    // still loads → unique still → kino.pub thumb on 404. Blank grey forever is wrong.
+    // Ladder (KP-23), one picture per tile: the iconic tint/symbol at rest until the
+    // unique still arrives, then the kino.pub thumb if it 404s, then the series
+    // backdrop as the last resort. The series backdrop used to go up first "while the
+    // unique still loads", and the viewer saw two or three pictures replace each other
+    // on one card (Sasha, 2026-11-21). A vertical cover is never a 16:9 tile's fallback:
+    // with Russian covers on, `posters.big` became a Kinopoisk one-sheet cropped wide.
     let unique = item.imageURL
-    let backdrop = item.backdropImageURL.flatMap { $0 == unique ? nil : $0 }
-    let kinopub = item.fallbackImageURL.flatMap { $0 == unique || $0 == backdrop ? nil : $0 }
+    let kinopub = item.fallbackImageURL.flatMap { $0 == unique ? nil : $0 }
+    let backdrop = item.backdropImageURL.flatMap {
+      $0 == unique || $0 == kinopub || Self.isVerticalCover($0) ? nil : $0
+    }
     guard unique != nil || backdrop != nil || kinopub != nil else {
       ArtworkLog.skipped(by: "wide", reason: "no artwork URL")
       return
     }
     let size = contentView.bounds.size
     let mode: Artwork.ResizeMode = item.artworkFit == .letterbox ? .fit : .fill
-    if let unique,
-       let hit = TVUIKitRemoteImage.cached(url: unique, size: size, mode: mode) {
+    let ladder = [unique, kinopub, backdrop].compactMap { $0 }
+    if let first = ladder.first,
+       let hit = TVUIKitRemoteImage.cached(url: first, size: size, mode: mode) {
       artwork = Self.present(hit, fit: item.artworkFit)
-      loadedURL = unique
-      ArtworkLog.servedFromMemory(unique, by: "wide")
+      loadedURL = first
+      ArtworkLog.servedFromMemory(first, by: "wide")
       return
     }
     if let unique { ArtworkLog.requested(unique, by: "wide") }
     imageTask = Task { [weak self] in
-      // Interim backdrop under the iconic placeholder.
-      if let backdrop {
-        if let image = await TVUIKitRemoteImage.load(url: backdrop, size: size, mode: mode) {
-          guard let self, !Task.isCancelled, self.item?.id == item.id, self.loadedURL == nil else { return }
-          self.artwork = Self.present(image, fit: item.artworkFit)
-          self.setNeedsUpdateConfiguration()
-        }
-      }
-      if let unique {
-        let image = await TVUIKitRemoteImage.load(url: unique, size: size, mode: mode)
-        guard let self, !Task.isCancelled, self.item?.imageURL == unique else { return }
+      for url in ladder {
+        let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: mode)
+        guard let self, !Task.isCancelled, self.item?.id == item.id else { return }
         if let image {
           self.artwork = Self.present(image, fit: item.artworkFit)
-          self.loadedURL = unique
+          self.loadedURL = url
           self.setNeedsUpdateConfiguration()
           return
         }
       }
-      if let kinopub {
-        let image = await TVUIKitRemoteImage.load(url: kinopub, size: size, mode: mode)
-        guard let self, !Task.isCancelled, self.item?.id == item.id else { return }
-        if let image {
-          self.artwork = Self.present(image, fit: item.artworkFit)
-          self.loadedURL = kinopub
-          self.setNeedsUpdateConfiguration()
-        }
-      }
     }
+  }
+
+  /// kino.pub's portrait sizes and the Kinopoisk one-sheets Russian covers swap in.
+  private static func isVerticalCover(_ url: URL) -> Bool {
+    let path = url.path
+    return path.contains("/item/small/") || path.contains("/item/medium/")
+      || path.contains("/item/big/") || path.contains("/images/posters/")
   }
 
   /// The loaded picture as the tile draws it — a logo letterboxed to the wide cell's 16:9.

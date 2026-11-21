@@ -107,8 +107,9 @@ final class PlaybackButtonContentTests: XCTestCase {
     let renamed = season(11, title: "Сезон 8", episodes: [episode(number: 2, watched: 0)])
     XCTAssertEqual(item(seasons: [renamed]).playbackButtonContent, .play(season: 8, episode: 2))
 
+    // A year title is a merged run, not a season index: Play keeps the block number.
     let year = season(1, title: "2012", episodes: [episode(number: 2, watched: 0)])
-    XCTAssertEqual(item(seasons: [year]).playbackButtonContent, .play(season: 2012, episode: 2))
+    XCTAssertEqual(item(seasons: [year]).playbackButtonContent, .play(season: 1, episode: 2))
   }
 
   func testPrimaryEpisodeSkipsWatchedOnes() {

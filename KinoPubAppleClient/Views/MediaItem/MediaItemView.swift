@@ -1241,7 +1241,21 @@ struct MediaItemView: View {
       for: itemModel.mediaItem,
       preferredBackdropURL: itemModel.heroBackdropURL
     )
-    return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)
+    return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItemId),
+                        imageURLs: urls,
+                        placeholderURLs: backdropPlaceholders)
+  }
+
+  /// The art the card that opened this page drew — its cover in the viewer's cover
+  /// language, either size, then kino.pub's own — blurred under the hero until the
+  /// backdrop is in. Nothing to fetch in the usual case: the card decoded it already.
+  private var backdropPlaceholders: [URL] {
+    let posters = itemModel.mediaItem.posters
+    guard itemModel.hasPaintedItem else { return [] }
+    var seen = Set<String>()
+    return [verticalCover(posters.medium), verticalCover(posters.big), posters.medium, posters.big]
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+      .compactMap(URL.init(string:))
   }
 #endif
 

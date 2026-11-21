@@ -30,7 +30,15 @@ struct RouteDestination: View {
       // tab bar stays with the tab root — no switching tabs from inside a stack, no bar
       // floating over a detail page fading in and out, and Menu pops instead of finding
       // the bar focused and quitting the app.
-      .toolbar(.hidden, for: .tabBar)
+      //
+      // One owner for the bar: where our zoom proxy runs, `TabBarSlide` hides it on push
+      // and shows it on pop to the root. Hiding it here as well left SwiftUI's own record
+      // at "hidden" after that pop (it never saw the bar come back), and SwiftUI re-applied
+      // it on the next switch to this tab: the bar vanished from every tab after a title
+      // and a popup in Catalog (Sasha, 2026-11-21; lldb: `_hideBarWithTransition` from a
+      // SwiftUI update). `.hidden` stays for stacks without the proxy.
+      .toolbar(TVNavigationZoom.isAvailable ? .automatic : .hidden, for: .tabBar)
+      .tvNavigationZoom()
 #endif
   }
 
@@ -160,9 +168,10 @@ struct RouteDestination: View {
       // title this session already has paints the page while the details load — the
       // last details payload, else the listing the card was drawn from.
       MediaItemModel(mediaItemId: id,
-                     knownItem: knownItem
+                     knownItem: (knownItem
                        ?? appContext.localProgressStore.snapshot(for: id)
-                       ?? ListedItemCache.shared.item(id: id),
+                       ?? ListedItemCache.shared.item(id: id))
+                       .map(WatchingListCache.shared.reconciled),
                      itemsService: appContext.contentService,
                      downloadManager: appContext.downloadManager,
                      linkProvider: linkProvider,
