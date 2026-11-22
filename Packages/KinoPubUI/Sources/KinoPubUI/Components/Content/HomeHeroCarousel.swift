@@ -263,7 +263,16 @@ public struct HomeHeroCarousel: View {
       scroll = ScrollPosition(id: current)
       generation += 1
     }
-    .onChange(of: isActive) { move(to: current, animated: false) }
+    // Only when it is off its page. Told to scroll where it already was, on every push
+    // and pop, the pager laid its pages out again inside the navigation transition, and
+    // their glass buttons updated twice in that frame (`glassEffect() tried to update
+    // multiple times per frame`, Sasha's device log 2026-11-22: `move to 0:0` on each).
+    // A turn cut off by the push still is put back, whatever phase it last reported.
+    .onChange(of: isActive) {
+      guard let at = slots.firstIndex(of: current),
+            pager.page != at || !pager.reading.isAtRest else { return }
+      move(to: current, animated: false)
+    }
     .onChange(of: advances) { _, now in
       heroLog("advances=\(now) active=\(isActive) presented=\(isPresented) visible=\(isVisibleInPage) scene=\(scenePhase == .active) dragging=\(isDragging) turning=\(isTurning) menu=\(isMenuOpen) key=\(isWindowKey)")
     }
