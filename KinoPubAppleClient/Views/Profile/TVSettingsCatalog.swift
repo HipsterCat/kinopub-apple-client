@@ -860,6 +860,7 @@ final class TVSettingsCatalog {
       TSKRow(title: "Stream to Pulse on Mac".localized,
              description: "Settings_Tip_StreamToPulse".localized,
              kind: .toggle(key: "streamToPulse")),
+      apiHostRow(),
       TSKRow(title: "Show in-flight requests".localized,
              description: "Settings_Tip_ActivityOverlay".localized,
              kind: .toggle(key: "activityOverlay")),
@@ -1885,6 +1886,22 @@ final class TVSettingsCatalog {
     host.presentPopup(alert)
   }
 
+  /// kino.pub's API hosts as the system's choice list: the checked one is in use, each
+  /// row says what that host did last, the description carries the fallback rule.
+  private func apiHostRow() -> TSKRow {
+    let snapshot = AppContext.apiHosts.snapshot()
+    let outcomes = snapshot.outcomes
+    let labels = Dictionary(uniqueKeysWithValues: snapshot.hosts.map { ($0.id, $0.label) })
+    return TSKRow(title: "API server".localized,
+                  description: APIHostStatusText.footer(snapshot),
+                  kind: .choice(key: "apiHost",
+                                values: snapshot.hosts.map { $0.id as NSString },
+                                label: { value in
+                                  guard let id = value as? String, let label = labels[id] else { return nil }
+                                  return "\(label) · \(APIHostStatusText.outcome(outcomes[id]))"
+                                }))
+  }
+
   /// Pulse's ConsoleView sets up its own environment internally, and wrapping it
   /// in our custom hosting closure prevents that initialization.
   private func presentPulseConsole() {
@@ -1930,6 +1947,13 @@ final class TVSettingsCatalog {
                  guard let code = value as? String else { return }
                  defaults.set(code, forKey: "selectedLanguage")
                  self.onLanguageChange(code)
+               })
+    store.bind("apiHost",
+               get: { AppContext.apiHosts.current.id as NSString },
+               set: { value in
+                 guard let id = value as? String,
+                       let host = AppContext.apiHosts.hosts.first(where: { $0.id == id }) else { return }
+                 AppContext.apiHosts.select(host)
                })
     store.bind("coverLanguage",
                get: { CoverArtworkPreferences.language.rawValue as NSString },

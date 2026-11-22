@@ -13,15 +13,19 @@ public class APIClient {
   private let baseUrl: URL
   private var plugins: [APIClientPlugin]
   private let cache: ResponseCaching?
+  /// kino.pub's API hosts. Nil: every request goes to `baseUrl`, as before.
+  public let hosts: APIHostPool?
 
   public init(baseUrl: String,
               plugins: [APIClientPlugin] = [],
               session: URLSessionProtocol = URLSessionImpl(session: .shared),
-              cache: ResponseCaching? = nil) {
+              cache: ResponseCaching? = nil,
+              hosts: APIHostPool? = nil) {
     self.baseUrl = URL(string: baseUrl)!
     self.plugins = plugins
     self.session = session
     self.cache = cache
+    self.hosts = hosts
     self.requestBuilder = RequestBuilder(baseURL: self.baseUrl)
   }
 
@@ -67,15 +71,7 @@ public class APIClient {
   /// first 401 when refresh succeeds.
   private func execute(_ requestData: Endpoint,
                        allowUnauthorizedRetry: Bool) async throws -> (Data, URLResponse) {
-    guard let request = requestBuilder.build(with: requestData) else {
-      throw APIClientError.invalidUrlParams
-    }
-
-    let preparedRequest = plugins.reduce(request) { $1.prepare($0) }
-    plugins.forEach { $0.willSend(preparedRequest) }
-
-    let (data, response) = try await session.data(for: preparedRequest)
-    plugins.forEach { $0.didReceive(response, data: data) }
+    let (data, response) = try await send(requestData)
 
     if allowUnauthorizedRetry,
        let http = response as? HTTPURLResponse,
@@ -88,6 +84,65 @@ public class APIClient {
     }
 
     return (data, response)
+  }
+
+  /// One round-trip, walking the API hosts: the current one first, the next on a
+  /// failure `APIHostPool` says another host may not have (no DNS, no connection, a
+  /// gateway 502/503/504 on a repeatable request). The host that answers becomes the
+  /// current one. Endpoints with their own base URL, and clients without a pool, send
+  /// once.
+  private func send(_ requestData: Endpoint) async throws -> (Data, URLResponse) {
+    guard let hosts, requestData.baseURLOverride == nil else {
+      return try await sendOnce(requestData, host: nil)
+    }
+    let order = hosts.attemptOrder
+    for (attempt, host) in order.enumerated() {
+      let isLast = attempt == order.count - 1
+      do {
+        let (data, response) = try await sendOnce(requestData, host: host.url)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if APIHostPool.isGatewayFailure(status) {
+          // Not "answered": a host whose front cannot reach its backend never becomes
+          // the sticky one, even when every host says so.
+          hosts.recordFailure(of: host, reason: "HTTP \(status)")
+          if !isLast, requestData.isRepeatable { continue }
+          return (data, response)
+        }
+        hosts.recordAnswer(from: host, status: status)
+        return (data, response)
+      } catch {
+        let underlying = Self.transportError(error)
+        if Task.isCancelled || (underlying as? URLError)?.code == .cancelled { throw error }
+        if underlying is URLError {
+          hosts.recordFailure(of: host, reason: APIHostPool.reason(for: underlying))
+        }
+        guard !isLast,
+              APIHostPool.shouldMoveOn(after: underlying, repeatable: requestData.isRepeatable) else {
+          throw error
+        }
+      }
+    }
+    // Unreachable: the last host either returns or throws.
+    throw APIClientError.urlError
+  }
+
+  private func sendOnce(_ requestData: Endpoint, host: URL?) async throws -> (Data, URLResponse) {
+    guard let request = requestBuilder.build(with: requestData, host: host) else {
+      throw APIClientError.invalidUrlParams
+    }
+
+    let preparedRequest = plugins.reduce(request) { $1.prepare($0) }
+    plugins.forEach { $0.willSend(preparedRequest) }
+
+    let (data, response) = try await session.data(for: preparedRequest)
+    plugins.forEach { $0.didReceive(response, data: data) }
+    return (data, response)
+  }
+
+  /// `URLSessionImpl` wraps transport errors in `APIClientError.networkError`.
+  private static func transportError(_ error: Error) -> Error {
+    if case APIClientError.networkError(let underlying) = error { return underlying }
+    return error
   }
 
   /// OAuth endpoints handle their own failures; retrying `/oauth2/token` on 401 would loop.

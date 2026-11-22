@@ -6,6 +6,7 @@
 import SwiftUI
 import KinoPubUI
 import KinoPubMetadata
+import KinoPubBackend
 
 #if !os(tvOS)
 struct AdvancedSettingsPane: View {
@@ -39,6 +40,8 @@ struct AdvancedSettingsPane: View {
       .onChange(of: streamsToPulse) { _, isOn in
         NetworkDiagnostics.setRemoteLoggingEnabled(isOn)
       }
+
+      APIHostsSection()
 
       Section {
         SecureField("Worker admin token", text: $workerAdminToken)
@@ -78,4 +81,67 @@ struct AdvancedSettingsPane: View {
     .formStyle(.grouped)
   }
 }
+
+/// The kino.pub API hosts, the one in use, and what each did last. Picking a row makes
+/// it the host requests start from; a failure still moves on to the next one.
+private struct APIHostsSection: View {
+  @State private var snapshot = AppContext.apiHosts.snapshot()
+
+  var body: some View {
+    Section {
+      ForEach(Array(snapshot.hosts.enumerated()), id: \.element.id) { index, host in
+        Button {
+          AppContext.apiHosts.select(host)
+          snapshot = AppContext.apiHosts.snapshot()
+        } label: {
+          HStack {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(verbatim: host.label)
+                .foregroundStyle(.primary)
+              Text(APIHostStatusText.outcome(snapshot.outcomes[host.id]))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if index == snapshot.currentIndex {
+              Image(systemName: "checkmark")
+                .foregroundStyle(.tint)
+                .accessibilityLabel(Text("In use"))
+            }
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+      }
+    } header: {
+      Text("API server")
+    } footer: {
+      Text(APIHostStatusText.footer(snapshot))
+    }
+    .onReceive(NotificationCenter.default.publisher(for: APIHostPool.didChangeNotification)) { _ in
+      snapshot = AppContext.apiHosts.snapshot()
+    }
+  }
+}
 #endif
+
+/// Shared by the iOS / macOS section and the tvOS row.
+enum APIHostStatusText {
+  static func outcome(_ outcome: APIHostPool.Outcome?) -> String {
+    guard let outcome else { return String(localized: "Not used yet") }
+    let time = outcome.date.formatted(date: .omitted, time: .shortened)
+    switch outcome.kind {
+    case .answered(let status):
+      return String(localized: "Answered \(status) at \(time)")
+    case .failed(let reason):
+      return String(localized: "Failed (\(reason)) at \(time)")
+    }
+  }
+
+  static func footer(_ snapshot: APIHostPool.Snapshot) -> String {
+    let rule = String(localized: "Requests go to the checked server. When it cannot be reached or answers 502–504, the request moves to the next one, and the server that answers stays in use, after a relaunch too.")
+    guard let last = snapshot.lastSwitch else { return rule }
+    let time = last.date.formatted(date: .abbreviated, time: .shortened)
+    return rule + "\n" + String(localized: "Last switch: \(last.from) → \(last.to) (\(last.reason)), \(time).")
+  }
+}

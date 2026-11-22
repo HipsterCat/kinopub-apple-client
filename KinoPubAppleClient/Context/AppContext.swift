@@ -282,6 +282,10 @@ struct AppContext: AppContextProtocol {
 
   // MARK: - API Client building
 
+  /// kino.pub's API hosts and the one in use (Settings › Network shows them). Sticky
+  /// across launches; `BaseURL` from Info.plist is first.
+  static let apiHosts = APIHostPool(primary: URL(string: BundleConfiguration().baseURL))
+
   private static func makeApiClient(with baseURL: String, accessTokenService: AccessTokenService) -> APIClient {
     var session: URLSessionProtocol = URLSessionImpl(session: .shared)
 #if DEBUG
@@ -304,7 +308,8 @@ struct AppContext: AppContextProtocol {
       ],
       session: session,
       // Genres/countries only (see CacheableRequest). Personalized rows stay on ContentStore.
-      cache: ResponseCache()
+      cache: ResponseCache(),
+      hosts: apiHosts
     )
   }
 }

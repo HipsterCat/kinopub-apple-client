@@ -19,6 +19,9 @@ public struct ToggleWatchlistRequest: Endpoint {
     "/v1/watching/togglewatchlist"
   }
 
+  /// A toggle: sent twice it undoes itself, so it never moves to another API host.
+  public var isRepeatable: Bool { false }
+
   public var method: String {
     "GET"
   }
