@@ -115,10 +115,10 @@ struct SkipChipOverlay: View {
     Button(action: { manager.dismissSkip() }) {
       Image(systemName: "xmark")
         .font(.headline)
-        .padding(8)
+        .padding(.vertical, 10)
     }
-    .buttonStyle(.plain)
-    .foregroundStyle(.white)
+    .buttonStyle(.glass)
+    .buttonBorderShape(.circle)
     .accessibilityLabel("Player_SkipDismiss".localized)
     .accessibilityIdentifier("player.skip.cancel")
     .skipHitRegion("dismiss", in: hitRegions)
