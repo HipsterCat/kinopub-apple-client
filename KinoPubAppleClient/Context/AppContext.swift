@@ -238,6 +238,18 @@ struct AppContext: AppContextProtocol {
     // Rows read the viewer's state at paint time, not from the cached cards.
     let viewerState = ViewerStateReader(library: libraryState, progress: localProgressStore)
     let contentStore = MainActor.assumeIsolated { ContentStore(viewer: viewerState) }
+    // Every title on the server's followed list is followed: a local mark saying otherwise
+    // is stale unless toggled since the request left. Not for fixtures (stand-in ids must
+    // not land in the real store) nor unit tests (they own the shared cache).
+    let isUnitTestRun = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    if !isFixtureRun, !isUnitTestRun {
+      MainActor.assumeIsolated {
+        WatchingListCache.shared.onFollowedSerialsFetched = { [libraryState] ids, requestedAt in
+          libraryState.reconcileWatchlist(Dictionary(ids.map { ($0, true) }, uniquingKeysWith: { a, _ in a }),
+                                          requestedAt: requestedAt, onlyKnown: true)
+        }
+      }
+    }
 
     let context = AppContext(
       configuration: configuration,

@@ -103,6 +103,15 @@ public extension MediaCard {
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
   }
 
+  /// The unwatched count a cover paints: a followed series' episodes still to watch, nil
+  /// when not followed or caught up. Every sum of these covers (the «Новые серии»
+  /// subtitle) reads this, so a total never counts a number no cover shows.
+  var followedUnwatchedEpisodes: Int? {
+    guard viewerState.isFollowing == true,
+          let count = unwatchedEpisodes, count > 0 else { return nil }
+    return count
+  }
+
   /// Subscribed unwatched count from `/v1/watching/serials` — drives the Appearance
   /// chrome. Zero / nil clears the field so a caught-up series does not keep a stale N.
   public func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {

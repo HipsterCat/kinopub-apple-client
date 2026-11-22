@@ -30,6 +30,11 @@ final class WatchingListCache {
     let fetchedAt: Date
   }
 
+  /// Told the ids on every followed-serials list fetched from the network, with when the
+  /// request left — the app reconciles its local follow marks with them
+  /// (`MediaLibraryStore.reconcileWatchlist`). Unset in unit tests and fixture runs.
+  var onFollowedSerialsFetched: (([Int], Date) -> Void)?
+
   private var entries: [List: Entry] = [:]
   /// Continuations waiting on an in-flight fetch for the same list (no `Task` — keeps
   /// non-Sendable `WatchingItem` on the main actor).
@@ -91,6 +96,7 @@ final class WatchingListCache {
 
     fetching.insert(list)
     let gen = generation
+    let requestedAt = Date()
     do {
       let items: [WatchingItem]
       switch list {
@@ -104,6 +110,9 @@ final class WatchingListCache {
       guard generation == gen else { return items }
       fetching.remove(list)
       entries[list] = Entry(items: items, fetchedAt: Date())
+      if list == .serials(subscribed: true) {
+        onFollowedSerialsFetched?(items.map(\.id), requestedAt)
+      }
       let pending = waiters.removeValue(forKey: list) ?? []
       for waiter in pending { waiter.resume(returning: items) }
       return items

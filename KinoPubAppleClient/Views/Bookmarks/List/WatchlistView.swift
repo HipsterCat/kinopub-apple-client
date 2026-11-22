@@ -117,14 +117,14 @@ struct WatchlistView: View {
     }
   }
 
-  /// Episodes still unwatched across the followed serials — the same numbers the
-  /// poster chrome paints, summed.
+  /// Episodes still unwatched across the followed serials — the numbers the covers
+  /// paint (`followedUnwatchedEpisodes`), summed; the badge sums the same list.
   private var newEpisodesSubtitle: String {
-    let total = cards.compactMap(\.unwatchedEpisodes).filter { $0 > 0 }.reduce(0, +)
+    let total = cards.compactMap(\.followedUnwatchedEpisodes).reduce(0, +)
     return total > 0 ? String.localizedStringWithFormat("NewEpisodesCount".localized, total) : ""
   }
 
-  private nonisolated static func card(for item: WatchingItem) -> MediaCard {
+  nonisolated static func card(for item: WatchingItem) -> MediaCard {
     let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
     return MediaCard(id: item.id,
               posterURL: item.posters.medium,

@@ -1196,9 +1196,7 @@ public struct MediaCardView: View {
   /// caught up; never invents a count from `card.badge` (Continue Watching still uses
   /// that for «+N more»).
   private var unwatchedEpisodeCount: Int? {
-    guard card.viewerState.isFollowing == true,
-          let count = card.unwatchedEpisodes, count > 0 else { return nil }
-    return count
+    card.followedUnwatchedEpisodes
   }
 
   private var showsUnwatchedOnArtwork: Bool {

@@ -84,6 +84,16 @@ public extension WatchingItem {
   }
 }
 
+public extension Sequence where Element == WatchingItem {
+  /// Episodes still unwatched across these serials — `unwatchedCount` summed, a caught-up
+  /// series adding nothing. The tab's badge and «Новые серии»'s subtitle are this number
+  /// over the followed list, the same per-title count the covers paint: the badge summed
+  /// `new` while the covers counted `total − watched`, and the two disagreed (2026-11-22).
+  var unwatchedEpisodeTotal: Int {
+    reduce(0) { $0 + Swift.max($1.unwatchedCount ?? 0, 0) }
+  }
+}
+
 public extension WatchingItem {
   static func mock(id: Int = 1, title: String = "Тестовый / Test", new: Int? = nil) -> WatchingItem {
     WatchingItem(id: id,
