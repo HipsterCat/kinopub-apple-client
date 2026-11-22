@@ -105,6 +105,11 @@ public final class APIHostPool: @unchecked Sendable {
     // Stored by URL, not index: a reordered list must not land on a different host.
     let stored = defaults.string(forKey: storageKey)
     self.index = hosts.firstIndex { $0.id == stored } ?? 0
+    if let saved = defaults.dictionary(forKey: storageKey + ".lastSwitch"),
+       let date = saved["date"] as? Date, let from = saved["from"] as? String,
+       let to = saved["to"] as? String, let reason = saved["reason"] as? String {
+      self.lastSwitch = (date, from, to, reason)
+    }
   }
 
   /// The host requests go to now.
@@ -136,9 +141,9 @@ public final class APIHostPool: @unchecked Sendable {
     update(host: host, outcome: .failed(reason: reason), makeCurrent: false, reason: reason)
   }
 
-  /// Settings › Diagnostics: start from this host from now on.
+  /// Settings: start from this host from now on.
   public func select(_ host: Host) {
-    update(host: host, outcome: nil, makeCurrent: true, reason: "chosen in Diagnostics")
+    update(host: host, outcome: nil, makeCurrent: true, reason: "chosen by hand")
   }
 
   private func update(host: Host, outcome: Outcome.Kind?, makeCurrent: Bool, reason: String?) {
@@ -153,6 +158,13 @@ public final class APIHostPool: @unchecked Sendable {
         lastSwitch = (Date(), hosts[index].label, host.label, reason ?? lastFailureReason(excluding: host) ?? "answered")
         index = hostIndex
         defaults.set(host.id, forKey: storageKey)
+        // Kept across launches with the host itself: "why am I on a mirror?" is asked
+        // after the relaunch, not before.
+        if let lastSwitch {
+          defaults.set(["date": lastSwitch.date, "from": lastSwitch.from,
+                        "to": lastSwitch.to, "reason": lastSwitch.reason],
+                       forKey: storageKey + ".lastSwitch")
+        }
         changed = true
       }
       return changed
