@@ -53,6 +53,12 @@ struct SettingsRootView: View {
         iosCompact
       }
     }
+    // Once, on the Group: a sheet on iPad lays out `.regular` first and `.compact` next,
+    // so a `.task` on each branch ran twice per open (two `/v1/user`, two toasts).
+    .task {
+      model.fetch()
+      await loadAvatar()
+    }
     .kinopubSettingsChrome()
 #endif
   }
@@ -207,10 +213,6 @@ struct SettingsRootView: View {
       }
     }
     .navigationSplitViewStyle(.balanced)
-    .task {
-      model.fetch()
-      await loadAvatar()
-    }
     .settingsAlerts(
       showLogoutAlert: $showLogoutAlert,
       shouldShowExitAlert: $model.shouldShowExitAlert,
@@ -246,10 +248,6 @@ struct SettingsRootView: View {
         isPhone: true
       ))
       .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
-    }
-    .task {
-      model.fetch()
-      await loadAvatar()
     }
     .settingsAlerts(
       showLogoutAlert: $showLogoutAlert,
