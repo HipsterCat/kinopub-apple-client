@@ -38,13 +38,24 @@ enum MenuTypeSelectSuppression {
 
     // The block keeps its own copy of the original implementation, so it reads no
     // shared state from whatever thread UIKit calls it on.
+    let selector = #selector(UIResponder.becomeFirstResponder)
     let original = method_getImplementation(method)
     let block: @convention(block) (AnyObject) -> Bool = { receiver in
       guard GCKeyboard.coalesced != nil else { return false }
       typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
-      return unsafeBitCast(original, to: Fn.self)(receiver, #selector(UIResponder.becomeFirstResponder))
+      return unsafeBitCast(original, to: Fn.self)(receiver, selector)
     }
-    method_setImplementation(method, imp_implementationWithBlock(block))
+    let replacement = imp_implementationWithBlock(block)
+    // Added on the private class itself, never set on the method found: the class has no
+    // `becomeFirstResponder` of its own, so `class_getInstanceMethod` hands back
+    // `UIResponder`'s, and `method_setImplementation` on that rewrote it for every
+    // responder in the app. Without a hardware keyboard nothing could become first
+    // responder — the Search field, every text field on iPhone and iPad did nothing on
+    // a tap (2026-11-22, lldb: the field's `becomeFirstResponder` returned NO).
+    if !class_addMethod(keyInputClass, selector, replacement, method_getTypeEncoding(method)) {
+      // The class does define one (a later SDK): replacing it touches that class alone.
+      method_setImplementation(method, replacement)
+    }
   }
 }
 #endif
