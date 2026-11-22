@@ -69,7 +69,17 @@ struct TabsNavigationView: View {
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
   /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
   /// restores no scene, and the place was lost every time.
-  @AppStorage("selectedNavigationTab") private var storedTab = ""
+  ///
+  /// Plain `UserDefaults`, not `@AppStorage`: the shell only reads it once, at launch, and
+  /// `@AppStorage` made every section switch evaluate this whole view a second time in
+  /// the same frame — once for the switch, again for the write — so each tab's stack
+  /// updated its path twice per frame (`NavigationAuthority bound path tried to update
+  /// multiple times per frame`).
+  private static let storedTabKey = "selectedNavigationTab"
+  private var storedTab: String {
+    get { UserDefaults.standard.string(forKey: Self.storedTabKey) ?? "" }
+    nonmutating set { UserDefaults.standard.set(newValue, forKey: Self.storedTabKey) }
+  }
 #if os(macOS)
   @State private var sidebarReselectGuard = SidebarReselectGuard()
 #endif
