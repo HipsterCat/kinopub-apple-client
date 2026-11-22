@@ -1,6 +1,76 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "API server" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер API"
+          }
+        }
+      }
+    },
+    "Answered %lld at %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответил %1$lld в %2$@"
+          }
+        }
+      }
+    },
+    "Failed (%@) at %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка (%1$@) в %2$@"
+          }
+        }
+      }
+    },
+    "In use" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используется"
+          }
+        }
+      }
+    },
+    "Last switch: %@ → %@ (%@), %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последнее переключение: %1$@ → %2$@ (%3$@), %4$@."
+          }
+        }
+      }
+    },
+    "Not used yet" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё не использовался"
+          }
+        }
+      }
+    },
+    "Requests go to the checked server. When it cannot be reached or answers 502–504, the request moves to the next one, and the server that answers stays in use, after a relaunch too." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запросы идут на отмеченный сервер. Если он недоступен или отвечает 502–504, запрос уходит на следующий, и ответивший сервер остаётся основным, в том числе после перезапуска."
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {
