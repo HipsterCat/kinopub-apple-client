@@ -442,6 +442,21 @@ class MediaItemModel: ObservableObject {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in self?.objectWillChange.send() }
       .store(in: &libraryCancellables)
+    // The player closing is a return to this page even when the page never left the
+    // screen: the macOS player is its own window, and Picture in Picture ends long after
+    // the route popped. Neither runs `onAppear`, so the hero kept «2 сер» and the rail its
+    // old «Ещё 37м» (Sasha, 2026-11-22). One repaint when the session goes idle — no
+    // progress subscription, so a hidden page is not redrawn on every player tick.
+    // `stop` writes the final position before the session's `manager` turns nil.
+    PlaybackSession.shared.$manager
+      .map { $0 == nil }
+      .removeDuplicates()
+      .dropFirst()
+      .filter { $0 }
+      .sink { [weak self] _ in
+        MainActor.assumeIsolated { self?.repaintFromLocalProgress() }
+      }
+      .store(in: &libraryCancellables)
   }
 
   /// True when this page fetched its item with `nolinks=1` — episode links then arrive
@@ -870,7 +885,8 @@ class MediaItemModel: ObservableObject {
   /// payload was requested counts: anything older the server has already seen through
   /// `marktime` and answered with, and the payload is the better source for it.
   ///
-  /// Called from the page's `onAppear`, not from a progress subscription: the page stays
+  /// Called from the page's `onAppear` (and, on macOS, when its window becomes key again)
+  /// and when the player session ends, not from a progress subscription: the page stays
   /// mounted under the player, so `.task` does not run again when the player closes, and
   /// the rail kept the old checkmarks while the hero kept offering the episode just
   /// finished. Repainting on appear catches that without redrawing a hidden page on

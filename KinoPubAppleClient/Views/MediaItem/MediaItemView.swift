@@ -220,6 +220,11 @@ struct MediaItemView: View {
   /// between returning there and leaving the page.
   @State private var pageScrollMinY: CGFloat = 0
   @Environment(\.dismiss) private var dismiss
+#if os(macOS)
+  /// `.key` when this page's window is the key window again — back from the player
+  /// window (paused, still open) or from another app.
+  @Environment(\.controlActiveState) private var controlActiveState
+#endif
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
@@ -371,6 +376,13 @@ struct MediaItemView: View {
           PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
         }
       }
+#if os(macOS)
+      // The page sits beside the player window and never re-appears; focusing its window
+      // is the return. Repaints from local progress only — no request, no-op if unchanged.
+      .onChange(of: controlActiveState) { _, state in
+        if state == .key { itemModel.repaintFromLocalProgress() }
+      }
+#endif
       .onChange(of: itemModel.hasPaintedItem) { _, painted in
         if painted {
           PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
