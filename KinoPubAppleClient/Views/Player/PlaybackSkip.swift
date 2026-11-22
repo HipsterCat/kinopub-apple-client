@@ -209,10 +209,21 @@ enum SkipChipPreferences {
 }
 
 enum SkipChipVisibility {
-  /// iOS / macOS: the custom chip sits with the player chrome, and never over a
-  /// menu that chrome owns.
-  static func shown(hasOffer: Bool, controlsVisible: Bool, menuActive: Bool) -> Bool {
-    hasOffer && controlsVisible && !menuActive
+  /// iPhone / iPad: Skip takes the place of the chrome, as on tvOS. It shows while the
+  /// controls are hidden, so it never lands on the subtitles / audio buttons, and a tap
+  /// on it reaches it instead of first waking the chrome (Sasha, 2026-11-22).
+  /// Mac: the pointer wakes the chrome on its way to the chip, so there Skip stays
+  /// with the chrome; an inverse chip would vanish under the cursor.
+#if os(macOS)
+  static let followsChrome = true
+#else
+  static let followsChrome = false
+#endif
+
+  /// Never over a menu the chrome owns.
+  static func shown(hasOffer: Bool, controlsVisible: Bool, menuActive: Bool,
+                    followsChrome: Bool = SkipChipVisibility.followsChrome) -> Bool {
+    hasOffer && !menuActive && (followsChrome ? controlsVisible : !controlsVisible)
   }
 
   /// tvOS: AVKit presents `contextualActions` only when the transport bar is
@@ -223,9 +234,9 @@ enum SkipChipVisibility {
   }
 
   /// Whether the auto-skip countdown must pause.
-  /// - iOS / macOS (`chipFollowsChrome`): suspend when chrome is down or a menu is up.
-  /// - tvOS: Skip is the inverse of the transport bar — suspend when the bar is
-  ///   up or a menu is up.
+  /// - Mac (`chipFollowsChrome`): suspend when chrome is down or a menu is up.
+  /// - tvOS, iPhone, iPad: Skip is the inverse of the transport bar — suspend when
+  ///   the bar is up or a menu is up.
   static func countdownSuspended(chromeVisible: Bool, menuActive: Bool,
                                  chipFollowsChrome: Bool) -> Bool {
     chipFollowsChrome ? (!chromeVisible || menuActive) : (chromeVisible || menuActive)

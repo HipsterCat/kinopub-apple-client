@@ -235,7 +235,7 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
     manager?.skipCountdownSuspended = SkipChipVisibility.countdownSuspended(
       chromeVisible: controlsVisible,
       menuActive: menuActive,
-      chipFollowsChrome: true
+      chipFollowsChrome: SkipChipVisibility.followsChrome
     )
   }
 
@@ -641,6 +641,7 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
 @MainActor
 final class SkipChipHost {
   let chrome = PlayerChromeMonitor()
+  let hitRegions = SkipHitRegions()
 #if os(macOS)
   private var box: PlayerHitThroughView?
   private var hosting: NSHostingView<SkipChipOverlay>?
@@ -660,7 +661,7 @@ final class SkipChipHost {
       attachedView = playerView
       attachedManager = manager
     }
-    let overlay = SkipChipOverlay(manager: manager, chrome: chrome)
+    let overlay = SkipChipOverlay(manager: manager, chrome: chrome, hitRegions: hitRegions)
     if let hosting {
       if !same { hosting.rootView = overlay }
       return
@@ -669,6 +670,7 @@ final class SkipChipHost {
     host.translatesAutoresizingMaskIntoConstraints = false
     let box = PlayerHitThroughView()
     box.hosting = host
+    box.regions = hitRegions
     box.translatesAutoresizingMaskIntoConstraints = false
     box.addSubview(host)
     playerView.addSubview(box)
@@ -691,7 +693,7 @@ final class SkipChipHost {
   private weak var attachedManager: PlayerManager?
 
   func install(on controller: AVPlayerViewController, manager: PlayerManager) {
-    let overlay = SkipChipOverlay(manager: manager, chrome: chrome)
+    let overlay = SkipChipOverlay(manager: manager, chrome: chrome, hitRegions: hitRegions)
     if attachedManager !== manager || hosting == nil {
       chrome.attach(manager: manager, controller: controller)
       attachedManager = manager
@@ -705,6 +707,7 @@ final class SkipChipHost {
     host.safeAreaRegions = []
     let box = PlayerHitThroughView()
     box.hosting = host.view
+    box.regions = hitRegions
     box.backgroundColor = .clear
     box.translatesAutoresizingMaskIntoConstraints = false
     host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -757,21 +760,27 @@ final class SkipChipHost {
 #if os(macOS)
 private final class PlayerHitThroughView: NSView {
   weak var hosting: NSView?
+  weak var regions: SkipHitRegions?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    let hit = super.hitTest(point)
-    if hit == nil || hit === self || hit === hosting { return nil }
-    return hit
+    guard let hosting, let regions, !isHidden else { return nil }
+    // `point` is in the superview's coordinates.
+    let local = hosting.convert(point, from: superview)
+    let flipped = hosting.isFlipped ? local : NSPoint(x: local.x, y: hosting.bounds.height - local.y)
+    guard regions.contains(flipped) else { return nil }
+    return super.hitTest(point) ?? hosting
   }
 }
 #else
 private final class PlayerHitThroughView: UIView {
   weak var hosting: UIView?
+  weak var regions: SkipHitRegions?
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard let hosting, let regions, !isHidden else { return nil }
+    guard regions.contains(convert(point, to: hosting)) else { return nil }
     let hit = super.hitTest(point, with: event)
-    if hit == nil || hit === self || hit === hosting { return nil }
-    return hit
+    return hit === self || hit == nil ? hosting : hit
   }
 }
 #endif
