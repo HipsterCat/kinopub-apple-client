@@ -91,11 +91,18 @@ final class PlaybackSkipTests: XCTestCase {
     XCTAssertEqual(SkipAutoStyle.allCases.count, 7)
   }
 
-  func testChipStaysDownWhileChromeIsHiddenOrAMenuIsOpen() {
-    XCTAssertTrue(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: false))
-    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: false, menuActive: false))
-    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: true))
-    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: false, controlsVisible: true, menuActive: false))
+  func testMacChipStaysWithTheChromeAndNeverOverAMenu() {
+    XCTAssertTrue(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: false, followsChrome: true))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: false, menuActive: false, followsChrome: true))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: true, followsChrome: true))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: false, controlsVisible: true, menuActive: false, followsChrome: true))
+  }
+
+  func testPhoneAndPadChipTakesThePlaceOfTheChrome() {
+    XCTAssertTrue(SkipChipVisibility.shown(hasOffer: true, controlsVisible: false, menuActive: false, followsChrome: false))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: true, menuActive: false, followsChrome: false))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: true, controlsVisible: false, menuActive: true, followsChrome: false))
+    XCTAssertFalse(SkipChipVisibility.shown(hasOffer: false, controlsVisible: false, menuActive: false, followsChrome: false))
   }
 
   func testTVSkipIsActionableOnlyWithChromeDownAndNoMenu() {
