@@ -283,7 +283,15 @@ struct AppContext: AppContextProtocol {
   // MARK: - API Client building
 
   private static func makeApiClient(with baseURL: String, accessTokenService: AccessTokenService) -> APIClient {
-    APIClient(
+    var session: URLSessionProtocol = URLSessionImpl(session: .shared)
+#if DEBUG
+    // `-KINOPUBFailAPIHost api.service-kp.com` (`:502` for a gateway answer instead of an
+    // unreachable host): exercises the fallback without waiting for a real outage.
+    if let spec = UserDefaults.standard.string(forKey: "KINOPUBFailAPIHost"), !spec.isEmpty {
+      session = FailingAPIHostSession(spec: spec, wrapped: session)
+    }
+#endif
+    return APIClient(
       baseUrl: baseURL,
       plugins: [
         // `CURLLoggingPlugin` is deliberately not here: it printed every request's
@@ -294,8 +302,37 @@ struct AppContext: AppContextProtocol {
         UnauthorizedResponsePlugin(),
         AccessTokenPlugin(accessTokenService: accessTokenService)
       ],
+      session: session,
       // Genres/countries only (see CacheableRequest). Personalized rows stay on ContentStore.
       cache: ResponseCache()
     )
   }
 }
+
+#if DEBUG
+/// `-KINOPUBFailAPIHost <host>[,<host>…][:502]`: those hosts are unreachable, or answer
+/// with that status. `kino.watch` matches `kino.watch/api`.
+private final class FailingAPIHostSession: URLSessionProtocol, @unchecked Sendable {
+  private let hosts: Set<String>
+  private let status: Int?
+  private let wrapped: URLSessionProtocol
+
+  init(spec: String, wrapped: URLSessionProtocol) {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    hosts = Set(parts[0].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    status = parts.count > 1 ? Int(parts[1]) : nil
+    self.wrapped = wrapped
+  }
+
+  func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    guard let url = request.url, let host = url.host, hosts.contains(host) else {
+      return try await wrapped.data(for: request)
+    }
+    try await Task.sleep(for: .milliseconds(150))
+    if let status, let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil) {
+      return (Data("<html>\(status)</html>".utf8), response)
+    }
+    throw APIClientError.networkError(URLError(.cannotFindHost))
+  }
+}
+#endif
