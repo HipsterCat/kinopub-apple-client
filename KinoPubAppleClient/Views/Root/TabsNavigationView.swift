@@ -1144,10 +1144,14 @@ private struct MacSidebarAccount: View {
   let userService: UserService
   @EnvironmentObject private var authState: AuthState
   @Environment(\.openWindow) private var openWindow
-  @State private var name: String?
-  @State private var avatarURL: URL?
   @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 28
   @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
+
+  private var user: UserData? { UserProfileStore.shared.user }
+  private var name: String? {
+    user.map { $0.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? $0.username }
+  }
+  private var avatarURL: URL? { user?.profile.avatarURL }
 
   var body: some View {
     // The TV app's: a 60 pt row under a hairline, a 28 pt avatar, the name in the
@@ -1177,11 +1181,9 @@ private struct MacSidebarAccount: View {
       .frame(height: rowHeight)
     }
     .task {
-      guard let user = try? await userService.fetchUserData() else { return }
-      UserProfileCache.shared.save(user: user)
+      // The shared profile: the cached copy at once, `/v1/user` only when it is stale.
+      guard let user = await UserProfileStore.shared.refreshIfStale(using: userService) else { return }
       authState.rememberSignedInUsername(user.username)
-      name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
-      avatarURL = user.profile.avatarURL
     }
   }
 }

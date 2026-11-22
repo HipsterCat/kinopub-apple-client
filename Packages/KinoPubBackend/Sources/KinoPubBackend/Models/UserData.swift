@@ -54,6 +54,13 @@ public extension UserData {
 }
 
 public extension UserData {
+  /// Nothing known yet: an empty name and no subscription line, rather than a made-up one.
+  static let placeholder = UserData(username: "",
+                                    registrationDate: 0,
+                                    settings: Settings(showErotic: false, showUncertain: false),
+                                    subscription: Subscription(active: false, endTime: 0, days: 0),
+                                    profile: Profile(name: nil, avatar: nil))
+
   static func mock() -> UserData {
     UserData(username: "Test User",
              registrationDate: 0,

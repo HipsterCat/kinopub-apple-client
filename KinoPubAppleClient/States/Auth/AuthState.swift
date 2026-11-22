@@ -358,7 +358,7 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     UserDefaults.standard.removeObject(forKey: Self.pendingPreviousUsernameKey)
     do {
       let user = try await AppContext.shared.userService.fetchUserData()
-      UserProfileCache.shared.save(user: user)
+      UserProfileStore.shared.save(user)
       rememberSignedInUsername(user.username)
       if let previous {
         let prior = previous.trimmingCharacters(in: .whitespacesAndNewlines)

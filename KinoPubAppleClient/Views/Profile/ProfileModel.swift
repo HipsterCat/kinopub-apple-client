@@ -18,7 +18,8 @@ class ProfileModel {
     private var errorHandler: ErrorHandler
     private var authState: AuthState
 
-    public var userData: UserData = UserData.mock()
+    /// The shared profile (`UserProfileStore`): the cached copy until a fresh one lands.
+    public var userData: UserData { UserProfileStore.shared.user ?? .placeholder }
     var selectedLanguage: String
     var shouldShowExitAlert: Bool = false
     
@@ -34,15 +35,13 @@ class ProfileModel {
         self.authState = authState
         self.selectedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") ?? (Locale.current.language.languageCode?.identifier ?? "en")
     }
+    /// Refreshes the profile only when the cached copy is stale (`UserProfileStore`).
+    /// A failure is not shown: the screen keeps the copy it has, and nothing retries
+    /// until `UserProfileStore.retryAfterFailure` has passed.
     func fetch() {
         Task {
-            do {
-                self.userData = try await userService.fetchUserData()
-                UserProfileCache.shared.save(user: userData)
-                authState.rememberSignedInUsername(userData.username)
-            } catch {
-                errorHandler.setError(error)
-            }
+            guard let user = await UserProfileStore.shared.refreshIfStale(using: userService) else { return }
+            authState.rememberSignedInUsername(user.username)
         }
     }
     

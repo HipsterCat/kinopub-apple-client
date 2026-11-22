@@ -145,7 +145,7 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
     Task { @MainActor in
       BookmarkFoldersStore.shared.clear()
       AppContext.shared.contentStore.clearPersonalAccountData()
-      UserProfileCache.shared.clear()
+      UserProfileStore.shared.clear()
 #if os(tvOS)
       // The shelf showed this account's titles; signed out, it is the static image again.
       TopShelfPublisher.clear()
