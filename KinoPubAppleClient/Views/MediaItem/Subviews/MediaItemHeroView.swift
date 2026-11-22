@@ -395,6 +395,13 @@ struct MediaItemHeroView: View {
   /// focus. On the way back focus goes to the entry control, whatever the row turned
   /// into meanwhile — see `claimEntryAfterReturn`.
   @State private var returnsFromPlayer = false
+  /// The hero control that opened the player — Trailer, a version's pill, Play — for
+  /// the return (`claimEntryAfterReturn`).
+  @State private var playerOpener: MediaItemFocusTarget?
+  @State private var lastPlayerControl: MediaItemFocusTarget?
+  /// This appearance is a return to the page (`onAppear` saw it covered); the `.task`
+  /// that follows leaves focus to `claimEntryAfterReturn`.
+  @State private var returningAppearance = false
   /// When focus last left a control of the row, and whether that control opens the
   /// player. Read within a fraction of a second, to tell "the row changed under the
   /// focused control" and "the player took focus" from a move down the page.
@@ -526,6 +533,7 @@ struct MediaItemHeroView: View {
           // unconditionally took focus off the card (focus reads nil while a UIKit card
           // holds it), so every Back landed on the hero (Sasha, 2026-11-17).
           isCovered = false
+          returningAppearance = true
           claimEntryAfterReturn()
           return
         }
@@ -535,11 +543,20 @@ struct MediaItemHeroView: View {
         isCovered = true
         if let current = focus, current.opensPlayer {
           returnsFromPlayer = true
+          playerOpener = current
         } else if let left = focusLeftPlayerControlAt, Date().timeIntervalSince(left) < 2 {
           returnsFromPlayer = true
+          playerOpener = lastPlayerControl
         }
       }
       .task {
+        // `.task` runs again on every appearance, after `onAppear`: on a return it took
+        // Play over the control `claimEntryAfterReturn` had just given focus back to —
+        // Trailer, after Menu from the trailer (Sasha, 2026-11-22).
+        if returningAppearance {
+          returningAppearance = false
+          return
+        }
         claimActionEntryFocus()
       }
       // Follow became the main button (TMDB answered after the page opened, or the last
@@ -603,15 +620,20 @@ struct MediaItemHeroView: View {
     focusLeftRowAt = Date()
     if old.opensPlayer {
       focusLeftPlayerControlAt = Date()
+      lastPlayerControl = old
       // The page can be covered before focus lets go of the control.
-      if isCovered { returnsFromPlayer = true }
+      if isCovered {
+        returnsFromPlayer = true
+        playerOpener = old
+      }
     }
   }
 
-  /// Back on the page. From the player opened by a hero control, focus goes to the entry
-  /// control — Follow when it leads, else Play / Replay — even where tvOS would restore
-  /// the control that opened the player, or nothing at all because that control was
-  /// rebuilt. From anywhere else the system's restoration stands, unless it restored
+  /// Back on the page. From the main player, focus goes to the entry control — Follow
+  /// when it leads, else Play / Replay — even where tvOS would restore the control that
+  /// opened the player, or nothing at all because that control was rebuilt. From the
+  /// trailer (or a version's pill, Shuffle) it goes back to that control, while it is
+  /// still in the row: Menu from the trailer landed on Play (Sasha, 2026-11-22). From anywhere else the system's restoration stands, unless it restored
   /// nothing. Retried for a moment: the row repaints from the player's progress on the
   /// same appearance, and a control mid-transition does not take focus.
   private func claimEntryAfterReturn() {
@@ -627,25 +649,41 @@ struct MediaItemHeroView: View {
       }
       return
     }
+    let opener = playerOpener
+    playerOpener = nil
     Task { @MainActor in
       for delay in [0, 150, 250, 400, 500] {
         try? await Task.sleep(for: .milliseconds(delay))
         guard !isCovered else { return }
-        let target = actionEntryTarget
-        if focus == target {
-          returnsFromPlayer = false
-          return
-        }
-        if returnsFromPlayer {
-          if focus == nil || focus == .plot || focus?.isActionControl == true {
-            claim(target, reason: "back from the player")
-          }
-        } else if focus == nil, TVFocusProbe.nothingFocused {
-          claim(target, reason: "back with nothing focused")
+        let target = returnTarget(from: opener)
+        // Already there — but keep watching through the window: on tvOS 27.2 the
+        // entry control (Play) was re-asserted ~20 ms after UIKit had restored Trailer,
+        // and focus landing on Play cleared `returnsFromPlayer`, so this loop stopped
+        // claiming. The return is decided once, here, for the whole window.
+        if focus == target { continue }
+        if focus == nil || focus == .plot || focus?.isActionControl == true {
+          claim(target, reason: "back from the player")
         }
       }
       returnsFromPlayer = false
     }
+  }
+
+  /// Where focus goes back to from the player: the control that opened it when that was
+  /// not the main Play and it is still in the row, else the entry control.
+  private func returnTarget(from opener: MediaItemFocusTarget?) -> MediaItemFocusTarget {
+    let id: MediaActionID?
+    switch opener {
+    case .trailer: id = .trailer
+    case .playAlternate: id = .playAlternate
+    case .playThird: id = .playThird
+    case .shuffle: id = .shuffle
+    default: id = nil
+    }
+    guard let opener, let id, actionAppearances.contains(where: { $0.id == id }) else {
+      return actionEntryTarget
+    }
+    return opener
   }
 
   /// The main control changed — Follow promoted once TMDB dated the next episode, or
@@ -662,9 +700,10 @@ struct MediaItemHeroView: View {
         // Before the entry control has ever had focus, the claim is still ours to make:
         // the old control can be rebuilt by this very change (Replay leaves the white
         // chrome as Follow takes the lead), and the engine then parks focus on a view
-        // `@FocusState` does not name — not nothing, so the old test never claimed and
-        // the page opened with nothing a viewer could see focused (#138 CI).
-        if focus == old || (focus == nil && (TVFocusProbe.nothingFocused || !actionEntryClaimed)) {
+        // `@FocusState` does not name, or on the synopsis — neither is "nothing", so the
+        // old test never claimed and the page opened off Follow (#138 CI).
+        let preClaim = !actionEntryClaimed && (focus == nil || focus == .plot)
+        if focus == old || preClaim || (focus == nil && TVFocusProbe.nothingFocused) {
           claim(new, reason: "entry control changed \(old) → \(new)")
         } else if focus != nil {
           return

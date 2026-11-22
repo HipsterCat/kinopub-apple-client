@@ -127,6 +127,21 @@ public extension View {
 #endif
   }
 
+#if os(tvOS)
+  /// The main play control (Play / Replay) in either chrome, as **one view
+  /// type**: the white capsule when it leads, a dark see-through one beside a promoted
+  /// Follow. The quiet pill used to be `.bordered`, so a caught-up series — Follow takes
+  /// the lead ~0.5 s after the page opens — swapped Replay's button style, SwiftUI built a
+  /// new control, and the focus it held dropped onto the synopsis or nowhere (#138 CI).
+  /// Same style, different tint: the control survives and keeps focus.
+  func mediaActionPlayControlStyle(primary: Bool) -> some View {
+    buttonStyle(.borderedProminent)
+      .buttonBorderShape(.capsule)
+      .controlSize(MediaActionMetrics.controlSize)
+      .tint(primary ? Color.white : Color.white.opacity(0.16))
+  }
+#endif
+
   /// Labelled secondary capsule (Trailer, Mark Watched, a second version). tvOS and
   /// macOS: the system's bordered button — on tvOS a dark see-through platter at rest
   /// (the row is forced dark) that the focus engine turns white, the look of Rivulet and

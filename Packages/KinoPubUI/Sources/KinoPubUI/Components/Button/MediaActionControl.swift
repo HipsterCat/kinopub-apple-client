@@ -335,6 +335,14 @@ public extension View {
     } else {
       mediaActionStyle(appearance.chrome)
     }
+#elseif os(tvOS)
+    switch appearance.id {
+    case .play:
+      // One view type in both chromes, so a chrome change keeps the control (and focus).
+      mediaActionPlayControlStyle(primary: appearance.chrome == .playPill)
+    default:
+      mediaActionStyle(appearance.chrome)
+    }
 #else
     mediaActionStyle(appearance.chrome)
 #endif
