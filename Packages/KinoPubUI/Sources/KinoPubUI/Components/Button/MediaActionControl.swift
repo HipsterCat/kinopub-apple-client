@@ -43,10 +43,8 @@ public struct MediaActionLabel: View {
       }
     }
     .font(MediaActionMetrics.labelFont)
-#if !os(tvOS)
-    // The monochrome Play's label (`mediaActionPlayPillStyle`), set on the label.
+    // The white Play's dark label (`mediaActionPlayPillStyle`), set on the label.
     .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))
-#endif
 #if os(tvOS)
     // UIKit draws a button's symbol at the large scale of its title font; SwiftUI's
     // default (medium) left the detail page's glyphs ~25% smaller than the Home hero's
@@ -112,7 +110,6 @@ extension EnvironmentValues {
   @Entry var mediaActionLabelColor: Color? = nil
 }
 
-#if !os(tvOS)
 /// Only the Play pill: any other label keeps the colour its button style gives it.
 /// The pill is filled with `.primary`, so its label is the other end of the scheme —
 /// black on the white pill over a picture or in dark, white on the black one in light.
@@ -132,7 +129,13 @@ private struct PlayPillLabelColor: ViewModifier {
   func body(content: Content) -> some View {
     if isPlayPill {
       if appearsActive {
+#if os(tvOS)
+        // Always black on the white Play: a focused tvOS button hands its label the
+        // inverted appearance, and the scheme rule painted white on white under focus.
+        let label = Color.black
+#else
         let label = colorScheme == .dark ? Color.black : Color.white
+#endif
         content
           .foregroundStyle(label)
           .environment(\.mediaActionLabelColor, label)
@@ -144,7 +147,6 @@ private struct PlayPillLabelColor: ViewModifier {
     }
   }
 }
-#endif
 
 /// One box for every circle's glyph, so `bell` → `bell.and.waves…` (or a spinner)
 /// cannot widen the button and look like the row's spacing grew.
@@ -331,6 +333,14 @@ public extension View {
       mediaActionStyle(appearance.chrome)
         .help(Text(appearance.accessibilityLabel))
     } else {
+      mediaActionStyle(appearance.chrome)
+    }
+#elseif os(tvOS)
+    switch appearance.id {
+    case .play:
+      // One view type in both chromes, so a chrome change keeps the control (and focus).
+      mediaActionPlayControlStyle(primary: appearance.chrome == .playPill)
+    default:
       mediaActionStyle(appearance.chrome)
     }
 #else

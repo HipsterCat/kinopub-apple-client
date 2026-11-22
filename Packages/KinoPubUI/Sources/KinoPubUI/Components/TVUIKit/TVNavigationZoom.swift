@@ -29,8 +29,9 @@ import UIKit
 import ObjectiveC
 
 public extension View {
-  /// tvOS's scale in/out transition for the navigation stack this view is in. Once per
-  /// stack, on its root content (`appRouteDestinations`).
+  /// tvOS's scale in/out transition for the navigation stack this view is in. On the
+  /// stack's root content (`appRouteDestinations`), and on every pushed page so a page
+  /// that appears without a push still hides the tab bar. Installing twice is a no-op.
   func tvNavigationZoom() -> some View {
     background(TVNavigationZoomInstaller().frame(width: 0, height: 0))
   }
@@ -72,6 +73,9 @@ private struct TVNavigationZoomInstaller: UIViewControllerRepresentable {
     func install() {
       guard TVNavigationZoom.isAvailable, let navigation = navigationController else { return }
       ZoomingNavigationDelegate.wrap(navigation)
+      // A page above the root that was never pushed — routes set at launch, a Top Shelf
+      // link — has no `willShow` to hide the bar; it is hidden when that page appears.
+      if navigation.viewControllers.count > 1 { TabBarSlide.keepHidden(in: navigation) }
     }
   }
 }

@@ -88,6 +88,29 @@ final class TVDetailPageUITests: XCTestCase {
     try shoot("rewatch-1-back")
   }
 
+  /// Menu from the trailer brings focus back to Trailer, not to the first button of the
+  /// row (Sasha, 2026-11-22). The main player still hands focus back to Play.
+  func testTrailerKeepsFocusAfterThePlayer() throws {
+    launch("concert")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    for _ in 0..<3 where !focused("trailer").exists {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.8)
+    }
+    try waitForFocus(on: "trailer", timeout: 5, "right to the trailer")
+
+    XCUIRemote.shared.press(.select)
+    let player = app.descendants(matching: .any).matching(identifier: "kinopub.fixture.player").firstMatch
+    XCTAssertTrue(player.waitForExistence(timeout: 10), "Trailer did not open the player")
+    Thread.sleep(forTimeInterval: 1.0)
+
+    XCUIRemote.shared.press(.menu)
+    try waitForFocus(on: "trailer", timeout: 10, "back from the trailer")
+    Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(focused("trailer").exists, "focus left Trailer: \(focusedDescription)")
+    try shoot("trailer-1-back")
+  }
+
   // MARK: - Episodes kino.pub does not have
 
   func testMissingEpisodesInTheRail() throws {

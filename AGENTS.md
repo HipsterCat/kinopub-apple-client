@@ -160,7 +160,8 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 [docs/product/detail-sections.md](docs/product/detail-sections.md).
 
 - **tvOS backdrop is interim, to be redone** (Sasha, 2026-10-11) — do not defend or build on
-  `PageBackdrop`. Decided: one full-screen picture behind the content, not in the scroll; hero and
+  `PageBackdrop`. It never waits: a new title shows its card's poster blurred at once (never the
+  previous title's picture), and the details sit on the picture's blurred copy (2026-11-21). Decided: one full-screen picture behind the content, not in the scroll; hero and
   sections stay one scroll and one focus graph.
 - **On tvOS everything under the hero is one embedded TVUIKit page**, inside the hero's scroll
   view, with its own full-width `.focusSection()`. `MediaItemTVSections.make` is the order and
@@ -189,7 +190,9 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 - A background change is a fixed backdrop state plus a system material, checked in light **and**
   dark. tvOS has no `systemBackground`.
 - Blur: private `variableBlur` over static art only; no blur over video on tvOS/macOS.
-- Hero CTAs: `.glassProminent` for Play, `.glass` for the rest; the white fill is focus, not a tint.
+- Hero CTAs (Sasha, 2026-11-21): Play is a solid white capsule with a dark label in every state
+  (Replay too), the rest dark see-through: `.borderedProminent` tinted white + `.bordered` on tvOS
+  and macOS, glass on iOS. The main Play never changes chrome while the page loads.
 - No shadows on tvOS cards, badges or action buttons.
 
 ## Data and continuity

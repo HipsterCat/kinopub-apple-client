@@ -51,6 +51,23 @@ final class WatchingListCache {
     cached(.serials(subscribed: subscribed), now: now)?.first { $0.id == id }
   }
 
+  /// A title page about to paint from an older copy of the title (the last details this
+  /// session or a resume point kept): when a warm watching list counts a different number
+  /// of episodes, that copy's seasons are stale — «12 12 12» painted «2 episodes» and
+  /// «Replay E1» from the copy kept before episode 3 came out, then swapped to «Play E3»
+  /// under the focused button (Sasha, 2026-11-21). The seasons go; the page paints as a
+  /// series whose episodes are still coming, and the details fill them in. Never fetches.
+  func reconciled(_ item: MediaItem) -> MediaItem {
+    guard let listed = cachedItem(id: item.id, subscribed: true) ?? cachedItem(id: item.id, subscribed: false),
+          let total = listed.total, total > 0,
+          let seasons = item.seasons, !seasons.isEmpty else { return item }
+    let known = seasons.reduce(0) { $0 + $1.episodes.count }
+    guard known != total else { return item }
+    var fresh = item
+    fresh.seasons = nil
+    return fresh
+  }
+
   func movies(using service: VideoContentService, force: Bool = false) async throws -> [WatchingItem] {
     try await items(.movies, using: service, force: force)
   }

@@ -372,8 +372,15 @@ public struct MediaScoresView: View {
     case none
   }
 
+  /// The row builders are `nonisolated`, and so are the `ForEach` closures they form.
+  /// SwiftUI lays this view out on its async render thread when the title page's hero
+  /// animates under a system-drawn button style (tvOS `.bordered` / `.borderedProminent`
+  /// focus), and `ViewThatFits` builds the `ForEach` rows during that layout. A row
+  /// closure formed in a `@MainActor` method carries Swift 6's isolation check and
+  /// trapped there (`_swift_task_checkIsolatedSwift` on `com.apple.SwiftUI.AsyncRenderer`,
+  /// TVDetailLayoutUITests on #138). They read only this view's value properties.
   @ViewBuilder
-  private func scoresRow(_ slice: [MediaScoreItem], votes: VoteStyle) -> some View {
+  nonisolated private func scoresRow(_ slice: [MediaScoreItem], votes: VoteStyle) -> some View {
     let total = slice.compactMap(\.votes).filter { $0 > 0 }.reduce(0, +)
     if phoneLine {
       phoneRow(slice, votes: votes != .none)
@@ -397,7 +404,7 @@ public struct MediaScoresView: View {
   /// The phone's line. IMDb and Kinopoisk with their own counts, as the Home banner has
   /// them; or, when those do not fit, one count for everyone who voted, after the
   /// audiences' scores (Sasha, 2026-11-16: «сумму хотя бы»).
-  private func phoneRow(_ slice: [MediaScoreItem], votes: Bool) -> some View {
+  nonisolated private func phoneRow(_ slice: [MediaScoreItem], votes: Bool) -> some View {
     let audiences = slice.filter { ($0.votes ?? 0) > 0 }
     let total = audiences.compactMap(\.votes).reduce(0, +)
     let lastAudience = audiences.last?.id
@@ -421,7 +428,7 @@ public struct MediaScoresView: View {
   /// not white: over art the caller forces dark, on the system background in the light
   /// appearance white numbers vanished.
   @ViewBuilder
-  private func score(item: MediaScoreItem, showsVotes: Bool) -> some View {
+  nonisolated private func score(item: MediaScoreItem, showsVotes: Bool) -> some View {
 #if os(tvOS)
     HStack(spacing: Self.markSpacing) {
       scoreContent(item: item, showsVotes: showsVotes)
@@ -442,7 +449,7 @@ public struct MediaScoresView: View {
   }
 
   @ViewBuilder
-  private func scoreContent(item: MediaScoreItem, showsVotes: Bool) -> some View {
+  nonisolated private func scoreContent(item: MediaScoreItem, showsVotes: Bool) -> some View {
     MediaScoreLogo(
       item.source,
       height: usesLineMarks ? Self.lineIconHeight : Self.iconHeight,
@@ -470,15 +477,15 @@ public struct MediaScoresView: View {
     }
   }
 
-  private var usesLineMarks: Bool { detailLine || bannerLine || phoneLine }
+  nonisolated private var usesLineMarks: Bool { detailLine || bannerLine || phoneLine }
 
-  private var logoStyle: MediaScoreLogo.Style {
+  nonisolated private var logoStyle: MediaScoreLogo.Style {
     if fadedIcons { return .template }
     return usesLineMarks ? .line : .color
   }
 
   /// Under-poster row: half the hero/detail group gap (KP-33).
-  private var rowSpacing: CGFloat {
+  nonisolated private var rowSpacing: CGFloat {
     collapsesVotesToFit ? Self.captionGroupSpacing : Self.groupSpacing
   }
 

@@ -246,7 +246,7 @@ public enum MediaActionCatalog {
     if context.showsTrailer {
       row.append(trailer(for: context))
     }
-    row.append(play(for: context)) // Replay — playAgain chrome/title
+    row.append(play(for: context, primary: false)) // Replay — the quiet pill beside Follow
     row.append(bookmark(for: context))
     if let download = download(for: context) {
       row.append(download)
@@ -302,7 +302,7 @@ public enum MediaActionCatalog {
     case .playAgain:
       return MediaActionAppearance(
         id: id,
-        chrome: .pill,
+        chrome: index == 0 ? .playPill : .pill,
         systemImage: "arrow.clockwise",
         title: title,
         accessibilityLabel: title,
@@ -330,7 +330,12 @@ public enum MediaActionCatalog {
     }
   }
 
-  public static func play(for context: MediaActionContext) -> MediaActionAppearance {
+  /// The main Play keeps **one chrome in every state** — the white capsule, Replay
+  /// included. Replay used to be the quiet pill, so a title whose state changed while the
+  /// page loaded (a stale «Replay E1» becoming «Play E3») got a different control under
+  /// the focused one, and focus fell onto the synopsis (Sasha, 2026-11-21). `primary`
+  /// false is Replay standing beside a promoted Follow, which is the white one there.
+  public static func play(for context: MediaActionContext, primary: Bool = true) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
     let playback = context.choosesVersion ? versionChooserPlayback(context.playback) : context.playback
     let caption = MediaActionCopy.playCaption(playback: playback, kind: context.kind,
@@ -340,7 +345,7 @@ public enum MediaActionCatalog {
     case .playAgain:
       return MediaActionAppearance(
         id: .play,
-        chrome: .pill,
+        chrome: primary ? .playPill : .pill,
         systemImage: replayGlyph,
         title: caption.title,
         accessibilityLabel: caption.accessibility,
