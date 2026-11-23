@@ -616,6 +616,10 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
       guard let controller else { return }
       skip.install(on: controller, manager: manager)
       skip.bringToFront()
+      // Asking for full screen means ready to watch: the controls leave at once, as
+      // in the TV app and YouTube, not after AVKit's idle delay (Sasha, 2026-11-23).
+      // The next pointer move brings them back as usual.
+      idleControls.hideNow(playerView)
     }
 
     /// Leaving happens once, however many times the host reports it.
@@ -974,6 +978,12 @@ final class MacIdleControlsHider {
   /// AVKit's own idle hide is `-[AVDesktopPlayerViewContentView _hideControlsWithTrigger:]`
   /// (`NSUInteger`); trigger 0 fades the panel out in the window and in full screen, and the
   /// next pointer move brings it back as usual. Missing on a future SDK → AVKit's behaviour.
+  /// Hides the controls now, wherever the panel is (window or full screen).
+  func hideNow(_ view: AVPlayerView) {
+    awaySince = nil
+    hideControls(view)
+  }
+
   private func hideControls(_ view: AVPlayerView) {
     guard let ivar = class_getInstanceVariable(AVPlayerView.self, "_contentView"),
           let content = object_getIvar(view, ivar) as? NSView else { return }
