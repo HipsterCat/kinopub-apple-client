@@ -253,11 +253,15 @@ public struct HomeHeroCarousel: View {
     // already sits where it was built, and moving it onto its own page there scrolled it
     // inside the scroll's own update (`<OnScrollGeometryChange Modifier> tried to update
     // multiple times per frame`, Sasha's Mac launch log 2026-11-23).
-    .onChange(of: size.width) {
-      guard !isOnCurrentPage else { return }
-      move(to: current, animated: false)
-    }
+    // A new width (a resize, or the page settling beside the Mac's sidebar at launch,
+    // 1136 → 1060 pt) leaves the pager off its page. Put back once that layout is done,
+    // not inside it: a scroll from `onChange(of: size.width)` moved the scroll's geometry
+    // a second time in the frame that changed it (`OnScrollGeometryChange tried to update
+    // multiple times per frame`, Sasha's Mac launch log 2026-11-23).
     .task(id: size.width) {
+      await Task.yield()
+      guard !Task.isCancelled else { return }
+      if !isOnCurrentPage { move(to: current, animated: false) }
       try? await Task.sleep(for: .milliseconds(300))
       guard !Task.isCancelled else { return }
       // Built afresh only when the scroll view stayed off its page after the re-snap
