@@ -61,9 +61,7 @@ struct PlaybackSettingsPane: View {
     } header: {
       Text("Playback")
     } footer: {
-      Text("Settings_Tip_AutoPlayNextEpisode")
-        + Text("\n\n")
-        + Text("Settings_Tip_ContinueToNextSeason")
+      Text("\(Text("Settings_Tip_AutoPlayNextEpisode"))\n\n\(Text("Settings_Tip_ContinueToNextSeason"))")
     }
   }
 
