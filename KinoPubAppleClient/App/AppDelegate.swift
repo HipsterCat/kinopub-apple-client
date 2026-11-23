@@ -68,8 +68,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// Recently played titles above the Dock menu's window list, as IINA has them.
+  @MainActor
   func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-    MainActor.assumeIsolated { RecentPlaybacks.shared.dockMenu() }
+    RecentPlaybacks.shared.dockMenu()
   }
 }
 #endif
