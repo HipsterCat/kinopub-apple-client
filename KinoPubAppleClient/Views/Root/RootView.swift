@@ -52,6 +52,7 @@ struct RootView: View {
           .frame(minWidth: 440, idealWidth: 520, minHeight: 500, idealHeight: 560)
           .interactiveDismissDisabled()
       }
+      .onAppear { PlaybackWindowState.shared.opener = openWindow }
       .onChange(of: navigationState.playerWindowRequestID) { _, requestID in
         guard requestID != nil else { return }
         openWindow(id: PlaybackWindowState.windowID)

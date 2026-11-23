@@ -158,18 +158,16 @@ struct KinoPubAppleClientApp: App {
     // Unified toolbar with the page's title in it, as the TV app's: large beside Back,
     // inline once the page scrolls (`toolbarTitleDisplayMode(.inlineLarge)` per page).
     .windowToolbarStyle(.unified(showsTitle: true))
-    // "New Window" was the File menu's only item, so removing it drops the whole
-    // File menu — expected for now. A second library window would duplicate
-    // NavigationState, AuthState, etc. per-scene in ways the app doesn't support.
-    // File menu comes back once it has a real item (e.g. a new-bookmark-list
-    // command, the way the TV app's File menu has New Playlist).
+    // No "New Window": a second library window would duplicate NavigationState,
+    // AuthState, etc. per-scene in ways the app doesn't support. The File menu holds
+    // Open Recent instead — the titles played last, as IINA lists its files.
     .commands {
       AboutCommands()
       SettingsCommands()
 #if DEBUG
       UILabCommands()
 #endif
-      CommandGroup(replacing: .newItem) { }
+      CommandGroup(replacing: .newItem) { OpenRecentMenu() }
       // Keep for when `.sidebarAdaptable` returns — hide View → Hide Sidebar.
       // Harmless with classic `.tabBarOnly` (no sidebar chrome).
       CommandGroup(replacing: .sidebar) { }
