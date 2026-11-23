@@ -816,6 +816,8 @@ private struct MacVideoPlayer: NSViewRepresentable {
 
     func playerViewDidEnterFullScreen(_ playerView: AVPlayerView) {
       stepAside(playerView)
+      // The chip went along with AVKit's content view; on top of the full-screen controls.
+      skip.bringToFront()
     }
 
     func playerView(_ playerView: AVPlayerView,
@@ -828,6 +830,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
     func playerViewDidExitFullScreen(_ playerView: AVPlayerView) {
       isFullScreen = false
       comeBack(playerView)
+      skip.bringToFront()
     }
 
     // MARK: Picture in Picture
@@ -885,6 +888,8 @@ final class MacIdleControlsHider {
   private weak var playerView: AVPlayerView?
   private var timer: Timer?
   private var awaySince: Date?
+  private var shownSince: Date?
+  private var reportedStuck = false
 
   func attach(to view: AVPlayerView) {
     playerView = view
@@ -903,24 +908,49 @@ final class MacIdleControlsHider {
   }
 
   private func tick() {
-    guard let view = playerView, controlsShown(view),
-          let panel = controlsPanel(in: view), let window = panel.window, window.isVisible,
-          NSApp.windows.allSatisfy({ !$0.isVisible || !PlayerTransportMenu.looksLikeMenu(String(describing: type(of: $0))) })
+    guard let view = playerView, controlsShown(view) else {
+      awaySince = nil
+      shownSince = nil
+      reportedStuck = false
+      return
+    }
+    let shown = shownSince ?? Date()
+    shownSince = shown
+    let menus = NSApp.windows.filter {
+      $0.isVisible && PlayerTransportMenu.looksLikeMenu(String(describing: type(of: $0)))
+    }
+    guard let panel = controlsPanel(in: view), let window = panel.window, window.isVisible, menus.isEmpty
     else {
       awaySince = nil
+      reportStuck(view, since: shown, onPanel: nil, menus: menus)
       return
     }
     let frame = window.convertToScreen(panel.convert(panel.bounds, to: nil))
     if frame.contains(NSEvent.mouseLocation) {
       awaySince = nil
+      reportStuck(view, since: shown, onPanel: true, menus: menus)
       return
     }
     let since = awaySince ?? Date()
     awaySince = since
     if Date().timeIntervalSince(since) >= Self.timeout {
       awaySince = nil
+      Logger.app.info("Player controls: hiding after \(Int(Self.timeout))s with the pointer away (\(String(describing: type(of: window)), privacy: .public))")
       hideControls(view)
     }
+    reportStuck(view, since: shown, onPanel: false, menus: menus)
+  }
+
+  /// Controls up for a long while: one line with what keeps them, for the next report of
+  /// a panel that never leaves (full screen, Sasha 2026-11-23 — not reproduced here: AVKit
+  /// hid it after 3 s idle and this hider after 15 s, with no menu pinning it).
+  private func reportStuck(_ view: AVPlayerView, since: Date, onPanel: Bool?, menus: [NSWindow]) {
+    guard !reportedStuck, Date().timeIntervalSince(since) >= Self.timeout * 2 else { return }
+    reportedStuck = true
+    let canHide = view.value(forKey: "canHideControls") as? Bool
+    let fullScreen = view.value(forKey: "isFullScreen") as? Bool
+    let menuNames = menus.map { String(describing: type(of: $0)) }.joined(separator: ",")
+    Logger.app.info("Player controls: up \(Int(Date().timeIntervalSince(since)))s fullScreen=\(String(describing: fullScreen), privacy: .public) canHide=\(String(describing: canHide), privacy: .public) pointerOnPanel=\(String(describing: onPanel), privacy: .public) menus=[\(menuNames, privacy: .public)] active=\(NSApp.isActive)")
   }
 
   /// `controlsHidden`: the private, KVO-compliant getter `PlayerChromeMonitor` observes.

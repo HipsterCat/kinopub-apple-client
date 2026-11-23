@@ -241,6 +241,9 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
 
   private func setMenu(_ active: Bool) {
     guard menuActive != active else { return }
+    // A menu pins the chrome (`setCanHideControls:false`): logged, so a panel that stays
+    // up can be told apart from one pinned by a menu we think is still open.
+    Logger.app.info("Player chrome: menu \(active ? "open, controls pinned" : "closed, controls free", privacy: .public)")
     menuActive = active
     if active {
       setCanHideControls(false)
@@ -673,12 +676,7 @@ final class SkipChipHost {
     box.regions = hitRegions
     box.translatesAutoresizingMaskIntoConstraints = false
     box.addSubview(host)
-    playerView.addSubview(box)
     NSLayoutConstraint.activate([
-      box.leadingAnchor.constraint(equalTo: playerView.leadingAnchor),
-      box.trailingAnchor.constraint(equalTo: playerView.trailingAnchor),
-      box.topAnchor.constraint(equalTo: playerView.topAnchor),
-      box.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
       host.leadingAnchor.constraint(equalTo: box.leadingAnchor),
       host.trailingAnchor.constraint(equalTo: box.trailingAnchor),
       host.topAnchor.constraint(equalTo: box.topAnchor),
@@ -686,6 +684,35 @@ final class SkipChipHost {
     ])
     self.box = box
     self.hosting = host
+    place(box, in: Self.chipParent(of: playerView))
+  }
+
+  /// **The chip rides in AVKit's content view, so it goes to full screen with the picture.**
+  /// AVKit's full screen is a window of its own (`AVDetachedFullscreenWindow`) that takes
+  /// `AVPlayerView`'s content view — video, controls and all — and leaves the
+  /// `AVPlayerView` behind in the player window, which we order out. A box added to the
+  /// `AVPlayerView` itself stayed there, unseen (Sasha, 2026-11-23). Inside the content
+  /// view it moves with the picture both ways, and the controls' `controlsHidden` KVO on
+  /// the `AVPlayerView` still follows the full-screen panel (probed on macOS 27.2).
+  /// The content view is AVKit's private `_contentView` ivar, made lazily; until it
+  /// exists, and on an SDK without it, the box sits on the `AVPlayerView` as before.
+  private static func chipParent(of playerView: AVPlayerView) -> NSView {
+    guard let ivar = class_getInstanceVariable(AVPlayerView.self, "_contentView"),
+          let content = object_getIvar(playerView, ivar) as? NSView else { return playerView }
+    return content
+  }
+
+  private func place(_ box: NSView, in parent: NSView) {
+    guard box.superview !== parent || parent.subviews.last !== box else { return }
+    // Re-adding drops the box's constraints to its parent, so they are made again.
+    box.removeFromSuperview()
+    parent.addSubview(box)
+    NSLayoutConstraint.activate([
+      box.leadingAnchor.constraint(equalTo: parent.leadingAnchor),
+      box.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
+      box.topAnchor.constraint(equalTo: parent.topAnchor),
+      box.bottomAnchor.constraint(equalTo: parent.bottomAnchor),
+    ])
   }
 #endif
 
@@ -748,8 +775,8 @@ final class SkipChipHost {
 
   func bringToFront() {
 #if os(macOS)
-    guard let box, let parent = box.superview else { return }
-    parent.addSubview(box)
+    guard let box, let playerView = attachedView else { return }
+    place(box, in: Self.chipParent(of: playerView))
 #else
     guard let box, let parent = box.superview else { return }
     parent.bringSubviewToFront(box)

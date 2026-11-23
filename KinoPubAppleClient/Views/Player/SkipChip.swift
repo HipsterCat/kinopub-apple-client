@@ -95,17 +95,21 @@ struct SkipChipOverlay: View {
         dismissButton
       }
     }
+    // One control size for the row: the system gives Skip's capsule and ✕'s circle the
+    // same height (macOS draws a fixed-height bezel for a size, whatever the label).
+    .controlSize(.extraLarge)
   }
 
   private var skipButton: some View {
     Button(action: { manager.performSkip() }) {
       skipLabel
         .font(.headline)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 6)
         .modifier(SkipProgressDecoration(style: style, fractionLeft: manager.skipCountdownLeft))
     }
     .modifier(SkipGlassProminence(prominent: cancel.skipIsProminent))
+    // macOS glass draws a rounded rectangle by default; iOS is a capsule already.
+    .buttonBorderShape(.capsule)
     .accessibilityLabel(accessibilityTitle)
     .accessibilityIdentifier("player.skip")
     .skipHitRegion("skip", in: hitRegions)
@@ -115,7 +119,6 @@ struct SkipChipOverlay: View {
     Button(action: { manager.dismissSkip() }) {
       Image(systemName: "xmark")
         .font(.headline)
-        .padding(.vertical, 10)
     }
     .buttonStyle(.glass)
     .buttonBorderShape(.circle)
@@ -236,12 +239,34 @@ final class SkipHitRegions {
 
 private extension View {
   func skipHitRegion(_ id: String, in regions: SkipHitRegions) -> some View {
-    onGeometryChange(for: CGRect.self) { proxy in
-      proxy.frame(in: .named(SkipHitRegions.space))
-    } action: { rect in
-      regions.set(rect, for: id)
-    }
-    .onDisappear { regions.remove(id) }
+    modifier(SkipHitRegionReporter(id: id, regions: regions))
+  }
+}
+
+/// Reports a button's frame, and reports it again each time the button appears.
+/// The Mac host moves between windows (AVKit's full screen takes the content view
+/// along), and each move is a disappear and an appear with the same geometry:
+/// `onGeometryChange` alone stays quiet, so the frame removed on disappear never came
+/// back and clicks on Skip / ✕ in full screen went nowhere (probed on macOS 27.2).
+private struct SkipHitRegionReporter: ViewModifier {
+  let id: String
+  let regions: SkipHitRegions
+  @State private var appearance = 0
+
+  private struct Report: Equatable {
+    var frame: CGRect
+    var appearance: Int
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .onGeometryChange(for: Report.self) { proxy in
+        Report(frame: proxy.frame(in: .named(SkipHitRegions.space)), appearance: appearance)
+      } action: { report in
+        regions.set(report.frame, for: id)
+      }
+      .onAppear { appearance &+= 1 }
+      .onDisappear { regions.remove(id) }
   }
 }
 
