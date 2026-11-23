@@ -183,6 +183,7 @@ struct KinoPubAppleClientApp: App {
     // neither, and no way out once playback began.
     Window("Player", id: PlaybackWindowState.windowID) {
       PlayerWindowContent()
+        .listedInWindowMenu()
         .environment(\.appContext, AppContext.shared)
         .environment(navigationState)
         .environmentObject(authState)
@@ -212,6 +213,7 @@ struct KinoPubAppleClientApp: App {
     // System Settings–style sidebar + toolbar. Opened via App menu / ⌘, / profile button.
     Window("Settings", id: SettingsWindow.id) {
       SettingsView()
+        .listedInWindowMenu()
         .environment(\.appContext, AppContext.shared)
         .environment(windowSettings)
         .environmentObject(authState)

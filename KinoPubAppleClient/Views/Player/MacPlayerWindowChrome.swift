@@ -251,3 +251,45 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
   }
 }
 #endif
+
+#if os(macOS)
+import SwiftUI
+
+/// Puts the hosting window in Window › and the Dock's window list, with the system's check
+/// mark on the active one. `.commandsRemoved()` on a `Window` scene takes the window out of
+/// that list along with its menu item; the player and Settings windows are windows of
+/// their own and belong in it (Sasha, 2026-11-23).
+private struct WindowMenuListing: NSViewRepresentable {
+  final class Probe: NSView {
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      list()
+      // SwiftUI finishes setting the scene's window up after the first attach.
+      DispatchQueue.main.async { [weak self] in self?.list() }
+    }
+
+    func list() {
+      guard let window, window.isExcludedFromWindowsMenu else { return }
+      window.isExcludedFromWindowsMenu = false
+      if !window.title.isEmpty { NSApp.changeWindowsItem(window, title: window.title, filename: false) }
+    }
+  }
+
+  func makeNSView(context: Context) -> Probe {
+    let view = Probe()
+    view.isHidden = true
+    return view
+  }
+
+  func updateNSView(_ nsView: Probe, context: Context) {
+    nsView.list()
+  }
+}
+
+extension View {
+  /// See `WindowMenuListing`.
+  func listedInWindowMenu() -> some View {
+    background(WindowMenuListing())
+  }
+}
+#endif
