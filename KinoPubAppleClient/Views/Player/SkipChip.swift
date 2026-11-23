@@ -215,7 +215,7 @@ struct SkipChipOverlay: View {
 /// empty space on its own: the buttons report their frames here instead.
 @MainActor
 final class SkipHitRegions {
-  static let space = "skip.chip"
+  nonisolated static let space = "skip.chip"
 
   var enabled = false
   private var rects: [String: CGRect] = [:]

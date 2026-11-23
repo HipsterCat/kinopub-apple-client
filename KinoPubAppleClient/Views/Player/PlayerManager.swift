@@ -39,6 +39,7 @@ enum PlaybackState: Equatable {
   case failed(String)
 }
 
+@MainActor
 class PlayerManager: ObservableObject, @unchecked Sendable {
 
   @Published var isPlaying: Bool = false
@@ -576,7 +577,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     return "Couldn't Load".localized
   }
 
-  deinit {
+  isolated deinit {
     cueLoadTasks.forEach { $0.cancel() }
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
@@ -1075,13 +1076,16 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       season: playItem.metadata.season,
       episode: playItem.metadata.video
     )
-    Task.detached(priority: .utility) { [weak self] in
-      guard let self else { return }
+    let service = actionsService
+    let id = playItem.metadata.id
+    let video = playItem.metadata.video
+    let season = playItem.metadata.season
+    Task.detached(priority: .utility) {
       do {
-        try await self.actionsService.markWatch(id: self.playItem.metadata.id,
-                                                time: Int(duration),
-                                                video: self.playItem.metadata.video,
-                                                season: self.playItem.metadata.season)
+        try await service.markWatch(id: id,
+                                    time: Int(duration),
+                                    video: video,
+                                    season: season)
       } catch {
         Logger.app.error("Failed to mark finished: \(error)")
       }
@@ -1783,7 +1787,7 @@ extension PlayerManager {
   }
 
   private func subtitleActions(current: SubtitleTrack?,
-                               pick: @escaping @Sendable (SubtitleTrack?) -> Void) -> [UIAction] {
+                               pick: @escaping @MainActor (SubtitleTrack?) -> Void) -> [UIAction] {
     let off = UIAction(title: "Off".localized,
                        state: current == nil ? .on : .off) { _ in pick(nil) }
     let tracks = subtitleTracks.map { track in

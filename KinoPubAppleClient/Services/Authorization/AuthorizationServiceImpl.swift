@@ -140,9 +140,9 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
 
   func clearPersonalSessionData() {
     BookmarkMembershipStore.shared.clear()
-    AppContext.shared.libraryState.clear()
-    AppContext.shared.localProgressStore.clearAll()
     Task { @MainActor in
+      AppContext.shared.libraryState.clear()
+      AppContext.shared.localProgressStore.clearAll()
       BookmarkFoldersStore.shared.clear()
       AppContext.shared.contentStore.clearPersonalAccountData()
       UserProfileStore.shared.clear()

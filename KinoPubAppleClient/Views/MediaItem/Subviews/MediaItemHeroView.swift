@@ -1916,7 +1916,7 @@ struct MediaItemHeroView: View {
         }
         .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+        .accessibilityLabel(Text("\(Text("MediaItem_Views")) \(views.formatted())"))
       }
     }
     .fixedSize()
@@ -1944,7 +1944,7 @@ struct MediaItemHeroView: View {
         }
         .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+        .accessibilityLabel(Text("\(Text("MediaItem_Views")) \(views.formatted())"))
       }
     }
     .fixedSize()
@@ -2070,7 +2070,7 @@ struct MediaItemHeroView: View {
           Text(verbatim: formattedViewCount(views))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+        .accessibilityLabel(Text("\(Text("MediaItem_Views")) \(views.formatted())"))
       }
     }
     .lineLimit(1)
@@ -2152,7 +2152,7 @@ struct MediaItemHeroView: View {
             Text(verbatim: formattedViewCount(views))
           }
           .accessibilityElement(children: .ignore)
-          .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+          .accessibilityLabel(Text("\(Text("MediaItem_Views")) \(views.formatted())"))
         }
       }
       .lineLimit(1)

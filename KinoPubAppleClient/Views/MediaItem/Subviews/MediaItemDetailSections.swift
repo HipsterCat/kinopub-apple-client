@@ -1045,6 +1045,7 @@ private struct RatingTileButtonStyle: ButtonStyle {
 /// followed was correct-ish but visibly not native.
 ///
 /// Do not add `hoverEffect`, `scaleEffect`, `brightness` or `isFocused` branches on top of this.
+@MainActor
 enum DetailTileStyle {
   static var buttonStyle: some PrimitiveButtonStyle {
 #if os(tvOS)
