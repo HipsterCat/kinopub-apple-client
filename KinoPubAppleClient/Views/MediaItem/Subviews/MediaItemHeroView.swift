@@ -2005,35 +2005,26 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// «2ч 47м  [4K]  Русский, дубляж + ещё 5  Английский  Русский, Английский»: how long
-  /// what Play opens runs, the drawn quality badges, then the sound and the subtitles in
-  /// the viewer's own languages only (Sasha, 2026-11-08).
+  /// The playback line, one format on every screen (Sasha, 2026-11-23: the Mac's
+  /// «26 мин HD Русский, дубляж» and the iPhone's «26 мин Рус, Қаз DUB HD» were two
+  /// formats for one thing): «45 мин  〰 Рус, Eng [DUB] [CC] [4K] [16+]», short the way
+  /// Kinopoisk writes it (Sasha, 2026-11-16). The details are in the synopsis sheet.
+  /// What does not fit gives way from the front of the tags: the voicing, then the
+  /// runtime, then all but the first language. The age rating closes it on a phone
+  /// only; elsewhere it is in the facts line. kino.pub's views close it where there is
+  /// no score for them to follow (`scoresLine`) — on a phone they take the scores' slot.
   @ViewBuilder
   private var playbackLine: some View {
-    if centersColumn {
-      phonePlaybackLine
-    } else {
-      regularPlaybackLine
-    }
-  }
-
-  /// The phone's playback line, always one line, short the way Kinopoisk writes it
-  /// (Sasha, 2026-11-16): «45 мин  Рус, Eng [DUB] [CC] [4K] [16+]». The details are a
-  /// tap away in the synopsis sheet. What does not fit gives way from the front of the
-  /// tags: the voicing, then the runtime, then all but the first language.
-  @ViewBuilder
-  private var phonePlaybackLine: some View {
     let runtime = runtimeText
     let languages = audioLanguageCodes
     let voicing = preferredVoicingTag
     let captions = subtitleSummary != nil
-    let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
-    // The views stand in the scores' slot when there are no scores (`scoresLine`).
-    let views = 0
+    let rating = centersColumn ? ageRating.flatMap { $0.isEmpty ? nil : $0 } : nil
+    let views = centersColumn || lineScores.hasDisplayableScore ? 0 : mediaItem.views
     let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
       + (rating.flatMap(MediaBadgeImages.ageRatingAssetName).map { [$0] } ?? [])
     let typedRating = rating.flatMap { MediaBadgeImages.ageRatingAssetName($0) == nil ? $0 : nil }
-    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil {
+    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0 {
       ViewThatFits(in: .horizontal) {
         phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
                          badges: badges, typedRating: typedRating, views: views)
@@ -2044,7 +2035,7 @@ struct MediaItemHeroView: View {
         phonePlaybackRow(runtime: nil, languages: Array(languages.prefix(1)), voicing: nil, captions: captions,
                          badges: badges, typedRating: typedRating, views: 0)
       }
-      .font(Self.phoneMetaFont)
+      .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
       .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
     }
@@ -2057,10 +2048,19 @@ struct MediaItemHeroView: View {
         Text(verbatim: runtime)
       }
       if !languages.isEmpty {
-        Text(verbatim: languages.joined(separator: ", "))
+        // The sound's glyph before its languages, as the player's audio menu has it.
+        HStack(spacing: Self.glyphSpacing) {
+          Image(systemName: Self.voicingSymbol)
+          Text(verbatim: languages.joined(separator: ", "))
+        }
       }
       if let voicing {
-        PlaybackTag(voicing)
+        // Drawn where `badges/` has the mark («dub»), typed otherwise («MVO», «VO»).
+        if let asset = Self.voicingBadgeAssets[voicing] {
+          MediaBadgeImages([asset])
+        } else {
+          PlaybackTag(voicing)
+        }
       }
       if captions {
         MediaBadgeImages(["CC"])
@@ -2110,6 +2110,9 @@ struct MediaItemHeroView: View {
 
   static let phoneLanguageLimit = 3
 
+  /// kino.pub's voicing word → its drawing in `Media.xcassets/badges`.
+  static let voicingBadgeAssets: [String: String] = ["DUB": "dub"]
+
   /// kino.pub's short word for the best voicing in the viewer's first language that is
   /// voiced at all: «DUB», «MVO», «VO». Nil for the original sound.
   private var preferredVoicingTag: String? {
@@ -2122,75 +2125,6 @@ struct MediaItemHeroView: View {
       return voice.shortTitle
     }
     return nil
-  }
-
-  @ViewBuilder
-  private var regularPlaybackLine: some View {
-    let runtime = runtimeText
-    let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
-    let audio = audioSummary
-    let subtitles = subtitleSummary
-    // kino.pub's views, when there is no score for them to follow (`scoresLine`).
-    let views = lineScores.hasDisplayableScore ? 0 : mediaItem.views
-    if runtime != nil || !badges.isEmpty || audio != nil || subtitles != nil || views > 0 {
-      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
-                      centersRows: centersColumn) {
-        if let runtime {
-          Text(verbatim: runtime)
-        }
-        if !badges.isEmpty {
-          MediaBadgeImages(badges)
-        }
-        if let audio {
-          HStack(spacing: Self.glyphSpacing) {
-            Image(systemName: Self.voicingSymbol)
-            Text(verbatim: audio)
-          }
-        }
-        if let subtitles {
-          HStack(spacing: Self.glyphSpacing) {
-            Image(systemName: Self.subtitlesSymbol)
-            Text(verbatim: subtitles)
-          }
-        }
-        if views > 0 {
-          HStack(spacing: Self.glyphSpacing) {
-            Image(systemName: Self.viewsSymbol)
-            Text(verbatim: formattedViewCount(views))
-          }
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel(Text("\(Text("MediaItem_Views")) \(views.formatted())"))
-        }
-      }
-      .lineLimit(1)
-      .font(Self.secondaryFont)
-      .foregroundStyle(heroMetaForeground)
-      .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
-    }
-  }
-
-  /// Each of the viewer's languages the title has, in their order: the language, its
-  /// best voicing by the player's ladder (kino.pub's own word for it), and how many more
-  /// tracks there are in it — «Русский, дубляж + ещё 5  Английский». The original says
-  /// no voicing. Other languages are left out; nil when none of the viewer's is there.
-  private var audioSummary: String? {
-    let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
-    let parts = viewerLanguages.compactMap { key -> String? in
-      let inLanguage = tracks.filter { SubtitleTracks.languageKey($0.lang) == key }
-      guard let name = languageName(key), !inLanguage.isEmpty else { return nil }
-      var text = name
-      let best = inLanguage.min { rank($0) < rank($1) }
-      if let best, let voice = best.typeId.flatMap(VoiceType.init(rawValue:)),
-         voice != .original, voice != .undetermined,
-         let title = best.typeTitle?.trimmingCharacters(in: .whitespaces), !title.isEmpty {
-        text += ", " + title.lowercased()
-      }
-      if inLanguage.count > 1 {
-        text += " " + String(format: "MediaItem_PlusMoreCount".localized, inLanguage.count - 1)
-      }
-      return text
-    }
-    return parts.isEmpty ? nil : parts.joined(separator: "  ")
   }
 
   /// The viewer's languages among the subtitles: «Русский, Английский».
@@ -2479,12 +2413,21 @@ struct MediaItemHeroView: View {
 
   private var actionAppearances: [MediaActionAppearance] {
 #if os(macOS)
-    // The window toolbar carries these on a Mac (`MediaItemView`).
-    MediaActionCatalog.row(for: actionContext).filter { $0.id != .bookmark && $0.id != .markWatched }
+    // The bell is in the window toolbar on a Mac, as in the iPhone's navigation bar, and
+    // Bookmarks here in the row on both (Sasha, 2026-11-23); Mark as Watched is in «…»
+    // (`MediaItemView`). Labelled Follow, when it leads the row, stays.
+    MediaActionCatalog.row(for: actionContext).filter { appearance in
+      switch appearance.id {
+      case .markWatched: false
+      case .follow: appearance.chrome != .circle
+      default: true
+      }
+    }
+    .map(Self.trailerSaysItsWord)
 #elseif os(iOS)
     let row = MediaActionCatalog.row(for: actionContext)
     // iPad: the Mac's row — Mark as Watched is in «…» (Sasha, 2026-11-16).
-    guard phoneHeroGrows else { return row.filter { $0.id != .markWatched } }
+    guard phoneHeroGrows else { return row.filter { $0.id != .markWatched }.map(Self.trailerSaysItsWord) }
     // iPhone: what plays, and Bookmarks, as on the Home banner (Sasha, 2026-11-10,
     // 2026-11-16). The bell is in the navigation bar, top right; Download and Mark as
     // Watched in «…»; Shuffle and starting over in Play's long press. Trailer says its
@@ -2498,15 +2441,22 @@ struct MediaItemHeroView: View {
         default: true
         }
       }
-      .map { appearance in
-        var compact = MediaActionCatalog.compactPlay(appearance)
-        if compact.id == .trailer, compact.title != nil { compact.systemImage = "" }
-        return compact
-      }
+      .map { Self.trailerSaysItsWord(MediaActionCatalog.compactPlay($0)) }
 #else
     MediaActionCatalog.row(for: actionContext)
 #endif
   }
+
+#if !os(tvOS)
+  /// Trailer says its word alone, as Apple's does — on the iPhone since 2026-11-16, on
+  /// the iPad and the Mac too since 2026-11-23 (Sasha: the Mac's had a play glyph).
+  private static func trailerSaysItsWord(_ appearance: MediaActionAppearance) -> MediaActionAppearance {
+    guard appearance.id == .trailer, appearance.title != nil else { return appearance }
+    var labelled = appearance
+    labelled.systemImage = ""
+    return labelled
+  }
+#endif
 
 #if os(iOS)
   /// Play's long press: start over, and a random unwatched episode (Sasha, 2026-11-10).
@@ -2740,7 +2690,10 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
-#if !os(macOS)
+#if os(macOS)
+    .menuIndicator(.hidden)
+    .help("Bookmarks")
+#else
     .menuActionDismissBehavior(.disabled)
 #endif
     .mediaActionStyle(appearance)
@@ -2956,9 +2909,8 @@ struct MediaItemHeroView: View {
   /// «1ч 15 мин», not «1ч 15м»: the facts line has the room (Sasha, 2026-11-09).
   static let runtimeLength: TextLength = .medium
 
-  /// Glyph before the voicing and before the subtitle languages in the playback line.
+  /// Glyph before the sound's languages in the playback line.
   static let voicingSymbol = "waveform"
-  static let subtitlesSymbol = "captions.bubble"
   static let glyphSpacing: CGFloat = 6
 
   /// The content's side inset, as `contentBody` pads it.
