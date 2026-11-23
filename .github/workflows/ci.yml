@@ -258,6 +258,47 @@ jobs:
           git push origin "$commit:$REF"
           echo "::notice::Detail page screenshots: git fetch origin $REF"
 
+      # A focus test that fails only on the runner (focus on the synopsis instead of
+      # Follow, ~1 run in 10) cannot be reproduced on a Mac, and the job log only has the
+      # assertion. The app's own focus decisions (`FocusLog.decision`/`rejected`, always
+      # on) and UIKit's focus log (`-UIFocusLoggingEnabled`, which the detail tests pass)
+      # are in the simulator's log store: printed here, last lines first to read, and
+      # kept whole on a hidden ref like the screenshots
+      # (`git fetch origin refs/ci-logs/<run>-<attempt>`), newest five kept.
+      - name: Focus log
+        if: failure() && matrix.platform == 'tvOS'
+        env:
+          REF: refs/ci-logs/${{ github.run_id }}-${{ github.run_attempt }}
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          out="$RUNNER_TEMP/focus-log"
+          mkdir -p "$out"
+          xcrun simctl spawn "$UDID" log show --last 2h --style compact --info \
+            --predicate 'subsystem == "com.soda.kinopub" OR (subsystem == "com.apple.UIKit" AND category CONTAINS[c] "focus")' \
+            > "$out/focus.log" 2>&1 || true
+          # Which test ran when, to line the log up with the failures.
+          grep -E "Test Case .*(started|passed|failed)" /tmp/test-app.log > "$out/tests.log" || true
+          echo "$(wc -l < "$out/focus.log") focus log line(s)"
+          echo "::group::Focus decisions (◆ / ✖), last 400"
+          grep -E "◆|✖" "$out/focus.log" | tail -400 || true
+          echo "::endgroup::"
+          [ -s "$out/focus.log" ] || exit 0
+          gzip -9 "$out/focus.log"
+          export GIT_INDEX_FILE="$RUNNER_TEMP/focus-log.index"
+          git -C "$out" --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$out" add -A .
+          tree=$(git --git-dir="$GITHUB_WORKSPACE/.git" write-tree)
+          commit=$(git --git-dir="$GITHUB_WORKSPACE/.git" -c user.name="CI" -c user.email="ci@users.noreply.github.com" \
+            commit-tree "$tree" -m "Focus log, run ${{ github.run_id }} (${{ github.sha }})")
+          git push origin "$commit:$REF" || { echo "::warning::could not push $REF"; exit 0; }
+          refs=$(git ls-remote origin 'refs/ci-logs/*' | cut -f2 | sort -t/ -k3 -n)
+          count=$(printf '%s\n' "$refs" | grep -c . || true)
+          if [ "$count" -gt 5 ]; then
+            for old in $(printf '%s\n' "$refs" | head -n $((count - 5))); do
+              git push origin --delete "$old" || true
+            done
+          fi
+          echo "::notice::Focus log: git fetch origin $REF"
+
       # A UI test only says the app "does not exist" when it dies under it; the crash
       # report the simulator leaves on the runner says why.
       - name: Crash reports
