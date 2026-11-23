@@ -616,10 +616,6 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
       guard let controller else { return }
       skip.install(on: controller, manager: manager)
       skip.bringToFront()
-      // Asking for full screen means ready to watch: the controls leave at once, as
-      // in the TV app and YouTube, not after AVKit's idle delay (Sasha, 2026-11-23).
-      // The next pointer move brings them back as usual.
-      idleControls.hideNow(playerView)
     }
 
     /// Leaving happens once, however many times the host reports it.
@@ -822,6 +818,10 @@ private struct MacVideoPlayer: NSViewRepresentable {
       stepAside(playerView)
       // The chip went along with AVKit's content view; on top of the full-screen controls.
       skip.bringToFront()
+      // Asking for full screen means ready to watch: the controls leave at once, as
+      // in the TV app and YouTube, not after AVKit's idle delay (Sasha, 2026-11-23).
+      // The next pointer move brings them back as usual.
+      idleControls.hideOnEnteringFullScreen(playerView)
     }
 
     func playerView(_ playerView: AVPlayerView,
@@ -892,6 +892,7 @@ final class MacIdleControlsHider {
   private weak var playerView: AVPlayerView?
   private var timer: Timer?
   private var awaySince: Date?
+  private var enterHideTimer: Timer?
   private var shownSince: Date?
   private var reportedStuck = false
 
@@ -909,6 +910,8 @@ final class MacIdleControlsHider {
     timer?.invalidate()
     timer = nil
     awaySince = nil
+    enterHideTimer?.invalidate()
+    enterHideTimer = nil
   }
 
   private func tick() {
@@ -974,16 +977,37 @@ final class MacIdleControlsHider {
     return controller.view
   }
 
+  /// Hides the controls as full screen opens, and keeps them hidden through the opening.
+  /// AVKit shows the panel again ~50 ms after `playerViewDidEnterFullScreen` (the new
+  /// window appearing under the pointer; probed on macOS 27.2), so one hide at did-enter
+  /// was undone. For the next second, a panel back up with the pointer not moved is
+  /// AVKit's, not the viewer's: hidden again. A pointer move ends it and brings the
+  /// controls back as usual.
+  func hideOnEnteringFullScreen(_ view: AVPlayerView) {
+    awaySince = nil
+    hideControls(view)
+    enterHideTimer?.invalidate()
+    let pointer = NSEvent.mouseLocation
+    let until = Date().addingTimeInterval(1)
+    let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self, weak view] _ in
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        guard let view, Date() < until, NSEvent.mouseLocation == pointer else {
+          self.enterHideTimer?.invalidate()
+          self.enterHideTimer = nil
+          return
+        }
+        if self.controlsShown(view) { self.hideControls(view) }
+      }
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    enterHideTimer = timer
+  }
+
   /// No public call hides `AVPlayerView`'s controls, and there is no `setControlsHidden:`.
   /// AVKit's own idle hide is `-[AVDesktopPlayerViewContentView _hideControlsWithTrigger:]`
   /// (`NSUInteger`); trigger 0 fades the panel out in the window and in full screen, and the
   /// next pointer move brings it back as usual. Missing on a future SDK → AVKit's behaviour.
-  /// Hides the controls now, wherever the panel is (window or full screen).
-  func hideNow(_ view: AVPlayerView) {
-    awaySince = nil
-    hideControls(view)
-  }
-
   private func hideControls(_ view: AVPlayerView) {
     guard let ivar = class_getInstanceVariable(AVPlayerView.self, "_contentView"),
           let content = object_getIvar(view, ivar) as? NSView else { return }

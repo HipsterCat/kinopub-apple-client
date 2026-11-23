@@ -220,6 +220,9 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
     #if os(iOS)
     if controlsView == nil { observeIOSChrome() }
     #endif
+    #if os(macOS)
+    pollMacChrome()
+    #endif
     if pipWanted { applyPictureInPicture() }
     updateSuspension()
   }
@@ -477,6 +480,16 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
         }
       })
     }
+  }
+
+  /// `controlsHidden` does not post KVO for every change: a hide through AVKit's
+  /// `_hideControlsWithTrigger:` in full screen (as full screen opens) left the key at
+  /// true with no notification, and the chip stayed up over a bare picture (probed on
+  /// macOS 27.2). The tick reads it as well; KVO stays for the quick edge.
+  private func pollMacChrome() {
+    guard !menuActive, let view = playerView, view.responds(to: NSSelectorFromString("controlsHidden")),
+          let hidden = view.value(forKey: "controlsHidden") as? Bool else { return }
+    if controlsVisible == hidden { publish(visible: !hidden) }
   }
 
   private func observeMacMenus() {
