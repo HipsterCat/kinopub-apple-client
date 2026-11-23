@@ -720,9 +720,30 @@ async function pickByRuntime(env, results, runtime, options) {
   return best && bestDelta <= 12 ? best : null;
 }
 
+/**
+ * `include_image_language` for a read that must see TMDB's images as they are now.
+ *
+ * TMDB's own gateway (x-gateway-cache-status) caches each URL for hours and ignores
+ * parameters it does not know, so `?_=now` still gets the old answer: a title whose
+ * logos were uploaded after the first read kept answering "no logos" (Майор Мырза,
+ * 2026-11-23 — bare /images empty, a new language list three backdrops and a logo).
+ * A private-use ISO 639-2 code (qaa–qtz, which no image carries) at the end of the
+ * list makes a new cache key per minute and changes nothing in the answer.
+ */
+export function freshImageLanguages(base = "ru,en,null", now = Date.now()) {
+  const minute = Math.floor(now / 60000);
+  const letters = "abcdefghijklmnopqrst";
+  const second = letters[Math.floor(minute / 26) % letters.length];
+  const third = String.fromCharCode(97 + (minute % 26));
+  return `${base},q${second}${third}`;
+}
+
 async function tmdb(env, path, params, options = {}) {
   const url = new URL(path, "https://api.themoviedb.org");
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  if (options.fresh && params.include_image_language) {
+    url.searchParams.set("include_image_language", freshImageLanguages(params.include_image_language));
+  }
   const requestURL = url.toString();
   // A fresh read must not reuse the six-hour entry from the last resolve.
   const cf = options.fresh
