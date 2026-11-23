@@ -248,6 +248,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
   /// is nil — an item without a trailer link crashed the app on open.
+  @MainActor
   private var fileURL: URL? {
     switch watchMode {
     case .media:
@@ -2429,7 +2430,7 @@ extension PlayerManager {
 
 /// Witnesses to a public protocol from another module must be public, even though the
 /// conformance itself is only used here.
-extension AVMediaSelectionOption: AudioRendition {
+extension AVMediaSelectionOption: @retroactive AudioRendition {
 
   public var renditionName: String { kinopubTrackName }
 
@@ -2484,7 +2485,7 @@ enum RenditionNames {
 /// The subtitle half of the same bridge — what the system player is told to render off
 /// tvOS, and what a pick in its own menu is read back through. Rules and their tests:
 /// `SubtitleRenditions` in `KinoPubBackend`.
-extension AVMediaSelectionOption: SubtitleRendition {
+extension AVMediaSelectionOption: @retroactive SubtitleRendition {
 
   /// The rendition's language, from the option's locale, then its `LANGUAGE=` tag. Falls
   /// back to the display name so a match by language at least has something to compare.

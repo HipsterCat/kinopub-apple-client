@@ -102,14 +102,18 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     NotificationCenter.default.addObserver(
       forName: .kinopubUnauthorizedResponse, object: nil, queue: .main
     ) { [weak self] _ in
-      self?.handleUnauthorizedResponse()
+      Task { @MainActor in
+        self?.handleUnauthorizedResponse()
+      }
     }
 
     // Content `user_banned` / refused grant → device-code auth. Personal caches stay.
     NotificationCenter.default.addObserver(
       forName: .kinopubSessionInvalidated, object: nil, queue: .main
     ) { [weak self] _ in
-      self?.handleSessionInvalidated(reason: "content auth rejection")
+      Task { @MainActor in
+        self?.handleSessionInvalidated(reason: "content auth rejection")
+      }
     }
 
     UnauthorizedRequestRecovery.shared.recoverer = self

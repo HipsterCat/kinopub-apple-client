@@ -142,9 +142,7 @@ struct AppContext: AppContextProtocol {
     // RootView's first frame, since `AppContext.shared` is resolved on the main thread before
     // any view renders. A paused/interrupted HLS download reattaching a few hundred ms later is
     // imperceptible; blocking every cold launch on it (even with zero downloads to restore) is not.
-    // `nonisolated(unsafe)`: the Task is MainActor-queued after this MainActor `shared` init
-    // finishes, so it cannot overlap the stores below; the manager is not Sendable.
-    nonisolated(unsafe) let hlsToRestore = hlsDownloadManager
+    let hlsToRestore = hlsDownloadManager
     let filesToReattach = downloadManager
     Task { @MainActor in
       hlsToRestore.restorePendingDownloads()
@@ -208,18 +206,16 @@ struct AppContext: AppContextProtocol {
     // Watching on the next ordinary launch (2026-10-25). A fixture run's progress stays in
     // memory.
     let isFixtureRun = DetailFixture.isActive || LibraryFixture.isActive || TVChannelsFixture.isActive
-#else
-    let isFixtureRun = false
-#endif
     let localProgressStore = isFixtureRun
       ? LocalWatchProgressStore(container: WatchLibrary.makeInMemoryContainer())
       : LocalWatchProgressStore()
-#if DEBUG && os(tvOS)
     // What fixture runs wrote before they kept to memory: on a simulator that ran the UI
     // tests, the stand-in series still sits in the store.
     if !isFixtureRun {
       DetailFixture.allCases.forEach { localProgressStore.clear(id: $0.itemID) }
     }
+#else
+    let localProgressStore = LocalWatchProgressStore()
 #endif
     let libraryState = MediaLibraryStore(
       downloadManager: downloadManager,

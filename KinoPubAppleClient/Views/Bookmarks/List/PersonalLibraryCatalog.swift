@@ -57,27 +57,27 @@ class PersonalLibraryCatalog: ObservableObject {
     isLoaded = !rows.isEmpty
 
     await withTaskGroup(of: Void.self) { group in
-      group.addTask { [store] in
-        await store.refreshIfStale(.watchlist) { [weak self] in //'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+      group.addTask { [weak self, store] in
+        await store.refreshIfStale(.watchlist) { [weak self] in
           guard let self else { throw CancellationError() }
           return try await self.fetchWatchlistCards().map(RowItem.card)
         }
       }
-      group.addTask { [store] in
-        await store.refreshIfStale(.history) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+      group.addTask { [weak self, store] in
+        await store.refreshIfStale(.history) { [weak self] in
           guard let self else { throw CancellationError() }
           return try await self.fetchHistoryCards().map(RowItem.card)
         }
       }
-      group.addTask { [store] in
+      group.addTask { [weak self, store] in
         await store.refreshIfStale(.unfinishedSerials) { [weak self] in
           guard let self else { throw CancellationError() }
           return try await LibrarySectionCatalog.continueCards(using: self.contentService).map(RowItem.card)
         }
       }
       for folder in folders {
-        group.addTask { [store] in
-          await store.refreshIfStale(.folder(folder.id)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+        group.addTask { [weak self, store] in
+          await store.refreshIfStale(.folder(folder.id)) { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchFolderItems(folder)
           }

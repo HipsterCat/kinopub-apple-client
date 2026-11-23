@@ -15,7 +15,7 @@ import OSLog
 import UIKit
 #endif
 #if os(iOS)
-import UserNotifications
+@preconcurrency import UserNotifications
 #endif
 #if canImport(AppKit)
 import AppKit
@@ -68,10 +68,9 @@ protocol AuthFeedbackHandling: AnyObject {
 final class SystemAuthFeedbackHandler: AuthFeedbackHandling {
   func prepareForActivation() {
 #if os(iOS)
-    let center = UNUserNotificationCenter.current()
-    center.getNotificationSettings { settings in
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
       guard settings.authorizationStatus == .notDetermined else { return }
-      center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 #endif
   }
@@ -84,8 +83,7 @@ final class SystemAuthFeedbackHandler: AuthFeedbackHandling {
     let shouldNotify = inBackground || UIApplication.shared.applicationState != .active
     guard shouldNotify else { return }
 
-    let center = UNUserNotificationCenter.current()
-    center.getNotificationSettings { settings in
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
       guard settings.authorizationStatus == .authorized
               || settings.authorizationStatus == .provisional else { return }
       let content = UNMutableNotificationContent()
@@ -97,7 +95,7 @@ final class SystemAuthFeedbackHandler: AuthFeedbackHandling {
         content: content,
         trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
       )
-      center.add(request) { error in
+      UNUserNotificationCenter.current().add(request) { error in
         if let error {
           Logger.app.error("Failed to post auth notification: \(String(describing: error))")
         }

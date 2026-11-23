@@ -429,7 +429,7 @@ public extension MediaScores {
   /// on the Home banner; then Letterboxd, then
   /// the other audiences by votes, Rotten Tomatoes, and Metacritic last of all. Only
   /// published scores.
-  public func phoneLine(deduplicateAgainstAggregate: Bool = false, includesOthers: Bool = true) -> [MediaScoreItem] {
+  func phoneLine(deduplicateAgainstAggregate: Bool = false, includesOthers: Bool = true) -> [MediaScoreItem] {
     func rank(_ source: MediaScoreLogo.Source) -> Int {
       switch source {
       case .imdb, .kinopoisk: return 0
@@ -462,7 +462,7 @@ public extension MediaScores {
   /// The scale written after a score on the phone's line, faint: Letterboxd's «/5»
   /// always — its 2.6 beside IMDb's 5.3 read as the worse film — and «/10» after an
   /// IMDb or Kinopoisk score of `lowTenScale` or under.
-  public static func phoneScale(_ item: MediaScoreItem) -> String? {
+  static func phoneScale(_ item: MediaScoreItem) -> String? {
     switch item.source {
     case .letterboxd, .myShows: return "/5"
     case .imdb, .kinopoisk:
@@ -472,7 +472,7 @@ public extension MediaScores {
   }
 
   /// «Около или ниже 5» (Sasha, 2026-11-16).
-  public static let lowTenScale = 5.5
+  static let lowTenScale = 5.5
 
   /// The share of the line's votes a source needs to stay on a compact line.
   static let compactShare = 0.10

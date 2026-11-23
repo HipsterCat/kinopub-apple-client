@@ -45,7 +45,7 @@ public struct HLSDownloadedAsset: Codable, Equatable {
 /// Persists `[HLSDownloadedAsset]` to a plist in the Documents directory and
 /// provides reconciliation / removal helpers. Thread-safety: callers use it from
 /// the main actor (matching the rest of the download code).
-public final class HLSDownloadsStore {
+public final class HLSDownloadsStore: Sendable {
 
   private let dataFileURL: URL
 

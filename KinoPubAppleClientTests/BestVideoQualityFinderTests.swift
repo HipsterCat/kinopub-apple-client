@@ -2,6 +2,7 @@ import XCTest
 import KinoPubBackend
 @testable import KinoPub
 
+@MainActor
 final class BestVideoQualityFinderTests: XCTestCase {
 
   func testPrefersHighestResolutionHLS4() {

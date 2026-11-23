@@ -97,7 +97,7 @@ final class BackgroundWork {
   }
 }
 
-public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetDownloadDelegate {
+public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetDownloadDelegate, @unchecked Sendable {
 
   /// In-flight downloads keyed by `HLSDownloadKey`.
   @Published public private(set) var activeDownloads: [HLSActiveDownload] = []
@@ -688,7 +688,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
 
 // macOS (and any non-iOS platform): no-op shim with the same public surface so
 // shared code compiles. The mp4 DownloadManager handles downloads on macOS.
-public final class HLSAssetDownloadManager: ObservableObject {
+public final class HLSAssetDownloadManager: ObservableObject, @unchecked Sendable {
 
   @Published public private(set) var activeDownloads: [HLSActiveDownload] = []
   @Published public private(set) var interrupted: [HLSInterruptedDownload] = []

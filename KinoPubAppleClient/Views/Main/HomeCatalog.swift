@@ -607,7 +607,7 @@ class HomeCatalog: ObservableObject {
 
     await withTaskGroup(of: Void.self) { group in
       for source in heroSources {
-        group.addTask { [store] in
+        group.addTask { [weak self, store] in
           await store.refreshIfStale(.homeSection(source.rawValue)) { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchHeroItems(source)
@@ -615,7 +615,7 @@ class HomeCatalog: ObservableObject {
         }
       }
       if includesContinueWatching {
-        group.addTask { [store] in
+        group.addTask { [weak self, store] in
           await store.refreshIfStale(.continueWatching) { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchContinueWatchingCards().map(RowItem.card)
@@ -625,14 +625,14 @@ class HomeCatalog: ObservableObject {
       for spec in homeSections {
         switch spec.source {
         case .filter:
-          group.addTask { [store] in
+          group.addTask { [weak self, store] in
             await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
               guard let self else { throw CancellationError() }
               return try await self.fetchHomeSectionItems(spec, excludeConcerts: excludeConcerts)
             }
           }
         case .topBookmarks:
-          group.addTask { [store] in
+          group.addTask { [weak self, store] in
             await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
               guard let self else { throw CancellationError() }
               return try await self.fetchTopBookmarksCards().map(RowItem.card)
@@ -644,7 +644,7 @@ class HomeCatalog: ObservableObject {
             await self.fetchLiveChannelsIfNeeded()
           }
         case .collections:
-          group.addTask { [store] in
+          group.addTask { [weak self, store] in
             if collectionsNeedMigration {
               await store.refresh(.collections) { [weak self] in
                 guard let self else { throw CancellationError() }
