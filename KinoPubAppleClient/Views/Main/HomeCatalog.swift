@@ -1149,22 +1149,15 @@ class HomeCatalog: ObservableObject {
   private func fetchContinueWatchingCards(limit: Int? = nil) async throws -> [MediaCard] {
     let rules = ContinueWatchingPreferences.rules
     let cap = limit ?? rules.maxItems
-    // Subscribed watching already carries enough for the row; skip `/v1/history`
-    // when we fetched it minutes ago. Cap stays at 8 when we do ask.
-    let skipHistory = Self.shouldSkipHistoryFetch(store: store)
     let watching = WatchingListCache.shared
     async let moviesTask = try? watching.movies(using: itemsService)
     async let allSerialsTask = try? watching.serials(subscribedOnly: false, using: itemsService)
     async let watchlistTask = try? watching.serials(subscribedOnly: true, using: itemsService)
     async let bookmarksTask = recentBookmarks(rules: rules)
-    // History is inlined (not an instance helper) so `async let` does not return a
-    // non-Sendable `[HistoryEntry]?` from MainActor into a @concurrent child task.
-    let historyResult: [HistoryEntry]?
-    if skipHistory {
-      historyResult = nil
-    } else {
-      historyResult = try? await itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
-    }
+    // History dates every title off the followed list: without its `last_seen` an
+    // unfollowed film or series has no reason to be on the row. Shared with Library
+    // Unwatched through the cache, so a refresh minutes later asks nothing.
+    let historyResult = try? await watching.historyHead(using: itemsService)
 
     let moviesResult = await moviesTask
     let serialsResult = await allSerialsTask
@@ -1174,10 +1167,8 @@ class HomeCatalog: ObservableObject {
     // Each source degrades independently (one endpoint down still shows the other
     // three) — but if every single one failed, this is a network outage, not "the
     // user has nothing to continue watching". Throw so the store keeps the last
-    // known-good row instead of caching an empty one. A deliberate history skip
-    // is not a failure; watching lists alone are enough.
-    let hasHistory = !skipHistory && historyResult != nil
-    if moviesResult == nil, serialsResult == nil, watchlistResult == nil, !hasHistory {
+    // known-good row instead of caching an empty one.
+    if moviesResult == nil, serialsResult == nil, watchlistResult == nil, historyResult == nil {
       throw ContinueWatchingFetchError.allSourcesFailed
     }
 
@@ -1316,22 +1307,6 @@ class HomeCatalog: ObservableObject {
       }
     }
     return Array(cards.prefix(cap))
-  }
-
-  /// One small page of history for Continue Watching ranking dates. Watching lists
-  /// already carry the unfinished set; 50 was overkill and rode the playback flood.
-  private static let historyPerPage = LibrarySectionCatalog.continueWatchingHistoryPerPage
-
-  /// Prefer a warm Library history cache over another `/v1/history` call. The
-  /// watching lists are the row's source of truth; history only dates titles.
-  private static let historyReuseWindow: TimeInterval = 3 * 60
-
-  private static func shouldSkipHistoryFetch(store: ContentStore) -> Bool {
-    guard let fetchedAt = store.fetchedAt(.history) else { return false }
-    let age = Date().timeIntervalSince(fetchedAt)
-    // `invalidate` sets `fetchedAt` to `.distantPast` — age is then huge, so we
-    // ask again after Library watch rows were marked stale post-playback.
-    return age >= 0 && age < historyReuseWindow
   }
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.

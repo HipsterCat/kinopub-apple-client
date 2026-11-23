@@ -7,11 +7,11 @@ import Foundation
 
 /// One row of `/v1/history`. Everything beyond the item id is optional: this drives
 /// presentation only, and one malformed row must not cost us the whole response.
-public struct HistoryEntry: Codable, Hashable {
+public struct HistoryEntry: Codable, Hashable, Sendable {
 
   /// The title the entry belongs to. Unlike `/v1/watching/*`, history carries the
   /// wide poster, which is what a landscape card needs.
-  public struct Item: Codable, Hashable {
+  public struct Item: Codable, Hashable, Sendable {
     public let id: Int
     public let type: String?
     public let title: String?
@@ -30,7 +30,7 @@ public struct HistoryEntry: Codable, Hashable {
   }
 
   /// The specific video played — an episode for a series, the film itself otherwise.
-  public struct Media: Codable, Hashable {
+  public struct Media: Codable, Hashable, Sendable {
     public let id: Int?
     /// Episode number.
     public let number: Int?

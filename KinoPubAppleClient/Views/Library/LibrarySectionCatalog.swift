@@ -292,14 +292,8 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// — so a page of 20 entries can easily be three cards for someone part-way through
   /// a season. 50 keeps that grid filling in one round trip instead of three.
   ///
-  /// Continue Watching / Unwatched merges use `continueWatchingHistoryPerPage` (8):
-  /// subscribed watching payloads already carry enough, and a 50-row history page in
-  /// that path was part of the playback API flood.
+  /// Continue Watching / Unwatched read theirs through `WatchingListCache.historyHead`.
   static let historyPerPage = 50
-
-  /// History page size for Continue Watching / Unwatched merges — dates for ranking,
-  /// not a browse grid. Cap stays small on purpose.
-  static let continueWatchingHistoryPerPage = 8
 
   /// A page that adds nothing new must not end the list, but chasing it forever is
   /// worse. Three consecutive all-duplicate pages and we stop until the user scrolls
@@ -456,11 +450,11 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     async let moviesTask = watching.movies(using: service)
     async let unfinishedTask = watching.serials(subscribedOnly: false, using: service)
     async let followedTask = watching.serials(subscribedOnly: true, using: service)
-    async let historyTask = service.fetchHistory(page: nil, perPage: continueWatchingHistoryPerPage)
+    async let historyTask = watching.historyHead(using: service)
     let movies = try await moviesTask
     let unfinished = (try? await unfinishedTask) ?? []
     let followed = Set(((try? await followedTask) ?? []).map(\.id))
-    let history = (try? await historyTask)?.history ?? []
+    let history = (try? await historyTask) ?? []
     let newest = newestHistory(history)
     var seen = Set<Int>()
     // History carries duration / position. Local resume is not Sendable across this
