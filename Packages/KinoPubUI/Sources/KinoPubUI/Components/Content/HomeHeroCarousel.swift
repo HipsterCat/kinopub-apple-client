@@ -193,8 +193,7 @@ public struct HomeHeroCarousel: View {
     .scrollTargetBehavior(HeroOnePage())
     .scrollPosition($scroll)
     // Read every frame, written only when it says something new: the page under the
-    // scroll changes half-way through a turn, "at rest" at a turn's two ends, the inset
-    // on a resize. The cross-fade itself is drawn from each page's own position
+    // scroll changes half-way through a turn, "at rest" at a turn's two ends. The cross-fade itself is drawn from each page's own position
     // (`heroPageFade`), so a drag writes no state and redraws nothing. Writing the
     // fractional page on every frame repainted every picture and the words' glass
     // buttons per frame (`glassEffect() tried to update multiple times per frame`), and
@@ -405,19 +404,18 @@ public struct HomeHeroCarousel: View {
   /// and cross-fades into the next and the words slide a little and fade, as the Apple TV
   /// app's hero (`heroPageFade`). Drawn from the page's position at render time.
   private func page(_ feature: HomeHeroFeature, at position: Int) -> some View {
-    let inset = pager.reading.inset
     return Color.clear
       .frame(width: size.width, height: size.height)
       .background(alignment: .bottom) {
         HeroPagePicture(feature: feature, width: size.width, height: size.height + topBleed,
                         topBleed: topBleed, isCompact: isCompact)
-          .heroPageFade(width: size.width, inset: inset, travel: HeroPagePicture.drift,
+          .heroPageFade(width: size.width, travel: HeroPagePicture.drift,
                         opacity: HeroPagePicture.opacity(at:))
           .allowsHitTesting(false)
       }
       .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
         wordsBlock(feature)
-          .heroPageFade(width: size.width, inset: inset, travel: Metrics.wordsTravel,
+          .heroPageFade(width: size.width, travel: Metrics.wordsTravel,
                         opacity: Self.wordsOpacity(at:))
           // Only the title more than half there takes clicks.
           .allowsHitTesting(position == pager.page)
@@ -653,8 +651,6 @@ final class HeroPager {
     var page = 0
     /// Exactly on that page, not part-way through a turn.
     var isAtRest = true
-    /// The scroll view's leading content inset (the Mac's and iPad's floating sidebar).
-    var inset: CGFloat = 0
 
     init() {}
 
@@ -668,7 +664,6 @@ final class HeroPager {
       let position = width > 0 ? (geometry.contentOffset.x + geometry.contentInsets.leading) / width : 0
       page = Int(position.rounded())
       isAtRest = abs(position - position.rounded()) <= 0.001
-      inset = geometry.contentInsets.leading
     }
   }
 
@@ -682,10 +677,14 @@ extension View {
   /// position in pages (0 on screen, -1 one page to the leading side, 1 to the trailing
   /// side). Worked out at render time from where the page is, so a drag or a turn writes
   /// no state.
-  fileprivate func heroPageFade(width: CGFloat, inset: CGFloat, travel: CGFloat,
+  fileprivate func heroPageFade(width: CGFloat, travel: CGFloat,
                                 opacity: @escaping @Sendable (CGFloat) -> CGFloat) -> some View {
     visualEffect { content, proxy in
-      let x = proxy.frame(in: .scrollView(axis: .horizontal)).minX - inset
+      // Already counted from the inset edge: on the Mac, beside the sidebar, the scroll
+      // view has a leading inset as wide as the sidebar and a page at rest still reads
+      // 0 here. Taking the inset off again pushed the picture and words 220 pt aside and
+      // faded the words (Sasha, 2026-11-23).
+      let x = proxy.frame(in: .scrollView(axis: .horizontal)).minX
       let position = width > 0 ? x / width : 0
       return content
         .offset(x: -x * (1 - travel))
