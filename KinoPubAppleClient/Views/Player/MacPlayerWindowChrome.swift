@@ -47,6 +47,8 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
   private var shapedFor: CGSize?
   private var hoverRecheck: Timer?
   private var doubleClick: NSClickGestureRecognizer?
+  private var appearanceObservation: NSKeyValueObservation?
+  private weak var titlebarBacking: NSVisualEffectView?
 
   // MARK: Attach
 
@@ -72,6 +74,7 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
 
   func detach() {
     controlsCancellable = nil
+    appearanceObservation = nil
     sizeObservation = nil
     itemObservation = nil
     hoverRecheck?.invalidate()
@@ -98,21 +101,29 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
   func adopt(_ window: NSWindow?) {
     guard let window, window !== self.window else { return }
     self.window = window
-    // Always dark, as every video player is: the title over the picture followed the
-    // system theme and went black on black in Light mode (Sasha, 2026-11-23).
-    window.appearance = NSAppearance(named: .darkAqua)
-    window.titlebarAppearsTransparent = true
-    window.styleMask.insert(.fullSizeContentView)
-    // The green button is full screen for this window — the scene made it a plain zoom («+»).
-    window.collectionBehavior.remove([.fullScreenAuxiliary, .fullScreenNone])
-    window.collectionBehavior.insert(.fullScreenPrimary)
-    window.backgroundColor = .black
-    // A window of its own in Window › and the Dock's window list, as IINA's player is.
-    window.isExcludedFromWindowsMenu = false
+    Logger.app.info("Player window: adopted, collectionBehavior=\(window.collectionBehavior.rawValue) appearance=\(window.appearance?.name.rawValue ?? "nil", privacy: .public)")
+    dress(window)
+    // SwiftUI finishes its own window setup after the view lands, and puts back the
+    // scene's appearance and «+» zoom over ours (seen on Sasha's Mac, 2026-11-23).
+    DispatchQueue.main.async { [weak self, weak window] in
+      guard let self, let window else { return }
+      self.dress(window)
+      Logger.app.info("Player window: dressed, collectionBehavior=\(window.collectionBehavior.rawValue) appearance=\(window.appearance?.name.rawValue ?? "nil", privacy: .public)")
+    }
+    appearanceObservation = window.observe(\.appearance, options: [.new]) { [weak self] _, _ in
+      MainActor.assumeIsolated { self?.redress() }
+    }
 
     windowTokens.forEach(NotificationCenter.default.removeObserver)
     let center = NotificationCenter.default
     windowTokens = [
+      // Cheap when nothing changed; catches SwiftUI re-applying the scene's settings.
+      center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.redress() }
+      },
+      center.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.redress() }
+      },
       center.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: window, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.setTitlebar(visible: true, animated: false) }
       },
@@ -129,6 +140,50 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
     ]
     shapeWindow(force: true)
     setTitlebar(visible: controlsVisible, animated: false)
+  }
+
+  private static let dark = NSAppearance(named: .darkAqua)
+
+  private func redress() {
+    if let window { dress(window) }
+  }
+
+  /// The window's dress, re-applied whenever SwiftUI may have put its own back. Every
+  /// line is a no-op when already so.
+  private func dress(_ window: NSWindow) {
+    // Always dark, as every video player is: the title over the picture followed the
+    // system theme and went black on black in Light mode (Sasha, 2026-11-23).
+    if window.appearance?.name != .darkAqua { window.appearance = Self.dark }
+    if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
+    if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
+    // The green button is this window's full screen, not a «+» zoom.
+    var behavior = window.collectionBehavior
+    behavior.remove([.fullScreenAuxiliary, .fullScreenNone])
+    behavior.insert(.fullScreenPrimary)
+    if behavior != window.collectionBehavior { window.collectionBehavior = behavior }
+    if window.backgroundColor != .black { window.backgroundColor = .black }
+    // A window of its own in Window › and the Dock's window list, as IINA's player is.
+    if window.isExcludedFromWindowsMenu { window.isExcludedFromWindowsMenu = false }
+    installTitlebarBacking(in: window)
+  }
+
+  /// IINA's title bar sits on a dark frosted strip (its `titleBarView`), so the title and
+  /// the traffic lights read over any picture. A transparent title bar alone had nothing
+  /// under them (Sasha, 2026-11-23). The strip lives in the title bar view, under the
+  /// buttons, and fades with it.
+  private func installTitlebarBacking(in window: NSWindow) {
+    guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return }
+    titlebar.superview?.appearance = Self.dark
+    if let backing = titlebarBacking, backing.superview === titlebar { return }
+    titlebarBacking?.removeFromSuperview()
+    let backing = NSVisualEffectView(frame: titlebar.bounds)
+    backing.material = .hudWindow
+    backing.blendingMode = .withinWindow
+    backing.state = .active
+    backing.appearance = Self.dark
+    backing.autoresizingMask = [.width, .height]
+    titlebar.addSubview(backing, positioned: .below, relativeTo: nil)
+    titlebarBacking = backing
   }
 
   // MARK: Title bar follows the controls
@@ -269,9 +324,14 @@ private struct WindowMenuListing: NSViewRepresentable {
     }
 
     func list() {
-      guard let window, window.isExcludedFromWindowsMenu else { return }
-      window.isExcludedFromWindowsMenu = false
-      if !window.title.isEmpty { NSApp.changeWindowsItem(window, title: window.title, filename: false) }
+      guard let window else { return }
+      if window.isExcludedFromWindowsMenu { window.isExcludedFromWindowsMenu = false }
+      // The library window's title lives in its toolbar, so the window's own is empty —
+      // and a window with no title has no line in the list. The app's name stands in.
+      let title = window.title.isEmpty
+        ? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Kinopub")
+        : window.title
+      NSApp.changeWindowsItem(window, title: title, filename: false)
     }
   }
 

@@ -56,7 +56,31 @@ final class RecentPlaybacks: ObservableObject {
   /// A film or episode started in the player window. Trailers and TV channels are not
   /// recents: neither is something one goes back to.
   func record(_ item: any PlayableItem, mode: WatchMode) {
-    guard mode == .media, let entry = Self.entry(for: item) else { return }
+    guard mode == .media else { return }
+    if let entry = Self.entry(for: item, fallbackTitle: nil) {
+      insert(entry)
+      return
+    }
+    // An episode handed over without its series name, and no snapshot of the series yet:
+    // the name comes with the item, which the player fetches anyway (cached).
+    let titleID = item.metadata.id
+    Logger.app.info("Recents: no title for \(String(describing: type(of: item)), privacy: .public) of item \(titleID), fetching it")
+    // Everything but the name, now; the Task carries only these values.
+    guard let pending = Self.entry(for: item, fallbackTitle: "-") else { return }
+    Task {
+      do {
+        let title = try await AppContext.shared.contentService.fetchDetails(for: "\(titleID)").item.localizedTitle
+        guard !title.isEmpty else { return }
+        insert(Entry(titleID: pending.titleID, title: title, detail: pending.detail,
+                     season: pending.season, video: pending.video))
+      } catch {
+        Logger.app.error("Recents: item \(titleID) title fetch failed: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
+  private func insert(_ entry: Entry) {
+    Logger.app.info("Recents: \(entry.titleID) «\(entry.menuTitle, privacy: .public)»")
     var next = entries.filter { $0.titleID != entry.titleID }
     next.insert(entry, at: 0)
     if next.count > Self.limit { next.removeLast(next.count - Self.limit) }
@@ -76,10 +100,11 @@ final class RecentPlaybacks: ObservableObject {
     }
   }
 
-  private static func entry(for item: any PlayableItem) -> Entry? {
+  private static func entry(for item: any PlayableItem, fallbackTitle: String?) -> Entry? {
     let titleID = item.metadata.id
     guard titleID > 0 else { return nil }
-    let snapshotTitle = AppContext.shared.localProgressStore.snapshot(for: titleID)?.localizedTitle
+    let snapshotTitle = fallbackTitle
+      ?? AppContext.shared.localProgressStore.snapshot(for: titleID)?.localizedTitle
     if let episode = item as? Episode {
       let title = [episode.seriesTitle, snapshotTitle].compactMap { $0 }.first { !$0.isEmpty }
       guard let title else { return nil }

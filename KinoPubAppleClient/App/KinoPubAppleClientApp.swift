@@ -143,6 +143,7 @@ struct KinoPubAppleClientApp: App {
 #endif
 #if os(macOS)
         .frame(minWidth: WindowSize.macos.width, minHeight: WindowSize.macos.height)
+        .listedInWindowMenu()
 #endif
     }
 #if os(macOS)
