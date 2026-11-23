@@ -736,7 +736,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     endOfPlaybackObserver = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
     ) { [weak self] _ in
-      self?.handleEndOfPlayback()
+      MainActor.assumeIsolated {
+        self?.handleEndOfPlayback()
+      }
     }
   }
 
@@ -995,30 +997,32 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private func addCueTimeObserver() {
     let interval = CMTime(seconds: 0.25, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
     cueObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-      guard let self else { return }
-      let seconds = time.seconds.isFinite ? time.seconds : 0
-      self.currentPlaybackTime = seconds
-      guard self.subtitlesEnabled, !self.cues.isEmpty else {
-        if self.activeCue != nil { self.activeCue = nil }
-        if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
-        return
-      }
-      let cue = SubtitleCueParser.cue(at: seconds, in: self.cues)
-      if cue != self.activeCue {
-        self.activeCue = cue
-        if let cue {
-          self.lastCue = cue
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        let seconds = time.seconds.isFinite ? time.seconds : 0
+        self.currentPlaybackTime = seconds
+        guard self.subtitlesEnabled, !self.cues.isEmpty else {
+          if self.activeCue != nil { self.activeCue = nil }
+          if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
+          return
         }
-      }
-      guard !self.secondaryCues.isEmpty else {
-        if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
-        return
-      }
-      // The two tracks have their own timings, so the second line is looked up on its
-      // own rather than paired with the first.
-      let secondary = SubtitleCueParser.cue(at: seconds, in: self.secondaryCues)
-      if secondary != self.activeSecondaryCue {
-        self.activeSecondaryCue = secondary
+        let cue = SubtitleCueParser.cue(at: seconds, in: self.cues)
+        if cue != self.activeCue {
+          self.activeCue = cue
+          if let cue {
+            self.lastCue = cue
+          }
+        }
+        guard !self.secondaryCues.isEmpty else {
+          if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
+          return
+        }
+        // The two tracks have their own timings, so the second line is looked up on its
+        // own rather than paired with the first.
+        let secondary = SubtitleCueParser.cue(at: seconds, in: self.secondaryCues)
+        if secondary != self.activeSecondaryCue {
+          self.activeSecondaryCue = secondary
+        }
       }
     }
   }
@@ -1188,7 +1192,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     guard player.currentItem != nil, seekObservation == nil else { return }
     seekObservation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
       guard item.status == .readyToPlay else { return }
-      self?.applyPendingSeekIfPossible()
+      DispatchQueue.main.async {
+        self?.applyPendingSeekIfPossible()
+      }
     }
   }
 
@@ -1667,7 +1673,9 @@ extension PlayerManager {
     mediaSelectionObserver = NotificationCenter.default.addObserver(
       forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main
     ) { [weak self] _ in
-      self?.noteViewerPicks()
+      MainActor.assumeIsolated {
+        self?.noteViewerPicks()
+      }
     }
   }
 

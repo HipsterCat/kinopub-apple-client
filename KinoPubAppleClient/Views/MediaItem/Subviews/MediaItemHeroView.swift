@@ -805,6 +805,14 @@ struct MediaItemHeroView: View {
       //
       // Backdrop stays in the ambient scheme so the bottom seam still blends into the
       // page colour; only the overlay chrome is forced dark.
+      let slop = Self.onScreenSlop
+      let phoneHeroGrows = phoneHeroGrows
+#if os(iOS)
+      let phoneWordsTop = phoneWordsTop
+#else
+      let phoneWordsTop: CGFloat = 0
+#endif
+      let topChromeInset = phase.topChromeInset
       heroCanvas
         .frame(maxWidth: .infinity)
         // Geometry observers, not `GeometryReader` + `onChange`: those re-ran their body on
@@ -815,12 +823,17 @@ struct MediaItemHeroView: View {
         // after layout, once per change. The hero is never removed from the page's
         // `VStack`, so its frame, not `onDisappear`, says whether it is on screen.
         .onGeometryChange(for: Bool.self) { proxy in
-          proxy.frame(in: .named(MediaItemLayout.scrollSpace)).minY >= -Self.onScreenSlop
+          proxy.frame(in: .named(MediaItemLayout.scrollSpace)).minY >= -slop
         } action: { onScreen in
           if phase.isHeroOnScreen != onScreen { phase.isHeroOnScreen = onScreen }
         }
         .onGeometryChange(for: Bool.self) { proxy in
-          barTakesOver(heroFrame: proxy.frame(in: .named(MediaItemLayout.scrollSpace)))
+          Self.barTakesOver(
+            heroFrame: proxy.frame(in: .named(MediaItemLayout.scrollSpace)),
+            phoneHeroGrows: phoneHeroGrows,
+            phoneWordsTop: phoneWordsTop,
+            topChromeInset: topChromeInset
+          )
         } action: { past in
           if phase.isHeroPastToolbar != past { phase.isHeroPastToolbar = past }
         }
@@ -1139,13 +1152,18 @@ struct MediaItemHeroView: View {
   /// Mac: once the whole hero is under the toolbar. iPhone: once its words reach the
   /// bar — the hero is a screen tall there, and a bare bar let the synopsis run under the
   /// clock while the picture was still partly under it.
-  private func barTakesOver(heroFrame frame: CGRect) -> Bool {
+  nonisolated private static func barTakesOver(
+    heroFrame frame: CGRect,
+    phoneHeroGrows: Bool,
+    phoneWordsTop: CGFloat,
+    topChromeInset: CGFloat
+  ) -> Bool {
 #if os(iOS)
     if phoneHeroGrows {
       return frame.minY <= -phoneWordsTop
     }
 #endif
-    return frame.maxY <= phase.topChromeInset
+    return frame.maxY <= topChromeInset
   }
 
 #endif
@@ -2912,7 +2930,7 @@ struct MediaItemHeroView: View {
   static let trailerLeadIn: Double = 3
   /// Non-tvOS only: fade as soon as the hero has scrolled up at all. The old
   /// half-height threshold left the trailer running under the first section below.
-  static let onScreenSlop: CGFloat = 150
+  nonisolated static let onScreenSlop: CGFloat = 150
 
   /// Leads named in the hero, before the list turns into a paragraph.
   static let creditNameLimit = 3

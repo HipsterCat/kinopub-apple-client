@@ -8,7 +8,7 @@
 import Foundation
 import AVFoundation
 
-class PlayerTimeObserver {
+final class PlayerTimeObserver: @unchecked Sendable {
   private weak var player: AVPlayer?
   private var timeObserverToken: Any?
   private var timeUpdateHandler: ((TimeInterval) -> Void)?

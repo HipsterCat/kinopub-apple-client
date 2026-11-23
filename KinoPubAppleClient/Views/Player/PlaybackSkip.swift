@@ -478,7 +478,9 @@ extension PlayerManager {
     // Four ticks a second: the countdown on the button moves smoothly between them.
     let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
     skipObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-      self?.updateSkipOffer(at: time.seconds.isFinite ? time.seconds : 0)
+      MainActor.assumeIsolated {
+        self?.updateSkipOffer(at: time.seconds.isFinite ? time.seconds : 0)
+      }
     }
   }
 
