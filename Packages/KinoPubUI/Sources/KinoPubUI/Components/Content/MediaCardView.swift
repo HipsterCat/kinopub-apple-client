@@ -816,14 +816,6 @@ public struct MediaCardView: View {
 
   private var aspect: CardAspect { card.isLandscape ? .landscape : .poster }
 
-  private var imageURL: String {
-    _ = coverLanguage
-    if card.isLandscape {
-      return card.landscapeImageURL ?? card.posterURL
-    }
-    return card.coverURL
-  }
-
   private var playsOnSelect: Bool { card.primaryAction == .play }
 
   private var activeRating: Rating? {
@@ -1282,15 +1274,15 @@ public struct MediaCardView: View {
     // probe reports — starting a full-resolution decode on the first frame and
     // then swapping to the tile size was the Mac Home scroll cost.
     //
-    // Episode ladder (KP-23): iconic → series backdrop (while unique loads) →
-    // unique still → kino.pub thumb on 404. Blank grey forever is wrong.
+    // Artwork ladder (`MediaCard.artworkLadder`): plate → first picture, the next one
+    // only on failure. A vertical card never shows the wide backdrop.
     let decodeSize = artworkDecodeSize
     return Color.clear
       .overlay {
         if decodeSize.width > 1 {
           episodeStillLadder(size: decodeSize)
         } else {
-          landscapeIconicPlaceholder
+          artworkPlate
         }
       }
       .overlay {
@@ -1327,42 +1319,45 @@ public struct MediaCardView: View {
     }
   }
 
+  /// `MediaCard.artworkLadder` (at most three rungs): the plate while a rung loads,
+  /// the next rung only if it fails. Never a different picture first. Nested by hand,
+  /// not recursive `AnyView`, so the card keeps one static view type.
   @ViewBuilder
   private func episodeStillLadder(size: CGSize) -> some View {
-    let unique = URL(string: imageURL).flatMap { $0.absoluteString.isEmpty ? nil : $0 }
-    let kinopub = card.fallbackLandscapeURL.flatMap(URL.init(string:))
-      .flatMap { $0.absoluteString.isEmpty || $0 == unique ? nil : $0 }
-    let backdrop = card.backdropURL.flatMap(URL.init(string:))
-      .flatMap { $0.absoluteString.isEmpty || $0 == unique || $0 == kinopub ? nil : $0 }
-
-    let interim = Group {
-      if let backdrop {
-        CachedRemoteImage(url: backdrop, size: size, contentMode: .fill,
-                          placeholder: { landscapeIconicPlaceholder },
-                          failure: { landscapeIconicPlaceholder })
-      } else {
-        landscapeIconicPlaceholder
-      }
-    }
-
-    if let unique {
-      CachedRemoteImage(url: unique, size: size, contentMode: .fill,
-                        placeholder: { interim },
+    let _ = coverLanguage
+    let ladder = card.artworkLadder
+    if let first = ladder.first {
+      CachedRemoteImage(url: first, size: size, contentMode: .fill,
+                        placeholder: { artworkPlate },
                         failure: {
-                          if let kinopub {
-                            CachedRemoteImage(url: kinopub, size: size, contentMode: .fill,
-                                              placeholder: { interim },
-                                              failure: { interim })
+                          if ladder.count > 1 {
+                            CachedRemoteImage(url: ladder[1], size: size, contentMode: .fill,
+                                              placeholder: { artworkPlate },
+                                              failure: {
+                                                if ladder.count > 2 {
+                                                  CachedRemoteImage(url: ladder[2], size: size,
+                                                                    contentMode: .fill,
+                                                                    placeholder: { artworkPlate },
+                                                                    failure: { artworkPlate })
+                                                } else {
+                                                  artworkPlate
+                                                }
+                                              })
                           } else {
-                            interim
+                            artworkPlate
                           }
                         })
-    } else if let kinopub {
-      CachedRemoteImage(url: kinopub, size: size, contentMode: .fill,
-                        placeholder: { interim },
-                        failure: { interim })
     } else {
-      interim
+      artworkPlate
+    }
+  }
+
+  @ViewBuilder
+  private var artworkPlate: some View {
+    if card.isLandscape {
+      landscapeIconicPlaceholder
+    } else {
+      Rectangle().fill(.fill.tertiary)
     }
   }
 

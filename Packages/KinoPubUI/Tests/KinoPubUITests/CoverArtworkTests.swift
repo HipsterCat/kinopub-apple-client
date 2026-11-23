@@ -73,3 +73,46 @@ final class CoverArtworkTests: XCTestCase {
     }
   }
 }
+
+final class CardArtworkLadderTests: XCTestCase {
+  private let medium = "https://m.staticpop.net/poster/item/medium/1.jpg"
+  private let wide = "https://m.staticpop.net/poster/item/wide/1.jpg"
+  private let kinopoisk = "https://kinopoiskapiunofficial.tech/images/posters/kp/16497.jpg"
+  private var savedCover: Any?
+
+  override func setUp() {
+    savedCover = UserDefaults.standard.object(forKey: CoverArtworkPreferences.languageKey)
+  }
+
+  override func tearDown() {
+    if let savedCover {
+      UserDefaults.standard.set(savedCover, forKey: CoverArtworkPreferences.languageKey)
+    } else {
+      UserDefaults.standard.removeObject(forKey: CoverArtworkPreferences.languageKey)
+    }
+  }
+
+  /// «Иностранная интрига» on Mac Home: the wide backdrop was cropped into the poster
+  /// tile while the Kinopoisk cover loaded. A vertical card tries vertical covers only.
+  func testAPosterCardNeverTriesTheBackdrop() {
+    CoverArtworkPreferences.set(.russian)
+    let card = MediaCard(id: 1, posterURL: medium, title: "Иностранная интрига",
+                         backdropURL: wide, kinopoiskID: 16497)
+    XCTAssertEqual(card.artworkLadder.map(\.absoluteString), [kinopoisk, medium])
+  }
+
+  func testEnglishPosterCardTriesItsKinoPubCoverOnce() {
+    CoverArtworkPreferences.set(.english)
+    let card = MediaCard(id: 1, posterURL: medium, title: "T", backdropURL: wide, kinopoiskID: 16497)
+    XCTAssertEqual(card.artworkLadder.map(\.absoluteString), [medium])
+  }
+
+  func testAWideCardKeepsTheBackdropAsTheLastResort() {
+    let still = "https://example.com/still.jpg"
+    var card = MediaCard(id: 1, posterURL: medium, title: "T", backdropURL: wide,
+                         landscapeImageURL: still)
+    card.fallbackLandscapeURL = "https://example.com/thumb.jpg"
+    XCTAssertEqual(card.artworkLadder.map(\.absoluteString),
+                   [still, "https://example.com/thumb.jpg", wide])
+  }
+}

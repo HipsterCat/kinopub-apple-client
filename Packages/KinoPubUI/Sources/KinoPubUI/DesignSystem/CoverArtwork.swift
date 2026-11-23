@@ -94,3 +94,26 @@ public extension MediaCard {
     CoverArtwork.resolve(url: posterURL, kinopoiskID: kinopoiskID)
   }
 }
+
+public extension MediaCard {
+  /// Pictures a card's artwork tries, in order: the next one only when the one before
+  /// failed, with the plain plate under the wait — one picture per tile, the same
+  /// ladder as tvOS (`TVUIKitMediaItemRail`, Sasha 2026-11-21).
+  ///
+  /// A vertical card only ever draws vertical covers: the Russian cover, then kino.pub's
+  /// own. The title's wide backdrop used to go up first while the Kinopoisk cover
+  /// loaded, cropped into the poster tile, and stayed when it failed (2026-11-23).
+  /// A wide card: unique still → kino.pub thumb on 404 (KP-23) → series backdrop.
+  var artworkLadder: [URL] {
+    let strings = isLandscape
+      ? [landscapeImageURL ?? posterURL, fallbackLandscapeURL, backdropURL]
+      : [coverURL, posterURL]
+    var ladder: [URL] = []
+    for string in strings {
+      guard let string, !string.isEmpty, let url = URL(string: string),
+            !ladder.contains(url) else { continue }
+      ladder.append(url)
+    }
+    return ladder
+  }
+}
