@@ -4587,23 +4587,6 @@ enum MediaItemLayout {
 
 // MARK: - Plot
 
-/// The clamped synopsis' drawn height, and the same text measured with no line limit.
-/// Two keys rather than one so the plot view can compare them without either
-/// measurement having to know the other's value.
-private struct PlotClampedHeightKey: PreferenceKey {
-  static let defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = max(value, nextValue())
-  }
-}
-
-private struct PlotFullHeightKey: PreferenceKey {
-  static let defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = max(value, nextValue())
-  }
-}
-
 /// The synopsis, clamped to a few lines. Selecting it opens the full text in the
 /// info popup rather than expanding in place.
 ///
@@ -4639,46 +4622,31 @@ struct MediaItemPlotView: View {
   /// information table under the full synopsis. Nil shows the synopsis alone.
   var summary: MediaItemSynopsisSummary? = nil
 
-  /// The two heights the truncation decision is made from, kept as state so it is
-  /// remade every time the layout changes — the old `ViewThatFits` probe latched
-  /// `isTruncated` to true in an `onAppear` that fired once and never reset, so a
-  /// paragraph that fit still wore a "More" once the real plot replaced the mock, or
-  /// once a wider layout un-clipped it. Measuring both heights on every pass instead
-  /// lets the answer go back to false when the text genuinely fits.
+  /// Clamped and unconstrained heights of the synopsis *including* the trailing «ЕЩЁ»
+  /// token, updated directly via `onGeometryChange` (as in ryanashcraft/Expandable).
+  /// Never reset to zero on text changes: when one two-line clamped plot replaces
+  /// another during loading, the clamped height does not change, so zeroing it left
+  /// `clampedHeight` stuck at 0 and hid «ЕЩЁ».
   @State private var fullHeight: CGFloat = 0
   @State private var clampedHeight: CGFloat = 0
   @State private var isPresented = false
 
-  /// The full copy needs more room than the clamped three lines leave it. A point of
-  /// slack absorbs sub-pixel rounding so a paragraph that exactly fills the clamp is
-  /// not called truncated. Both heights start at zero, so until the first measurement
-  /// lands this reads false — the page opens without a "More" that then vanishes,
-  /// rather than the other way round.
+  /// Whether the paragraph + «ЕЩЁ» exceeds `lineLimit` and needs the bottom-trailing
+  /// cutout + fade rather than an inline capsule after the last word.
   private var isTruncated: Bool {
     guard !expandsFully else { return false }
     return fullHeight > 0 && clampedHeight > 0 && fullHeight > clampedHeight + 1
   }
 
   var body: some View {
-    // Heights only, measured outside the button. The unclamped copy used to live in
-    // the label, and the tvOS focus effect snapshots that label — the full text is
-    // much taller than the lines on screen, so the focus shape was a tall slab.
-    // Placement of «ЕЩЁ» no longer reads `Text.Layout`: that absolute offset could
-    // leave the hint on a phantom next line while truncation was still unknown, and
-    // on the phone's fixed plot slot that painted over the playback badges
-    // (KP-77; layout from ryanashcraft/Expandable).
+    // Heights only, measured outside the button so the tvOS focus snapshot sees only
+    // the clamped visible paragraph.
     ZStack(alignment: .topLeading) {
       plotMeasurement
       content
     }
     .frame(maxWidth: Self.maxWidth, alignment: centered ? .center : .leading)
     .environment(\.plotCentered, centered)
-    .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
-    .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
-    .onChange(of: popupPlot) { _, _ in
-      fullHeight = 0
-      clampedHeight = 0
-    }
   }
 
   /// Always the control, on every platform — the synopsis is the canonical "there is
@@ -4775,33 +4743,25 @@ struct MediaItemPlotView: View {
   private var lineLimit: Int? { expandsFully ? nil : (maxLines ?? Self.lineLimit) }
 
   private var plotMeasurement: some View {
-    Text(paragraphText)
+    PlotParagraph.inlineMoreText(paragraphText, capsuleFill: .clear)
       .font(Self.font)
       .lineLimit(lineLimit)
       .multilineTextAlignment(centered ? .center : .leading)
       .frame(maxWidth: .infinity, alignment: .leading)
       .fixedSize(horizontal: false, vertical: true)
-      .opacity(0)
-      .accessibilityHidden(true)
-      .allowsHitTesting(false)
-      .background {
-        GeometryReader { geometry in
-          Color.clear.preference(key: PlotClampedHeightKey.self, value: geometry.size.height)
-        }
-      }
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { clampedHeight = $0 }
       .background(alignment: .topLeading) {
-        Text(paragraphText)
+        PlotParagraph.inlineMoreText(paragraphText, capsuleFill: .clear)
           .font(Self.font)
+          .lineLimit(nil)
           .multilineTextAlignment(centered ? .center : .leading)
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .hidden()
-          .background {
-            GeometryReader { geometry in
-              Color.clear.preference(key: PlotFullHeightKey.self, value: geometry.size.height)
-            }
-          }
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
       }
+      .hidden()
+      .accessibilityHidden(true)
+      .allowsHitTesting(false)
   }
 
   /// Fade width ahead of «ЕЩЁ», matching Expandable's trailing cutout gradient.
@@ -4822,6 +4782,7 @@ struct MediaItemPlotView: View {
   static let maxWidth: CGFloat = 880
   static let moreInsetH: CGFloat = 14
   static let moreInsetV: CGFloat = 2
+  static let inlineGapSpaces = "   "
 #else
   /// The tvOS plate's room around the glyphs, drawn outside the paragraph's frame so
   /// the hover plate moves nothing.
@@ -4833,44 +4794,84 @@ struct MediaItemPlotView: View {
   static let maxWidth: CGFloat = 650
   static let moreInsetH: CGFloat = 8
   static let moreInsetV: CGFloat = 1
+  static let inlineGapSpaces = "    "
 #endif
 
   /// Same size as the metadata line above it and the information table below it.
   static let font: Font = TypeScale.detailBody
+
+  static func moreCapsuleFill(contrast: ColorSchemeContrast) -> Color {
+    Color.KinoPub.text.opacity(contrast == .increased ? 0.35 : 0.2)
+  }
 }
 
-/// The clamped synopsis with the «ЕЩЁ» hint at the trailing end of the last line, as
-/// the Apple TV app draws it: a light capsule, the words before it fading out rather
-/// than cut by an ellipsis (Sasha, 2026-11-08).
+/// The clamped synopsis with the «ЕЩЁ» hint at its end, as the Apple TV app draws it: a
+/// light capsule, the words before it fading out rather than cut by an ellipsis
+/// (Sasha, 2026-11-08). Always present — tapping the synopsis opens the full details
+/// sheet (audio, subtitles, video, facts) even when the episode blurb itself is short.
 ///
-/// Layout follows [Expandable](https://github.com/ryanashcraft/Expandable) (MIT): a
-/// `ZStack(alignment: .bottomTrailing)` keeps the hint glued to the text frame, with an
-/// inverted mask cutting glyphs out under it. Absolute `Text.Layout` placement is gone —
-/// that orphaned the hint onto a phantom next line (and over the playback badges) when
-/// the plot arrived after first layout. The hint shows only once truncation is measured;
-/// the paragraph itself stays the open-the-popup control either way.
+/// Two cases, both bounded by `lineLimit`:
+/// - When `text + ЕЩЁ` overflows `lineLimit`, [Expandable](https://github.com/ryanashcraft/Expandable)'s
+///   `ZStack(alignment: .bottomTrailing)` + inverted mask pins the capsule to the last
+///   line and fades the glyphs under it.
+/// - When `text + ЕЩЁ` fits within `lineLimit`, `TextRenderer` draws the same capsule
+///   inline on the trailing «ЕЩЁ» run so TextKit wraps and centres it naturally without
+///   ever adding a line past `lineLimit`.
 struct PlotParagraph: View {
   let text: AttributedString
   let isTruncated: Bool
   let lineLimit: Int?
 
   @Environment(\.plotCentered) private var centered
+  @Environment(\.colorSchemeContrast) private var contrast
 
   var body: some View {
-    ZStack(alignment: .bottomTrailing) {
-      paragraph
-        .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
-        .plotInvertedMask {
-          if isTruncated {
+    if isTruncated {
+      ZStack(alignment: .bottomTrailing) {
+        paragraph
+          .transaction { $0.animation = nil }
+          .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
+          .plotInvertedMask {
             moreCutout
           }
-        }
 
-      if isTruncated {
-        // Visual only — the surrounding control opens the popup.
-        SynopsisMoreHint()
+        moreLineBox
           .allowsHitTesting(false)
       }
+    } else {
+      Self.inlineMoreText(text, capsuleFill: MediaItemPlotView.moreCapsuleFill(contrast: contrast))
+        .font(MediaItemPlotView.font)
+        .foregroundStyle(Color.KinoPub.text)
+        .lineLimit(lineLimit)
+        .multilineTextAlignment(centered ? .center : .leading)
+        .textRenderer(
+          SynopsisMoreTextRenderer(
+            insetH: MediaItemPlotView.moreInsetH,
+            insetV: MediaItemPlotView.moreInsetV
+          )
+        )
+        .transaction { $0.animation = nil }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: centered ? .infinity : nil, alignment: centered ? .center : .leading)
+    }
+  }
+
+  static func inlineMoreText(_ text: AttributedString, capsuleFill: Color) -> Text {
+    let word = "Synopsis_More".localized.uppercased()
+    let badge = Text(verbatim: word)
+      .font(MediaItemPlotView.moreFont)
+      .customAttribute(SynopsisMoreBadgeAttribute(fill: capsuleFill))
+    return Text("\(Text(text))\(MediaItemPlotView.inlineGapSpaces)\(badge)\u{00A0}\u{00A0}")
+  }
+
+  /// Vertically centres «ЕЩЁ» inside one line height of the paragraph font
+  /// (Expandable's `expandButtonContents`).
+  private var moreLineBox: some View {
+    ZStack {
+      Text(verbatim: " ")
+        .font(MediaItemPlotView.font)
+        .hidden()
+      SynopsisMoreHint()
     }
   }
 
@@ -4879,8 +4880,8 @@ struct PlotParagraph: View {
   private var moreCutout: some View {
     Color.clear
       .overlay(alignment: .bottomTrailing) {
-        SynopsisMoreHint()
-          .hidden()
+        moreLineBox
+          .opacity(0)
           .overlay(Color.black)
           .overlay(alignment: .leading) {
             LinearGradient(
@@ -4890,6 +4891,7 @@ struct PlotParagraph: View {
             )
             .frame(width: MediaItemPlotView.moreFadeWidth)
             .offset(x: -MediaItemPlotView.moreFadeWidth)
+            .flipsForRightToLeftLayoutDirection(true)
           }
       }
   }
@@ -4901,6 +4903,49 @@ struct PlotParagraph: View {
       .lineLimit(lineLimit)
       .multilineTextAlignment(centered ? .center : .leading)
       .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+private struct SynopsisMoreBadgeAttribute: TextAttribute, Hashable, Sendable {
+  let fill: Color
+}
+
+private struct SynopsisMoreTextRenderer: TextRenderer {
+  let insetH: CGFloat
+  let insetV: CGFloat
+
+  func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+    for line in layout {
+      var badgeRect: CGRect?
+      var badgeFill: Color?
+      for run in line {
+        if let badge = run[SynopsisMoreBadgeAttribute.self] {
+          badgeRect = badgeRect.map { $0.union(run.typographicBounds.rect) } ?? run.typographicBounds.rect
+          badgeFill = badge.fill
+        }
+      }
+      if let rect = badgeRect, let fill = badgeFill {
+        let shift = max(0, insetH - rect.minX)
+        let pill = rect.offsetBy(dx: shift, dy: 0).insetBy(dx: -insetH, dy: -insetV)
+        context.fill(
+          Path(roundedRect: pill, cornerRadius: pill.height / 2, style: .continuous),
+          with: .color(fill)
+        )
+        for run in line {
+          if run[SynopsisMoreBadgeAttribute.self] != nil, shift > 0 {
+            var shifted = context
+            shifted.translateBy(x: shift, y: 0)
+            shifted.draw(run)
+          } else {
+            context.draw(run)
+          }
+        }
+      } else {
+        for run in line {
+          context.draw(run)
+        }
+      }
+    }
   }
 }
 
@@ -4923,7 +4968,7 @@ struct SynopsisMoreHint: View {
       .fixedSize()
       .padding(.horizontal, MediaItemPlotView.moreInsetH)
       .padding(.vertical, MediaItemPlotView.moreInsetV)
-      .background(Capsule().fill(Color.KinoPub.text.opacity(contrast == .increased ? 0.35 : 0.2)))
+      .background(Capsule().fill(MediaItemPlotView.moreCapsuleFill(contrast: contrast)))
       .accessibilityHidden(true)
   }
 }
