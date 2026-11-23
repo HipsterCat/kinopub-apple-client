@@ -1154,10 +1154,6 @@ class HomeCatalog: ObservableObject {
     async let allSerialsTask = try? watching.serials(subscribedOnly: false, using: itemsService)
     async let watchlistTask = try? watching.serials(subscribedOnly: true, using: itemsService)
     async let bookmarksTask = recentBookmarks(rules: rules)
-    // History dates every title off the followed list: without its `last_seen` an
-    // unfollowed film or series has no reason to be on the row. Shared with Library
-    // Unwatched through the cache, so a refresh minutes later asks nothing.
-    let historyResult = try? await watching.historyHead(using: itemsService)
 
     let moviesResult = await moviesTask
     let serialsResult = await allSerialsTask
@@ -1168,16 +1164,19 @@ class HomeCatalog: ObservableObject {
     // three) — but if every single one failed, this is a network outage, not "the
     // user has nothing to continue watching". Throw so the store keeps the last
     // known-good row instead of caching an empty one.
-    if moviesResult == nil, serialsResult == nil, watchlistResult == nil, historyResult == nil {
+    if moviesResult == nil, serialsResult == nil, watchlistResult == nil {
       throw ContinueWatchingFetchError.allSourcesFailed
     }
 
     let movies = moviesResult ?? []
     let serials = serialsResult ?? []
     let watchlist = watchlistResult ?? []
-    let history = historyResult ?? []
+    // No `/v1/history` (Sasha, 2026-11-23): the three watching lists say what is
+    // unfinished; dates come from this device and the title payloads only.
+    let history: [HistoryEntry] = []
 
     let watchlistIDs = Set(watchlist.map(\.id))
+    let unfinishedIDs = Set(movies.map(\.id) + serials.map(\.id))
     var lastSeen = ContinueWatchingOrder.lastSeenByItemID(history)
     let newestEntry = Self.newestEntryByItemID(history)
     let finishedEpisodes = Self.finishedEpisodesByItemID(history)
@@ -1278,7 +1277,8 @@ class HomeCatalog: ObservableObject {
         position: position[item.id],
         isSubscribed: watchlistIDs.contains(item.id),
         updatedAt: details[item.id].flatMap { $0.updatedAt > 0 ? Date(timeIntervalSince1970: TimeInterval($0.updatedAt)) : nil },
-        bookmarkedAt: bookmarkedAt[item.id]
+        bookmarkedAt: bookmarkedAt[item.id],
+        isListedUnfinished: !watchlistIDs.contains(item.id) && unfinishedIDs.contains(item.id)
       )
     }
     // The whole ranking, drawn from the top until the row is full: a series whose every

@@ -2,7 +2,7 @@
 //  WatchingListCache.swift
 //  KinoPubAppleClient
 //
-//  One in-memory cache for the three watching-list GETs (and the first history page) that Continue Watching,
+//  One in-memory cache for the three watching-list GETs that Continue Watching,
 // Library Unwatched / Following, and the sidebar badge all used to fire separately.
 //
 //  TTL is short (a few minutes) so concurrent surfaces share one answer; mutations
@@ -125,54 +125,6 @@ final class WatchingListCache {
     }
   }
 
-  // MARK: - History head
-
-  /// Rows of `/v1/history` asked for by Continue Watching and Library Unwatched. The
-  /// watching lists carry no dates: a title off the followed list gets onto the row only
-  /// by a `last_seen` from this page (`ContinueWatchingOrder.reason`). History is one row
-  /// per episode, so 8 rows was one evening of one show and every other unfollowed film
-  /// and series fell off «Продолжить» (Sasha, 2026-11-23). One request either way; the
-  /// #110 flood was how often it ran, and that is this cache's TTL.
-  static let historyHeadPerPage = 50
-
-  private var historyHeadEntry: (items: [HistoryEntry], fetchedAt: Date)?
-  private var historyHeadWaiters: [CheckedContinuation<[HistoryEntry], Error>] = []
-  private var fetchingHistoryHead = false
-
-  /// The newest page of history, shared like the watching lists (same TTL, coalesced,
-  /// cleared by `invalidate`).
-  func historyHead(using service: VideoContentService,
-                   force: Bool = false,
-                   now: Date = Date()) async throws -> [HistoryEntry] {
-    if !force, let entry = historyHeadEntry, now.timeIntervalSince(entry.fetchedAt) <= Self.ttl {
-      return entry.items
-    }
-    if fetchingHistoryHead {
-      return try await withCheckedThrowingContinuation { cont in
-        historyHeadWaiters.append(cont)
-      }
-    }
-    fetchingHistoryHead = true
-    let gen = generation
-    do {
-      let items = try await service.fetchHistory(page: nil, perPage: Self.historyHeadPerPage).history
-      guard generation == gen else { return items }
-      fetchingHistoryHead = false
-      historyHeadEntry = (items, Date())
-      let pending = historyHeadWaiters
-      historyHeadWaiters.removeAll()
-      for waiter in pending { waiter.resume(returning: items) }
-      return items
-    } catch {
-      guard generation == gen else { throw error }
-      fetchingHistoryHead = false
-      let pending = historyHeadWaiters
-      historyHeadWaiters.removeAll()
-      for waiter in pending { waiter.resume(throwing: error) }
-      throw error
-    }
-  }
-
   /// Drop every list. Next caller refetches. Cancels waiters coalesced on an in-flight
   /// fetch so they do not receive a stale answer from a request that started earlier
   /// (e.g. Home warming the shared cache before a unit test clears it).
@@ -185,11 +137,6 @@ final class WatchingListCache {
     for (_, waiters) in pending {
       for waiter in waiters { waiter.resume(throwing: CancellationError()) }
     }
-    historyHeadEntry = nil
-    fetchingHistoryHead = false
-    let historyPending = historyHeadWaiters
-    historyHeadWaiters.removeAll()
-    for waiter in historyPending { waiter.resume(throwing: CancellationError()) }
   }
 
   func clear() {
