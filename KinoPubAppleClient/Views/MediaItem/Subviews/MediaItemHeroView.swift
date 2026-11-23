@@ -807,8 +807,23 @@ struct MediaItemHeroView: View {
       // page colour; only the overlay chrome is forced dark.
       heroCanvas
         .frame(maxWidth: .infinity)
-        .background(visibilityProbe)
-        .background(toolbarCrossingProbe)
+        // Geometry observers, not `GeometryReader` + `onChange`: those re-ran their body on
+        // every scroll frame and wrote the phase from inside the view update, so the bar
+        // changed in the same frame the scroll did — `<OnScrollPhaseContextChange
+        // Modifier> tried to update multiple times per frame` while scrolling a title on
+        // iPhone, right as its title came into the bar (Sasha, 2026-11-23). These run
+        // after layout, once per change. The hero is never removed from the page's
+        // `VStack`, so its frame, not `onDisappear`, says whether it is on screen.
+        .onGeometryChange(for: Bool.self) { proxy in
+          proxy.frame(in: .named(MediaItemLayout.scrollSpace)).minY >= -Self.onScreenSlop
+        } action: { onScreen in
+          if phase.isHeroOnScreen != onScreen { phase.isHeroOnScreen = onScreen }
+        }
+        .onGeometryChange(for: Bool.self) { proxy in
+          barTakesOver(heroFrame: proxy.frame(in: .named(MediaItemLayout.scrollSpace)))
+        } action: { past in
+          if phase.isHeroPastToolbar != past { phase.isHeroPastToolbar = past }
+        }
 #endif
     }
   }
@@ -1118,22 +1133,6 @@ struct MediaItemHeroView: View {
   // MARK: - Background
 
 #if !os(tvOS)
-  /// The hero sits in a plain `VStack` inside the page's `ScrollView`, so it is never
-  /// removed from the hierarchy and `onDisappear` only fires when the whole page goes
-  /// away — not when the hero scrolls off the top. Its frame in the scroll view's own
-  /// space is what actually says whether it is on screen.
-  private var visibilityProbe: some View {
-    GeometryReader { proxy in
-      let frame = proxy.frame(in: .named(MediaItemLayout.scrollSpace))
-      Color.clear
-        .onChange(of: frame.minY >= -Self.onScreenSlop) { _, onScreen in
-          phase.isHeroOnScreen = onScreen
-        }
-    }
-  }
-#endif
-
-#if !os(tvOS)
   /// Whether the hero's bottom edge has gone up under the window toolbar (Mac) or the
   /// navigation bar (iPhone, iPad). One write per crossing, read by the title page's bar
   /// alone.
@@ -1149,16 +1148,6 @@ struct MediaItemHeroView: View {
     return frame.maxY <= phase.topChromeInset
   }
 
-  private var toolbarCrossingProbe: some View {
-    GeometryReader { proxy in
-      let frame = proxy.frame(in: .named(MediaItemLayout.scrollSpace))
-      let past = barTakesOver(heroFrame: frame)
-      Color.clear
-        .onChange(of: past, initial: true) { _, past in
-          if phase.isHeroPastToolbar != past { phase.isHeroPastToolbar = past }
-        }
-    }
-  }
 #endif
 
   /// Textless enrichment first, then kino.pub's own `wide` when the payload sent one.

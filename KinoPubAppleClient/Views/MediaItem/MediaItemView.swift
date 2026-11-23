@@ -1473,7 +1473,9 @@ private struct PhoneTitlePageBar: ViewModifier {
       .navigationTitle(Text(verbatim: past ? title : ""))
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(past ? AnyShapeStyle(.bar) : AnyShapeStyle(Color.clear), for: .navigationBar)
-      .toolbarBackground(past ? .automatic : .visible, for: .navigationBar)
+      // Always visible, only its style changes: switching the visibility too reset the
+      // bar's backing and the scroll view's edge in the frame the title crossed.
+      .toolbarBackground(.visible, for: .navigationBar)
       .toolbarColorScheme(!past && phase.showsPicture ? .dark : colorScheme, for: .navigationBar)
       .scrollEdgeEffectHidden(!past, for: .top)
   }
