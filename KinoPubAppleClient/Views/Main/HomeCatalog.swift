@@ -535,6 +535,8 @@ class HomeCatalog: ObservableObject {
   /// Banner cards whose images were already set up.
   private var bannerLookups: Set<Int> = []
   private var bag = Set<AnyCancellable>()
+  /// Local progress changed while the player was up; repainted when it closes.
+  private var needsProgressRepaint = false
 
   init(itemsService: VideoContentService,
        authState: AuthState,
@@ -559,8 +561,26 @@ class HomeCatalog: ObservableObject {
     NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
-        self?.assembleRows()
-        self?.repaintBannerPlay()
+        guard let self else { return }
+        // The player writes progress every few seconds; Home is under it and nobody
+        // sees the rows. Rebuilding them then re-rendered the whole page per tick
+        // (`[HomeBanner] pool=…` over a full-screen video, Sasha, 2026-11-23). Repaint
+        // once when the player goes away.
+        guard PlaybackSession.shared.currentManager == nil else {
+          self.needsProgressRepaint = true
+          return
+        }
+        self.assembleRows()
+        self.repaintBannerPlay()
+      }
+      .store(in: &bag)
+    PlaybackSession.shared.$manager
+      .receive(on: RunLoop.main)
+      .sink { [weak self] manager in
+        guard let self, manager == nil, self.needsProgressRepaint else { return }
+        self.needsProgressRepaint = false
+        self.assembleRows()
+        self.repaintBannerPlay()
       }
       .store(in: &bag)
     NotificationCenter.default.publisher(for: .contentStoreDidInvalidateWatch)
