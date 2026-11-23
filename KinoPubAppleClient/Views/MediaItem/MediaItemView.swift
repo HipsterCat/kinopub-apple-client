@@ -343,6 +343,8 @@ struct MediaItemView: View {
       .sheet(item: $idsTarget) { target in
         TitleIDsSheet(target: target,
                       images: appContext.metadataService.images,
+                      knownIDs: knownTitleIDs,
+                      knownKind: itemModel.mediaItem.isSeries ? "show" : "movie",
                       onSaved: { await itemModel.resetLocalCache() })
       }
 #if DEBUG
@@ -437,6 +439,19 @@ struct MediaItemView: View {
       } message: {
         Text("MediaItem_VoteCastBody".localized)
       }
+  }
+
+  /// The ids this page already has, for the Title IDs form: kino.pub's IMDb and
+  /// Kinopoisk, and the TMDB id the metadata came with.
+  private var knownTitleIDs: [String: String] {
+    let item = itemModel.mediaItem
+    var ids: [String: String] = [:]
+    if let imdb = item.imdb, imdb > 0 { ids["imdb"] = TMDBIDFormatter.imdbString(from: imdb) }
+    if let kinopoisk = item.kinopoisk, kinopoisk > 0 { ids["kinopoisk"] = String(kinopoisk) }
+    if let tmdb = itemModel.externalMetadata.tmdbId {
+      ids["tmdb"] = "\(item.isSeries ? "tv" : "movie")/\(tmdb)"
+    }
+    return ids
   }
 
   /// Change Images and the worker's maintenance actions, for an admin with a token.

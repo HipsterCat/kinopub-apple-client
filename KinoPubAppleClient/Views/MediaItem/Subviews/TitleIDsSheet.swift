@@ -14,7 +14,13 @@ import KinoPubMetadata
 struct TitleIDsSheet: View {
   let target: TitleImagePickerTarget
   let images: TitleImageRoute
-  /// After a save that re-resolved the title: drop the device's copies and reload.
+  /// Ids the app already knows for the title (kino.pub's own, the metadata it loaded):
+  /// they fill whatever the worker does not hold yet.
+  var knownIDs: [String: String] = [:]
+  /// Title type the app knows, `show` / `movie`, when the worker has none.
+  var knownKind: String? = nil
+  /// After a save: the worker has the new ids (and re-resolved the title when IMDb or
+  /// TMDB changed); drop the device's copies and reload, so scores follow.
   let onSaved: () async -> Void
 
   @Environment(\.dismiss) private var dismiss
@@ -150,33 +156,49 @@ struct TitleIDsSheet: View {
     do {
       let ids = try await client.titleIDs(kinopubID: target.kinopubID)
       loaded = ids
-      fields = ids.ids.mapValues(\.value)
-      if let kind = ids.kind, kind == "show" || kind == "movie" { self.kind = kind }
+      var values = ids.ids.mapValues(\.value)
+      for (key, value) in knownIDs where (values[key] ?? "").isEmpty && !value.isEmpty {
+        values[key] = value
+      }
+      fields = values
+      if let kind = ids.kind ?? knownKind, kind == "show" || kind == "movie" { self.kind = kind }
       phase = .loaded
     } catch {
       phase = .failed(error.localizedDescription)
     }
   }
 
+  /// Links the ids and closes at once. Re-resolving the title (a changed IMDb or TMDB
+  /// id) can take a while, so it runs after the sheet is gone, then the page reloads.
   private func save() async {
     guard let client else { return }
     let changes = changes
+    let kinopubID = target.kinopubID
+    let resolvesAgain = changes["imdb"] != nil || changes["tmdb"] != nil
+    let imdb = changes["imdb"] ?? fields["imdb"]
+    let kinopoisk = (changes["kinopoisk"] ?? fields["kinopoisk"]).flatMap(Int.init)
+    let onSaved = onSaved
     isSaving = true
     error = nil
-    defer { isSaving = false }
     do {
-      _ = try await client.link(kinopubID: target.kinopubID, ids: changes, kind: kind)
-      // New ids only take effect once the worker resolves the title again.
-      if changes["imdb"] != nil || changes["tmdb"] != nil {
-        let imdb = changes["imdb"] ?? loaded.ids["imdb"]?.value
-        _ = try await client.refresh(kinopubID: target.kinopubID, kind: .logo,
-                                     imdb: imdb, kinopoisk: (changes["kinopoisk"] ?? loaded.ids["kinopoisk"]?.value).flatMap(Int.init))
-        Artwork.clearCaches()
-        await onSaved()
-      }
-      dismiss()
+      _ = try await client.link(kinopubID: kinopubID, ids: changes, kind: kind)
     } catch {
+      isSaving = false
       self.error = error.localizedDescription
+      return
+    }
+    isSaving = false
+    dismiss()
+    Task {
+      if resolvesAgain {
+        _ = try? await client.refresh(kinopubID: kinopubID, kind: .logo,
+                                      imdb: imdb, kinopoisk: kinopoisk)
+        Artwork.clearCaches()
+      }
+      // The worker's card answers with max-age=60; without this the reload below reads
+      // the card from before the link, and the scores stay as they were.
+      URLCache.shared.removeAllCachedResponses()
+      await onSaved()
     }
   }
 }
