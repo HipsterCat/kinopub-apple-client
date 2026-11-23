@@ -215,6 +215,7 @@ struct AppContext: AppContextProtocol {
       DetailFixture.allCases.forEach { localProgressStore.clear(id: $0.itemID) }
     }
 #else
+    let isFixtureRun = false
     let localProgressStore = LocalWatchProgressStore()
 #endif
     let libraryState = MediaLibraryStore(
