@@ -1099,6 +1099,60 @@ public final class TVPageCollectionViewController: UIViewController {
   /// `indexPathForPreferredFocusedView`, which answers this, and memory resumes.
   private var handoffPath: IndexPath?
 
+  /// The card focus came back to from nowhere — back out of a title opened from it (the
+  /// navigation controller's restore). Held until the viewer moves focus themselves.
+  private var returnedToPath: IndexPath?
+  private var returnRedirects = 0
+  /// Where the navigation controller's restore put focus, when that was not the card.
+  private var returnLandedPath: IndexPath?
+
+  /// A move off the card focus came back to (or off where the restore put it, before our
+  /// hand-back to the card has landed) that is not a handoff of ours to another card.
+  private func returnedMoveIsUnasked(_ context: UICollectionViewFocusUpdateContext,
+                                     returned: IndexPath) -> Bool {
+    guard let previous = context.previouslyFocusedIndexPath,
+          previous == returned || previous == returnLandedPath else { return false }
+    return handoffPath == nil || handoffPath == returned
+  }
+
+  /// Back out of a title opened from a card, the navigation controller hands focus back to
+  /// that card — and SwiftUI's stack then asks for a focus update of its own from the top,
+  /// which finds no preferred view in the page and infers one from visual layout: the
+  /// first card on screen, the ratings summary (Sasha saw Back land on Ratings;
+  /// TVDetailLayoutUITests.testMenuReturnsToEachHeroBeforeClosingTheTitle). UIKit does not
+  /// ask `shouldUpdateFocusIn` for that reset (probed 2026-11-23, tvOS 26.5), so it cannot
+  /// be refused: a move nobody asked for — no heading, not a handoff of ours — off the card
+  /// focus came back to, while that card is still there, is handed back to it. The viewer's
+  /// first press ends this; at most three times per return, so it can never pin focus.
+  ///
+  /// The restore itself can also land one card off: the navigation controller hands back
+  /// the cell *view* it saw focused, by then reused for the next card (Back to the first
+  /// title landed on «Человек-паук 2» beside the card that opened it), and that restore
+  /// never asks `indexPathForPreferredFocusedView`, where the parked card (`handoffPath`,
+  /// `parkReturnFocus`) waits. The card is the parked one, else the one this page
+  /// remembers by identity (`lastFocusedItemID`) — not that view.
+  private func returnsToReturnedCard(_ context: UICollectionViewFocusUpdateContext,
+                                     next: IndexPath?) -> Bool {
+    guard let returned = returnedToPath, returnRedirects < 3 else { return false }
+    let restoredOffCard = context.previouslyFocusedView == nil
+    guard context.focusHeading.isEmpty, !wantsTopFocus,
+          let next, next != returned,
+          restoredOffCard || returnedMoveIsUnasked(context, returned: returned),
+          dataSource.itemIdentifier(for: returned) != nil else { return false }
+    returnRedirects += 1
+    FocusLog.decision(restoredOffCard
+      ? "page: focus came back to \(next), not to the card it left (\(returned)) — to that card"
+      : "page: focus left the card it came back to without a press (\(returned) → \(next)) — back to it")
+    handFocus(to: .item(returned), now: false)
+    // Inside `didUpdateFocus` a new update is not taken; the next turn of the run loop.
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.collectionView.setNeedsFocusUpdate()
+      self.collectionView.updateFocusIfNeeded()
+    }
+    return true
+  }
+
   private func handFocus(to handoff: FocusHandoff, now: Bool) {
     switch handoff {
     case .item(let path): handoffPath = path
@@ -1673,6 +1727,17 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     }
     let previousSection = context.previouslyFocusedIndexPath?.section
     let resolved = resolveFocusedPath(from: context)
+    if context.previouslyFocusedView == nil, let resolved {
+      returnedToPath = handoffPath ?? rememberedIndexPath() ?? resolved
+      returnLandedPath = resolved
+      returnRedirects = 0
+      if returnsToReturnedCard(context, next: resolved) { return }
+    } else if !context.focusHeading.isEmpty || resolved == nil {
+      returnedToPath = nil
+      returnLandedPath = nil
+    } else if returnsToReturnedCard(context, next: resolved) {
+      return
+    }
     focusedPath = resolved
     if let resolved {
       lastFocusedPath = resolved

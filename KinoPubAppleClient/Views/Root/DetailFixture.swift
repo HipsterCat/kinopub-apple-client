@@ -801,10 +801,21 @@ struct LibraryFixtureRoot: View {
                           authState: Self.authState,
                           errorHandler: errorHandler,
                           store: Self.store,
-                          defaults: UserDefaults(suiteName: "KinoPubLibraryFixture") ?? .standard),
+                          defaults: Self.defaults),
       catalog: catalog
     )
   }
+
+  /// The fixture's own suite, emptied once per launch: every run opens where a first
+  /// launch does (Following). The section a walk left selected was remembered into the
+  /// next run — `folder:9906002` from the TVMenuBack walks, and
+  /// testLibraryFollowingSaysHowManyEpisodesAreLeft found a folder instead of Following.
+  private static let defaults: UserDefaults = {
+    let name = "KinoPubLibraryFixture"
+    guard let suite = UserDefaults(suiteName: name) else { return .standard }
+    suite.removePersistentDomain(forName: name)
+    return suite
+  }()
 }
 
 // MARK: - Player

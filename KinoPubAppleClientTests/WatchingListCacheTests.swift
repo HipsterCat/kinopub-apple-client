@@ -131,6 +131,81 @@ final class WatchingListCacheTests: XCTestCase {
     XCTAssertEqual(after.map(\.id), [3])
     XCTAssertEqual(box.movieFetches, 2)
   }
+
+  // MARK: - «Новые серии»: one count everywhere
+
+  /// The tab's badge, the page's subtitle, the Watching covers and Library Following all
+  /// count from the followed list: a caught-up series (its `new` not yet cleared) counts
+  /// nothing anywhere. The badge summed `new` while the covers counted `total − watched`.
+  func testNewEpisodesBadgeSubtitleAndCoversAgree() {
+    let posters = WatchingFetchBox.emptyPosters
+    let followed = [
+      WatchingItem(id: 128431, type: "serial", title: "Яга / Yaga", posters: posters,
+                   total: 6, watched: 4, new: 2),
+      WatchingItem(id: 128597, type: "serial", title: "Ноктюрн / Nocturne", posters: posters,
+                   total: 5, watched: 4, new: 1),
+      WatchingItem(id: 7, type: "serial", title: "Досмотрен / Caught up", posters: posters,
+                   total: 28, watched: 28, new: 1)
+    ]
+    let viewer = ViewerStateReaderMock()
+    for item in followed { viewer.overlays[.title(item.id)] = ViewerOverlay(isFollowing: true) }
+    let disk = FileManager.default.temporaryDirectory
+      .appendingPathComponent("NewEpisodesCount-\(UUID().uuidString)", isDirectory: true)
+    let store = ContentStore(disk: RowSnapshotStore(directory: disk), viewer: viewer)
+    store.setItems(followed.map { .card(WatchlistView.card(for: $0)) }, for: .watchlist)
+
+    let painted = store.cards(.watchlist).map(\.followedUnwatchedEpisodes)
+    XCTAssertEqual(painted, [2, 1, nil], "covers")
+    XCTAssertEqual(followed.unwatchedEpisodeTotal, 3, "badge")
+    XCTAssertEqual(painted.compactMap { $0 }.reduce(0, +), followed.unwatchedEpisodeTotal, "subtitle")
+    XCTAssertEqual(followed.map { LibrarySectionCatalog.followingCard(for: $0).followedUnwatchedEpisodes },
+                   painted, "Library Following")
+  }
+
+  /// A local «not following» on a title the server lists as followed hides its count;
+  /// the server's answer replaces it unless the user toggled after the request left.
+  func testServerFollowReplacesAStaleLocalMark() {
+    let asked = Date()
+    XCTAssertEqual(MediaLibraryStore.reconciledFollow(local: false, toggledAt: nil,
+                                                      server: true, requestedAt: asked), true,
+                   "a mark from an earlier launch or another device")
+    XCTAssertEqual(MediaLibraryStore.reconciledFollow(local: false, toggledAt: asked.addingTimeInterval(-60),
+                                                      server: true, requestedAt: asked), true,
+                   "a toggle the request already carries")
+    XCTAssertEqual(MediaLibraryStore.reconciledFollow(local: false, toggledAt: asked.addingTimeInterval(1),
+                                                      server: true, requestedAt: asked), false,
+                   "a toggle made while the request was out")
+
+    let viewer = ViewerStateReaderMock()
+    viewer.overlays[.title(128431)] = ViewerOverlay(isFollowing: false)
+    let disk = FileManager.default.temporaryDirectory
+      .appendingPathComponent("NewEpisodesStale-\(UUID().uuidString)", isDirectory: true)
+    let store = ContentStore(disk: RowSnapshotStore(directory: disk), viewer: viewer)
+    let yaga = WatchingItem(id: 128431, type: "serial", title: "Яга / Yaga",
+                            posters: WatchingFetchBox.emptyPosters, total: 6, watched: 4, new: 2)
+    store.setItems([.card(WatchlistView.card(for: yaga))], for: .watchlist)
+    XCTAssertNil(store.cards(.watchlist).first?.followedUnwatchedEpisodes,
+                 "what the stale mark did — why it has to be reconciled")
+  }
+
+  /// Each followed list fetched from the network reports its ids and when it was asked —
+  /// what the app reconciles follow marks with. A cache hit or another list does not.
+  func testFollowedListFetchReportsItsIDs() async throws {
+    let box = WatchingFetchBox()
+    let service = box.service()
+    let cache = WatchingListCache.shared
+    var reports: [([Int], Date)] = []
+    cache.onFollowedSerialsFetched = { reports.append(($0, $1)) }
+    defer { cache.onFollowedSerialsFetched = nil }
+
+    let before = Date()
+    _ = try await cache.serials(subscribedOnly: false, using: service)
+    XCTAssertTrue(reports.isEmpty)
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+    XCTAssertEqual(reports.map(\.0), [[2]])
+    XCTAssertGreaterThanOrEqual(reports.first?.1 ?? .distantPast, before)
+  }
 }
 
 /// Counting mock that can `await Task.sleep` so two callers overlap on MainActor.

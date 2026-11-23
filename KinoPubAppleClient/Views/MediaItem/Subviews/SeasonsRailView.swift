@@ -343,6 +343,13 @@ struct SeasonsRailView: View {
     let alignment = gridAlignment
     // One selected season at a time — building every season's cards every paint hung
     // the main thread on long shows (Instruments: railCard / titleSeasonNumber).
+    // Not on tvOS: `TVSeasonRail` is one collection of every season, its tabs move the
+    // rail to a season's entry and only dim the others. Fed one season, the rail opened
+    // on S1E1 whatever Play pointed at (the opening episode was not among its items) and
+    // a tab had no episodes to move to (KP-23 regression, TVDetail*UITests season walks).
+#if os(tvOS)
+    let visibleSeasons = seasons
+#else
     let visibleSeasons: [Season] = {
       if let selectedTabID, let season = seasons.first(where: { $0.id == selectedTabID }) {
         return [season]
@@ -350,6 +357,7 @@ struct SeasonsRailView: View {
       if let first = seasons.first { return [first] }
       return []
     }()
+#endif
     let episodeEntries = visibleSeasons.flatMap { season -> [RailEntry] in
       alignment.rows(for: season.id).compactMap { row -> RailEntry? in
         switch row {

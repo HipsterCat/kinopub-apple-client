@@ -98,18 +98,60 @@ final class MediaLibraryStore: ObservableObject {
     records[itemId]?.inWatchlist
   }
 
+  /// When this session last toggled follow on a title — what tells a server answer that
+  /// left before the toggle (stale) from one after it. Not persisted: a mark from an
+  /// earlier launch is older than any request this launch makes.
+  private var watchlistToggledAt: [Int: Date] = [:]
+
+  /// The user's toggle: stands until a server answer requested after it says otherwise.
   func setWatchlist(itemId: Int, value: Bool) {
+    watchlistToggledAt[itemId] = Date()
+    writeWatchlist(itemId: itemId, value: value)
+  }
+
+  /// Seed from a payload in hand the first time we see it — a card's copy, before the
+  /// details answer. The details reconcile it (`reconcileWatchlist`).
+  func seedWatchlistIfAbsent(itemId: Int, value: Bool) {
+    if records[itemId]?.inWatchlist != nil { return }
+    writeWatchlist(itemId: itemId, value: value)
+  }
+
+  /// The server's follow marks, from a request sent at `requestedAt`: they replace the
+  /// local mark unless the user toggled after that request left. The mark used to be
+  /// seeded once and never corrected, so a title followed again from another device (or
+  /// seeded from a stale copy) read «not following» here for good: Яга and Ноктюрн lost
+  /// their counts on «Новые серии» while the badge counted them (2026-11-22).
+  /// `onlyKnown`: touch titles this store already has a mark for, and no others — a list
+  /// says nothing new about a title it holds no mark on.
+  func reconcileWatchlist(_ reported: [Int: Bool], requestedAt: Date, onlyKnown: Bool = false) {
+    var changed = false
+    for (id, server) in reported {
+      let local = records[id]?.inWatchlist
+      if onlyKnown, local == nil { continue }
+      let kept = Self.reconciledFollow(local: local, toggledAt: watchlistToggledAt[id],
+                                       server: server, requestedAt: requestedAt)
+      guard kept != local else { continue }
+      var record = records[id] ?? Record()
+      record.inWatchlist = kept
+      records[id] = record
+      changed = true
+    }
+    if changed { persist() }
+  }
+
+  /// The follow mark to keep once the server has answered: the server's, unless the
+  /// local one is a toggle made after the request left (the answer predates it).
+  static func reconciledFollow(local: Bool?, toggledAt: Date?,
+                               server: Bool, requestedAt: Date) -> Bool? {
+    if let toggledAt, toggledAt >= requestedAt { return local }
+    return server
+  }
+
+  private func writeWatchlist(itemId: Int, value: Bool) {
     var record = records[itemId] ?? Record()
     record.inWatchlist = value
     records[itemId] = record
     persist()
-  }
-
-  /// Seed from the item payload the first time we see it, without clobbering a
-  /// toggle the user already made while this page was loading.
-  func seedWatchlistIfAbsent(itemId: Int, value: Bool) {
-    if records[itemId]?.inWatchlist != nil { return }
-    setWatchlist(itemId: itemId, value: value)
   }
 
   // MARK: - Watched (optimistic override over the server value)

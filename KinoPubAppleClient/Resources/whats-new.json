@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "«Новые серии»: счётчик в боковой панели, подзаголовок и цифры на обложках считаются одинаково; сериал, на который вы снова подписались на другом устройстве, больше не теряет цифру на этом. Apple TV: назад из тайтла фокус остаётся на карточке, с которой его открыли, а не уходит на оценки.",
         "Mac, плеер: при полном экране и «Картинке в картинке» окно плеера больше не остаётся пустым чёрным прямоугольником; ✕ в «Картинке в картинке» закрывает фильм. Панель управления прячется через 15 секунд, когда курсор не на ней. Пока идёт фильм, у страницы тайтла вместо фонового трейлера — обложка.",
         "Картинки на Главной и на странице тайтла грузятся в том размере, в каком рисуются — логотипы без обрезки, без полноразмерных PNG с TMDB. На Apple TV меньше подёргиваний при листании баннера и серий.",
         "Описание тайтла: «Ещё» больше не уезжает на бейджи звука/субтитров, пока текст ещё подгружается.",
@@ -143,6 +144,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "New Episodes: the sidebar badge, the subtitle and the numbers on the covers now count the same way; a series you followed again on another device no longer loses its number here. Apple TV: going back from a title keeps focus on the card that opened it instead of jumping to the ratings.",
         "Mac player: full screen and Picture in Picture no longer leave an empty black player window behind; Picture in Picture’s ✕ closes the film. The controls hide after 15 seconds with the pointer off them. While a film plays, the title page shows its artwork instead of the background trailer.",
         "Home and title-page pictures load at the size they are drawn — logos keep their alpha, no full-size TMDB PNGs. Less hitching on Apple TV when turning the banner or the episode rail.",
         "Title synopsis: More no longer drifts onto the audio/subtitle badges while the plot is still loading.",

@@ -521,9 +521,11 @@ class MediaItemModel: ObservableObject {
         // Without this the hero's follow control opened as "not following" on every
         // visit, whatever the account actually had, and the first tap unfollowed.
         // Follow is a series' alone; a film has bookmarks (user's call, 2026-10-03).
+        // The details are the server's word: they correct a mark seeded from a card or
+        // left from another device, and lose only to a toggle made since they were asked.
         let reported = ViewerState(reportedBy: mediaItem)
         if let serverFollowing = reported.isFollowing {
-          libraryState.seedWatchlistIfAbsent(itemId: mediaItem.id, value: serverFollowing)
+          libraryState.reconcileWatchlist([mediaItem.id: serverFollowing], requestedAt: requestedAt)
         }
         isInWatchlist = viewerState(of: mediaItem).isFollowing ?? false
         seedVoteCounts()

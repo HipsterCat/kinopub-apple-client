@@ -942,7 +942,7 @@ struct TabsNavigationView: View {
     do {
       return try await WatchingListCache.shared.serials(subscribedOnly: true,
                                                        using: appContext.contentService)
-        .reduce(0) { $0 + max($1.new ?? 0, 0) }
+        .unwatchedEpisodeTotal
     } catch {
       return watchlistBadgeCount
     }
