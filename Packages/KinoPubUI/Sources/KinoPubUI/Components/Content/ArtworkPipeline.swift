@@ -562,8 +562,8 @@ public enum Artwork {
       let traits = window?.traitCollection.displayScale ?? scene.traitCollection.displayScale
       if traits > 0 { return traits }
     }
-    let screen = UIScreen.main.scale
-    return screen > 0 ? screen : 1
+    let traits = UITraitCollection.current.displayScale
+    return traits > 0 ? traits : 1
   }
 #endif
 

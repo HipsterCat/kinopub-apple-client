@@ -11,7 +11,7 @@ import OSLog
 import KinoPubLogging
 
 public protocol DownloadManaging {
-  associatedtype Meta: Codable & Equatable
+  associatedtype Meta: Codable & Equatable & Sendable
 
   var session: URLSession { get }
   func startDownload(url: URL, withMetadata metadata: Meta) -> Download<Meta>
@@ -25,7 +25,7 @@ public protocol DownloadFileNaming {
   var downloadFileBaseName: String? { get }
 }
 
-public final class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject {
+public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject, @unchecked Sendable {
   @Published public var activeDownloads: [URL: Download<Meta>] = [:]
   private var fileSaver: FileSaving
   private var database: DownloadedFilesDatabase<Meta>
@@ -94,7 +94,7 @@ public final class DownloadManager<Meta: Codable & Equatable>: NSObject, URLSess
 
   /// Runs `work` synchronously if already on the main thread (keeps unit-test assertions simple),
   /// otherwise hops to the main queue.
-  private func onMain(_ work: @escaping () -> Void) {
+  private func onMain(_ work: @escaping @Sendable () -> Void) {
     if Thread.isMainThread {
       work()
     } else {

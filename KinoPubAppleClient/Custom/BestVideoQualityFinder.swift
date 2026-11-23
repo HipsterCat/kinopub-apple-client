@@ -13,6 +13,7 @@ import SystemConfiguration
 import Reachability
 import KinoPubBackend
 
+@MainActor
 struct BestVideoQualityFinder {
 
 #if canImport(UIKit) && !os(macOS)

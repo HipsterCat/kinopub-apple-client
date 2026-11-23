@@ -24,7 +24,8 @@
  */
 
 import {
-  artworkFromTmdb, imageStats, readDocument, resolveAndStore, stitchDocument, writeDocument,
+  artworkFromTmdb, freshImageLanguages, imageStats, readDocument, resolveAndStore,
+  stitchDocument, writeDocument,
 } from "./title.js";
 
 const KINDS = new Set(["logo", "backdrop", "poster"]);
@@ -98,7 +99,11 @@ async function images(env, id, url) {
   const imdb = url.searchParams.get("imdb") || stored?.ids?.imdb?.value;
   const located = await locateTmdb(env, stored, imdb);
   if (!located) return json({ error: "bad_request", hint: "pass ?imdb=tt… or open the title once" }, 400);
-  const payload = await tmdbGet(env, `/3/${located.type}/${located.tmdbId}/images`);
+  // ru / en / textless only, past TMDB's gateway cache: see freshImageLanguages.
+  const languages = encodeURIComponent(freshImageLanguages());
+  const payload = await tmdbGet(
+    env, `/3/${located.type}/${located.tmdbId}/images?include_image_language=${languages}`,
+  );
   if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
   const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
   // The list is fresh from TMDB, so the stored automatic choice follows it now: a
@@ -171,7 +176,7 @@ async function tmdbGet(env, path) {
   if (!env?.TMDB_READ_TOKEN) return null;
   const response = await fetch(`https://api.themoviedb.org${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${env.TMDB_READ_TOKEN}` },
-    cf: { cacheTtl: 0, cacheEverything: false },
+    cache: "no-store",
   });
   return response.ok ? response.json() : null;
 }

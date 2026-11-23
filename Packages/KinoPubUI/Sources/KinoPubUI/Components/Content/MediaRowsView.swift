@@ -471,9 +471,12 @@ private struct HeroUnderChrome: ViewModifier {
                 Image(systemName: "gear")
               }
               .accessibilityLabel(Text(profile.label))
-              // Rebuilt when the picture leaves the bar: the glyph kept the dark
-              // scheme's white over the light page otherwise.
-              .id(heroUnderBar)
+              // The bar's scheme on the item itself: the glyph kept the dark scheme's
+              // white over the light page otherwise. Not rebuilt with `.id` — a new
+              // item each time the picture left the bar tore its glass down and up
+              // in the frame the bar changed too (`glassEffect() tried to update
+              // multiple times per frame`).
+              .environment(\.colorScheme, heroUnderBar ? .dark : colorScheme)
             }
           }
         }

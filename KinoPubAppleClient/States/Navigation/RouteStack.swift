@@ -35,10 +35,29 @@ struct RouteStack<Content: View>: View {
     NavigationStack(path: navigationState.path(for: tab)) {
       content()
         .environment(\.scrollToTopRequest, navigationState.scrollToTopRequests[tab] ?? 0)
-        .appRouteDestinations(zoom: zoom ? zoomNamespace : nil)
+        // The registry as a view of its own, beside the root rather than around it: its
+        // one input is the namespace, so a root that re-renders (Home's `MainView` does
+        // on every catalog change, several times in a launch frame) leaves it alone. On
+        // the root, every pass re-registered the destinations and SwiftUI warned
+        // `Update NavigationRequestObserver tried to update multiple times per frame`.
+        .background { RouteDestinationRegistry(zoom: zoom ? zoomNamespace : nil) }
+#if os(tvOS)
+        .tvNavigationZoom()
+#endif
     }
     .environment(\.zoomTransitionNamespace, zoom ? zoomNamespace : nil)
     .navigationStackActive(for: tab, selected: navigationState.selectedTab)
+  }
+}
+
+/// `appRouteDestinations` on nothing, so it re-runs only when the namespace does.
+private struct RouteDestinationRegistry: View {
+  let zoom: Namespace.ID?
+
+  var body: some View {
+    Color.clear
+      .accessibilityHidden(true)
+      .appRouteDestinations(zoom: zoom, zoomsRoot: false)
   }
 }
 
@@ -48,7 +67,10 @@ extension View {
   /// Use this directly only on a stack `RouteStack` cannot own — one whose path is local
   /// `@State` rather than a tab's shared array (bookmark-folder tabs, tvOS Settings).
   /// Everything else should be a `RouteStack`.
-  func appRouteDestinations(zoom namespace: Namespace.ID? = nil) -> some View {
+  ///
+  /// `zoomsRoot`: tvOS's zoom on the view this sits on, the stack's root — off where the
+  /// registry is not the root (`RouteStack`, which zooms its root itself).
+  func appRouteDestinations(zoom namespace: Namespace.ID? = nil, zoomsRoot: Bool = true) -> some View {
     navigationDestination(for: Route.self) { route in
       RouteDestination(route: route,
                        linkProvider: AppRoutesLinkProvider(),
@@ -66,7 +88,17 @@ extension View {
     }
 #if os(tvOS)
     // tvOS's own scale in/out instead of the stack's crossfade (`TVNavigationZoom`).
-    .tvNavigationZoom()
+    .modifier(TVRootZoom(isOn: zoomsRoot))
 #endif
   }
 }
+
+#if os(tvOS)
+private struct TVRootZoom: ViewModifier {
+  let isOn: Bool
+
+  func body(content: Content) -> some View {
+    if isOn { content.tvNavigationZoom() } else { content }
+  }
+}
+#endif

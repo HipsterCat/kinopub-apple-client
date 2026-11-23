@@ -17,6 +17,8 @@ import KinoPubUI
 struct SkipChipOverlay: View {
   @ObservedObject var manager: PlayerManager
   @ObservedObject var chrome: PlayerChromeMonitor
+  /// Where the buttons are, for the pass-through host. Not observed: nothing redraws from it.
+  var hitRegions: SkipHitRegions
 
   @AppStorage(SkipChipPreferences.styleKey) private var styleRaw = SkipAutoStyle.apple.rawValue
   @AppStorage(SkipChipPreferences.cancelKey) private var cancelRaw = SkipCancelStyle.dismiss.rawValue
@@ -66,9 +68,13 @@ struct SkipChipOverlay: View {
         }
       }
     }
+    .coordinateSpace(.named(SkipHitRegions.space))
     .opacity(shown ? 1 : 0)
     .animation(dissolve, value: shown)
     .allowsHitTesting(shown)
+    .onChange(of: shown, initial: true) { _, shown in
+      hitRegions.enabled = shown
+    }
     .environment(\.colorScheme, .dark)
     .onChange(of: pipWanted, initial: true) { _, wanted in
       chrome.setPictureInPicture(active: wanted, artworkURL: ahead.artworkURL)
@@ -102,18 +108,20 @@ struct SkipChipOverlay: View {
     .modifier(SkipGlassProminence(prominent: cancel.skipIsProminent))
     .accessibilityLabel(accessibilityTitle)
     .accessibilityIdentifier("player.skip")
+    .skipHitRegion("skip", in: hitRegions)
   }
 
   private var dismissButton: some View {
     Button(action: { manager.dismissSkip() }) {
       Image(systemName: "xmark")
         .font(.headline)
-        .padding(8)
+        .padding(.vertical, 10)
     }
-    .buttonStyle(.plain)
-    .foregroundStyle(.white)
+    .buttonStyle(.glass)
+    .buttonBorderShape(.circle)
     .accessibilityLabel("Player_SkipDismiss".localized)
     .accessibilityIdentifier("player.skip.cancel")
+    .skipHitRegion("dismiss", in: hitRegions)
   }
 
   private var watchCreditsButton: some View {
@@ -124,6 +132,7 @@ struct SkipChipOverlay: View {
     .buttonStyle(.plain)
     .foregroundStyle(.white)
     .accessibilityIdentifier("player.skip.cancel")
+    .skipHitRegion("watchCredits", in: hitRegions)
   }
 
   @ViewBuilder
@@ -167,6 +176,7 @@ struct SkipChipOverlay: View {
       .modifier(SkipGlassProminence(prominent: cancel.skipIsProminent))
       .accessibilityLabel(accessibilityTitle)
       .accessibilityIdentifier("player.skip")
+      .skipHitRegion("banner", in: hitRegions)
       if cancel == .watchCredits {
         watchCreditsButton
       } else {
@@ -196,6 +206,42 @@ struct SkipChipOverlay: View {
   private var accessibilityTitle: String {
     guard let offer = manager.skipOffer else { return PlaybackSkip.title }
     return PlaybackSkip.accessibilityTitle(for: offer.kind)
+  }
+}
+
+/// The chip's host covers the whole player and passes every touch through to AVKit
+/// except those on a button. A hosting view answers `hitTest` with itself for any
+/// point over SwiftUI content, buttons or not, so the host cannot tell a button from
+/// empty space on its own: the buttons report their frames here instead.
+@MainActor
+final class SkipHitRegions {
+  nonisolated static let space = "skip.chip"
+
+  var enabled = false
+  private var rects: [String: CGRect] = [:]
+
+  func set(_ rect: CGRect, for id: String) {
+    rects[id] = rect
+  }
+
+  func remove(_ id: String) {
+    rects[id] = nil
+  }
+
+  /// `point` in the hosting view's coordinates, which is the overlay's root space.
+  func contains(_ point: CGPoint) -> Bool {
+    enabled && rects.values.contains { $0.insetBy(dx: -6, dy: -6).contains(point) }
+  }
+}
+
+private extension View {
+  func skipHitRegion(_ id: String, in regions: SkipHitRegions) -> some View {
+    onGeometryChange(for: CGRect.self) { proxy in
+      proxy.frame(in: .named(SkipHitRegions.space))
+    } action: { rect in
+      regions.set(rect, for: id)
+    }
+    .onDisappear { regions.remove(id) }
   }
 }
 

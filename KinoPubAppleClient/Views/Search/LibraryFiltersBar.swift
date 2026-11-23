@@ -584,7 +584,7 @@ private struct CatalogGridChrome: ViewModifier {
 
   /// The page's width past which the toolbar shows Sort's current pick and «Фильтры»
   /// beside their glyphs; below it, glyphs alone.
-  private static let labelledToolbarWidth: CGFloat = 760
+  nonisolated private static let labelledToolbarWidth: CGFloat = 760
 
   func body(content: Content) -> some View {
     content

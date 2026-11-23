@@ -24,9 +24,10 @@ import WatchKit
 import UIKit
 #endif
 
+@MainActor
 enum DeviceIdentity {
 
-  struct NotifyPayload: Equatable {
+  struct NotifyPayload: Equatable, Sendable {
     let title: String
     let hardware: String
     let software: String

@@ -39,6 +39,7 @@ enum PlaybackState: Equatable {
   case failed(String)
 }
 
+@MainActor
 class PlayerManager: ObservableObject, @unchecked Sendable {
 
   @Published var isPlaying: Bool = false
@@ -248,6 +249,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
   /// is nil — an item without a trailer link crashed the app on open.
+  @MainActor
   private var fileURL: URL? {
     switch watchMode {
     case .media:
@@ -575,7 +577,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     return "Couldn't Load".localized
   }
 
-  deinit {
+  isolated deinit {
     cueLoadTasks.forEach { $0.cancel() }
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
@@ -1074,13 +1076,16 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       season: playItem.metadata.season,
       episode: playItem.metadata.video
     )
-    Task.detached(priority: .utility) { [weak self] in
-      guard let self else { return }
+    let service = actionsService
+    let id = playItem.metadata.id
+    let video = playItem.metadata.video
+    let season = playItem.metadata.season
+    Task.detached(priority: .utility) {
       do {
-        try await self.actionsService.markWatch(id: self.playItem.metadata.id,
-                                                time: Int(duration),
-                                                video: self.playItem.metadata.video,
-                                                season: self.playItem.metadata.season)
+        try await service.markWatch(id: id,
+                                    time: Int(duration),
+                                    video: video,
+                                    season: season)
       } catch {
         Logger.app.error("Failed to mark finished: \(error)")
       }
@@ -1782,7 +1787,7 @@ extension PlayerManager {
   }
 
   private func subtitleActions(current: SubtitleTrack?,
-                               pick: @escaping @Sendable (SubtitleTrack?) -> Void) -> [UIAction] {
+                               pick: @escaping @MainActor (SubtitleTrack?) -> Void) -> [UIAction] {
     let off = UIAction(title: "Off".localized,
                        state: current == nil ? .on : .off) { _ in pick(nil) }
     let tracks = subtitleTracks.map { track in
@@ -2429,7 +2434,7 @@ extension PlayerManager {
 
 /// Witnesses to a public protocol from another module must be public, even though the
 /// conformance itself is only used here.
-extension AVMediaSelectionOption: AudioRendition {
+extension AVMediaSelectionOption: @retroactive AudioRendition {
 
   public var renditionName: String { kinopubTrackName }
 
@@ -2484,7 +2489,7 @@ enum RenditionNames {
 /// The subtitle half of the same bridge — what the system player is told to render off
 /// tvOS, and what a pick in its own menu is read back through. Rules and their tests:
 /// `SubtitleRenditions` in `KinoPubBackend`.
-extension AVMediaSelectionOption: SubtitleRendition {
+extension AVMediaSelectionOption: @retroactive SubtitleRendition {
 
   /// The rendition's language, from the option's locale, then its `LANGUAGE=` tag. Falls
   /// back to the display name so a match by language at least has something to compare.

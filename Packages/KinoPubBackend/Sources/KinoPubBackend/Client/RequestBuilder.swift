@@ -14,10 +14,16 @@ internal class RequestBuilder {
     self.baseURL = baseURL
   }
 
-  func build(with endpoint: Endpoint) -> URLRequest? {
-    guard let url = URL(string: endpoint.path, relativeTo: endpoint.baseURLOverride ?? baseURL) else {
-      return nil
+  /// - Parameter host: the API host to send to (`APIHostPool`); the builder's own base
+  ///   URL when nil. An endpoint's `baseURLOverride` wins over both.
+  func build(with endpoint: Endpoint, host: URL? = nil) -> URLRequest? {
+    let url: URL?
+    if let override = endpoint.baseURLOverride {
+      url = URL(string: endpoint.path, relativeTo: override)
+    } else {
+      url = Self.join(host ?? baseURL, endpoint.path)
     }
+    guard let url else { return nil }
 
     var request = URLRequest(url: url)
     request.httpMethod = endpoint.method
@@ -52,6 +58,14 @@ internal class RequestBuilder {
     }
 
     return request
+  }
+
+  /// `https://kino.watch/api` + `/v1/user` → `https://kino.watch/api/v1/user`. Resolving
+  /// the path relative to the host, as before, drops a host's own prefix (`/api`).
+  static func join(_ base: URL, _ path: String) -> URL? {
+    var root = base.absoluteString
+    while root.hasSuffix("/") { root.removeLast() }
+    return URL(string: root + (path.hasPrefix("/") ? path : "/" + path))
   }
 
   private func convertParamsToURL(for url: URL, request: URLRequest, endpoint: Endpoint) -> URLRequest {

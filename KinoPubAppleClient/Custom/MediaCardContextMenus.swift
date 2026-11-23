@@ -9,6 +9,7 @@ import KinoPubUI
 
 /// Single source of card context-menu items (ids, titles, icons, grouping).
 /// Call sites pass handlers / folder state — missing pieces omit those rows.
+@MainActor
 enum MediaCardContextMenus {
 
   /// The "Add to Bookmarks" submenu — what the Home hero's Bookmark button opens.

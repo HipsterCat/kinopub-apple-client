@@ -57,7 +57,7 @@ class FileSaverMock: FileSaving {
 }
 
 /// Stand-in for the app's `DownloadMeta`, which lives in the app target.
-struct TestMeta: Codable, Equatable {
+struct TestMeta: Codable, Equatable, Sendable {
   let id: Int
   let title: String
 }

@@ -153,22 +153,22 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
 
   // MARK: - Network
 
-  private struct ItemsEnvelope<T: Decodable>: Decodable {
+  private struct ItemsEnvelope<T: Decodable & Sendable>: Decodable, Sendable {
     let items: [T]
   }
 
-  private struct ProxyFact: Decodable {
+  private struct ProxyFact: Decodable, Sendable {
     let text: String
     let type: String?
     let spoiler: Bool?
   }
 
-  private struct ProxyImage: Decodable {
+  private struct ProxyImage: Decodable, Sendable {
     let imageUrl: String?
     let previewUrl: String?
   }
 
-  private struct ProxyStaff: Decodable {
+  private struct ProxyStaff: Decodable, Sendable {
     let staffId: Int?
     let nameRu: String?
     let nameEn: String?
@@ -183,7 +183,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
     }
   }
 
-  private struct ProxyReview: Decodable {
+  private struct ProxyReview: Decodable, Sendable {
     let kinopoiskId: Int?
     let type: String?
     let date: String?
@@ -198,7 +198,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
   /// `totalPages` is decoded and unused on purpose: it is the field that says the
   /// counts below describe more reviews than `items` holds. Nothing here asks for
   /// page 2 — see `docs/providers/kinopoisk-proxy.md`, "Known gaps".
-  private struct ProxyReviewsPage: Decodable {
+  private struct ProxyReviewsPage: Decodable, Sendable {
     let total: Int?
     let totalPages: Int?
     let totalPositiveReviews: Int?
@@ -207,7 +207,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
     let items: [ProxyReview]
   }
 
-  private func fetch<T: Decodable>(
+  private func fetch<T: Decodable & Sendable>(
     _ type: [T].Type,
     filmId: Int,
     resource: String
@@ -272,7 +272,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
     return (try? client.decode(ProxyReviewsPage.self, from: entry.payload), debug)
   }
 
-  private func getAndCache<T: Decodable>(
+  private func getAndCache<T: Decodable & Sendable>(
     urlString: String,
     type: T.Type
   ) async -> MetadataCache.Entry? {

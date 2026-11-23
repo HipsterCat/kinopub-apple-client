@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleAdmin } from "./admin.js";
-import { handleImage } from "./title.js";
+import { freshImageLanguages, handleImage } from "./title.js";
 
 function memoryEnv(initial = {}) {
   const documents = { ...initial };
@@ -101,7 +101,9 @@ test("images returns the ru, en and textless files for one title", async () => {
   env.TMDB_READ_TOKEN = "test";
   const original = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    assert.equal(String(url), "https://api.themoviedb.org/3/movie/550/images");
+    const asked = new URL(String(url));
+    assert.equal(asked.origin + asked.pathname, "https://api.themoviedb.org/3/movie/550/images");
+    assert.match(asked.searchParams.get("include_image_language"), /^ru,en,null,q[a-t][a-z]$/);
     return new Response(JSON.stringify({
       logos: [
         { iso_639_1: "en", file_path: "/wide.svg", width: 2000, height: 280 },
@@ -346,4 +348,12 @@ test("images adopts TMDB's fresh list as the stored automatic choice, keeping pi
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("freshImageLanguages adds a private-use code that changes every minute", () => {
+  const a = freshImageLanguages("ru,en,null", 0);
+  const b = freshImageLanguages("ru,en,null", 60_000);
+  assert.equal(a, "ru,en,null,qaa");
+  assert.equal(b, "ru,en,null,qab");
+  assert.match(freshImageLanguages("ru,en,null", 519 * 60_000), /^ru,en,null,qt[a-z]$/);
 });

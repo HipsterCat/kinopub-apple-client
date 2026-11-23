@@ -17,6 +17,9 @@ public protocol Endpoint {
   /// methods that only exist on kino.pub's other API branch. Nil — the default — means
   /// the mirror the user is signed in to, which is where everything else lives.
   var baseURLOverride: URL? { get }
+  /// Safe to send twice — to another API host after this one failed mid-request
+  /// (`APIHostPool`). Default: `GET`. A toggle on `GET` (`/v1/watching/toggle`) says no.
+  var isRepeatable: Bool { get }
 }
 
 extension Endpoint {
@@ -25,4 +28,6 @@ extension Endpoint {
   }
 
   public var baseURLOverride: URL? { nil }
+
+  public var isRepeatable: Bool { method == "GET" }
 }

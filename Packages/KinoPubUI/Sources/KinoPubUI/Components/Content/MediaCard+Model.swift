@@ -105,7 +105,7 @@ public extension MediaCard {
 
   /// Subscribed unwatched count from `/v1/watching/serials` — drives the Appearance
   /// chrome. Zero / nil clears the field so a caught-up series does not keep a stale N.
-  public func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {
+  func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {
     let left = count.flatMap { $0 > 0 ? $0 : nil }
     guard left != unwatchedEpisodes else { return self }
     return MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,

@@ -239,7 +239,7 @@ final class NavigationState {
   /// The picture in front: the selected tab's top title, read from the path itself, so it
   /// changes on Select and on Menu — before any transition (`PageBackdropStage`).
   var backdropFront: String? {
-    Route.backdropFront(of: path(for: selectedTab).wrappedValue)
+    Route.backdropFront(of: self[path: selectedTab])
   }
 
   /// Every title any tab's path still holds; the stage forgets the rest.
@@ -256,41 +256,49 @@ final class NavigationState {
     Self.routes(for: tab) != nil
   }
 
-  /// The path a tab's `NavigationStack` binds to. A tab with no shared stack gets an
-  /// inert binding rather than a crash — see `routes(for:)`.
-  func path(for tab: NavigationTabs) -> Binding<[Route]> {
-    guard let keyPath = Self.routes(for: tab) else {
-      return .constant([])
+  /// A tab's path, bound by `path(for:)`. A key path, not a `Binding(get:set:)`: a closure binding is a new
+  /// location every time the stack's parent is evaluated, so SwiftUI saw a "changed" path
+  /// on each pass and updated the stack's bound path and destination registry several
+  /// times in one frame (`Update NavigationAuthority bound path tried to update multiple
+  /// times per frame`). A key path into this object compares equal from pass to pass.
+  /// A tab with no shared stack reads empty and ignores writes — see `routes(for:)`.
+  subscript(path tab: NavigationTabs) -> [Route] {
+    get {
+      guard let keyPath = Self.routes(for: tab) else { return [] }
+      return self[keyPath: keyPath]
     }
-    return Binding(get: { self[keyPath: keyPath] },
-                   set: { [weak self] routes in
-                     guard let self else { return }
-                     // A section's stack torn down on leaving it writes back an empty
-                     // path; that is not the viewer going back. Its titles stay for the
-                     // next visit (Sasha, 2026-10-31: a title opened in Search was gone).
-                     if routes.isEmpty, tab != self.selectedTab, !self[keyPath: keyPath].isEmpty { return }
-                     // `NavigationStack` can ask to write the same path more than once in a
-                     // frame (`Update NavigationAuthority bound path…`). Skip no-ops.
-                     guard self[keyPath: keyPath] != routes else { return }
-                     let previous = self[keyPath: keyPath]
-                     self[keyPath: keyPath] = routes
-                     if PerfSignpost.page.isEnabled,
-                        routes.count > previous.count,
-                        let id = routes.last?.detailsItemID {
-                       PerfSignpost.beginTitleOpen(id: "\(id)")
-                     }
-                     let ids = MediaItemModelCache.itemIDs(in: routes)
-                     MainActor.assumeIsolated {
-                       MediaItemModelCache.shared.keep(only: ids, on: tab)
-                     }
-                   })
+    set {
+      guard let keyPath = Self.routes(for: tab) else { return }
+      let routes = newValue
+      // A section's stack torn down on leaving it writes back an empty path; that is
+      // not the viewer going back. Its titles stay for the next visit (Sasha,
+      // 2026-10-31: a title opened in Search was gone).
+      if routes.isEmpty, tab != selectedTab, !self[keyPath: keyPath].isEmpty { return }
+      guard self[keyPath: keyPath] != routes else { return }
+      let previous = self[keyPath: keyPath]
+      self[keyPath: keyPath] = routes
+      if PerfSignpost.page.isEnabled,
+         routes.count > previous.count,
+         let id = routes.last?.detailsItemID {
+        PerfSignpost.beginTitleOpen(id: "\(id)")
+      }
+      let ids = MediaItemModelCache.itemIDs(in: routes)
+      MainActor.assumeIsolated {
+        MediaItemModelCache.shared.keep(only: ids, on: tab)
+      }
+    }
+  }
+
+  /// The path a tab's `NavigationStack` binds to — the key-path binding above.
+  func path(for tab: NavigationTabs) -> Binding<[Route]> {
+    Bindable(self)[path: tab]
   }
 
   /// Clears the selected tab's stack so a second click on the same tab
   /// returns to that tab's root (Apple Music / Apple TV behaviour).
   func popToRoot(for tab: NavigationTabs) {
     guard let keyPath = Self.routes(for: tab) else { return }
-    self[keyPath: keyPath] = [] //Publishing changes from within view updates is not allowed, this will cause undefined behavior.
+    self[keyPath: keyPath] = []
     MainActor.assumeIsolated {
       MediaItemModelCache.shared.keep(only: [], on: tab)
     }

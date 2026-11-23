@@ -569,3 +569,44 @@ final class HLSAudioLabelerTests: XCTestCase {
     XCTAssertEqual(audio.map { attribute("NAME", in: $0) }[0], "01. Многоголосый. Rezka (RUS)")
   }
 }
+
+#if os(iOS)
+import ObjectiveC
+import UIKit
+
+/// The player-menu keyboard suppression (`MenuTypeSelectSuppression`, installed by the
+/// host app at launch) must reach the private `_UITypeSelectKeyInput` alone. It once
+/// replaced `UIResponder.becomeFirstResponder` itself, and no text field on iPhone or
+/// iPad could take a tap (2026-11-22).
+@MainActor
+final class MenuTypeSelectSuppressionTests: XCTestCase {
+
+  func testOnlyThePrivateKeyInputIsSwizzled() throws {
+    MenuTypeSelectSuppression.install()
+    guard let keyInput = objc_getClass("_UITypeSelectKeyInput") as? AnyClass else {
+      throw XCTSkip("no _UITypeSelectKeyInput on this SDK")
+    }
+    let selector = #selector(UIResponder.becomeFirstResponder)
+    let responder = class_getMethodImplementation(UIResponder.self, selector)
+    XCTAssertNotEqual(class_getMethodImplementation(keyInput, selector), responder,
+                      "the key input keeps UIResponder's method: the swizzle did not land on it")
+  }
+
+  func testATextFieldBecomesFirstResponder() throws {
+    MenuTypeSelectSuppression.install()
+    guard let scene = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene }).first else {
+      throw XCTSkip("no window scene in the host app")
+    }
+    let window = UIWindow(windowScene: scene)
+    window.frame = scene.coordinateSpace.bounds
+    window.rootViewController = UIViewController()
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+    let field = UITextField(frame: CGRect(x: 20, y: 100, width: 200, height: 44))
+    window.rootViewController?.view.addSubview(field)
+    XCTAssertTrue(field.becomeFirstResponder())
+    field.resignFirstResponder()
+  }
+}
+#endif

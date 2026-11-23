@@ -59,7 +59,7 @@ final class DeviceServiceImpl: DeviceService, @unchecked Sendable {
   }
 
   func syncDeviceProfile(activated: Bool) async {
-    let identity = DeviceIdentity.current
+    let identity = await DeviceIdentity.current
     let supportsHevc = DeviceCapabilities.supportsHEVC
     let fingerprint = DeviceProfileRegistry.fingerprint(
       identity: identity,

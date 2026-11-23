@@ -159,6 +159,7 @@ struct MainView: View {
         }
       },
       onNearEnd: { section in
+        guard isUncovered else { return }
         catalog.loadMore(rowID: section.id)
       },
       contextMenuProvider: { card in
@@ -458,6 +459,12 @@ struct MainView: View {
     }
   }
 
+  /// The page is the one on screen: its section chosen and nothing pushed over it.
+  /// Read when a rail asks for more, never in `body`.
+  private var isUncovered: Bool {
+    navigationState.selectedTab == tab && navigationState[path: tab].isEmpty
+  }
+
   @ViewBuilder
   private var rows: some View {
     MediaRowsView(
@@ -503,6 +510,11 @@ struct MainView: View {
       // Horizontal paging: the shelf reports its last card, the catalog decides whether
       // a next page exists. Continue Watching declines inside `loadMore`.
       onLoadMore: { row, _ in
+        // Only a shelf the viewer can see pages. Under a pushed title the page is
+        // still laid out, and an iPad's tab bar ↔ sidebar switch re-laid its rails
+        // with every card on screen for a moment — another page of 20 per switch
+        // (Sasha, 2026-11-23).
+        guard isUncovered else { return }
         catalog.loadMore(rowID: row.id)
       },
       paginationProvider: { row in
@@ -511,7 +523,7 @@ struct MainView: View {
       onRetryPagination: { row in
         catalog.retryPagination(rowID: row.id)
       },
-      onLoadMoreSections: catalog.hasMoreSections ? { catalog.loadMoreSections() } : nil,
+      onLoadMoreSections: catalog.hasMoreSections ? { if isUncovered { catalog.loadMoreSections() } } : nil,
       contextMenuProvider: { card, surface in
         guard !card.opensCollection else { return [] }
         return menuEntries(for: card, surface: surface, isContinueWatching: card.isLandscape)

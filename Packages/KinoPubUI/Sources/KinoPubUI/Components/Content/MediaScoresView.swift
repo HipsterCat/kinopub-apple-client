@@ -133,7 +133,7 @@ public struct MediaScoreLogo: View {
   private let style: Style
   @Environment(\.colorScheme) private var colorScheme
 
-  public init(_ source: Source, height: CGFloat, style: Style = .color) {
+  nonisolated public init(_ source: Source, height: CGFloat, style: Style = .color) {
     self.source = source
     self.height = height
     self.style = style
@@ -181,7 +181,7 @@ public struct MediaScoreLogo: View {
 
   /// The 32 pt line PNGs carry some air around the drawing; a bare vector mark at that
   /// height looks a size larger.
-  private static let lineMarkHeight: CGFloat = 26
+  nonisolated private static let lineMarkHeight: CGFloat = 26
 
   private var assetName: String {
     switch style {
@@ -489,25 +489,25 @@ public struct MediaScoresView: View {
     collapsesVotesToFit ? Self.captionGroupSpacing : Self.groupSpacing
   }
 
-  private static let markSpacing: CGFloat = 3
+  nonisolated private static let markSpacing: CGFloat = 3
 
-    /// The synopsis-line marks. The PNGs are this tall; the view draws them at
+  /// The synopsis-line marks. The PNGs are this tall; the view draws them at
   /// their own width.
-  public static let lineIconHeight: CGFloat = 32
+  nonisolated public static let lineIconHeight: CGFloat = 32
 
 #if os(tvOS)
-  public static let groupSpacing: CGFloat = 20
+  nonisolated public static let groupSpacing: CGFloat = 20
   /// Half of `groupSpacing` — score↔score and scores↔count under a poster.
-  public static let captionGroupSpacing: CGFloat = 10
-  public static let iconHeight: CGFloat = 16
-  public static let imdbHeight: CGFloat = 16
-  public static let kinopoiskHeight: CGFloat = 16
+  nonisolated public static let captionGroupSpacing: CGFloat = 10
+  nonisolated public static let iconHeight: CGFloat = 16
+  nonisolated public static let imdbHeight: CGFloat = 16
+  nonisolated public static let kinopoiskHeight: CGFloat = 16
 #else
-  public static let groupSpacing: CGFloat = 12
-  public static let captionGroupSpacing: CGFloat = 6
-  public static let iconHeight: CGFloat = 12
-  public static let imdbHeight: CGFloat = 12
-  public static let kinopoiskHeight: CGFloat = 12
+  nonisolated public static let groupSpacing: CGFloat = 12
+  nonisolated public static let captionGroupSpacing: CGFloat = 6
+  nonisolated public static let iconHeight: CGFloat = 12
+  nonisolated public static let imdbHeight: CGFloat = 12
+  nonisolated public static let kinopoiskHeight: CGFloat = 12
 #endif
 }
 

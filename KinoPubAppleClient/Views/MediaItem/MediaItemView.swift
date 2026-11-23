@@ -220,22 +220,17 @@ struct MediaItemView: View {
   /// between returning there and leaving the page.
   @State private var pageScrollMinY: CGFloat = 0
   @Environment(\.dismiss) private var dismiss
+#if os(macOS)
+  /// `.key` when this page's window is the key window again — back from the player
+  /// window (paused, still open) or from another app.
+  @Environment(\.controlActiveState) private var controlActiveState
+#endif
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
   /// them — see `MediaItemRelatedRowsSection`. Previously each of those three
   /// shelves created and bound its own `MediaCardMenuCoordinator` independently.
   @StateObject private var relatedRowsMenu = MediaCardMenuCoordinator()
-#if os(macOS)
-  /// The one-player rule (`PlaybackSession`) only covers the real film/trailer player.
-  /// It says nothing about this page's own *ambient* hero preview, which is a second,
-  /// independent `AVPlayer` (`TrailerPreviewModel`). Off macOS that preview pauses for
-  /// free: pushing the system player onto the stack fires `onDisappear` below. macOS
-  /// opens a separate window instead — this page never disappears — so without this,
-  /// the hero preview keeps animating behind the new window for as long as it's open.
-  @ObservedObject private var playbackWindowState = PlaybackWindowState.shared
-#endif
-
   init(model: @autoclosure @escaping () -> MediaItemModel) {
     _itemModel = StateObject(wrappedValue: model())
   }
@@ -381,6 +376,13 @@ struct MediaItemView: View {
           PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
         }
       }
+#if os(macOS)
+      // The page sits beside the player window and never re-appears; focusing its window
+      // is the return. Repaints from local progress only — no request, no-op if unchanged.
+      .onChange(of: controlActiveState) { _, state in
+        if state == .key { itemModel.repaintFromLocalProgress() }
+      }
+#endif
       .onChange(of: itemModel.hasPaintedItem) { _, painted in
         if painted {
           PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
@@ -418,12 +420,6 @@ struct MediaItemView: View {
       .onDisappear {
         trailer.setSuspended(true)
       }
-#if os(macOS)
-      .onChange(of: playbackWindowState.request?.id) { _, requestID in
-        guard requestID != nil else { return }
-        trailer.stop()
-      }
-#endif
       .handleError(state: $errorHandler.state)
       .hudToast($itemModel.hudToast)
       .modifier(VoteChoicePresentation(isPresented: $itemModel.showsVoteChoice,

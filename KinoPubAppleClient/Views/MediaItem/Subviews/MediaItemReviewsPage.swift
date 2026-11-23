@@ -299,7 +299,7 @@ struct TraktDistributionCard: View {
                            tint: .purple)
   }
 
-  static func unit(_ votes: Int) -> String {
+  nonisolated static func unit(_ votes: Int) -> String {
     switch localizedPluralForm(votes) {
     case 0: "MediaItem_UnitRatingOne".localized
     case 1: "MediaItem_UnitRatingFew".localized

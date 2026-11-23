@@ -69,7 +69,17 @@ struct TabsNavigationView: View {
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
   /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
   /// restores no scene, and the place was lost every time.
-  @AppStorage("selectedNavigationTab") private var storedTab = ""
+  ///
+  /// Plain `UserDefaults`, not `@AppStorage`: the shell only reads it once, at launch, and
+  /// `@AppStorage` made every section switch evaluate this whole view a second time in
+  /// the same frame — once for the switch, again for the write — so each tab's stack
+  /// updated its path twice per frame (`NavigationAuthority bound path tried to update
+  /// multiple times per frame`).
+  private static let storedTabKey = "selectedNavigationTab"
+  private var storedTab: String {
+    get { UserDefaults.standard.string(forKey: Self.storedTabKey) ?? "" }
+    nonmutating set { UserDefaults.standard.set(newValue, forKey: Self.storedTabKey) }
+  }
 #if os(macOS)
   @State private var sidebarReselectGuard = SidebarReselectGuard()
 #endif
@@ -1134,10 +1144,14 @@ private struct MacSidebarAccount: View {
   let userService: UserService
   @EnvironmentObject private var authState: AuthState
   @Environment(\.openWindow) private var openWindow
-  @State private var name: String?
-  @State private var avatarURL: URL?
   @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 28
   @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
+
+  private var user: UserData? { UserProfileStore.shared.user }
+  private var name: String? {
+    user.map { $0.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? $0.username }
+  }
+  private var avatarURL: URL? { user?.profile.avatarURL }
 
   var body: some View {
     // The TV app's: a 60 pt row under a hairline, a 28 pt avatar, the name in the
@@ -1167,11 +1181,9 @@ private struct MacSidebarAccount: View {
       .frame(height: rowHeight)
     }
     .task {
-      guard let user = try? await userService.fetchUserData() else { return }
-      UserProfileCache.shared.save(user: user)
+      // The shared profile: the cached copy at once, `/v1/user` only when it is stale.
+      guard let user = await UserProfileStore.shared.refreshIfStale(using: userService) else { return }
       authState.rememberSignedInUsername(user.username)
-      name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
-      avatarURL = user.profile.avatarURL
     }
   }
 }

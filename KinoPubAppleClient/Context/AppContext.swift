@@ -142,9 +142,7 @@ struct AppContext: AppContextProtocol {
     // RootView's first frame, since `AppContext.shared` is resolved on the main thread before
     // any view renders. A paused/interrupted HLS download reattaching a few hundred ms later is
     // imperceptible; blocking every cold launch on it (even with zero downloads to restore) is not.
-    // `nonisolated(unsafe)`: the Task is MainActor-queued after this MainActor `shared` init
-    // finishes, so it cannot overlap the stores below; the manager is not Sendable.
-    nonisolated(unsafe) let hlsToRestore = hlsDownloadManager
+    let hlsToRestore = hlsDownloadManager
     let filesToReattach = downloadManager
     Task { @MainActor in
       hlsToRestore.restorePendingDownloads()
@@ -208,18 +206,16 @@ struct AppContext: AppContextProtocol {
     // Watching on the next ordinary launch (2026-10-25). A fixture run's progress stays in
     // memory.
     let isFixtureRun = DetailFixture.isActive || LibraryFixture.isActive || TVChannelsFixture.isActive
-#else
-    let isFixtureRun = false
-#endif
     let localProgressStore = isFixtureRun
       ? LocalWatchProgressStore(container: WatchLibrary.makeInMemoryContainer())
       : LocalWatchProgressStore()
-#if DEBUG && os(tvOS)
     // What fixture runs wrote before they kept to memory: on a simulator that ran the UI
     // tests, the stand-in series still sits in the store.
     if !isFixtureRun {
       DetailFixture.allCases.forEach { localProgressStore.clear(id: $0.itemID) }
     }
+#else
+    let localProgressStore = LocalWatchProgressStore()
 #endif
     let libraryState = MediaLibraryStore(
       downloadManager: downloadManager,
@@ -282,8 +278,20 @@ struct AppContext: AppContextProtocol {
 
   // MARK: - API Client building
 
+  /// kino.pub's API hosts and the one in use (Settings › Network shows them). Sticky
+  /// across launches; `BaseURL` from Info.plist is first.
+  static let apiHosts = APIHostPool(primary: URL(string: BundleConfiguration().baseURL))
+
   private static func makeApiClient(with baseURL: String, accessTokenService: AccessTokenService) -> APIClient {
-    APIClient(
+    var session: URLSessionProtocol = URLSessionImpl(session: .shared)
+#if DEBUG
+    // `-KINOPUBFailAPIHost api.service-kp.com` (`:502` for a gateway answer instead of an
+    // unreachable host): exercises the fallback without waiting for a real outage.
+    if let spec = UserDefaults.standard.string(forKey: "KINOPUBFailAPIHost"), !spec.isEmpty {
+      session = FailingAPIHostSession(spec: spec, wrapped: session)
+    }
+#endif
+    return APIClient(
       baseUrl: baseURL,
       plugins: [
         // `CURLLoggingPlugin` is deliberately not here: it printed every request's
@@ -294,8 +302,38 @@ struct AppContext: AppContextProtocol {
         UnauthorizedResponsePlugin(),
         AccessTokenPlugin(accessTokenService: accessTokenService)
       ],
+      session: session,
       // Genres/countries only (see CacheableRequest). Personalized rows stay on ContentStore.
-      cache: ResponseCache()
+      cache: ResponseCache(),
+      hosts: apiHosts
     )
   }
 }
+
+#if DEBUG
+/// `-KINOPUBFailAPIHost <host>[,<host>…][:502]`: those hosts are unreachable, or answer
+/// with that status. `kino.watch` matches `kino.watch/api`.
+private final class FailingAPIHostSession: URLSessionProtocol, @unchecked Sendable {
+  private let hosts: Set<String>
+  private let status: Int?
+  private let wrapped: URLSessionProtocol
+
+  init(spec: String, wrapped: URLSessionProtocol) {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    hosts = Set(parts[0].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    status = parts.count > 1 ? Int(parts[1]) : nil
+    self.wrapped = wrapped
+  }
+
+  func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    guard let url = request.url, let host = url.host, hosts.contains(host) else {
+      return try await wrapped.data(for: request)
+    }
+    try await Task.sleep(for: .milliseconds(150))
+    if let status, let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil) {
+      return (Data("<html>\(status)</html>".utf8), response)
+    }
+    throw APIClientError.networkError(URLError(.cannotFindHost))
+  }
+}
+#endif
