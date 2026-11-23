@@ -158,8 +158,11 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
     if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
     // The green button is this window's full screen, not a «+» zoom.
     var behavior = window.collectionBehavior
-    behavior.remove([.fullScreenAuxiliary, .fullScreenNone])
-    behavior.insert(.fullScreenPrimary)
+    // SwiftUI opens this scene as `.auxiliary | .fullScreenAuxiliary` (logged on macOS 27.2,
+    // 2026-11-23): a «+» zoom, and a window kept out of Window ›, the Dock's window list
+    // and ⌘` — not the separate window Sasha asked for.
+    behavior.remove([.fullScreenAuxiliary, .fullScreenNone, .auxiliary, .transient])
+    behavior.insert([.fullScreenPrimary, .managed, .participatesInCycle])
     if behavior != window.collectionBehavior { window.collectionBehavior = behavior }
     if window.backgroundColor != .black { window.backgroundColor = .black }
     // A window of its own in Window › and the Dock's window list, as IINA's player is.
@@ -326,6 +329,11 @@ private struct WindowMenuListing: NSViewRepresentable {
     func list() {
       guard let window else { return }
       if window.isExcludedFromWindowsMenu { window.isExcludedFromWindowsMenu = false }
+      // `Window` scenes open `.auxiliary`, which keeps a window out of the list and ⌘`.
+      var behavior = window.collectionBehavior
+      behavior.remove([.auxiliary, .transient])
+      behavior.insert([.managed, .participatesInCycle])
+      if behavior != window.collectionBehavior { window.collectionBehavior = behavior }
       // The library window's title lives in its toolbar, so the window's own is empty —
       // and a window with no title has no line in the list. The app's name stands in.
       let title = window.title.isEmpty
