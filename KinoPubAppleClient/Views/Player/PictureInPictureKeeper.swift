@@ -2,10 +2,10 @@
 //  PictureInPictureKeeper.swift
 //  KinoPubAppleClient
 //
-//  Picture in Picture on tvOS, for a player that is a navigation push.
+//  Picture in Picture on tvOS and iOS, for a player that is a navigation push.
 //
 
-#if os(tvOS)
+#if os(tvOS) || os(iOS)
 import AVKit
 import KinoPubLogging
 import OSLog
@@ -31,7 +31,17 @@ import OSLog
 ///    making one — the picture AVKit is animating back belongs to it.
 /// 3. **Closed** — the viewer shut the window: the film ends, as leaving the player does.
 ///
-/// Not verifiable in the simulator: `AVPictureInPictureController.isPictureInPictureSupported()`
+/// **iOS / iPadOS** does the same with a presented player: `SystemVideoPlayer` presents its
+/// `AVPlayerViewController` full screen from a stage on the route. At PiP start AVKit
+/// dismisses it (`…ShouldAutomaticallyDismissAtPictureInPictureStart` answers true), the
+/// stage appears again and leaves the route, and the viewer is on the page they came from
+/// — the TV app's behaviour. Kept up, the presented player sat behind the window as a black
+/// «Это видео воспроизводится в окне «Картинка в картинке»» placeholder (Sasha,
+/// 2026-11-23). Restore pushes the route again, its stage presents the held controller, and
+/// AVKit is told the interface is back once that presentation has finished
+/// (`restoredControllerIsOnScreen`).
+///
+/// Not verifiable in the tvOS simulator: `AVPictureInPictureController.isPictureInPictureSupported()`
 /// answers false on the tvOS 26.5 runtime, and Apple's sample says "physical device". Every
 /// step logs under `PiP:` for a device run.
 @MainActor
@@ -72,14 +82,26 @@ final class PictureInPictureKeeper {
   func takeController(for manager: PlayerManager) -> AVPlayerViewController? {
     guard isRestoring, manager === self.manager, let controller else { return nil }
     Logger.app.info("PiP: restored route took the held controller")
+#if os(tvOS)
     if let pendingRestore {
       self.pendingRestore = nil
       // AVKit animates the picture back into this controller's view; the route has just
       // put it in the hierarchy, and it is on screen by the next turn of the run loop.
       DispatchQueue.main.async { pendingRestore(true) }
     }
+#endif
     return controller
   }
+
+#if os(iOS)
+  /// iOS: the restored stage has presented the held controller — AVKit may animate the
+  /// picture back into it now.
+  func restoredControllerIsOnScreen() {
+    guard let pendingRestore else { return }
+    self.pendingRestore = nil
+    pendingRestore(true)
+  }
+#endif
 
   /// An episode played on inside the window (`Coordinator.advance`): it is what PiP holds now.
   func managerDidChange(from old: PlayerManager, to new: PlayerManager) {

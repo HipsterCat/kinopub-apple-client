@@ -968,7 +968,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     isPictureInPictureActive = active
   }
 
-#if os(tvOS)
+#if os(tvOS) || os(iOS)
   /// The route that shows this stream full screen again, coming back from Picture in
   /// Picture (`PictureInPictureKeeper`).
   func pictureInPictureRoute(token: UUID) -> Route? {

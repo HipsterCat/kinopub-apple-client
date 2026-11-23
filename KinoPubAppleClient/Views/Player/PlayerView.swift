@@ -24,6 +24,8 @@ struct PlayerView: View {
   /// Publishes the manager swap an accepted Up Next proposal performs, so this screen
   /// follows to the next episode instead of holding the finished one.
   @ObservedObject private var playbackSession = PlaybackSession.shared
+#endif
+#if os(tvOS) || os(iOS)
   @Environment(NavigationState.self) private var navigationState
 #endif
   @Environment(\.dismiss) private var dismiss
@@ -168,7 +170,7 @@ struct PlayerView: View {
   }
 #endif
 
-#if os(tvOS)
+#if os(tvOS) || os(iOS)
   /// Picture in Picture back to full screen: the player's route again, on the tab the
   /// viewer is on now (`PictureInPictureKeeper`) — or, when that tab has no stack to push
   /// on (Settings), on the tab the player was opened from, which is selected first.
@@ -228,6 +230,8 @@ struct PlayerView: View {
     SystemVideoPlayer(manager: playerManager, onFinish: {
       endPlayback()
       dismiss()
+    }, onRestoreFromPictureInPicture: { [origin = navigationState.selectedTab] route in
+      restoreFromPictureInPicture(route, origin: origin)
     })
       .task {
         await playerManager.preparePlayback()
@@ -497,12 +501,22 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
 /// The button belongs to AVKit, not to us — the player still draws no chrome of ours.
 private struct SystemVideoPlayer: UIViewControllerRepresentable {
   let manager: PlayerManager
-  /// Done, or a swipe down, on the presented player.
+  /// Done, or a swipe down, on the presented player — and Picture in Picture starting,
+  /// which takes the presented player down with it.
   let onFinish: () -> Void
+  /// Picture in Picture back to full screen: push this route (`PictureInPictureKeeper`).
+  let onRestoreFromPictureInPicture: (Route) -> Void
 
   func makeUIViewController(context: Context) -> PlayerPresentationController {
-    let host = PlayerPresentationController()
+    // Back from Picture in Picture, the controller is the one AVKit animates the picture
+    // into — not a new one. Its stage tells the keeper once it is presented again.
+    let held = PictureInPictureKeeper.shared.takeController(for: manager)
+    let host = PlayerPresentationController(playerController: held ?? AVPlayerViewController())
+    host.onPresented = held == nil ? nil : {
+      PictureInPictureKeeper.shared.restoredControllerIsOnScreen()
+    }
     context.coordinator.host = host
+    context.coordinator.controller = host.playerController
     host.playerController.player = manager.player
     host.playerController.delegate = context.coordinator
     host.playerController.allowsPictureInPicturePlayback = true
@@ -539,19 +553,26 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
   }
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(manager: manager, onFinish: onFinish)
+    Coordinator(manager: manager, onFinish: onFinish,
+                onRestoreFromPictureInPicture: onRestoreFromPictureInPicture)
   }
 
   @MainActor
   final class Coordinator: NSObject, @preconcurrency AVPlayerViewControllerDelegate {
-    private let manager: PlayerManager
+    private var manager: PlayerManager
     private let onFinish: () -> Void
+    private let onRestoreFromPictureInPicture: (Route) -> Void
     private var didFinish = false
     weak var host: PlayerPresentationController?
+    /// The player itself, not through the stage: in Picture in Picture the stage has left
+    /// with its route and only `PictureInPictureKeeper` holds the controller.
+    weak var controller: AVPlayerViewController?
 
-    init(manager: PlayerManager, onFinish: @escaping () -> Void) {
+    init(manager: PlayerManager, onFinish: @escaping () -> Void,
+         onRestoreFromPictureInPicture: @escaping (Route) -> Void) {
       self.manager = manager
       self.onFinish = onFinish
+      self.onRestoreFromPictureInPicture = onRestoreFromPictureInPicture
     }
 
     func installEndHandler(on manager: PlayerManager) {
@@ -578,7 +599,10 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
       )
       installEndHandler(on: next)
       observeSkip(on: next)
-      host?.playerController.player = next.player
+      // Auto-play inside the floating window: the next episode is the one PiP now shows.
+      PictureInPictureKeeper.shared.managerDidChange(from: manager, to: next)
+      controller?.player = next.player
+      manager = next
       Task { await next.preparePlayback() }
     }
 
@@ -589,7 +613,7 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     /// The skip chip over the presented player. AVKit on iOS has no `contextualActions`.
     /// Ordinary glass, and it leaves before the transport bar does.
     func observeSkip(on manager: PlayerManager) {
-      guard let controller = host?.playerController else { return }
+      guard let controller else { return }
       skip.install(on: controller, manager: manager)
       skip.bringToFront()
     }
@@ -601,22 +625,46 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
       onFinish()
     }
 
+    // MARK: Picture in Picture (`PictureInPictureKeeper`)
+
     func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+      // Before the stage reappears: leaving the route now must not end the film.
       manager.setPictureInPictureActive(true)
+      PictureInPictureKeeper.shared.willStart(controller: playerViewController,
+                                              delegate: self,
+                                              manager: manager,
+                                              systemInfoActions: [],
+                                              push: onRestoreFromPictureInPicture)
+    }
+
+    func playerViewController(_ playerViewController: AVPlayerViewController,
+                              failedToStartPictureInPictureWithError error: any Error) {
+      Logger.app.error("PiP: failed to start: \(error.localizedDescription)")
+      manager.setPictureInPictureActive(false)
+    }
+
+    func playerViewController(
+      _ playerViewController: AVPlayerViewController,
+      restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+      PictureInPictureKeeper.shared.restore(completion: completionHandler)
     }
 
     func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
       manager.setPictureInPictureActive(false)
+      PictureInPictureKeeper.shared.didStop(manager: manager)
     }
 
-    /// Starting PiP is the viewer moving the film, not closing it. Keeping the presented
-    /// player behind the PiP window means stopping PiP lands them straight back in it —
-    /// the alternative is dismissing here and having to rebuild the interface from a
-    /// restore callback, on a route that has already gone.
+    /// **Picture in Picture takes the full-screen player away**, as in the TV app: the
+    /// viewer is back on the page they came from while the film plays in the window. Kept
+    /// up, the presented player stayed behind the window as a black «playing in Picture in
+    /// Picture» placeholder that had to be closed by hand (Sasha, 2026-11-23). The stage
+    /// appearing again leaves the route (`finish`); the session stays, because
+    /// `PlayerView.endPlayback` skips a manager in PiP. Restore pushes the route back.
     func playerViewControllerShouldAutomaticallyDismissAtPictureInPictureStart(
       _ playerViewController: AVPlayerViewController
     ) -> Bool {
-      false
+      true
     }
   }
 }
@@ -625,10 +673,22 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
 /// puts it on screen once it has a window to present from.
 final class PlayerPresentationController: UIViewController {
 
-  let playerController = AVPlayerViewController()
+  let playerController: AVPlayerViewController
   /// Called when the player has been dismissed and this stage is on screen again.
   var onPlayerDismissed: (() -> Void)?
+  /// Called once the player's presentation has finished.
+  var onPresented: (() -> Void)?
   private var didPresent = false
+
+  init(playerController: AVPlayerViewController) {
+    self.playerController = playerController
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -650,7 +710,10 @@ final class PlayerPresentationController: UIViewController {
     // appearance must still get its player.
     guard view.window != nil else { return }
     didPresent = true
-    present(playerController, animated: true)
+    present(playerController, animated: true) { [weak self] in
+      self?.onPresented?()
+      self?.onPresented = nil
+    }
   }
 
   func dismissPlayerIfNeeded() {
