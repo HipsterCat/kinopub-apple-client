@@ -20,6 +20,10 @@ import Foundation
 /// and this device; "new episode when" is the title payload's `updated_at`; "bookmarked
 /// when" is the folder's date for its newest item and this device's own record for the
 /// rest (``bookmarkDates(folders:knownAdds:)``) — kino.pub keeps no per-item date.
+///
+/// **Since 2026-11-23 the row reads no `/v1/history`** (Sasha): the three watching lists
+/// are the source. "Watched when" is this device only; a title the server lists as
+/// unfinished with no local date is ``Reason/unfinished`` and keeps the list's order.
 public enum ContinueWatchingOrder {
 
   /// How long the row is allowed to be. Ten to twelve on a TV (Sasha, 2026-10-25): the
@@ -81,6 +85,9 @@ public enum ContinueWatchingOrder {
     public var updatedAt: Date?
     /// When it was bookmarked, estimated. Nil when not bookmarked.
     public var bookmarkedAt: Date?
+    /// On `watching/movies` or `watching/serials?subscribed=0`: the server says the title
+    /// is unfinished. That alone puts it on the row, dated or not (Sasha, 2026-11-23).
+    public var isListedUnfinished: Bool
 
     public init(item: WatchingItem,
                 lastSeen: Date? = nil,
@@ -88,7 +95,8 @@ public enum ContinueWatchingOrder {
                 position: Double? = nil,
                 isSubscribed: Bool = false,
                 updatedAt: Date? = nil,
-                bookmarkedAt: Date? = nil) {
+                bookmarkedAt: Date? = nil,
+                isListedUnfinished: Bool = false) {
       self.item = item
       self.lastSeen = lastSeen
       self.stoppedMidway = stoppedMidway
@@ -96,6 +104,7 @@ public enum ContinueWatchingOrder {
       self.isSubscribed = isSubscribed
       self.updatedAt = updatedAt
       self.bookmarkedAt = bookmarkedAt
+      self.isListedUnfinished = isListedUnfinished
     }
   }
 
@@ -107,10 +116,14 @@ public enum ContinueWatchingOrder {
     case released(Date)
     /// Bookmarked within the window and never played.
     case bookmarked(Date)
+    /// On the server's unfinished lists with no date we know. Sorts behind every dated
+    /// reason, in the list's own order.
+    case unfinished
 
     public var date: Date {
       switch self {
       case .watched(let date), .released(let date), .bookmarked(let date): return date
+      case .unfinished: return .distantPast
       }
     }
   }
@@ -145,7 +158,8 @@ public enum ContinueWatchingOrder {
     let reasons: [Reason] = [watched.map(Reason.watched),
                              released.map(Reason.released),
                              bookmarked.map(Reason.bookmarked)].compactMap { $0 }
-    return reasons.max { $0.date < $1.date }
+    if let newest = reasons.max(by: { $0.date < $1.date }) { return newest }
+    return candidate.isListedUnfinished ? .unfinished : nil
   }
 
   /// Stopped half-way and left alone: still on the row, behind everything else.

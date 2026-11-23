@@ -291,8 +291,6 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// per play, and under `HistoryGrouping.byShow` those collapse to one card per title
   /// — so a page of 20 entries can easily be three cards for someone part-way through
   /// a season. 50 keeps that grid filling in one round trip instead of three.
-  ///
-  /// Continue Watching / Unwatched read theirs through `WatchingListCache.historyHead`.
   static let historyPerPage = 50
 
   /// A page that adds nothing new must not end the list, but chasing it forever is
@@ -450,27 +448,14 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     async let moviesTask = watching.movies(using: service)
     async let unfinishedTask = watching.serials(subscribedOnly: false, using: service)
     async let followedTask = watching.serials(subscribedOnly: true, using: service)
-    async let historyTask = watching.historyHead(using: service)
     let movies = try await moviesTask
     let unfinished = (try? await unfinishedTask) ?? []
     let followed = Set(((try? await followedTask) ?? []).map(\.id))
-    let history = (try? await historyTask) ?? []
-    let newest = newestHistory(history)
     var seen = Set<Int>()
-    // History carries duration / position. Local resume is not Sendable across this
-    // fetch; the player still opens at the stored point.
+    // The three lists are the section; no `/v1/history` (Sasha, 2026-11-23).
     return (movies + unfinished.filter { !followed.contains($0.id) })
       .filter { seen.insert($0.id).inserted }
-      .map { continueCard(for: $0, history: newest[$0.id]) }
-  }
-
-  private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {
-    history.reduce(into: [Int: HistoryEntry]()) { result, entry in
-      if let existing = result[entry.item.id], (existing.lastSeen ?? 0) >= (entry.lastSeen ?? 0) {
-        return
-      }
-      result[entry.item.id] = entry
-    }
+      .map { continueCard(for: $0, history: nil) }
   }
 
   /// `/v1/watching/*` plus the newest history / local resume point for remaining time.

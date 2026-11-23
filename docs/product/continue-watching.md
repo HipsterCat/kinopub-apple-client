@@ -105,12 +105,11 @@ sidebar badge.
   `WatchingListCache`) clear once so Library / badge see a fresh list.
 - Bookmark folders for this row and Top Bookmarks go through `BookmarkFoldersStore` +
   `ContentStore` folder rows — no parallel raw `/v1/bookmarks` from those paths.
-- `/v1/history` for this row is one 50-row page through `WatchingListCache.historyHead`
-  (same 3 min TTL and coalescing as the watching lists, shared with Library Unwatched).
-  The watching lists carry no dates, so an unfollowed film or series is on the row only
-  by a `last_seen` from that page. The #110 fix cut it to 8 rows and skipped it while a
-  Library history cache was warm: 8 rows is one evening of one show, and every
-  unfollowed title fell off the row (2026-11-23).
+- The row asks **no `/v1/history`** (Sasha, 2026-11-23). `watching/movies`,
+  `watching/serials?subscribed=0` and `subscribed=1` are the source: an unfollowed title
+  on those lists is `Reason.unfinished` (no date, behind dated reasons, list order); this
+  device's plays and title payloads still date titles. The #110 fix had cut history to 8
+  rows, which left every unfollowed title without a date and off the row.
 - An in-flight fetch that started **before** an invalidate is discarded (generation).
   Writing `fetchedAt = now` on that decode was why the network log filled with
   requests and the row never moved: Home trusted the old snapshot for another 60 s.
