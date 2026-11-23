@@ -176,6 +176,10 @@ final class MediaItemHeroPhase {
   /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
   /// ignores the top safe area so the picture runs under them; the hero's title must not.
   var topChromeInset: CGFloat = 0
+  /// iPhone/iPad: the window's height above the bottom bars (tab bar, home indicator).
+  /// The hero band is never taller than this, or an iPhone on its side showed only the
+  /// title and left Play under the tab bar (Sasha, 2026-11-23).
+  var viewportHeight: CGFloat = 0
   /// The hero has a picture behind its chrome (it loaded), so the toolbar over it goes
   /// dark. Written by the hero once per change.
   var showsPicture = false
@@ -281,6 +285,11 @@ struct MediaItemView: View {
       // Written into `heroPhase`, so only the hero re-reads it.
       .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.top }) { inset in
         itemModel.heroPhase.topChromeInset = inset
+      }
+#endif
+#if os(iOS)
+      .onGeometryChange(for: CGFloat.self, of: { max(0, $0.size.height - $0.safeAreaInsets.bottom) }) { height in
+        itemModel.heroPhase.viewportHeight = height
       }
 #endif
       // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter

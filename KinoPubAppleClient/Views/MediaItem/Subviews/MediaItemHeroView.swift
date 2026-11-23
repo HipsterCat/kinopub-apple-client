@@ -702,6 +702,17 @@ struct MediaItemHeroView: View {
 
   static let bandAspect: CGFloat = 16 / 11
 
+  /// The band's aspect floor stops at the visible height: an iPhone on its side is
+  /// wider than tall, and a 16:11 band there ran past the tab bar with Play under it.
+  /// The words still grow the band past this when they need it.
+  private var heroFloorLimit: CGFloat? {
+#if os(iOS)
+    phase.viewportHeight > 0 ? phase.viewportHeight : nil
+#else
+    nil
+#endif
+  }
+
   /// 16:9 band — backdrop or clear fill, portrait poster top-trailing, chrome at the bottom.
   private var heroCanvas: some View {
     Group {
@@ -712,7 +723,7 @@ struct MediaItemHeroView: View {
       } else {
         // At least the band's aspect, taller when the words need it — the poster hero
         // shows its whole synopsis, and nothing may run off the top (Sasha, 2026-11-08).
-        HeroBandLayout(aspect: Self.bandAspect) {
+        HeroBandLayout(aspect: Self.bandAspect, floorLimit: heroFloorLimit) {
           // The picture runs under the toolbar; the title starts below it.
           content
             .padding(.top, phase.topChromeInset)
@@ -2950,11 +2961,14 @@ private struct MediaItemHeroPreview: View {
 /// the synopsis and buttons to the bottom.
 private struct HeroBandLayout: Layout {
   var aspect: CGFloat
+  /// The aspect floor never goes past this (the visible height), when known.
+  var floorLimit: CGFloat?
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     let width = proposal.width ?? subviews.first?.sizeThatFits(.unspecified).width ?? 0
     let natural = subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: nil)).height ?? 0
-    return CGSize(width: width, height: max(natural, width / aspect))
+    let floor = min(width / aspect, floorLimit ?? .infinity)
+    return CGSize(width: width, height: max(natural, floor))
   }
 
   func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
