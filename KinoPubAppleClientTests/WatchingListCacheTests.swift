@@ -208,46 +208,6 @@ final class WatchingListCacheTests: XCTestCase {
   }
 }
 
-@MainActor
-final class WatchingListCacheHistoryHeadTests: XCTestCase {
-
-  override func setUp() async throws {
-    try await super.setUp()
-    WatchingListCache.shared.clear()
-  }
-
-  override func tearDown() async throws {
-    WatchingListCache.shared.clear()
-    try await super.tearDown()
-  }
-
-  /// Continue Watching dates unfollowed titles from this page only: 8 rows dropped them
-  /// off the row (2026-11-23). Two concurrent callers (Home + Library) share one request.
-  func testHistoryHeadAsksForFiftyRowsOnceAcrossCallers() async throws {
-    let box = WatchingFetchBox(delayNanoseconds: 120_000_000)
-    let service = box.service()
-    let cache = WatchingListCache.shared
-
-    async let a = cache.historyHead(using: service)
-    async let b = cache.historyHead(using: service)
-    _ = try await (a, b)
-    _ = try await cache.historyHead(using: service)
-    XCTAssertEqual(box.historyPerPages, [WatchingListCache.historyHeadPerPage])
-    XCTAssertEqual(WatchingListCache.historyHeadPerPage, 50)
-  }
-
-  func testInvalidateClearsHistoryHead() async throws {
-    let box = WatchingFetchBox()
-    let service = box.service()
-    let cache = WatchingListCache.shared
-
-    _ = try await cache.historyHead(using: service)
-    cache.invalidate()
-    _ = try await cache.historyHead(using: service)
-    XCTAssertEqual(box.historyPerPages.count, 2)
-  }
-}
-
 /// Counting mock that can `await Task.sleep` so two callers overlap on MainActor.
 @MainActor
 private final class WatchingFetchBox {
@@ -255,8 +215,6 @@ private final class WatchingFetchBox {
   var movieFetches = 0
   var serialFetchesSubscribed = 0
   var serialFetchesUnsubscribed = 0
-  /// `perPage` of every `/v1/history` request, in order.
-  var historyPerPages: [Int] = []
   var delayNanoseconds: UInt64 = 0
   var movies: [WatchingItem] = [
     WatchingItem(id: 1, type: "movie", title: "A", posters: emptyPosters)
@@ -328,12 +286,7 @@ private struct DelayingWatchingService: VideoContentService {
     return ArrayData.mock(data: items)
   }
   func fetchHistory(page: Int?, perPage: Int) async throws -> HistoryData {
-    let delay = await MainActor.run { () -> UInt64 in
-      box.historyPerPages.append(perPage)
-      return box.delayNanoseconds
-    }
-    if delay > 0 { try await Task.sleep(nanoseconds: delay) }
-    return try await base.fetchHistory(page: page, perPage: perPage)
+    try await base.fetchHistory(page: page, perPage: perPage)
   }
   func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     try await base.fetchItems(filter: filter, page: page, perPage: perPage)

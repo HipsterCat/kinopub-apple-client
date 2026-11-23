@@ -120,6 +120,15 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked([listedOnly]), [])
   }
 
+  /// The row reads no history (Sasha, 2026-11-23): a film or series on the server's
+  /// unfinished lists stays with no date, behind every dated title, in the list's order.
+  func testListedUnfinishedTitlesStayUndatedBehindDatedOnes() {
+    let film = ContinueWatchingOrder.Candidate(item: film(1), isListedUnfinished: true)
+    let series = ContinueWatchingOrder.Candidate(item: item(2), isListedUnfinished: true)
+    let played = ContinueWatchingOrder.Candidate(item: item(3), lastSeen: daysAgo(1))
+    XCTAssertEqual(ranked([film, series, played]), [3, 1, 2])
+  }
+
   func testABarelyStartedTitleDropsAfterTwoWeeks() {
     let sampled = ContinueWatchingOrder.Candidate(item: film(1), lastSeen: daysAgo(15),
                                                   stoppedMidway: true, position: 30)
