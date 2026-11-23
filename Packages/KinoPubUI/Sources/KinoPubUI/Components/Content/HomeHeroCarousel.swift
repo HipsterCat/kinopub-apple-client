@@ -976,7 +976,8 @@ private struct SystemPageDots: UIViewRepresentable {
     }
   }
 
-  final class Coordinator: NSObject, UIPageControlTimerProgressDelegate {
+  @MainActor
+  final class Coordinator: NSObject, @preconcurrency UIPageControlTimerProgressDelegate {
     var onAdvance: () -> Void = {}
     var onSelect: (Int) -> Void = { _ in }
     var advances = false
