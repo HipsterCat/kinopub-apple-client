@@ -76,6 +76,11 @@ private struct RememberedScroll: ViewModifier {
       .onChange(of: pageScrollRequest) { _, request in
         if let request { scrollView.perform(request.kind) }
       }
+#elseif os(iOS)
+      // The same, from UIKit's scroll view: `onScrollPhaseChange` with its context reads
+      // the scroll geometry, and under a finger it logged «OnScrollPhaseContextChange
+      // tried to update multiple times per frame» on the title page (Sasha, 2026-11-23).
+      .background(ScrollOffsetProbe(memory: memory))
 #else
       .onScrollPhaseChange { _, phase, context in
         guard phase == .idle else { return }
@@ -225,6 +230,86 @@ private struct EnclosedScrollViewProbe: NSViewRepresentable {
       }
       return nil
     }
+  }
+}
+#endif
+
+#if os(iOS)
+/// Adapter: the page's `UIScrollView`, found beside the SwiftUI `ScrollView` that hosts it
+/// (the one with the same frame — the page's, not a rail's), its offset written to
+/// `memory` from key-value observation, outside SwiftUI's update.
+///
+/// Limitation (iOS 26 / 27.2 SDK): every SwiftUI way to read a page's offset while it
+/// scrolls is a scroll observer whose attribute updates with the geometry, and on a title
+/// page under a finger that logs «tried to update multiple times per frame».
+private struct ScrollOffsetProbe: UIViewRepresentable {
+  let memory: ScrollMemory?
+
+  func makeUIView(context: Context) -> Probe { Probe() }
+
+  func updateUIView(_ probe: Probe, context: Context) {
+    probe.memory = memory
+    probe.find()
+  }
+
+  final class Probe: UIView {
+    weak var memory: ScrollMemory?
+    private weak var scrollView: UIScrollView?
+    private var observation: NSKeyValueObservation?
+
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      isUserInteractionEnabled = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      find()
+    }
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+      find()
+    }
+
+    func find() {
+      guard window != nil, scrollView == nil else { return }
+      let mine = convert(bounds, to: nil)
+      guard mine.width > 1, mine.height > 1 else { return }
+      var ancestor = superview
+      while let current = ancestor {
+        if let match = Self.scrollView(in: current, filling: mine) {
+          attach(match)
+          return
+        }
+        ancestor = current.superview
+      }
+    }
+
+    private func attach(_ scroll: UIScrollView) {
+      scrollView = scroll
+      observation = scroll.observe(\.contentOffset, options: [.new]) { [weak self] scroll, _ in
+        MainActor.assumeIsolated {
+          self?.memory?.y = max(scroll.contentOffset.y + scroll.adjustedContentInset.top, 0)
+        }
+      }
+    }
+
+    private static func scrollView(in view: UIView, filling rect: CGRect) -> UIScrollView? {
+      for sub in view.subviews {
+        if let scroll = sub as? UIScrollView {
+          let frame = view.convert(scroll.frame, to: nil)
+          if abs(frame.width - rect.width) < 2, abs(frame.height - rect.height) < 2 {
+            return scroll
+          }
+        }
+      }
+      return nil
+    }
+
+    deinit { observation?.invalidate() }
   }
 }
 #endif
