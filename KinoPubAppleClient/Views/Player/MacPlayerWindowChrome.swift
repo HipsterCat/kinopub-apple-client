@@ -146,15 +146,14 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
   }
 
   private func scheduleHoverRecheck() {
-    let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] timer in
+    // The timer is ended through `hoverRecheck`, never captured: `controlsChanged` also
+    // ends it when the controls come back.
+    let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated {
-        guard let self else { timer.invalidate(); return }
-        guard !self.controlsVisible else { timer.invalidate(); return }
-        if !self.pointerOnTitlebar {
-          timer.invalidate()
-          self.hoverRecheck = nil
-          self.setTitlebar(visible: false, animated: true)
-        }
+        guard let self, !self.controlsVisible, !self.pointerOnTitlebar else { return }
+        self.hoverRecheck?.invalidate()
+        self.hoverRecheck = nil
+        self.setTitlebar(visible: false, animated: true)
       }
     }
     RunLoop.main.add(timer, forMode: .common)

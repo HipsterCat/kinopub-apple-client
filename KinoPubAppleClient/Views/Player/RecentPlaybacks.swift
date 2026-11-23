@@ -158,15 +158,14 @@ final class RecentPlaybacks: ObservableObject {
   }
 
   /// `NSMenuItem` needs an Objective-C target.
+  @MainActor
   final class DockTarget: NSObject {
     static let shared = DockTarget()
 
     @objc func open(_ sender: NSMenuItem) {
-      guard let id = sender.representedObject as? Int else { return }
-      MainActor.assumeIsolated {
-        guard let entry = RecentPlaybacks.shared.entries.first(where: { $0.titleID == id }) else { return }
-        RecentPlaybacks.shared.open(entry)
-      }
+      guard let id = sender.representedObject as? Int,
+            let entry = RecentPlaybacks.shared.entries.first(where: { $0.titleID == id }) else { return }
+      RecentPlaybacks.shared.open(entry)
     }
   }
 }
