@@ -3,10 +3,9 @@
 //  KinoPubUI
 //
 //  Apple TV–style sneak peek for poster / video long-press: native art aspect
-//  (poster 2:3, wide 16:9), full image (no centre-crop into a wrong box), and a
-//  metadata footer (title + year · genre / duration / episode line) that adds
-//  info the rail cell does not already show. SwiftUI surfaces use
-//  `MediaCardContextPreview`; tvOS UIKit menus use
+//  (poster 2:3, wide 16:9), plate hugs the loaded bitmap (no letterbox gutters),
+//  and a metadata footer (title + year · genre / duration / episode line).
+//  SwiftUI surfaces use `MediaCardContextPreview`; tvOS UIKit menus use
 //  `TVMediaCardContextPreviewController`.
 //
 
@@ -36,7 +35,7 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
     }
   }
 
-  /// Art box only — footer is laid out on top of this in the preview view.
+  /// Max art box while loading / before we know the bitmap's ratio.
   public var artSize: CGSize {
     switch aspect {
     case .poster: return CGSize(width: 280, height: 420)
@@ -47,14 +46,26 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
 
   /// Full peek including the metadata footer (preferredContentSize for UIKit).
   public var preferredSize: CGSize {
-    let art = artSize
-    let footer = footerHeight
-    return CGSize(width: art.width, height: art.height + footer)
+    preferredSize(art: artSize)
+  }
+
+  public func preferredSize(art: CGSize) -> CGSize {
+    CGSize(width: art.width, height: art.height + footerHeight)
   }
 
   var footerHeight: CGFloat {
     // Title + optional subtitle + vertical padding — matches the SwiftUI footer.
     subtitle == nil ? 52 : 70
+  }
+
+  /// Shrink the max box so it matches the bitmap's aspect — no letterbox gutters.
+  public func artDisplaySize(forImageSize imageSize: CGSize) -> CGSize {
+    let maxBox = artSize
+    guard imageSize.width > 1, imageSize.height > 1 else { return maxBox }
+    let scale = min(maxBox.width / imageSize.width, maxBox.height / imageSize.height)
+    let width = max(1, (imageSize.width * scale).rounded(.toNearestOrAwayFromZero))
+    let height = max(1, (imageSize.height * scale).rounded(.toNearestOrAwayFromZero))
+    return CGSize(width: width, height: height)
   }
 
   public static func from(card: MediaCard, surface: MediaCardContextSurface) -> MediaCardContextPreviewSpec {
@@ -169,33 +180,38 @@ public extension MediaCard {
   }
 }
 
-/// Sneak peek card: native-aspect art (fit, not crop) + title / secondary footer.
+/// Sneak peek card: plate hugs the loaded art's aspect + title / secondary footer.
 public struct MediaCardContextPreview: View {
   private let spec: MediaCardContextPreviewSpec
   @State private var image: Image?
+  @State private var artFrame: CGSize
   @State private var loadFailed = false
 
   public init(spec: MediaCardContextPreviewSpec) {
     self.spec = spec
+    _artFrame = State(initialValue: spec.artSize)
   }
 
   public var body: some View {
-    let art = spec.artSize
     VStack(spacing: 0) {
       ZStack {
-        Rectangle()
-          .fill(Color.primary.opacity(0.08))
         if let image {
           image
             .resizable()
-            .scaledToFit()
-            .frame(width: art.width, height: art.height)
+            .scaledToFill()
+            .frame(width: artFrame.width, height: artFrame.height)
+            .clipped()
         } else if !loadFailed {
           ProgressView()
             .controlSize(.regular)
+            .frame(width: artFrame.width, height: artFrame.height)
+            .background(Color.primary.opacity(0.08))
+        } else {
+          Color.primary.opacity(0.08)
+            .frame(width: artFrame.width, height: artFrame.height)
         }
       }
-      .frame(width: art.width, height: art.height)
+      .frame(width: artFrame.width, height: artFrame.height)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(spec.title)
@@ -213,12 +229,12 @@ public struct MediaCardContextPreview: View {
       }
       .padding(.horizontal, 14)
       .padding(.vertical, 12)
-      .frame(width: art.width, alignment: .leading)
+      .frame(width: artFrame.width, alignment: .leading)
       .frame(minHeight: spec.footerHeight)
       // Peek footer rides the system surface (Apple TV: white / dark plate under art).
       .background(footerBackground)
     }
-    .frame(width: art.width)
+    .frame(width: artFrame.width)
     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 #if os(iOS) || os(macOS)
     .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
@@ -235,23 +251,30 @@ public struct MediaCardContextPreview: View {
   private func loadArt() async {
     image = nil
     loadFailed = false
+    artFrame = spec.artSize
     guard let url = spec.url else {
       loadFailed = true
       return
     }
-    let size = spec.artSize
-    if let cached = Artwork.cachedImage(for: url, size: size, mode: .fit) {
-      image = Image(platformImage: cached)
+    let decodeBox = spec.artSize
+    if let cached = Artwork.cachedImage(for: url, size: decodeBox, mode: .fit) {
+      apply(platformImage: cached)
       return
     }
     do {
-      let loaded = try await Artwork.image(for: url, size: size, mode: .fit)
-      image = Image(platformImage: loaded)
+      let loaded = try await Artwork.image(for: url, size: decodeBox, mode: .fit)
+      apply(platformImage: loaded)
     } catch is CancellationError {
       return
     } catch {
       loadFailed = true
     }
+  }
+
+  @MainActor
+  private func apply(platformImage: PlatformImage) {
+    artFrame = spec.artDisplaySize(forImageSize: platformImage.kinopubPixelSize)
+    image = Image(platformImage: platformImage)
   }
 
   private var footerBackground: Color {
@@ -262,6 +285,17 @@ public struct MediaCardContextPreview: View {
     Color.KinoPub.glassSubstitute
 #else
     Color(uiColor: .systemBackground)
+#endif
+  }
+}
+
+private extension PlatformImage {
+  /// Point size of the decoded bitmap (Nuke `.fit` keeps the real aspect).
+  var kinopubPixelSize: CGSize {
+#if os(macOS)
+    size
+#else
+    size
 #endif
   }
 }

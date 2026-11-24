@@ -3,9 +3,9 @@
 //  TVMediaCardContextPreviewController.swift
 //  KinoPubUI
 //
-//  UIKit sneak peek for poster / video context menus: native-aspect art (fit),
-//  metadata footer (title + secondary), spinner while loading. Same layout as
-//  `MediaCardContextPreview`.
+//  UIKit sneak peek for poster / video context menus: plate hugs the loaded
+//  art's aspect (no letterbox gutters), metadata footer, spinner while loading.
+//  Same layout as `MediaCardContextPreview`.
 //
 
 import UIKit
@@ -20,6 +20,9 @@ public final class TVMediaCardContextPreviewController: UIViewController {
   private let subtitleLabel = UILabel()
   private let footer = UIView()
   private let card = UIView()
+  private var cardWidth: NSLayoutConstraint!
+  private var cardHeight: NSLayoutConstraint!
+  private var artHeight: NSLayoutConstraint!
 
   public init(spec: MediaCardContextPreviewSpec) {
     self.spec = spec
@@ -52,7 +55,8 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     artContainer.translatesAutoresizingMaskIntoConstraints = false
     card.addSubview(artContainer)
 
-    imageView.contentMode = .scaleAspectFit
+    // Fill the hugged frame — the container is already sized to the bitmap.
+    imageView.contentMode = .scaleAspectFill
     imageView.clipsToBounds = true
     imageView.translatesAutoresizingMaskIntoConstraints = false
     artContainer.addSubview(imageView)
@@ -81,16 +85,20 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
     footer.addSubview(subtitleLabel)
 
+    cardWidth = card.widthAnchor.constraint(equalToConstant: art.width)
+    cardHeight = card.heightAnchor.constraint(equalToConstant: spec.preferredSize.height)
+    artHeight = artContainer.heightAnchor.constraint(equalToConstant: art.height)
+
     NSLayoutConstraint.activate([
       card.topAnchor.constraint(equalTo: view.topAnchor),
       card.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      card.widthAnchor.constraint(equalToConstant: art.width),
-      card.heightAnchor.constraint(equalToConstant: spec.preferredSize.height),
+      cardWidth,
+      cardHeight,
 
       artContainer.topAnchor.constraint(equalTo: card.topAnchor),
       artContainer.leadingAnchor.constraint(equalTo: card.leadingAnchor),
       artContainer.trailingAnchor.constraint(equalTo: card.trailingAnchor),
-      artContainer.heightAnchor.constraint(equalToConstant: art.height),
+      artHeight,
 
       imageView.topAnchor.constraint(equalTo: artContainer.topAnchor),
       imageView.bottomAnchor.constraint(equalTo: artContainer.bottomAnchor),
@@ -121,18 +129,32 @@ public final class TVMediaCardContextPreviewController: UIViewController {
 
   private func loadArtwork() {
     Artwork.prefetch([spec.url])
-    let size = spec.artSize
-    if let cached = TVUIKitRemoteImage.cached(url: spec.url, size: size, mode: .fit) {
-      imageView.image = cached
+    let decodeBox = spec.artSize
+    if let cached = TVUIKitRemoteImage.cached(url: spec.url, size: decodeBox, mode: .fit) {
+      apply(image: cached)
       return
     }
     spinner.startAnimating()
     Task { [weak self] in
       guard let self else { return }
-      let image = await TVUIKitRemoteImage.load(url: self.spec.url, size: size, mode: .fit)
+      let image = await TVUIKitRemoteImage.load(url: self.spec.url, size: decodeBox, mode: .fit)
       self.spinner.stopAnimating()
-      self.imageView.image = image
+      if let image {
+        self.apply(image: image)
+      }
     }
+  }
+
+  private func apply(image: UIImage) {
+    let art = spec.artDisplaySize(forImageSize: image.size)
+    let peek = spec.preferredSize(art: art)
+    preferredContentSize = peek
+    cardWidth.constant = art.width
+    cardHeight.constant = peek.height
+    artHeight.constant = art.height
+    artContainer.backgroundColor = .clear
+    imageView.image = image
+    view.setNeedsLayout()
   }
 }
 

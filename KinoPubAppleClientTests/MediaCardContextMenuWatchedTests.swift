@@ -130,4 +130,19 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     )
     XCTAssertGreaterThan(spec.preferredSize.height, spec.artSize.height)
   }
+
+  func testArtDisplaySizeHugsBitmapWithoutLetterbox() {
+    let spec = MediaCardContextPreviewSpec(
+      url: nil, aspect: .poster, title: "T", subtitle: "2024 · Drama"
+    )
+    // Narrower than 2:3 → width shrinks inside the max box (no side gutters).
+    let hugged = spec.artDisplaySize(forImageSize: CGSize(width: 400, height: 700))
+    XCTAssertEqual(hugged.height, 420, accuracy: 0.5)
+    XCTAssertLessThan(hugged.width, 280)
+    XCTAssertEqual(hugged.width / hugged.height, 400.0 / 700.0, accuracy: 0.01)
+    // Wider than 2:3 → height shrinks.
+    let wide = spec.artDisplaySize(forImageSize: CGSize(width: 600, height: 700))
+    XCTAssertEqual(wide.width, 280, accuracy: 0.5)
+    XCTAssertLessThan(wide.height, 420)
+  }
 }
