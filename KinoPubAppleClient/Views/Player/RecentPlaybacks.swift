@@ -140,8 +140,8 @@ final class RecentPlaybacks: ObservableObject {
   func open(_ entry: Entry) {
     Task {
       do {
-        let item = try await AppContext.shared.contentService.fetchDetails(for: "\(entry.titleID)").item
-        item.seasons?.forEach { $0.mediaId = item.id }
+        var item = try await AppContext.shared.contentService.fetchDetails(for: "\(entry.titleID)").item
+        item.stampSeasons()
         AppContext.shared.localProgressStore.cacheItem(item)
         PlaybackWindowState.shared.open(item: Self.playable(entry, in: item), mode: .media)
       } catch {
@@ -155,10 +155,7 @@ final class RecentPlaybacks: ObservableObject {
     if let seasonNumber = entry.season, let number = entry.video,
        let season = item.seasons?.first(where: { $0.number == seasonNumber }),
        let episode = season.episodes.first(where: { $0.number == number }) {
-      episode.seasonNumber = season.number
-      episode.mediaId = item.id
-      episode.seriesTitle = item.localizedTitle
-      return episode
+      return episode.stamped(season: season.number, mediaId: item.id, seriesTitle: item.localizedTitle)
     }
     if let number = entry.video,
        let variant = item.playbackVariants.first(where: { $0.number == number }) {

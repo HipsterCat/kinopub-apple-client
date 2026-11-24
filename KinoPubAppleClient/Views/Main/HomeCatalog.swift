@@ -1396,13 +1396,13 @@ class HomeCatalog: ObservableObject {
     return await withTaskGroup(of: (Int, MediaItem?).self) { group in
       for id in ids {
         group.addTask { [itemsService] in
-          let item = try? await itemsService.fetchDetails(
+          var item = try? await itemsService.fetchDetails(
             for: "\(id)",
             excludeLinks: FeatureFlags.seriesDetailsWithoutLinks
           ).item
           // Every `/v1/watching*` call keys on the item id, and an episode only carries
           // it once its season has been stamped — see `Episode.metadata`.
-          item?.seasons?.forEach { $0.mediaId = item?.id }
+          item?.stampSeasons()
           return (id, item)
         }
       }

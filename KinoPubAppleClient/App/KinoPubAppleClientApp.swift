@@ -117,14 +117,14 @@ struct KinoPubAppleClientApp: App {
           let parts = raw.split(separator: ":").compactMap { Int($0) }
           guard parts.count == 3 else { return }
           do {
-            let item = try await AppContext.shared.contentService.fetchDetails(for: "\(parts[0])").item
-            item.seasons?.forEach { $0.mediaId = item.id }
+            var item = try await AppContext.shared.contentService.fetchDetails(for: "\(parts[0])").item
+            item.stampSeasons()
             AppContext.shared.localProgressStore.cacheItem(item)
             guard let season = item.seasons?.first(where: { $0.number == parts[1] }),
                   let episode = season.episodes.first(where: { $0.number == parts[2] }) else { return }
-            episode.seasonNumber = season.number
-            episode.mediaId = item.id
-            navigationState.push(.player(episode, token: UUID()))
+            let stamped = episode.stamped(season: season.number, mediaId: item.id,
+                                          seriesTitle: episode.seriesTitle)
+            navigationState.push(.player(stamped, token: UUID()))
           } catch {
             Logger.app.error("KINOPUBPlayEpisode: \(error)")
           }

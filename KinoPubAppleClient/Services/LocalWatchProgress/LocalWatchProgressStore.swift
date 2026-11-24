@@ -13,9 +13,8 @@
 //    writes in the order memory did. Queued after `unlock()`, two writers could swap
 //    places: progress rolled back after a relaunch, or a cleared title came back.
 //  - A payload is encoded where the item is handed in (`cacheItem`, on the main
-//    actor), never from the player's tick. `MediaItem` holds `Season`/`Episode`
-//    classes the detail page updates in place on the main thread; encoding one every
-//    ten seconds of playback would also be work for nothing.
+//    actor), never from the player's tick: encoding one every ten seconds of playback
+//    would be work for nothing.
 //
 
 import Foundation
@@ -133,6 +132,15 @@ final class LocalWatchProgressStore: Sendable {
     }
   }
 
+  /// Changes the copy of a title the player and the next page read, without writing it to
+  /// disk again: marks and positions are not what the persisted payload is for.
+  func updateSnapshot(for id: Int, _ change: (inout MediaItem) -> Void) {
+    guard var item = snapshot(for: id) else { return }
+    change(&item)
+    let changed = item
+    state.withLock { $0.snapshots[id] = changed }
+  }
+
   /// The cached payload for an item, when the user has browsed it this session or it has
   /// a resume point. An `Episode` carries no genres or countries, so track selection
   /// reads them from here.
@@ -221,8 +229,10 @@ final class LocalWatchProgressStore: Sendable {
           .first(where: { $0.number == season })?.episodes
           .first(where: { $0.number == record.episode }),
           episode.watching.time != time else { continue }
-        episode.watching = EpisodeWatching(status: episode.watching.status, time: time)
-        if episode.watched < 0, time > 0 { episode.watched = 0 }
+        item.updateEpisode(id: episode.id) {
+          $0.watching = EpisodeWatching(status: $0.watching.status, time: time)
+          if $0.watched < 0, time > 0 { $0.watched = 0 }
+        }
         changed = true
       } else if var videos = item.videos, !videos.isEmpty {
         let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex

@@ -32,7 +32,7 @@ struct PlaybackEpisodes {
   /// The episode on screen — its tile wears the now-playing look.
   let playingEpisodeID: Int
   let selectedSeasonID: Int
-  /// Stamped playable episodes, keyed by id — Select on a tile plays this object.
+  /// Stamped playable episodes, keyed by id — Select on a tile plays this one.
   let episodeByID: [Int: Episode]
   let seasonByID: [Int: Season]
 
@@ -41,10 +41,10 @@ struct PlaybackEpisodes {
   ///   - series: the title payload with seasons. Empty or missing seasons → nil.
   init?(playing: any PlayableItem, series: MediaItem?) {
     guard let episode = playing as? Episode,
-          let series,
-          let raw = series.seasons, !raw.isEmpty else { return nil }
-    raw.forEach { $0.mediaId = series.id }
-    let seasons = raw.sorted { $0.number < $1.number }
+          var series,
+          series.seasons?.isEmpty == false else { return nil }
+    series.stampSeasons()
+    let seasons = (series.seasons ?? []).sorted { $0.number < $1.number }
     var episodeByID: [Int: Episode] = [:]
     var seasonByID: [Int: Season] = [:]
     var groups: [SeasonGroup] = []
@@ -52,10 +52,8 @@ struct PlaybackEpisodes {
       seasonByID[season.id] = season
       let ordered = season.episodes.sorted { $0.number < $1.number }
       for item in ordered {
-        item.seasonNumber = season.number
-        item.mediaId = series.id
-        item.seriesTitle = series.localizedTitle
-        episodeByID[item.id] = item
+        episodeByID[item.id] = item.stamped(season: season.number, mediaId: series.id,
+                                            seriesTitle: series.localizedTitle)
       }
       groups.append(SeasonGroup(id: season.id,
                                 number: season.number,

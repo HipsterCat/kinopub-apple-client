@@ -7,7 +7,9 @@
 
 import Foundation
 
-public class Episode: Codable, Hashable, Identifiable {
+/// A value: whoever holds one holds its own copy. A page that changes a mark writes it into
+/// its own `MediaItem` (`MediaItem.updateEpisode`) and republishes that.
+public struct Episode: Codable, Hashable, Identifiable, Sendable {
   
   public let id: Int
   public let title: String
@@ -17,16 +19,15 @@ public class Episode: Codable, Hashable, Identifiable {
   public let number: Int
   public let ac3: Int
   public let audios: [EpisodeAudio]
-  /// Mutated after `/v1/watching/toggle` so the episode rail can flip its state
+  /// Changed after `/v1/watching/toggle` so the episode rail can flip its state
   /// without refetching the whole title.
   public var watched: Int
   /// Overwritten from the local watch store when the player wrote a newer position than
   /// the payload knew about, so the rail and the hero redraw without refetching the title.
   public var watching: EpisodeWatching
-  /// Both of these are empty when the details call asked for `nolinks=1`, and are filled
-  /// in from `/v1/items/media-links` the first time this episode is actually played
-  /// (`MediaLinksResolver`). `Episode` is a class, so the fill is visible to everything
-  /// already holding the episode — the seasons rail, the player, the next-episode logic.
+  /// Both of these are empty when the details call asked for `nolinks=1`, and come from
+  /// `/v1/items/media-links` the first time this episode is actually played:
+  /// `MediaLinksResolver` gives back a copy with them and remembers the answer.
   public var subtitles: [Subtitle]
   public var files: [FileInfo]
   public var seasonNumber: Int?
@@ -59,16 +60,25 @@ public class Episode: Codable, Hashable, Identifiable {
     self.files = files
   }
   
-  public static func == (lhs: Episode, rhs: Episode) -> Bool {
-    lhs.id == rhs.id
-  }
-  
+  /// By id, which is enough for a hash and keeps hashing a series cheap. Equality is the
+  /// whole value: SwiftUI skips a view whose episode "did not change", and one compared
+  /// by id would keep showing the old watched mark.
   public func hash(into hasher: inout Hasher) {
     hasher.combine(id)
   }
 }
 
 public extension Episode {
+  /// The episode as the player and `/v1/watching*` need it: the API sends it without its
+  /// season, item or series name.
+  func stamped(season: Int, mediaId: Int?, seriesTitle: String?) -> Episode {
+    var copy = self
+    copy.seasonNumber = season
+    copy.mediaId = mediaId
+    copy.seriesTitle = seriesTitle
+    return copy
+  }
+
   /// Resume progress for this episode (single source of truth for "watched / in progress").
   var watchProgress: WatchProgress {
     WatchProgress(position: Double(watching.time), duration: Double(duration))

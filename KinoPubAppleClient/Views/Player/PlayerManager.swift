@@ -441,8 +441,8 @@ class PlayerManager: ObservableObject {
   }
 
   /// An episode that came from a `nolinks=1` details call has no files until now. One
-  /// `/v1/items/media-links` call fills it in place, and the subtitle tracks — configured
-  /// at init, when the episode still had none — are rebuilt from what arrived.
+  /// `/v1/items/media-links` call brings them, and the subtitle tracks — configured at
+  /// init, when the episode still had none — are rebuilt from what arrived.
   @MainActor
   private func resolveStreamLinksIfNeeded() async {
     // `fileURL == nil` rather than "files are empty": a downloaded episode plays from
@@ -450,7 +450,9 @@ class PlayerManager: ObservableObject {
     guard watchMode == .media,
           fileURL == nil,
           let episode = playItem as? Episode else { return }
-    await MediaLinksResolver.shared.fill(episode, using: contentService)
+    let filled = await MediaLinksResolver.shared.filled(episode, using: contentService)
+    // Retargeted while the links were on their way: these are not what it plays now.
+    if (playItem as? Episode)?.id == episode.id { playItem = filled }
     configureSubtitles()
   }
 
@@ -2192,14 +2194,12 @@ extension PlayerManager {
     let id = playItem.metadata.id
     let excludeLinks = FeatureFlags.seriesDetailsWithoutLinks
     Task { [weak self, contentService] in
-      let item = try? await contentService.fetchDetails(for: String(id),
-                                                        excludeLinks: excludeLinks).item
-      guard let item else { return }
-      item.seasons?.forEach { $0.mediaId = item.id }
-      await MainActor.run {
-        AppContext.shared.localProgressStore.cacheItem(item)
-        self?.rebuildContentTabs()
-      }
+      guard var item = try? await contentService.fetchDetails(for: String(id),
+                                                              excludeLinks: excludeLinks).item
+      else { return }
+      item.stampSeasons()
+      AppContext.shared.localProgressStore.cacheItem(item)
+      self?.rebuildContentTabs()
     }
   }
 

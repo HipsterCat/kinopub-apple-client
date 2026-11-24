@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct EpisodeAudio: Codable, Hashable {
+public struct EpisodeAudio: Codable, Hashable, Sendable {
   public let id: Int
   public let index: Int
   public let codec: String

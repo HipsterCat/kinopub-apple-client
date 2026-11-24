@@ -165,7 +165,7 @@ final class WatchingMetadataIdentityTests: XCTestCase {
       episode(id: 928899, number: 1),
       episode(id: 928900, number: 2)
     ]
-    let season = Season(id: 1, title: "Сезон 1", number: 1,
+    var season = Season(id: 1, title: "Сезон 1", number: 1,
                         watching: SeasonWatching(status: 0), episodes: episodes)
     season.mediaId = mediaId
     return season

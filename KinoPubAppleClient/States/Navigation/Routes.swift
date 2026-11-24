@@ -141,10 +141,11 @@ enum Route: Hashable {
       return true
     case (.bookmark(let a), .bookmark(let b)):
       return a == b
+    // By id: a watched mark changed since the push is not another destination.
     case (.seasons(let a), .seasons(let b)):
-      return a == b
+      return a.map(\.id) == b.map(\.id)
     case (.season(let a), .season(let b)):
-      return a == b
+      return a.id == b.id
     case (.person(let a), .person(let b)):
       return a == b
     case (.player(let a, let at), .player(let b, let bt)):

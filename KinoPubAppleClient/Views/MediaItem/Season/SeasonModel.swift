@@ -19,9 +19,6 @@ class SeasonModel: ObservableObject {
   }
   
   func filledEpisode(_ episode: Episode) -> Episode {
-    let episode = episode
-    episode.seasonNumber = season.number
-    episode.mediaId = season.mediaId
-    return episode
+    episode.stamped(season: season.number, mediaId: season.mediaId, seriesTitle: episode.seriesTitle)
   }
 }

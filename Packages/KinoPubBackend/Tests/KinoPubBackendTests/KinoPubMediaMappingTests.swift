@@ -301,7 +301,7 @@ final class KinoPubMediaMappingTests: XCTestCase {
   /// Without the series payload (a cold start into a download, say), the name the page
   /// stamped on the episode is still the show's name.
   func testWithoutTheSeriesTheStampedNameStillNamesTheShow() throws {
-    let played = episode(number: 3)
+    var played = episode(number: 3)
     played.seriesTitle = "Ted Lasso"
     played.seasonNumber = 1
     let context = try XCTUnwrap(MediaAggregator.merge(

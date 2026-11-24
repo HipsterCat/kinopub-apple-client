@@ -59,14 +59,15 @@ public struct EpisodeQueue {
   }
 
   /// An episode about to be **played** from a cached payload may lack its stamps, and an
-  /// unresolved `WatchingMetadata` reports nothing to the server. `Episode` is a class —
-  /// every holder sees the stamp.
+  /// unresolved `WatchingMetadata` reports nothing to the server.
   private func stamped(_ entry: Entry?) -> Entry? {
     guard let entry else { return nil }
-    if entry.episode.mediaId == nil { entry.episode.mediaId = seriesID }
-    if entry.episode.seasonNumber == nil { entry.episode.seasonNumber = entry.season.number }
-    if entry.episode.seriesTitle == nil { entry.episode.seriesTitle = seriesTitle }
-    return entry
+    let episode = entry.episode
+    return Entry(season: entry.season,
+                 episode: episode.stamped(season: episode.seasonNumber ?? entry.season.number,
+                                          mediaId: episode.mediaId ?? seriesID,
+                                          seriesTitle: episode.seriesTitle ?? seriesTitle),
+                 state: entry.state)
   }
 
   // MARK: - After this one

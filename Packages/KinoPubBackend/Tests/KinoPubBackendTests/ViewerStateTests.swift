@@ -133,7 +133,7 @@ final class ViewerStateTests: XCTestCase {
   }
 
   func testAStampedEpisodeIsItsOwnRef() {
-    let stamped = episode()
+    var stamped = episode()
     stamped.mediaId = 7
     stamped.seasonNumber = 2
     XCTAssertEqual(stamped.mediaRef, .episode(7, season: 2, number: 5))

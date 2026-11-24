@@ -103,7 +103,7 @@ final class EpisodeQueueNextTests: XCTestCase {
 
   /// Stamping fills gaps, it does not overwrite what a caller already knew.
   func testExistingStampsAreKept() {
-    let s2 = season(2, episodeIDs: [(id: 20, number: 1)])
+    var s2 = season(2, episodeIDs: [(id: 20, number: 1)])
     s2.episodes[0].mediaId = 5
     s2.episodes[0].seasonNumber = 7
     s2.episodes[0].seriesTitle = "Already known"
@@ -112,5 +112,64 @@ final class EpisodeQueueNextTests: XCTestCase {
     XCTAssertEqual(next?.mediaId, 5)
     XCTAssertEqual(next?.seasonNumber, 7)
     XCTAssertEqual(next?.seriesTitle, "Already known")
+  }
+
+  // MARK: - Values
+
+  /// A copy handed to the player or a rail is its own: stamping it, or giving it links,
+  /// changes nothing the page holds.
+  func testAHandedOutEpisodeIsItsOwnCopy() {
+    let item = series(seasons: [season(1, episodeIDs: [(id: 10, number: 1), (id: 11, number: 2)])])
+    let next = EpisodeQueue(series: item).next(after: item.seasons![0].episodes[0])
+    XCTAssertEqual(next?.episode.mediaId, 87940)
+    XCTAssertNil(item.seasons?[0].episodes[1].mediaId)
+  }
+
+  func testStampingAnItemReachesEveryEpisode() {
+    var item = series(seasons: [season(1, episodeIDs: [(id: 10, number: 1)]),
+                                season(2, episodeIDs: [(id: 20, number: 1), (id: 21, number: 2)])])
+    item.stampSeasons()
+    XCTAssertEqual(item.seasons?.map(\.mediaId), [87940, 87940])
+    XCTAssertEqual(item.seasons?.flatMap(\.episodes).map(\.mediaId), [87940, 87940, 87940])
+  }
+
+  /// A seasonless payload stays one: `seasons` nil and empty mean different things.
+  func testStampingAFilmLeavesItWithoutSeasons() {
+    var item = MediaItem.mock(id: 5)
+    item.seasons = nil
+    item.stampSeasons()
+    XCTAssertNil(item.seasons)
+  }
+
+  /// A changed mark is a different value, so SwiftUI redraws what shows it; the hash stays
+  /// the id's.
+  func testAMarkChangesTheItemAndNotItsHash() {
+    let before = series(seasons: [season(1, episodeIDs: [(id: 10, number: 1), (id: 11, number: 2)])])
+    var after = before
+    XCTAssertTrue(after.updateEpisode(id: 11) { $0.watched = 1 })
+    XCTAssertEqual(after.episode(id: 11)?.watched, 1)
+    XCTAssertEqual(after.episode(id: 10)?.watched, 0)
+    XCTAssertEqual(before.episode(id: 11)?.watched, 0)
+    XCTAssertNotEqual(before, after)
+    XCTAssertEqual(before.hashValue, after.hashValue)
+    XCTAssertFalse(after.updateEpisode(id: 99) { $0.watched = 1 })
+  }
+
+  func testASeasonSurvivesCodingWithItsStampAndTitleNumber() throws {
+    var season = Season(id: 1, title: "Сезон 14", number: 2, watching: SeasonWatching(status: 0),
+                        episodes: [episode(id: 10, number: 1)])
+    season.mediaId = 7
+    let decoded = try JSONDecoder().decode(Season.self, from: JSONEncoder().encode(season))
+    XCTAssertEqual(decoded, season)
+    XCTAssertEqual(decoded.titleSeasonNumber, 14)
+    XCTAssertEqual(decoded.episodes.first?.mediaId, 7)
+  }
+
+  /// The player's copy — stamped, with links — is still found in the page's item.
+  func testTheSeasonOfAFilledCopyIsFound() {
+    let item = series(seasons: [season(1, episodeIDs: [(id: 10, number: 1)]),
+                                season(2, episodeIDs: [(id: 20, number: 1)])])
+    let copy = item.seasons![1].episodes[0].stamped(season: 1, mediaId: 1, seriesTitle: "x")
+    XCTAssertEqual(KinoPubMediaMapping.seasonContaining(copy, in: item)?.number, 2)
   }
 }

@@ -8,6 +8,7 @@
 
 import XCTest
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubUI
 @testable import KinoPub
 
@@ -123,5 +124,48 @@ final class SectionStateTests: XCTestCase {
     XCTAssertEqual(navigation.selectedTab, .search)
     XCTAssertTrue(navigation.searchRoutes.isEmpty)
     XCTAssertEqual(navigation.mainRoutes.count, 1)
+  }
+
+  // MARK: - Watched marks
+
+  private func markedSeries(id: Int) throws -> MediaItem {
+    let watching = try JSONDecoder().decode(SeasonWatching.self, from: Data(#"{"status": 0}"#.utf8))
+    var item = MediaItem.mock(id: id, type: "serial")
+    item.seasons = [Season(id: 1, title: "", number: 1, watching: watching, episodes: (1...3).map {
+      Episode(id: 10 + $0, title: "", thumbnail: "", duration: 2_400, tracks: 1, number: $0, ac3: 0,
+              audios: [], watched: $0 == 1 ? 1 : -1, watching: EpisodeWatching(status: 0, time: 0),
+              subtitles: [], files: [])
+    })]
+    return item
+  }
+
+  /// A mark made in the rail is on the page's item and in the copy the player reads, and a
+  /// rail still holding the copy from before it toggles the mark back, not on again.
+  func testAnEpisodeMarkReachesThePageAndThePlayersCopy() throws {
+    let id = 990_041
+    let item = try markedSeries(id: id)
+    let store = AppContext.shared.localProgressStore
+    let library = AppContext.shared.libraryState
+    defer {
+      store.clear(id: id)
+      let refs = (1...3).map { MediaRef.episode(id, season: 1, number: $0) }
+      library.reconcileWatched(Dictionary(uniqueKeysWithValues: refs.map { ($0, true) }))
+      library.reconcileWatched(Dictionary(uniqueKeysWithValues: refs.map { ($0, false) }))
+    }
+    let model = MediaItemModel(mediaItemId: id, knownItem: item, itemsService: VideoContentServiceMock(),
+                               downloadManager: AppContext.shared.downloadManager,
+                               linkProvider: AppRoutesLinkProvider(),
+                               errorHandler: ErrorHandler(),
+                               actionsService: UserActionsServiceMock())
+    let season = try XCTUnwrap(item.seasons?.first)
+    let second = season.episodes[1]
+
+    model.toggleWatched(episode: second, season: season)
+    XCTAssertEqual(model.mediaItem.seasons?[0].episodes.map(\.isWatched), [true, true, false])
+    XCTAssertEqual(store.snapshot(for: id)?.seasons?[0].episodes.map(\.isWatched), [true, true, false])
+    XCTAssertFalse(second.isWatched, "the rail's copy is its own")
+
+    model.toggleWatched(episode: second, season: season)
+    XCTAssertEqual(model.mediaItem.seasons?[0].episodes.map(\.isWatched), [true, false, false])
   }
 }

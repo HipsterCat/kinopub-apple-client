@@ -10,8 +10,9 @@
 //  (`ItemDetailsRequest(excludeLinks:)`) and the links for a single episode are fetched
 //  here, from `/v1/items/media-links?mid=`, at the moment that episode is needed.
 //
-//  `Episode` is a class, so filling one is visible to everyone already holding it: the
-//  seasons rail, the player, next-episode. A second play costs no second request.
+//  `Episode` is a value: `filled(_:using:)` gives back a copy with its links, and the
+//  answer is remembered here, so whoever holds another copy — the seasons rail, the
+//  player, next-episode — gets it too. A second play costs no second request.
 //
 
 import Foundation
@@ -27,28 +28,39 @@ final class MediaLinksResolver {
   /// One request per media id, however many callers ask at once.
   private var inFlight: [Int: Task<MediaLinks?, Never>] = [:]
 
-  /// Gives `episode` its files and subtitles if it has none. Returns false when the
-  /// episode still has nothing playable afterwards — the caller shows the failure, this
-  /// does not throw over a stream that may yet be resolvable from a local download.
-  @discardableResult
-  func fill(_ episode: Episode, using service: VideoContentService) async -> Bool {
+  /// What came back, by media id. The links are signed and expire, so an answer is not
+  /// kept for a session that stays open for days.
+  private var resolved: [Int: (links: MediaLinks, at: Date)] = [:]
+  private static let lifetime: TimeInterval = 30 * 60
+
+  /// `episode` with its files and subtitles, if it has none. Unchanged when there is still
+  /// nothing playable — the caller shows the failure, this does not throw over a stream
+  /// that may yet be resolvable from a local download.
+  func filled(_ episode: Episode, using service: VideoContentService) async -> Episode {
     // Not `files.isEmpty`: a `nolinks=1` payload still lists the quality ladder, it just
     // gives no links for any rung of it.
-    guard !episode.files.hasPlayableURLs else { return true }
-    guard let links = await links(forMediaId: episode.id, using: service) else { return false }
-    episode.files = links.files
+    guard !episode.files.hasPlayableURLs else { return episode }
+    guard let links = await links(forMediaId: episode.id, using: service) else { return episode }
+    var filled = episode
+    filled.files = links.files
     // `nolinks` is documented as dropping video links; whether it also drops subtitle
     // links is not, so only fill what is actually missing.
-    if episode.subtitles.isEmpty {
-      episode.subtitles = links.subtitles
+    if filled.subtitles.isEmpty {
+      filled.subtitles = links.subtitles
     }
     Logger.app.info(
       "media-links mid=\(episode.id) files=\(links.files.count) subs=\(links.subtitles.count) best=\(links.files.first?.quality ?? "none")"
     )
-    return episode.files.hasPlayableURLs
+    return filled
+  }
+
+  /// Another account's links are not this one's.
+  func clear() {
+    resolved = [:]
   }
 
   func links(forMediaId id: Int, using service: VideoContentService) async -> MediaLinks? {
+    if let known = resolved[id], Date().timeIntervalSince(known.at) < Self.lifetime { return known.links }
     if let existing = inFlight[id] { return await existing.value }
     let task = Task<MediaLinks?, Never> {
       do {
@@ -61,6 +73,7 @@ final class MediaLinksResolver {
     inFlight[id] = task
     let result = await task.value
     inFlight[id] = nil
+    if let result, result.files.hasPlayableURLs { resolved[id] = (result, Date()) }
     return result
   }
 }

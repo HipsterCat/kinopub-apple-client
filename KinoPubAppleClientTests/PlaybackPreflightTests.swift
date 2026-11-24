@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import Synchronization
 import KinoPubBackend
 // The app target's module is `KinoPub` — `PRODUCT_NAME` is KinoPub and nothing overrides
 // `PRODUCT_MODULE_NAME`.
@@ -191,5 +192,69 @@ final class PlaybackPreflightTests: XCTestCase {
     // for a content service — no service is injected here, and reaching for one would
     // build the whole app context.
     await preflight().warm(episode())
+  }
+
+  // MARK: - Links
+
+  private final class LinkRequests: Sendable {
+    private let asked = Mutex<[Int]>([])
+    var ids: [Int] { asked.withLock { $0 } }
+    func note(_ id: Int) { asked.withLock { $0.append(id) } }
+  }
+
+  private nonisolated static func file(_ http: String) -> FileInfo {
+    FileInfo(codec: "h264", w: 1920, h: 1080, quality: "1080p", qualityID: 3,
+             url: URLInfo(http: http, hls: "", hls4: "", hls2: ""))
+  }
+
+  private static func listed(_ id: Int) -> Episode {
+    Episode(id: id, title: "", thumbnail: "", duration: 1_500, tracks: 1, number: 1, ac3: 0,
+            audios: [], watched: 0, watching: EpisodeWatching(status: 0, time: 0),
+            subtitles: [], files: [file("")])
+  }
+
+  /// The links come back on a copy, and whoever asks next — with another copy — gets them
+  /// without a second request.
+  func testLinksAreAskedOnceAndReachEveryCopy() async {
+    let requests = LinkRequests()
+    var service = VideoContentServiceMock()
+    service.mediaLinks = { id in
+      requests.note(id)
+      return MediaLinks(files: [Self.file("https://cdn/\(id).mp4")])
+    }
+    let resolver = MediaLinksResolver()
+    let listed = Self.listed(11)
+
+    let first = await resolver.filled(listed.stamped(season: 2, mediaId: 7, seriesTitle: "Halo"),
+                                      using: service)
+    XCTAssertTrue(first.files.hasPlayableURLs)
+    XCTAssertEqual(first.metadata, WatchingMetadata(id: 7, video: 1, season: 2))
+    XCTAssertFalse(listed.files.hasPlayableURLs, "the page's copy is its own")
+
+    let second = await resolver.filled(listed, using: service)
+    XCTAssertEqual(second.files.first?.url.http, "https://cdn/11.mp4")
+    XCTAssertEqual(requests.ids, [11])
+
+    _ = await resolver.filled(first, using: service)
+    XCTAssertEqual(requests.ids, [11], "an episode with links asks for nothing")
+
+    resolver.clear()
+    _ = await resolver.filled(listed, using: service)
+    XCTAssertEqual(requests.ids, [11, 11])
+  }
+
+  /// An answer with nothing to play is not remembered: the next try asks again.
+  func testAnEmptyAnswerIsNotKept() async {
+    let requests = LinkRequests()
+    var service = VideoContentServiceMock()
+    service.mediaLinks = { id in
+      requests.note(id)
+      return MediaLinks(files: [])
+    }
+    let resolver = MediaLinksResolver()
+    let answer = await resolver.filled(Self.listed(12), using: service)
+    XCTAssertFalse(answer.files.hasPlayableURLs)
+    _ = await resolver.filled(Self.listed(12), using: service)
+    XCTAssertEqual(requests.ids, [12, 12])
   }
 }

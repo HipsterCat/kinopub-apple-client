@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct TypeClass: Codable, Hashable {
+public struct TypeClass: Codable, Hashable, Sendable {
   public let id: Int
   public let title: String?
   public let shortTitle: String?

@@ -2574,10 +2574,8 @@ struct MediaItemHeroView: View {
     var pool: [Episode] = []
     for season in seasons {
       for episode in season.episodes where !episode.isWatched {
-        episode.seasonNumber = season.number
-        episode.mediaId = season.mediaId
-        episode.seriesTitle = mediaItem.localizedTitle
-        pool.append(episode)
+        pool.append(episode.stamped(season: season.number, mediaId: season.mediaId,
+                                    seriesTitle: mediaItem.localizedTitle))
       }
     }
     return pool.randomElement()
@@ -2882,10 +2880,8 @@ struct MediaItemHeroView: View {
   /// below is there for picking any other one.
   private var playTarget: any PlayableItem {
     guard let (season, episode) = mediaItem.primaryEpisode else { return mediaItem }
-    episode.seasonNumber = season.number
-    episode.mediaId = season.mediaId
-    episode.seriesTitle = mediaItem.localizedTitle
-    return episode
+    return episode.stamped(season: season.number, mediaId: season.mediaId,
+                           seriesTitle: mediaItem.localizedTitle)
   }
 
   // MARK: - Metrics

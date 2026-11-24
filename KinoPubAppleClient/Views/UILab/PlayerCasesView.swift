@@ -284,10 +284,7 @@ final class PlayerCasesModel: ObservableObject {
   private static func stampedEpisodes(_ series: MediaItem) -> [Episode] {
     (series.seasons ?? []).flatMap { season in
       season.episodes.map { episode in
-        episode.seasonNumber = season.number
-        episode.mediaId = series.id
-        episode.seriesTitle = series.localizedTitle
-        return episode
+        episode.stamped(season: season.number, mediaId: series.id, seriesTitle: series.localizedTitle)
       }
     }
   }

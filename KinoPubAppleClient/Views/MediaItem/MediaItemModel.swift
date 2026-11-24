@@ -509,11 +509,11 @@ class MediaItemModel: ObservableObject {
     Task {
       do {
         let requestedAt = Date()
-        mediaItem = try await itemsService.fetchDetails(for: "\(mediaItemId)",
-                                                       excludeLinks: excludeLinksOnFetch).item
+        var details = try await itemsService.fetchDetails(for: "\(mediaItemId)",
+                                                          excludeLinks: excludeLinksOnFetch).item
+        details.stampSeasons()
+        mediaItem = details
         payloadRequestedAt = requestedAt
-        let mediaId = mediaItem.id
-        mediaItem.seasons = mediaItem.seasons?.map({ $0.mediaId = mediaId; return $0 })
         AppContext.shared.localProgressStore.cacheItem(mediaItem)
         contentStore.refreshRecord(with: mediaItem)
         isWatched = viewerState(of: mediaItem).isWatched
@@ -909,12 +909,12 @@ class MediaItemModel: ObservableObject {
   /// every ~10s player tick. Costs no request.
   func repaintFromLocalProgress() {
     guard itemLoaded else { return }
-    let changed = AppContext.shared.localProgressStore
-      .layPositions(over: &mediaItem, writtenAfter: payloadRequestedAt)
+    let store = AppContext.shared.localProgressStore
+    let changed = store.layPositions(over: &mediaItem, writtenAfter: payloadRequestedAt)
     guard changed else { return }
-    // Episodes are classes; reassigning the item is what republishes it (same as the
-    // watched toggles below).
-    mediaItem = mediaItem
+    store.updateSnapshot(for: mediaItemId) {
+      store.layPositions(over: &$0, writtenAfter: payloadRequestedAt)
+    }
     isWatched = viewerState(of: mediaItem).isWatched
   }
 
@@ -1188,14 +1188,13 @@ class MediaItemModel: ObservableObject {
   /// Marks one episode watched/unwatched from the season rail's context menu.
   func toggleWatched(episode: Episode, season: Season) {
     let ref = MediaRef.episode(mediaItemId, season: season.number, number: episode.number)
-    let previous = episode.watched
-    episode.watched = previous > 0 ? 0 : 1
-    // Force the published item to refresh so the rail redraws checkmarks/progress.
-    mediaItem = mediaItem
-    isWatched = mediaItem.playbackAction == .playAgain
-    libraryState.setWatched(ref, episode.watched > 0)
-    presentWatchedHud(nowWatched: episode.watched > 0)
-    if episode.watched > 0 {
+    // The page's own mark: the rail may hand over a copy from before the last change.
+    let previous = (mediaItem.episode(id: episode.id) ?? episode).watched
+    let target = previous > 0 ? 0 : 1
+    setWatched([episode.id: target])
+    libraryState.setWatched(ref, target > 0)
+    presentWatchedHud(nowWatched: target > 0)
+    if target > 0 {
       recordLocalFinished(season: season.number,
                           episode: episode.number,
                           durationSeconds: episode.duration)
@@ -1206,20 +1205,29 @@ class MediaItemModel: ObservableObject {
                                                               video: episode.number,
                                                               season: season.number)
         if let watched {
-          episode.watched = watched
-          mediaItem = mediaItem
-          isWatched = mediaItem.playbackAction == .playAgain
+          setWatched([episode.id: watched])
           libraryState.setWatched(ref, watched > 0)
         }
         contentStore.invalidate(family: .watch)
       } catch {
-        episode.watched = previous
-        mediaItem = mediaItem
-        isWatched = mediaItem.playbackAction == .playAgain
+        setWatched([episode.id: previous])
         libraryState.setWatched(ref, previous > 0)
         errorHandler.setError(error)
       }
     }
+  }
+
+  /// Episode id → watched flag, into the page's item (which republishes it, so the rail
+  /// redraws its marks) and into the copy the player reads.
+  private func setWatched(_ flags: [Int: Int]) {
+    func apply(_ item: inout MediaItem) {
+      for (id, watched) in flags { item.updateEpisode(id: id) { $0.watched = watched } }
+    }
+    var item = mediaItem
+    apply(&item)
+    mediaItem = item
+    AppContext.shared.localProgressStore.updateSnapshot(for: mediaItemId, apply)
+    isWatched = mediaItem.playbackAction == .playAgain
   }
 
   /// Marks a whole season watched/unwatched at once. `/v1/watching/toggle` with a
@@ -1227,13 +1235,10 @@ class MediaItemModel: ObservableObject {
   /// to the opposite of what it mostly is — so a part-watched season completes rather
   /// than resetting. The response carries no per-episode flags, hence the refetch.
   func toggleWatched(season: Season) {
+    let season = mediaItem.seasons?.first { $0.id == season.id } ?? season
     let target = season.episodes.contains { !$0.isWatched } ? 1 : 0
-    let previous = season.episodes.map(\.watched)
-    for episode in season.episodes {
-      episode.watched = target
-    }
-    mediaItem = mediaItem
-    isWatched = mediaItem.playbackAction == .playAgain
+    let previous = Dictionary(season.episodes.map { ($0.id, $0.watched) }, uniquingKeysWith: { first, _ in first })
+    setWatched(previous.mapValues { _ in target })
     presentWatchedHud(nowWatched: target > 0)
     if target > 0, let last = season.episodes.max(by: { $0.number < $1.number }) {
       recordLocalFinished(season: season.number,
@@ -1247,17 +1252,12 @@ class MediaItemModel: ObservableObject {
         // The optimistic flip above is a guess at what a bulk toggle did; the item's
         // own episode flags are the answer.
         var refreshed = try await itemsService.fetchDetails(for: "\(mediaItemId)").item
-        let mediaId = refreshed.id
-        refreshed.seasons = refreshed.seasons?.map({ $0.mediaId = mediaId; return $0 })
+        refreshed.stampSeasons()
         mediaItem = refreshed
         AppContext.shared.localProgressStore.cacheItem(refreshed)
         isWatched = mediaItem.playbackAction == .playAgain
       } catch {
-        for (episode, watched) in zip(season.episodes, previous) {
-          episode.watched = watched
-        }
-        mediaItem = mediaItem
-        isWatched = mediaItem.playbackAction == .playAgain
+        setWatched(previous)
         errorHandler.setError(error)
       }
     }
@@ -1570,7 +1570,7 @@ class MediaItemModel: ObservableObject {
       // the episode and quietly do nothing.
       let service = itemsService
       Task { @MainActor in
-        await MediaLinksResolver.shared.fill(episode, using: service)
+        let episode = await MediaLinksResolver.shared.filled(episode, using: service)
         let item = DownloadableMediaItem(
           name: "S\(season.number)E\(episode.number)",
           files: episode.files,
@@ -1644,7 +1644,7 @@ class MediaItemModel: ObservableObject {
   func downloadUnwatchedInSeason(_ season: Season) {
     let unwatched = season.episodes.filter { !$0.isWatched }
     guard !unwatched.isEmpty else { return }
-    let filtered = Season(
+    var filtered = Season(
       id: season.id,
       title: season.title,
       number: season.number,

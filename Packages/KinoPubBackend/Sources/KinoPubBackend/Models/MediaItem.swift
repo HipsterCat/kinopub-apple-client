@@ -23,7 +23,7 @@ import KinoPubMedia
 /// - `tracklist` (concerts) is decoded (`TracklistEntry`) and mapped to `MediaEntity.setlist`.
 /// - A listing payload carries no `seasons` and no `videos`; only details do.
 /// - `subscribed` / `in_watchlist`: which one each endpoint fills is unverified.
-public struct MediaItem: Codable, Hashable, @unchecked Sendable {
+public struct MediaItem: Codable, Hashable, Sendable {
   public let id: Int
   public let type: String
   public let subtype: String

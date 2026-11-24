@@ -144,7 +144,8 @@ public enum KinoPubMediaMapping {
   /// page stamped on it.
   public static func seasonContaining(_ episode: Episode, in title: MediaItem) -> Season? {
     let seasons = title.seasons ?? []
-    return seasons.first { $0.episodes.contains(episode) }
+    // By id: `episode` is a copy, stamped and perhaps with links the payload's has not.
+    return seasons.first { $0.episodes.contains { $0.id == episode.id } }
       ?? seasons.first { $0.number == episode.seasonNumber }
   }
 

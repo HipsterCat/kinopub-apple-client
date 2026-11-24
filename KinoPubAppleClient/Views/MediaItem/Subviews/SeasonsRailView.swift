@@ -1857,10 +1857,7 @@ struct SeasonsRailView: View {
 
   /// Episodes arrive without their season/media context, which playback needs.
   private func filled(_ episode: Episode, in season: Season) -> Episode {
-    episode.seasonNumber = season.number
-    episode.mediaId = season.mediaId
-    episode.seriesTitle = seriesTitle
-    return episode
+    episode.stamped(season: season.number, mediaId: season.mediaId, seriesTitle: seriesTitle)
   }
 
   /// The rail's card — the same landscape `MediaCard` History and Continue Watching
@@ -2780,7 +2777,7 @@ private enum RailPreviewFixtures {
     // `SeasonWatching` has no public initialiser; it only ever comes off the wire.
     // swiftlint:disable:next force_try
     let watching = try! JSONDecoder().decode(SeasonWatching.self, from: Data(#"{"status": 0}"#.utf8))
-    let season = Season(id: number, title: "", number: number,
+    var season = Season(id: number, title: "", number: number,
                         watching: watching, episodes: episodes)
     season.mediaId = 1
     return season

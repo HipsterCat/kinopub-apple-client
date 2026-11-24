@@ -82,6 +82,8 @@ struct VideoContentServiceMock: VideoContentService {
   /// has nothing for that id. The DEBUG detail fixture (`DetailFixture`) serves its
   /// titles through this.
   var details: (@Sendable (Int) -> MediaItem?)? = nil
+  /// What `fetchMediaLinks` answers with, by media id; no files when nil.
+  var mediaLinks: (@Sendable (Int) -> MediaLinks)? = nil
   /// What `fetchSimilar` answers with, by item id; the short placeholder rail when nil or
   /// when it has nothing for that id.
   var similar: (@Sendable (Int) -> [MediaItem]?)? = nil
@@ -133,7 +135,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchMediaLinks(mediaId: Int) async throws -> MediaLinks {
-    return MediaLinks(files: [])
+    return mediaLinks?(mediaId) ?? MediaLinks(files: [])
   }
 
   func fetchSimilar(for id: String) async throws -> ArrayData<MediaItem> {

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Duration: Codable, Hashable {
+public struct Duration: Codable, Hashable, Sendable {
   public let average: Double
   public let total: TimeInterval
 }

@@ -7,19 +7,9 @@ import Foundation
 
 public extension Season {
   /// Digits from the season title ("Сезон 14" / "Season 14" / "14 сезон", or a bare
-  /// year like "2012"). Matching uses this raw value; chips and Play use
-  /// `displaySeasonNumber`, which drops calendar years.
-  ///
-  /// Cached on the class: Instruments showed regex here on every rail paint for every
-  /// episode of every season (~1.6s of a 7s hang on long shows).
-  var titleSeasonNumber: Int? {
-    if let cached = _titleSeasonNumberCache { return cached }
-    let value = Self.parseTitleSeasonNumber(title)
-    _titleSeasonNumberCache = value
-    return value
-  }
-
-  private static func parseTitleSeasonNumber(_ title: String) -> Int? {
+  /// year like "2012"). Matching uses this raw value (`titleSeasonNumber`); chips and Play
+  /// use `displaySeasonNumber`, which drops calendar years.
+  internal static func parseTitleSeasonNumber(_ title: String) -> Int? {
     let patterns = [
       #"(?i)(?:сезон|season)\s*(\d+)"#,
       #"(\d+)\s*(?:сезон|season)"#,
@@ -49,6 +39,31 @@ public extension Season {
 }
 
 public extension MediaItem {
+
+  /// Every season and episode knows which item it belongs to — see `Season.mediaId`.
+  mutating func stampSeasons() {
+    guard var stamped = seasons else { return }
+    for index in stamped.indices { stamped[index].mediaId = id }
+    seasons = stamped
+  }
+
+  /// Changes one episode, by its id. False when this item does not have it.
+  @discardableResult
+  mutating func updateEpisode(id episodeID: Int, _ change: (inout Episode) -> Void) -> Bool {
+    guard let season = seasons?.firstIndex(where: { $0.episodes.contains { $0.id == episodeID } }),
+          let index = seasons?[season].episodes.firstIndex(where: { $0.id == episodeID })
+    else { return false }
+    change(&seasons![season].episodes[index])
+    return true
+  }
+
+  /// The episode as this item has it now.
+  func episode(id episodeID: Int) -> Episode? {
+    for season in seasons ?? [] {
+      if let episode = season.episodes.first(where: { $0.id == episodeID }) { return episode }
+    }
+    return nil
+  }
 
   /// kino.pub's own vote is a thumbs up/down tally, not a score, so it is reported
   /// as one.

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Video: Codable, Hashable {
+public struct Video: Codable, Hashable, Sendable {
   public let id: Int
   public let title: String
   public let thumbnail: String

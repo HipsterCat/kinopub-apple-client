@@ -333,7 +333,7 @@ final class PlayerTrackSelectionTests: XCTestCase {
   /// name, description and **one** genre, through the identifiers Apple documents.
   func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() async throws {
     let series = MediaItem.mock()
-    let episode = Episode(id: 900, title: "Pilot", thumbnail: "", duration: 1500, tracks: 1,
+    var episode = Episode(id: 900, title: "Pilot", thumbnail: "", duration: 1500, tracks: 1,
                           number: 2, ac3: 0, audios: [], watched: 0,
                           watching: EpisodeWatching(status: 0, time: 0), subtitles: [],
                           files: [])

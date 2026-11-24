@@ -98,4 +98,42 @@ final class LocalWatchProgressStoreTests: XCTestCase {
     XCTAssertNotNil(shown)
     XCTAssertEqual(relaunched.entry(forId: filmID, season: nil, episode: nil)?.position, shown)
   }
+
+  private func series() throws -> MediaItem {
+    let watching = try JSONDecoder().decode(SeasonWatching.self, from: Data(#"{"status": 0}"#.utf8))
+    var item = MediaItem.mock(id: seriesID, type: "serial")
+    item.seasons = [Season(id: 1, title: "", number: 1, watching: watching, episodes: (1...3).map {
+      Episode(id: 10 + $0, title: "", thumbnail: "", duration: 2_400, tracks: 1, number: $0, ac3: 0,
+              audios: [], watched: -1, watching: EpisodeWatching(status: -1, time: 0),
+              subtitles: [], files: [])
+    })]
+    return item
+  }
+
+  /// A position the player wrote lands on its episode, starts it, and leaves the others.
+  @MainActor
+  func testPositionsAreLaidOverTheRightEpisode() throws {
+    let store = LocalWatchProgressStore(container: container)
+    var item = try series()
+    store.cacheItem(item)
+    let asked = Date(timeIntervalSinceNow: -60)
+    store.recordProgress(mediaId: seriesID, position: 900, duration: 2_400, season: 1, episode: 2)
+
+    XCTAssertTrue(store.layPositions(over: &item, writtenAfter: asked))
+    XCTAssertEqual(item.seasons?[0].episodes.map(\.watching.time), [0, 900, 0])
+    XCTAssertEqual(item.seasons?[0].episodes.map(\.watched), [-1, 0, -1])
+    XCTAssertFalse(store.layPositions(over: &item, writtenAfter: asked), "nothing left to change")
+  }
+
+  /// The player's copy of the title is changed where the page says, and only that.
+  @MainActor
+  func testUpdatingTheSnapshotChangesWhatThePlayerReads() throws {
+    let store = LocalWatchProgressStore(container: container)
+    let item = try series()
+    store.cacheItem(item)
+    store.updateSnapshot(for: seriesID) { $0.updateEpisode(id: 12) { $0.watched = 1 } }
+    XCTAssertEqual(store.snapshot(for: seriesID)?.seasons?[0].episodes.map(\.watched), [-1, 1, -1])
+    XCTAssertEqual(item.seasons?[0].episodes.map(\.watched), [-1, -1, -1])
+    store.updateSnapshot(for: 1) { _ in XCTFail("no such title") }
+  }
 }

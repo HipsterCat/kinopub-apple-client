@@ -69,8 +69,8 @@ final class SeasonDownloadManager: ObservableObject {
                       using service: VideoContentService) async -> Int {
     guard let center else { return 0 }
     var keys = Set<String>()
-    for episode in season.episodes {
-      await MediaLinksResolver.shared.fill(episode, using: service)
+    for listed in season.episodes {
+      let episode = await MediaLinksResolver.shared.filled(listed, using: service)
       guard let file = pickFile(from: episode.files, quality: quality), file.hasPlayableURL else {
         Logger.app.error("[SEASON DL] no links for S\(season.number)E\(episode.number) of \(mediaId)")
         continue

@@ -275,9 +275,8 @@ struct SkipSegmentsPreview: Equatable {
     var duration = item.mediaEntity.runtime ?? 0
     if let (season, episode) = item.primaryEpisode {
       // The episode Play starts, with its season set the way the hero sets it.
-      episode.seasonNumber = season.number
-      episode.mediaId = season.mediaId
-      playing = episode
+      playing = episode.stamped(season: season.number, mediaId: season.mediaId,
+                                seriesTitle: episode.seriesTitle)
       label = EpisodeText(season: season.number, number: episode.number).text(for: .continueWatchingCard)
       duration = Double(episode.duration)
     }

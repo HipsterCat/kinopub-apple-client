@@ -23,8 +23,7 @@ import Synchronization
 ///   request out of the tap.
 ///
 /// Warming is safe to call repeatedly: `MediaLinksResolver` runs one request per media id
-/// however many callers ask, and `Episode` is a class, so a filled one is filled for
-/// everybody already holding it.
+/// however many callers ask, and remembers the answer for whoever plays it next.
 ///
 /// Not `@MainActor` as a whole: any surface may ask, synchronously, so the cache is behind
 /// a `Mutex`. Only `warm` is isolated, because the resolver it drives is.
@@ -147,7 +146,7 @@ final class PlaybackPreflight: Sendable {
     guard let episode = item as? Episode else { return }
     guard !episode.files.hasPlayableURLs else { return }
     let service = contentServiceOverride ?? AppContext.shared.contentService
-    let filled = await MediaLinksResolver.shared.fill(episode, using: service)
+    let filled = await MediaLinksResolver.shared.filled(episode, using: service).files.hasPlayableURLs
     Logger.app.debug("preflight warmed episode \(episode.id) playable=\(filled)")
   }
 }

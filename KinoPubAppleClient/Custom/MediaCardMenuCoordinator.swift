@@ -147,10 +147,10 @@ final class MediaCardMenuCoordinator: ObservableObject {
   /// for every surface that plays a card: Home, and the player's own Up Next tab.
   static func resolve(_ card: MediaCard, using contentService: VideoContentService)
     async throws -> (item: MediaItem, playable: any PlayableItem) {
-    let item = try await contentService.fetchDetails(for: "\(card.itemID)").item
+    var item = try await contentService.fetchDetails(for: "\(card.itemID)").item
     // Stamp the seasons before an episode leaves this scope: `/v1/watching*` keys
     // on the item id and an episode carries it only from here.
-    item.seasons?.forEach { $0.mediaId = item.id }
+    item.stampSeasons()
     AppContext.shared.localProgressStore.cacheItem(item)
     return (item, playable(from: item, preferring: card))
   }
@@ -220,16 +220,12 @@ final class MediaCardMenuCoordinator: ObservableObject {
     if let seasonNum = card.season, let video = card.video,
        let season = item.seasons?.first(where: { $0.number == seasonNum }),
        let episode = season.episodes.first(where: { $0.number == video }) {
-      episode.seasonNumber = season.number
-      episode.mediaId = season.mediaId
-      episode.seriesTitle = item.localizedTitle
-      return episode
+      return episode.stamped(season: season.number, mediaId: season.mediaId,
+                             seriesTitle: item.localizedTitle)
     }
     if let (season, episode) = item.primaryEpisode {
-      episode.seasonNumber = season.number
-      episode.mediaId = season.mediaId
-      episode.seriesTitle = item.localizedTitle
-      return episode
+      return episode.stamped(season: season.number, mediaId: season.mediaId,
+                             seriesTitle: item.localizedTitle)
     }
     // A title in several videos: the one the card says, else the one its first play button
     // offers — the next set of a concert. `item` alone plays `primaryVideo`, which is the

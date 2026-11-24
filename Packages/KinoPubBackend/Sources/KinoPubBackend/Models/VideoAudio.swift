@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct VideoAudio: Codable, Hashable {
+public struct VideoAudio: Codable, Hashable, Sendable {
   public let id: Int
   public let index: Int
   public let codec: String
