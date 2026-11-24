@@ -64,9 +64,10 @@ public enum PlaybackEnd {
     return .dismiss
   }
 
-  /// Listed on kino.pub: a `nolinks=1` payload still names a files ladder, with
-  /// no URLs yet. An empty ladder is nothing we can ask `media-links` for.
+  /// Listed on kino.pub with something to play — same gate as `Episode.isOnService`
+  /// (files ladder, even `nolinks`, or a runtime). An empty ladder with no duration is
+  /// an unreleased placeholder: dismiss, do not skip past it.
   private static func isAvailable(_ episode: Episode) -> Bool {
-    !episode.files.isEmpty
+    episode.isOnService
   }
 }

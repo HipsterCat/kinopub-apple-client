@@ -263,12 +263,18 @@ public extension MediaItem {
   }
 
   /// What the primary button should offer, based on how far the user already got.
+  ///
+  /// For a series, only episodes **on service** count: an unreleased placeholder (no
+  /// files, no runtime) must not keep Play / Continue Watching on a future episode, and
+  /// when every aired episode is watched the button is Replay (and Follow may lead).
   var playbackAction: PlaybackAction {
     if isSeries {
       let episodes = (seasons ?? []).flatMap(\.episodes)
       guard !episodes.isEmpty else { return .play }
-      if episodes.allSatisfy(\.isWatched) { return .playAgain }
-      if episodes.contains(where: { $0.isWatched || $0.watchProgress.hasStarted }) { return .resume }
+      let playable = episodes.filter(\.isOnService)
+      let relevant = playable.isEmpty ? episodes : playable
+      if relevant.allSatisfy(\.isWatched) { return .playAgain }
+      if relevant.contains(where: { $0.isWatched || $0.watchProgress.hasStarted }) { return .resume }
       return .play
     }
 

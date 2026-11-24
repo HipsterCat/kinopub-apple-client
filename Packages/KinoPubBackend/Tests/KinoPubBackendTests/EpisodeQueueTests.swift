@@ -117,6 +117,39 @@ final class EpisodeQueueTests: XCTestCase {
                    numbers(EpisodeQueue(series: item).continueTarget))
   }
 
+  // MARK: - Unreleased placeholders
+
+  /// Яга: E1–E6 watched, E7–E8 listed with no file and no runtime («Через N дней»).
+  /// Continue / Play must not offer E7 — caught up until something on service is left.
+  func testContinueSkipsUnreleasedPlaceholders() {
+    let item = seriesWithPlaceholders(watched: [1, 2, 3, 4, 5, 6],
+                                      placeholders: [7, 8])
+    let queue = EpisodeQueue(series: item)
+    XCTAssertTrue(queue.isFinished)
+    XCTAssertEqual(numbers(queue.continueTarget), "S1E1", "Replay from the first on service")
+    XCTAssertNil(queue.afterFurthestWatched)
+    XCTAssertNil(queue.firstUnwatched)
+    XCTAssertEqual(item.playbackAction, .playAgain)
+    XCTAssertEqual(item.primaryEpisode.map { "S\($0.season.number)E\($0.episode.number)" },
+                   "S1E1")
+  }
+
+  /// A hole in the middle: after E2, offer E4 — never the unreleased E3.
+  func testContinueSkipsAHoleToTheNextOnService() {
+    let item = seriesWithPlaceholders(watched: [1, 2], placeholders: [3])
+    let queue = EpisodeQueue(series: item)
+    XCTAssertEqual(numbers(queue.continueTarget), "S1E4")
+    XCTAssertFalse(queue.isFinished)
+    XCTAssertEqual(item.playbackAction, .resume)
+  }
+
+  /// Up Next never proposes a placeholder either.
+  func testNextUnwatchedSkipsUnreleased() {
+    let item = seriesWithPlaceholders(watched: [1], placeholders: [2])
+    let e1 = item.seasons!.first!.episodes.first { $0.number == 1 }!
+    XCTAssertEqual(numbers(EpisodeQueue(series: item).nextUnwatched(after: e1)), "S1E3")
+  }
+
   // MARK: - The device's own state
 
   /// Watched-ness is the caller's `ViewerState`: a local mark hides an episode the payload
@@ -130,5 +163,22 @@ final class EpisodeQueueTests: XCTestCase {
       return state
     }
     XCTAssertEqual(numbers(queue.nextUnwatched(after: first)), "S1E3")
+  }
+
+  /// One season of eight: `placeholders` have no file and no runtime.
+  private func seriesWithPlaceholders(watched: Set<Int>,
+                                      placeholders: Set<Int>) -> MediaItem {
+    let episodes = (1...8).map { n -> Episode in
+      if placeholders.contains(n) {
+        return Episode(id: n, title: "", thumbnail: "", duration: 0, tracks: 1, number: n,
+                       ac3: 0, audios: [], watched: 0,
+                       watching: EpisodeWatching(status: 0, time: 0), subtitles: [], files: [])
+      }
+      return episode(id: n, number: n, watched: watched.contains(n))
+    }
+    var item = MediaItem.mock(id: 87940, type: "serial")
+    item.seasons = [Season(id: 1, title: "", number: 1,
+                           watching: SeasonWatching(status: 0), episodes: episodes)]
+    return item
   }
 }

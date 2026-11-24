@@ -1461,10 +1461,12 @@ class HomeCatalog: ObservableObject {
       if let detail, detail.isSeries {
         // The title's own answer, and the same one the detail page's Play button gives —
         // first episode the server does not count as watched, across season boundaries.
-        // `playAgain` means there is no such episode: every one of them is watched, and
-        // a finished series has no business in Continue Watching.
+        // `playAgain` means there is no such episode: every *on-service* one is watched
+        // (unreleased placeholders do not count), and a caught-up series has no business
+        // in Continue Watching — never advertise «7 сер» when the rail says «Через N дней».
         guard detail.playbackAction != .playAgain,
-              let (nextSeason, episode) = detail.primaryEpisode else { return nil }
+              let (nextSeason, episode) = detail.primaryEpisode,
+              episode.isOnService else { return nil }
         video = episode.number
         season = nextSeason.number
         isResuming = episode.watchProgress.isResumable
