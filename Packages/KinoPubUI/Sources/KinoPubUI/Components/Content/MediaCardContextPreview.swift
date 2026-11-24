@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import KinoPubMedia
 #if os(macOS)
 import AppKit
 #elseif canImport(UIKit)
@@ -288,10 +289,11 @@ public struct MediaCardContextPreview: View {
   MediaCardContextPreview(
     spec: .from(
       card: MediaCard(
-        id: 15042,
-        posterURL: "https://m.staticpop.net/poster/item/big/15042.jpg",
+        // wide/15042.jpg 404s; MediaCardView episode fixture uses 10524.
+        id: 10524,
+        posterURL: "https://m.staticpop.net/poster/item/big/10524.jpg",
         title: "Название эпизода",
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/15042.jpg",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/10524.jpg",
         overlayLabel: "S2, E5",
         video: 5,
         season: 2,
