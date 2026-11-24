@@ -27,12 +27,6 @@ final class MacPlayerHostView: AVPlayerView {
     super.viewDidMoveToWindow()
     onWindowChange?(window)
   }
-
-  /// View › Enter Full Screen (⌃⌘F) and the responder chain land here: the window's own
-  /// full screen, never AVKit's detached one.
-  override func toggleFullScreen(_ sender: Any?) {
-    window?.toggleFullScreen(sender)
-  }
 }
 
 @MainActor
