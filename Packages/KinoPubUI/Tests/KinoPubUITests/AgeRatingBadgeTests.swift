@@ -10,7 +10,7 @@ final class AgeRatingBadgeTests: XCTestCase {
       "G": "g", "PG": "pg", "PG-13": "pg-13", "R": "R", "NC-17": "nc-17", "X": "x",
       "NR": "nr", "Not Rated": "nr", "Unrated": "unrated",
       "TV-Y": "tv-y", "TV-G": "tv-g", "TV-PG": "tv-pg", "TV-MA": "tv-ma",
-      "M": "m", "MA15+": "ma"
+      "M": "m", "MA15+": "ma", "TV-14": "tv-14"
     ]
     for (rating, asset) in expected {
       XCTAssertEqual(MediaBadgeImages.ageRatingAssetName(rating), asset, rating)
