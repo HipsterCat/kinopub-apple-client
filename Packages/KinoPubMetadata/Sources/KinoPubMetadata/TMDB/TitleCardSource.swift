@@ -9,7 +9,7 @@ import KinoPubLogging
 /// can still match. A 404 means the worker has no card and could not match.
 /// Not cached here: the comparison on the detail page is measuring this call,
 /// and the worker already keeps the answer for 60 seconds.
-public final class TitleCardSource: MetadataSource, @unchecked Sendable {
+public final class TitleCardSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .titleCard
   public var isConfigured: Bool { configuration.isConfigured }
 

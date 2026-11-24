@@ -16,7 +16,7 @@ public protocol TraktAccessProviding: Sendable {
 ///
 /// Trakt's API terms ask for "uses Trakt but is not endorsed or certified by Trakt"
 /// beside the data: Settings › Integrations › Trakt carries it.
-public final class TraktSource: MetadataSource, @unchecked Sendable {
+public final class TraktSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .trakt
 
   public var isConfigured: Bool { access.traktClientID() != nil }

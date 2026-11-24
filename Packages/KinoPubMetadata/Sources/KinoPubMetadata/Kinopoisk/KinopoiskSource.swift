@@ -16,7 +16,7 @@ public protocol KinopoiskKeyProviding: Sendable {
 /// Contributes what TMDB doesn't: a stills gallery, "facts" about the title,
 /// awards, and Russian character names on the cast list. Client-only: talks to
 /// the service directly with the user's own key, no backend of ours involved.
-public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
+public final class KinopoiskSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .kinopoisk
 
   public var isConfigured: Bool {

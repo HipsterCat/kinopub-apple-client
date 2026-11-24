@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// The viewer's Plex sign-in: the account token and the app's own client id. Nil token
 /// while nobody is signed in.
@@ -17,7 +18,7 @@ public protocol PlexAccessProviding: Sendable {
 /// discover.provider.plex.tv (Plozz: metadata.provider's item reads moved there); and
 /// Common Sense's full entry, which stayed on metadata.provider. The endpoints are the
 /// ones Rivulet and Plozz use; Plex does not document them (Sasha, 2026-11-09).
-public final class PlexSource: MetadataSource, @unchecked Sendable {
+public final class PlexSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .plex
 
   public var isConfigured: Bool { access.plexToken() != nil }
@@ -174,8 +175,14 @@ public final class PlexSource: MetadataSource, @unchecked Sendable {
     return ok ? entry?.payload : nil
   }
 
-  private final class StatusBox: @unchecked Sendable {
-    var code: Int?
+  /// The HTTP status, out of the shared in-flight request.
+  private final class StatusBox: Sendable {
+    private let value = Mutex<Int?>(nil)
+
+    var code: Int? {
+      get { value.withLock { $0 } }
+      set { value.withLock { $0 = newValue } }
+    }
   }
 }
 

@@ -12,7 +12,7 @@ public protocol MyShowsAccessProviding: Sendable {
 /// `shows.GetByExternalId` matches by Kinopoisk id, or by the IMDb id as a bare
 /// number (`903747`, not `tt0903747`). The full card comes back in one call and is
 /// kept for a day (Sasha, 2026-11-09).
-public final class MyShowsSource: MetadataSource, @unchecked Sendable {
+public final class MyShowsSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .myShows
 
   public var isConfigured: Bool { access.isMyShowsEnabled }

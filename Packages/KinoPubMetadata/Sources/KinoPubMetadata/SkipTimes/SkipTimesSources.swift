@@ -13,7 +13,7 @@ public protocol SkipTimesAccessProviding: Sendable {
 /// answers `{segments: {intro, recap, outro, preview}}`, each null or
 /// `{start_ms, end_ms, confidence, …}` (skipdb.tv/docs, 2026-11-09). Data under ODbL 1.0:
 /// shown with attribution on the source's Settings page (Sasha, 2026-11-09).
-public final class SkipDBSource: MetadataSource, @unchecked Sendable {
+public final class SkipDBSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .skipDB
   public var isConfigured: Bool { access.isEnabled(.skipDB) }
 
@@ -81,7 +81,7 @@ public final class SkipDBSource: MetadataSource, @unchecked Sendable {
 /// `GET https://api.theintrodb.org/v4/media?imdb_id=tt…&season=&episode=&duration_ms=`
 /// answers arrays per kind of `{start_ms, end_ms}`; a null start is the beginning, a null
 /// end the end of the stream (the `theintrodb` npm SDK 4.0.0, 2026-11-09).
-public final class TheIntroDBSource: MetadataSource, @unchecked Sendable {
+public final class TheIntroDBSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .introdb
   public var isConfigured: Bool { access.isEnabled(.introdb) }
 

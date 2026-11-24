@@ -13,7 +13,7 @@ public protocol WikidataAccessProviding: Sendable {
 /// Found by IMDb id, as Plozz does it (`haswbstatement:P345=tt…`): one search, then one
 /// `wbgetentities` for the claims and the ru/en sitelinks. Kept for a week. Wikidata asks
 /// for a User-Agent that names the client and how to reach it (Sasha, 2026-11-09).
-public final class WikidataSource: MetadataSource, @unchecked Sendable {
+public final class WikidataSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .wikidata
 
   public var isConfigured: Bool { access.isWikidataEnabled }

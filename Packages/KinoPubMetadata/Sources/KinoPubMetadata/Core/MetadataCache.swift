@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Memory + disk cache with inflight dedup and negative caching.
 public actor MetadataCache {
@@ -35,21 +36,17 @@ public actor MetadataCache {
     weak var cache: MetadataCache?
   }
 
-  private static let registryLock = NSLock()
-  nonisolated(unsafe) private static var registry: [Live] = []
+  private static let registry = Mutex<[Live]>([])
 
   private static func register(_ cache: MetadataCache) {
-    registryLock.lock()
-    registry.append(Live(cache: cache))
-    registryLock.unlock()
+    registry.withLock { $0.append(Live(cache: cache)) }
   }
 
   private static func registered() -> [MetadataCache] {
-    registryLock.lock()
-    registry = registry.filter { $0.cache != nil }
-    let caches = registry.compactMap(\.cache)
-    registryLock.unlock()
-    return caches
+    registry.withLock { registry in
+      registry.removeAll { $0.cache == nil }
+      return registry.compactMap(\.cache)
+    }
   }
 
   /// One row per kind of file in the metadata folder: how many answers, and

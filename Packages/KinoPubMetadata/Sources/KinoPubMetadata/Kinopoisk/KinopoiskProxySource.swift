@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Every field the four return, what we take and what we leave:
 /// `docs/providers/kinopoisk-proxy.md`.
-public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
+public final class KinopoiskProxySource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .kinopoiskProxy
 
   public var isConfigured: Bool { true }

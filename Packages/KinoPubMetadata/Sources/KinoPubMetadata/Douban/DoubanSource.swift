@@ -9,7 +9,7 @@ public protocol DoubanAccessProviding: Sendable {
 /// our worker's `GET /v1/douban/by/imdb/{tt}`. The worker signs the calls to Douban's
 /// app API (Frodo) with secrets the app never holds, keeps the answers for a day, and
 /// returns numbers and English only (Sasha, 2026-11-09).
-public final class DoubanSource: MetadataSource, @unchecked Sendable {
+public final class DoubanSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .douban
 
   public var isConfigured: Bool { configuration.isConfigured && access.isDoubanEnabled }

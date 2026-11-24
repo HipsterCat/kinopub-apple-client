@@ -15,7 +15,7 @@ public protocol OMDbKeyProviding: Sendable {
 /// and outranks OMDb where both answer: `MetadataService` merges Trakt first, the merge
 /// keeps the first score of each kind, and IMDb takes whichever source counted more votes
 /// (Sasha, 2026-11-09).
-public final class OMDbSource: MetadataSource, @unchecked Sendable {
+public final class OMDbSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .omdb
 
   public var isConfigured: Bool { keys.omdbAPIKey() != nil }

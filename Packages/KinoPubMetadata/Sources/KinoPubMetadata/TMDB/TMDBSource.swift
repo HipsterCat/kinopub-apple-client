@@ -11,7 +11,7 @@ public protocol TMDBDirectAccessProviding: Sendable {
 /// holds KinoPub's key — or, while the viewer has their own key switched on, to
 /// api.themoviedb.org directly with it. The worker mirrors TMDB's `/3/…` paths, so only
 /// the host and the credential change.
-public final class TMDBSource: MetadataSource, @unchecked Sendable {
+public final class TMDBSource: MetadataSource, Sendable {
   public let id: MetadataSourceID = .tmdb
 
   public var isConfigured: Bool { configuration.isConfigured || directKey != nil }
