@@ -257,24 +257,21 @@ public struct MediaCardContextPreview: View {
       return
     }
     let decodeBox = spec.artSize
+    // Do not name Nuke's `PlatformImage` here — only ArtworkPipeline imports Nuke.
     if let cached = Artwork.cachedImage(for: url, size: decodeBox, mode: .fit) {
-      apply(platformImage: cached)
+      artFrame = spec.artDisplaySize(forImageSize: cached.size)
+      image = Image(platformImage: cached)
       return
     }
     do {
       let loaded = try await Artwork.image(for: url, size: decodeBox, mode: .fit)
-      apply(platformImage: loaded)
+      artFrame = spec.artDisplaySize(forImageSize: loaded.size)
+      image = Image(platformImage: loaded)
     } catch is CancellationError {
       return
     } catch {
       loadFailed = true
     }
-  }
-
-  @MainActor
-  private func apply(platformImage: PlatformImage) {
-    artFrame = spec.artDisplaySize(forImageSize: platformImage.kinopubPixelSize)
-    image = Image(platformImage: platformImage)
   }
 
   private var footerBackground: Color {
@@ -285,17 +282,6 @@ public struct MediaCardContextPreview: View {
     Color.KinoPub.glassSubstitute
 #else
     Color(uiColor: .systemBackground)
-#endif
-  }
-}
-
-private extension PlatformImage {
-  /// Point size of the decoded bitmap (Nuke `.fit` keeps the real aspect).
-  var kinopubPixelSize: CGSize {
-#if os(macOS)
-    size
-#else
-    size
 #endif
   }
 }
