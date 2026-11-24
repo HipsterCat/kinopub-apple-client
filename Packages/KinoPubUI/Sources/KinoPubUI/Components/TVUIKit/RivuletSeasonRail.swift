@@ -543,6 +543,10 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     guard let scroll = pageScroll else { completion?(); return }
     let start = scroll.contentOffset.y
     guard abs(target - start) > 1 else {
+      // Already on the pin: still close a short interval so a Down that lands
+      // on the rail without sliding is not an empty `scroll.season` sample.
+      PerfSignpost.beginSeasonScroll("already-pinned")
+      PerfSignpost.endSeasonScroll("noop")
       completion?()
       return
     }
@@ -1107,6 +1111,15 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
+    if collectionView === railView,
+       context.previouslyFocusedIndexPath != context.nextFocusedIndexPath,
+       context.nextFocusedIndexPath != nil {
+      // Focus can walk several stills inside the first viewport without moving
+      // `contentOffset`, so `scrollViewDidScroll` never fires — XCTest's
+      // `scroll.season` metric stayed empty (CI 2026-11-24). One sample per
+      // horizontal focus step is the hitch stand-in for that walk.
+      PerfSignpost.noteSeasonScroll("focus")
+    }
     guard collectionView === tabsView, let path = context.nextFocusedIndexPath, tabs.indices.contains(path.item) else { return }
     focusedTab(at: path.item)
   }

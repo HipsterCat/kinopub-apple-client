@@ -18,8 +18,14 @@ final class TVChannelsUITests: XCTestCase {
   private var log: [String] = []
 
   /// The fixture's channels, in the order the grid shows them — five to a row.
+  /// Cells are addressed by `kinopub.tile.{id}`: the under-tile caption is the
+  /// programme when the guide has one (KP-60), so a label == channel-name query
+  /// misses every even-indexed tile.
+  private let firstChannelID = 1
+  private let secondChannelID = 2
+  private let lastChannelID = 11
   private let firstChannel = "МАТЧ! ТВ"
-  private let lastChannel = "Viju Sport"
+  private let secondChannel = "МАТЧ! Арена"
   private let columns = 5
   private let rows = 9
 
@@ -43,9 +49,10 @@ final class TVChannelsUITests: XCTestCase {
     launch()
     try enterGrid()
     try shoot("1-first")
-    XCTAssertEqual(focusedLabel, firstChannel, "Down from the tab bar: \(focusedDescription)")
-    // The fixture's guide has every other channel on air: a second line under those only.
-    // The system draws a media item's secondary text over the art of the focused tile.
+    XCTAssertEqual(focusedTileID, "kinopub.tile.\(firstChannelID)",
+                   "Down from the tab bar: \(focusedDescription)")
+    // The fixture's guide puts a programme on every other channel (including the first):
+    // that string is the under-tile caption.
     XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@",
                                                        "Программа на \(firstChannel)")).firstMatch.exists,
                   "no programme on the first channel")
@@ -56,15 +63,16 @@ final class TVChannelsUITests: XCTestCase {
     try shoot("2-row-end")
 
     let page = app.collectionViews["kinopub.page.tv"]
-    let topBefore = cell(firstChannel).frame.minY
+    let topBefore = cell(id: firstChannelID).frame.minY
     for step in 1..<rows {
       try press(.down, expectingMove: true, note: "down \(step)")
     }
     try shoot("3-bottom")
     XCTAssertTrue(page.exists)
-    XCTAssertLessThan(cell(firstChannel).exists ? cell(firstChannel).frame.minY : -.greatestFiniteMagnitude,
+    let firstAfter = cell(id: firstChannelID)
+    XCTAssertLessThan(firstAfter.exists ? firstAfter.frame.minY : -.greatestFiniteMagnitude,
                       topBefore, "the grid never scrolled under focus")
-    let last = cell(lastChannel)
+    let last = cell(id: lastChannelID)
     XCTAssertTrue(last.exists && last.isHittable, "the last channel is not on screen at the bottom")
 
     // Down from the last row has nowhere to go and must not throw focus out of the page.
@@ -89,8 +97,10 @@ final class TVChannelsUITests: XCTestCase {
     launch()
     try enterGrid()
     try press(.right, expectingMove: true, note: "right")
-    let picked = focusedLabel
-    XCTAssertEqual(picked, "МАТЧ! Арена")
+    let pickedID = "kinopub.tile.\(secondChannelID)"
+    XCTAssertEqual(focusedTileID, pickedID, "right from first: \(focusedDescription)")
+    // Odd-indexed fixture channels have no programme — caption stays the channel name.
+    XCTAssertEqual(focusedLabel, secondChannel, "focus after Right: \(focusedDescription)")
 
     XCUIRemote.shared.press(.select)
     let player = app.buttons["kinopub.fixture.player"]
@@ -99,23 +109,23 @@ final class TVChannelsUITests: XCTestCase {
     try shoot("5-player")
 
     XCUIRemote.shared.press(.menu)
-    XCTAssertTrue(cell(firstChannel).waitForExistence(timeout: 10), "Menu did not return to the grid")
+    XCTAssertTrue(cell(id: firstChannelID).waitForExistence(timeout: 10), "Menu did not return to the grid")
     XCTAssertFalse(player.exists, "Menu left the fixture player up")
     // Focus memory after the live-player pop can take a beat; wait for the channel we left.
     let deadline = Date().addingTimeInterval(6)
-    while Date() < deadline, focusedLabel != picked {
+    while Date() < deadline, focusedTileID != pickedID {
       Thread.sleep(forTimeInterval: 0.25)
     }
     try shoot("6-back")
-    if focusedLabel != picked {
+    if focusedTileID != pickedID {
       // Known restore gap after the live-player route: Menu lands on the first tile of the
       // grid instead of the one that was playing (CI 2026-11-10, main + #82). The player
       // still got the right item above; keep the grid-return asserts, soft-fail the restore.
-      XCTExpectFailure("TV channels: Menu from the player should restore focus to \(picked ?? "?")") {
-        XCTAssertEqual(focusedLabel, picked, "focus after Menu: \(focusedDescription)")
+      XCTExpectFailure("TV channels: Menu from the player should restore focus to \(pickedID)") {
+        XCTAssertEqual(focusedTileID, pickedID, "focus after Menu: \(focusedDescription)")
       }
     } else {
-      XCTAssertEqual(focusedLabel, picked, "focus after Menu: \(focusedDescription)")
+      XCTAssertEqual(focusedTileID, pickedID, "focus after Menu: \(focusedDescription)")
     }
   }
 
@@ -150,13 +160,15 @@ final class TVChannelsUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 2)
     try shoot("10-real-player-chrome")
     XCTAssertEqual(app.state, .runningForeground)
-    for _ in 0..<3 where !cell(firstChannel).isHittable {
+    let first = cell(id: firstChannelID)
+    for _ in 0..<3 where !first.isHittable {
       XCUIRemote.shared.press(.menu)
       Thread.sleep(forTimeInterval: 2)
     }
-    XCTAssertTrue(cell(firstChannel).isHittable, "Menu did not return to the grid")
+    XCTAssertTrue(first.isHittable, "Menu did not return to the grid")
     Thread.sleep(forTimeInterval: 1)
-    XCTAssertEqual(focusedLabel, firstChannel, "focus after the player: \(focusedDescription)")
+    XCTAssertEqual(focusedTileID, "kinopub.tile.\(firstChannelID)",
+                   "focus after the player: \(focusedDescription)")
   }
 
   // MARK: - Helpers
@@ -174,7 +186,8 @@ final class TVChannelsUITests: XCTestCase {
   private func enterGrid() throws {
     XCTAssertTrue(app.collectionViews["kinopub.page.tv"].waitForExistence(timeout: 30),
                   "the TV page never appeared")
-    XCTAssertTrue(cell(firstChannel).waitForExistence(timeout: 30), "the channels never appeared")
+    XCTAssertTrue(cell(id: firstChannelID).waitForExistence(timeout: 30),
+                  "the channels never appeared")
     Thread.sleep(forTimeInterval: 1.5)
     note("launch")
     try shoot("0-launch")
@@ -187,33 +200,40 @@ final class TVChannelsUITests: XCTestCase {
   }
 
   private func press(_ button: XCUIRemote.Button, expectingMove: Bool, note moment: String) throws {
-    let before = focusedLabel
+    let before = focusedTileID
     XCUIRemote.shared.press(button)
     Thread.sleep(forTimeInterval: 0.8)
     note(moment)
     if expectingMove {
-      XCTAssertNotEqual(focusedLabel, before, "\(moment) did not move focus: \(focusedDescription)")
+      XCTAssertNotEqual(focusedTileID, before, "\(moment) did not move focus: \(focusedDescription)")
       XCTAssertTrue(isFocusInGrid, "\(moment) left the grid: \(focusedDescription)")
     }
   }
 
-  /// A tile by its channel's name — the system's text line under the still, a child of
-  /// the cell (the cell itself carries no label).
-  private func cell(_ title: String) -> XCUIElement {
-    app.collectionViews["kinopub.page.tv"].cells.containing(
-      NSPredicate(format: "label == %@", title)).firstMatch
+  /// A tile by its channel id — stable under the programme caption (KP-60).
+  private func cell(id: Int) -> XCUIElement {
+    app.collectionViews["kinopub.page.tv"].descendants(matching: .any)
+      .matching(identifier: "kinopub.tile.\(id)").firstMatch
   }
 
   private var focusedCell: XCUIElement {
-    app.collectionViews["kinopub.page.tv"].cells.matching(
-      NSPredicate(format: "hasFocus == true")).firstMatch
+    app.collectionViews["kinopub.page.tv"].descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.tile.")
+    ).firstMatch
   }
 
   private var isFocusInGrid: Bool { focusedCell.exists }
 
+  private var focusedTileID: String? {
+    let focused = focusedCell
+    return focused.exists ? focused.identifier : nil
+  }
+
   private var focusedLabel: String? {
     let focused = focusedCell
-    return focused.exists ? focused.staticTexts.firstMatch.label : nil
+    guard focused.exists else { return nil }
+    let text = focused.staticTexts.firstMatch
+    return text.exists ? text.label : focused.label
   }
 
   private var focusedDescription: String {

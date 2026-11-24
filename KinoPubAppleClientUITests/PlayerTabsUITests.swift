@@ -131,25 +131,24 @@ final class PlayerTabsUITests: XCTestCase {
     // Down every second while the stream opens; no strip may come up without Info. The
     // first strip that does come up is open on Info, so its Go to Show is there with it.
     let strip = app.collectionViews["AVInfoMenuCollection"]
-    let goToShow = app.buttons["Перейти к деталям"]
+    // Label match — AVKit sometimes exposes the action as a non-Button element while
+    // the slow playlist is still opening (CI 2026-11-24).
+    let goToShow = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "label == %@", "Перейти к деталям")).firstMatch
     for step in 0..<20 {
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 1)
       try shoot("player-early-\(step)")
       if strip.exists {
-        // AVKit can expose the collection a beat before Info's Go to Show is in
-        // the tree (empty strip while the stream is still opening). Wait that
-        // beat; fail only if the strip stays up without Info.
-        if !goToShow.exists {
-          Thread.sleep(forTimeInterval: 1.5)
+        // AVKit can expose the tab collection a few seconds before Info's Go to Show
+        // is in the tree (slow HLS sleeps 6s). Poll through that window; fail only if
+        // the strip stays up without Info after the stream should have opened.
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline, !goToShow.exists {
+          Thread.sleep(forTimeInterval: 0.5)
         }
-        if goToShow.exists {
-          return
-        }
-        if step >= 3 {
-          XCTAssertTrue(goToShow.exists, "a strip without Info came up at step \(step)")
-          return
-        }
+        XCTAssertTrue(goToShow.exists, "a strip without Info came up at step \(step)")
+        return
       }
     }
     XCTFail("the stream never opened")

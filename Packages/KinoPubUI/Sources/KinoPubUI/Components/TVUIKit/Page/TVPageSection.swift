@@ -307,7 +307,7 @@ public extension TVUIKitMediaItem {
       bundledImageName = nil
       focusBackgroundName = nil
     }
-    self.init(id: tile.id.hashValue,
+    self.init(id: Int(tile.id) ?? tile.id.hashValue,
               imageURL: imageURL,
               tint: tile.resolvedTint,
               symbol: tile.symbol,
@@ -319,7 +319,8 @@ public extension TVUIKitMediaItem {
               artworkFit: .letterbox,
               bundledImageName: bundledImageName,
               focusBackgroundName: focusBackgroundName,
-              detailOnFocus: tile.subtitleOnFocus)
+              detailOnFocus: tile.subtitleOnFocus,
+              accessibilityID: "kinopub.tile.\(tile.id)")
   }
 }
 

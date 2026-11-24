@@ -496,6 +496,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           self.loadSkipSegments(on: item)
 #if os(tvOS)
           // The second thing the custom tabs wait for (`rebuildContentTabs`).
+          // Re-stamp Info's buttons too: a stamp that raced `attach` left the strip
+          // without *Go to Show* until the next rebuild (early-Down UITest, CI 2026-11-24).
+          self.rebuildInfoViewActions()
           self.rebuildContentTabs()
 #endif
           // Nothing is said to the server until there is something to play. The view
