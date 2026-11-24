@@ -66,6 +66,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // of in one frame.
     NSWindow.allowsAutomaticWindowTabbing = false
   }
+
+  /// Recently played titles above the Dock menu's window list, as IINA has them.
+  @MainActor
+  func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+    RecentPlaybacks.shared.dockMenu()
+  }
 }
 #endif
 

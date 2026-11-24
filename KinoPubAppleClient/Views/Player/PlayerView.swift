@@ -110,6 +110,11 @@ struct PlayerView: View {
     // Escape leaves, the way it does out of full-screen video everywhere else. ⌘W still
     // works too, and now closes the film rather than the app's window.
     .onExitCommand {
+      // In full screen Escape leaves full screen first, as everywhere on the Mac.
+      if let window = NSApp.keyWindow, window.styleMask.contains(.fullScreen) {
+        window.toggleFullScreen(nil)
+        return
+      }
       dismissWindow(id: PlaybackWindowState.windowID)
     }
 #endif
@@ -734,10 +739,12 @@ private struct MacVideoPlayer: NSViewRepresentable {
   let manager: PlayerManager
 
   func makeNSView(context: Context) -> AVPlayerView {
-    let view = AVPlayerView()
+    let view = MacPlayerHostView()
     view.player = manager.player
     view.allowsPictureInPicturePlayback = true
-    view.showsFullScreenToggleButton = true
+    // Full screen is the window's own, from the green button (as IINA and QuickTime):
+    // AVKit's ↖↘ in the top bar was a second way to the same place (Sasha, 2026-11-23).
+    view.showsFullScreenToggleButton = false
     view.showsSharingServiceButton = true
     view.speeds = AVPlaybackSpeed.systemDefaultSpeeds
     view.delegate = context.coordinator
@@ -746,6 +753,16 @@ private struct MacVideoPlayer: NSViewRepresentable {
     context.coordinator.manager = manager
     context.coordinator.skip.install(on: view, manager: manager)
     context.coordinator.idleControls.attach(to: view)
+    context.coordinator.windowChrome.attach(to: view, manager: manager,
+                                            controlsVisible: context.coordinator.skip.chrome.$controlsVisible)
+    context.coordinator.windowChrome.onEnterFullScreen = { [weak coordinator = context.coordinator, weak view] in
+      guard let coordinator, let view else { return }
+      coordinator.skip.bringToFront()
+      coordinator.idleControls.hideOnEnteringFullScreen(view)
+    }
+    view.onWindowChange = { [weak coordinator = context.coordinator] window in
+      coordinator?.windowChrome.adopt(window)
+    }
     return view
   }
 
@@ -756,11 +773,14 @@ private struct MacVideoPlayer: NSViewRepresentable {
     context.coordinator.manager = manager
     context.coordinator.skip.install(on: nsView, manager: manager)
     context.coordinator.skip.bringToFront()
+    context.coordinator.windowChrome.follow(manager)
   }
 
   static func dismantleNSView(_ nsView: AVPlayerView, coordinator: Coordinator) {
     coordinator.skip.detach()
     coordinator.idleControls.detach()
+    coordinator.windowChrome.detach()
+    (nsView as? MacPlayerHostView)?.onWindowChange = nil
     nsView.delegate = nil
     nsView.pictureInPictureDelegate = nil
   }
@@ -787,6 +807,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
     @preconcurrency AVPlayerViewPictureInPictureDelegate {
     let skip = SkipChipHost()
     let idleControls = MacIdleControlsHider()
+    let windowChrome = MacPlayerWindowChrome()
     weak var manager: PlayerManager?
     /// The player window, held while it is ordered out (a hidden window still owns the
     /// `AVPlayerView`, so the picture can animate back into it).
@@ -1020,7 +1041,7 @@ final class MacIdleControlsHider {
 }
 
 
-/// Transparent title bar over the video — no opaque underlay behind the traffic lights.
+/// The window's title. The rest of the window's dress is `MacPlayerWindowChrome`'s.
 private struct MacPlayerTitlebarChrome: NSViewRepresentable {
   var title: String
 
@@ -1032,12 +1053,7 @@ private struct MacPlayerTitlebarChrome: NSViewRepresentable {
 
   func updateNSView(_ nsView: NSView, context: Context) {
     DispatchQueue.main.async {
-      guard let window = nsView.window else { return }
-      window.title = title
-      window.titlebarAppearsTransparent = true
-      if !window.styleMask.contains(.fullSizeContentView) {
-        window.styleMask.insert(.fullSizeContentView)
-      }
+      nsView.window?.title = title
     }
   }
 }
@@ -1109,11 +1125,26 @@ final class PlaybackWindowState: ObservableObject {
 
   @Published var request: Request?
 
+  /// SwiftUI's window opener, for callers that are not views — the Dock menu, Open Recent
+  /// after its fetch. Kept by the main window and the player window as they appear.
+  var opener: OpenWindowAction?
+
+  /// Put a film in the window and bring the window up.
+  func open(item: any PlayableItem, mode: WatchMode) {
+    show(item: item, mode: mode)
+    guard let opener else {
+      Logger.app.error("Player window: no window opener yet")
+      return
+    }
+    opener(id: Self.windowID)
+  }
+
   /// Put a film in the window. **A play for what is already in there is that window coming
   /// forward, not a new screen:** the request identifies the player's view (see
   /// `PlayerWindowContent`), so replacing it would tear the screen down and rebuild it on
   /// top of a stream that is already running.
   func show(item: any PlayableItem, mode: WatchMode) {
+    RecentPlaybacks.shared.record(item, mode: mode)
     if let request, request.item.id == item.id, request.mode == mode { return }
     request = Request(item: item, mode: mode)
   }
@@ -1128,8 +1159,15 @@ struct PlayerWindowContent: View {
   @ObservedObject private var session = PlaybackSession.shared
   @Environment(\.appContext) private var appContext
   @Environment(ErrorHandler.self) private var errorHandler
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
+    content
+      .onAppear { playback.opener = openWindow }
+  }
+
+  @ViewBuilder
+  private var content: some View {
     if let request = playback.request {
       let manager = session.play(
         item: request.item,

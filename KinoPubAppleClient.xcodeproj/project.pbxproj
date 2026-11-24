@@ -718,6 +718,14 @@
 			isa = PBXBuildFile;
 			fileRef = C72D7B2D1FC6154E1B9B914F /* PlaybackSkip.swift */;
 		};
+		821093DCBE999218A979A648 /* MacPlayerWindowChrome.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 117A0A41DE9112721135C3B5 /* MacPlayerWindowChrome.swift */;
+		};
+		359DD2A38E0D04476107D7C7 /* RecentPlaybacks.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = B873CB019BF4013103069436 /* RecentPlaybacks.swift */;
+		};
 		C75C7D93A4963ECB83E50742 /* SkipChip.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = CCA0474E16AEEC6962861DDE /* SkipChip.swift */;
@@ -2292,6 +2300,18 @@
 			path = PlaybackSkip.swift;
 			sourceTree = "<group>";
 		};
+		117A0A41DE9112721135C3B5 /* MacPlayerWindowChrome.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = MacPlayerWindowChrome.swift;
+			sourceTree = "<group>";
+		};
+		B873CB019BF4013103069436 /* RecentPlaybacks.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = RecentPlaybacks.swift;
+			sourceTree = "<group>";
+		};
 		CCA0474E16AEEC6962861DDE /* SkipChip.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -3504,6 +3524,8 @@
 				CF3057C39EAD12DE9C5799F9 /* PlaybackEpisodes.swift */,
 				C72D7B2D1FC6154E1B9B914F /* PlaybackSkip.swift */,
 				CCA0474E16AEEC6962861DDE /* SkipChip.swift */,
+				B873CB019BF4013103069436 /* RecentPlaybacks.swift */,
+				117A0A41DE9112721135C3B5 /* MacPlayerWindowChrome.swift */,
 				BE0914976172832AE81E94BF /* PlayerChromeMonitor.swift */,
 				C7AC5F961F119A944730A0A6 /* PictureInPictureKeeper.swift */,
 				AA3D49DABA7230D605EB1D1A /* SubtitlePreferences.swift */,
@@ -4077,6 +4099,8 @@
 				ACD2B7147050327C3472B38A /* PlaybackEpisodes.swift in Sources */,
 				C7C64B0B38B89AB49A085E26 /* PlaybackSkip.swift in Sources */,
 				C75C7D93A4963ECB83E50742 /* SkipChip.swift in Sources */,
+				359DD2A38E0D04476107D7C7 /* RecentPlaybacks.swift in Sources */,
+				821093DCBE999218A979A648 /* MacPlayerWindowChrome.swift in Sources */,
 				C83C727BDAC89F9FD226E030 /* PlayerChromeMonitor.swift in Sources */,
 				C5D9DBB9C33E8A5683482748 /* PictureInPictureKeeper.swift in Sources */,
 				CC7198A0C7559FA67D48AE54 /* SubtitlePreferences.swift in Sources */,

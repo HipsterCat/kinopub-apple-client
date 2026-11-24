@@ -61,6 +61,23 @@
         }
       }
     },
+    "Open Recent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Recent"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть недавние"
+          }
+        }
+      }
+    },
     "Requests go to the checked server. When it cannot be reached or answers 502–504, the request moves to the next one, and the server that answers stays in use, after a relaunch too." : {
       "localizations" : {
         "ru" : {
@@ -3067,6 +3084,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Скопировано"
+          }
+        }
+      }
+    },
+    "Clear Menu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Menu"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить меню"
           }
         }
       }
