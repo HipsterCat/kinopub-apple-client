@@ -24,6 +24,9 @@ final class TVSearchPageHostViewController: UIViewController {
   private weak var results: TVPageCollectionViewController?
   /// First appearance in the real tab (not the pre-warm parking window).
   var onFirstAppearance: (() -> Void)?
+  /// The host is in the hidden pre-warm window. First-frame metrics wait until
+  /// the real tab is on screen.
+  var isParked = false
   private var didReportFirstAppearance = false
 
   /// Bridges Down from the tab bar into the search chrome. On only while the
@@ -75,16 +78,25 @@ final class TVSearchPageHostViewController: UIViewController {
     if tabEntryGuideHeight?.constant != height {
       tabEntryGuideHeight?.constant = height
     }
+    noteOnScreenIfNeeded()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    // The pre-warm parking window is alpha 0 / hidden; the real tab's window is not.
-    guard view.window?.alpha ?? 0 > 0.5, view.window?.isHidden == false else { return }
+    guard !isParked else { return }
     // Pre-warm may have focused the keyboard in the parking window and left the
     // guide off. The real tab opens on the bar, and Down needs the guide on.
     syncEntryGuide()
-    guard !didReportFirstAppearance else { return }
+    noteOnScreenIfNeeded()
+  }
+
+  /// `page.search` must close once the real tab has a window. Parking is
+  /// skipped (`isParked`). SwiftUI's representable also calls this from
+  /// `updateUIViewController` — moving the host from the parking window can
+  /// skip `viewDidAppear`, and a hidden/alpha check skipped the real tab too.
+  func noteOnScreenIfNeeded() {
+    guard !isParked, !didReportFirstAppearance else { return }
+    guard view.window != nil else { return }
     didReportFirstAppearance = true
     onFirstAppearance?()
   }

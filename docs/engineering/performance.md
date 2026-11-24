@@ -52,6 +52,7 @@ Subsystem **`com.soda.kinopub.perf`**. Zero cost unless a recording or an
 | `scroll` | `scroll.home` | One interval per scroll gesture: begin on first move, end on settle (`didEndDecelerating` / `didEndScrollingAnimation` / ~80 ms idle) | `TVPageCollectionViewController`, `MediaRowsView`, Mac `ScrollMemory` |
 | `scroll` | `scroll.season` | One interval per gesture: Rivulet CADisplayLink fold (begin on start, end on settle) and horizontal episode/tab scroll | `RivuletSeasonRail`, numbered `TVSeasonRail` |
 | `page` | `page.title` | Navigation push of a details route → first painted item | `NavigationState`, `MediaItemView` |
+| `page` | `page.search` | Search tab selected → first on-screen layout | `TVSearchChrome.takePrepared` → host on-screen layout |
 | `page` | `page.resize` | iPad / Mac window size bucket changed, then 0.3 s settle | `MediaRowsView` |
 
 Instruments → **os_signpost** instrument → filter subsystem `com.soda.kinopub.perf`.
@@ -126,7 +127,15 @@ Signposts: `hero.page`, `artwork.request` (look at `bytes` and `tier`).
 
 Signposts: `page.title`, `hero.backdrop`, `scroll.season`.
 
-### D. Mac window resize on Home
+### D. Search tab first paint (tvOS)
+
+From Watch Now, Left onto Search. Fixture: `-KINOPUBSearchFixture
+-KINOPUBSearchFixtureStartOnWatchNow`. Signpost: `page.search` (takePrepared →
+first on-screen layout). XCTest discards a warmup iteration; the test returns
+to Watch Now before the measured Left so take runs inside the recorded block.
+Catalog posters are not part of this interval.
+
+### E. Mac window resize on Home
 
 Drag the Home window from ~1600×900 to ~1200×740 and back. Signpost: `page.resize`.
 Watch whether `artwork.request` fires again (it should not, once size buckets land).
@@ -258,6 +267,7 @@ ratio. Hitch ms/s is a Release device, Animation Hitches.
 | 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Hero paging | *duration, not hitch* | | | | `testHeroCarouselPaging` |
 | 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Title open | *duration, not hitch* | | | | `testTitlePageOpen` |
 | 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Season rail | *duration, not hitch* | | | | `testSeasonRailScroll` |
+| 2026-11-20 | | tvOS Simulator 27.x | Debug | fixture | Search tab first paint | *duration, not hitch* | | | | `testSearchTabFirstPaint` (`page.search`) |
 | | | iOS Simulator | Debug | session? | Home scroll | skip unless session | | | | |
 | | | Apple TV 4K | Release | cold | Hero ×10 | | | | | device, not yet |
 | | | iPhone | Release | cold | Home flick | | | | | device, not yet |

@@ -121,6 +121,43 @@ final class PerformanceUITests: XCTestCase {
     }
   }
 
+  /// Cold open of the Search tab from Watch Now. `page.search` is takePrepared →
+  /// first on-screen layout. XCTest discards a warmup iteration; the fixture
+  /// unmounts Search when leaving the tab (`if tab == 0`), so we return to
+  /// Watch Now before each measured Left. Clock is only the tab-switch wait.
+  func testSearchTabFirstPaint() {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture",
+                            "-KINOPUBSearchFixtureStartOnWatchNow",
+                            "-KINOPUBForceColorScheme", "dark",
+                            "-ForceGridKeyboard", "YES",
+                            "-UserPreferredKeyboardStyle", "2"]
+    app.launch()
+    XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar did not appear")
+    Thread.sleep(forTimeInterval: 0.6)
+
+    let options = XCTMeasureOptions()
+    options.iterationCount = 1
+    options.invocationOptions = [.manuallyStart, .manuallyStop]
+    let search = app.collectionViews["kinopub.page.search"]
+    measure(metrics: [
+      XCTClockMetric(),
+      XCTMemoryMetric(application: app),
+      signpost("page", "page.search")
+    ], options: options) {
+      if search.exists {
+        XCUIRemote.shared.press(.right)
+        _ = search.waitForNonExistence(timeout: 3)
+        Thread.sleep(forTimeInterval: 0.3)
+      }
+      startMeasuring()
+      XCUIRemote.shared.press(.left)
+      XCTAssertTrue(search.waitForExistence(timeout: 5), "Search chrome did not appear")
+      Thread.sleep(forTimeInterval: 0.4)
+      stopMeasuring()
+    }
+  }
+
   func testSeasonRailScroll() throws {
     // `<true/>` is the UserDefaults plist boolean. `"YES"` stores a string and
     // `FeatureFlag.storedValue` (`as? Bool`) falls back to the default, which is off.

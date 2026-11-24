@@ -213,6 +213,7 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     if let results = coordinator.results {
       bindMenuBack(results)
     }
+    (controller as? TVSearchPageHostViewController)?.noteOnScreenIfNeeded()
   }
 
   private func bindMenuBack(_ results: TVPageCollectionViewController) {

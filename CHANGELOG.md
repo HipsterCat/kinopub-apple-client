@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **tvOS Search first paint:** pre-warm loads the system search stack in a hidden
+  scene window at launch. The window stays out of the accessibility tree; after
+  the tab takes the stack, later pre-warms do not build a second search UI (a
+  visible parking window laid results over the keyboard). First Search body is
+  the filter chips; posters wait until the tab has appeared. `page.search`
+  signpost is takePrepared → first on-screen layout. Check:
+  `TVSearchLayoutUITests.testSearchTabChromeAppearsWhenOpenedFromWatchNow`,
+  `PerformanceUITests.testSearchTabFirstPaint` (`-KINOPUBSearchFixtureStartOnWatchNow`).
+
 - **Hover pictures match the title page (macOS):** Continue Watching and History bring up
   the same episode still the title page's season rail draws (worker
   `/img/thumbnail/by/kinopub/{id}?s=&e=&src=`, WebP at the card's drawn width), and a

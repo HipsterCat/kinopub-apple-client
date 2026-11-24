@@ -37,6 +37,9 @@ struct SearchView: View {
   /// kino.pub's own type-ahead for the typed text (`/v1.1/autocomplete`) — the
   /// suggestion row's completions. Empty offline; local titles stand in then.
   @State private var tvAutocomplete: [SearchAutocompleteEntry] = []
+  /// First paint is the field, keyboard and filter chips. Catalog posters wait
+  /// until this view has appeared so keyboard presentation is not behind a grid.
+  @State private var chromeReady = false
   @Environment(\.scenePhase) private var scenePhase
 #endif
   @State private var navigationTitleText: String = "Search".localized
@@ -77,8 +80,8 @@ struct SearchView: View {
     @Bindable var errorHandler = errorHandler
     return RouteStack(tab: .search) {
       TVSearchPage(
-        sections: tvSections,
-        status: tvStatus,
+        sections: chromeReady ? tvSections : [TVSearchFilters.row(catalog: catalog, searching: catalog.isSearching)],
+        status: chromeReady ? tvStatus : .content,
         text: searchFieldText,
         placeholder: "Search".localized,
         suggestions: tvSuggestions,
@@ -123,6 +126,7 @@ struct SearchView: View {
         },
         onRetry: { Task { await catalog.refresh() } }
       )
+      .onAppear { chromeReady = true }
       .focusSection()
       // Horizontal and bottom only, never the top: the search container lays its
       // keyboard out below the tab bar from the top safe area — ignoring that put the
@@ -149,10 +153,11 @@ struct SearchView: View {
           if let query = DebugLaunch.searchQuery, searchFieldText.isEmpty {
             searchFieldText = query
           }
+          // Catalog load starts with the tab bar (`TVSearchTabModel`). Revalidate
+          // on first appear would rebuild the grid while the keyboard is presenting.
+          // Re-entry still revalidates in `onChange` of the selected tab.
           if catalog.items.isEmpty {
             await catalog.load()
-          } else {
-            await catalog.revalidate(force: false)
           }
         }
       }
@@ -1194,7 +1199,7 @@ struct TVSearchSessionContainer<Content: View>: View {
 
   var body: some View {
     content(session)
-      .task { session.startIfNeeded() }
+      .onAppear { session.startIfNeeded() }
   }
 }
 #endif

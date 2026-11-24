@@ -10,12 +10,18 @@
 //  presentation. WWDC 2020 "Discover search suggestions for Apple TV" and Apple's
 //  own guidance (forums thread 17819; Rivulet / Plozz keep the container as a real
 //  tab VC from launch) is to stand the container up when the tab bar is created,
-//  not lazily on first appearance. We keep a prepared stack in a hidden window of
-//  the current scene so the first paint of Search is the field and keyboard;
-//  catalog posters are applied afterwards.
+//  not lazily on first appearance.
+//
+//  The prepared stack lives in a hidden window of the current scene so the
+//  search views are loaded before the tab is selected. A visible / off-screen
+//  window leaked a second search UI into XCTest and the focus graph (results
+//  over the keyboard, field overlapping the tab bar). After `takePrepared()`
+//  later `prewarm()` calls must not build another stack. Catalog posters apply
+//  afterwards.
 //
 
 import UIKit
+import KinoPubLogging
 
 @MainActor
 public enum TVSearchChrome {
@@ -30,8 +36,8 @@ public enum TVSearchChrome {
   /// Milliseconds from `prewarm()` start to the prepared host's first layout.
   /// `nil` until a prewarm has run in this process.
   public private(set) static var lastPrewarmMilliseconds: Double?
-  /// Milliseconds from `makeStack()` to the host's first `viewDidAppear` in the
-  /// real tab. `nil` until Search has appeared once.
+  /// Milliseconds from `takePrepared()` to the host's first on-screen layout.
+  /// `nil` until Search has appeared once.
   public private(set) static var lastFirstFrameMilliseconds: Double?
 
   /// The grid keyboard (Settings › General › Keyboard) stays on the left while focus is
@@ -51,15 +57,30 @@ public enum TVSearchChrome {
   private static var prepared: Stack?
   private static var parkingWindow: UIWindow?
   private static var firstFrameOrigin: CFTimeInterval?
+  /// The representable has taken the stack. Later `prewarm()` must not park a
+  /// second search UI — XCTest queries every window.
+  private static var taken = false
 
-  /// Stand the system search chrome up now so opening the Search tab does not
-  /// wait on keyboard presentation. Safe to call more than once; a stack already
-  /// waiting is reused, a stack already taken is rebuilt.
+  /// Load the system search chrome now so opening the Search tab does not wait
+  /// on view creation. Safe to call more than once; a stack already waiting is
+  /// reused. After the tab has taken it, further calls are no-ops. `AppDelegate`
+  /// may run before a scene exists — a later call (tab bar `onAppear`) attaches
+  /// then. Parking is deferred a turn so Search as the selected tab can take the
+  /// stack without moving the host between windows.
   public static func prewarm() {
-    if prepared != nil { return }
+    if taken { return }
     let started = CACurrentMediaTime()
-    let stack = makeStack()
-    park(stack)
+    if prepared == nil {
+      let stack = makeStack()
+      prepared = stack
+      stack.host.isParked = true
+      stack.host.loadViewIfNeeded()
+      stack.search.loadViewIfNeeded()
+      stack.container.loadViewIfNeeded()
+    }
+    if parkingWindow == nil {
+      DispatchQueue.main.async { parkIfStillWaiting() }
+    }
     lastPrewarmMilliseconds = (CACurrentMediaTime() - started) * 1000
     NSLog("TVSEARCH prewarm %.0f ms", lastPrewarmMilliseconds ?? -1)
   }
@@ -67,13 +88,18 @@ public enum TVSearchChrome {
   /// The pre-warmed host, or a fresh stack if none was waiting. The representable
   /// takes this once and SwiftUI parents it.
   static func takePrepared() -> Stack {
+    taken = true
+    firstFrameOrigin = CACurrentMediaTime()
+    lastFirstFrameMilliseconds = nil
+    PerfSignpost.beginSearchTab()
+    NSLog("TVSEARCH take")
     if let prepared {
       self.prepared = nil
       unpark(prepared)
-      firstFrameOrigin = CACurrentMediaTime()
+      prepared.host.isParked = false
+      prepared.host.view.accessibilityElementsHidden = false
       return prepared
     }
-    firstFrameOrigin = CACurrentMediaTime()
     return makeStack()
   }
 
@@ -100,19 +126,25 @@ public enum TVSearchChrome {
   private static func recordFirstFrame() {
     guard lastFirstFrameMilliseconds == nil, let origin = firstFrameOrigin else { return }
     lastFirstFrameMilliseconds = (CACurrentMediaTime() - origin) * 1000
+    PerfSignpost.endSearchTab("painted")
     NSLog("TVSEARCH first frame %.0f ms (prewarm %.0f ms)",
           lastFirstFrameMilliseconds ?? -1, lastPrewarmMilliseconds ?? -1)
   }
 
-  /// Keep the stack in the scene so UIKit actually builds the keyboard, without
-  /// showing a second window. Bounds come from the scene, not `UIScreen`.
+  private static func parkIfStillWaiting() {
+    guard !taken, let stack = prepared, parkingWindow == nil else { return }
+    park(stack)
+  }
+
+  /// Keep the stack in the scene so UIKit loads the search views, without
+  /// showing a second window. A hidden window skips `viewDidAppear` — that is
+  /// on purpose: presenting the keyboard here and moving it into the tab broke
+  /// the grid layout. Bounds come from the scene, not `UIScreen`.
   private static func park(_ stack: Stack) {
-    prepared = stack
-    stack.host.loadViewIfNeeded()
-    stack.search.loadViewIfNeeded()
-    stack.container.loadViewIfNeeded()
+    guard parkingWindow == nil else { return }
     guard let scene = activeWindowScene() else {
       stack.host.view.layoutIfNeeded()
+      stack.search.searchBar.layoutIfNeeded()
       return
     }
     let window = UIWindow(windowScene: scene)
@@ -120,10 +152,16 @@ public enum TVSearchChrome {
     window.windowLevel = UIWindow.Level(rawValue: -1000)
     window.alpha = 0
     window.isUserInteractionEnabled = false
-    window.isHidden = true
+    window.accessibilityElementsHidden = true
     window.rootViewController = stack.host
+    window.isHidden = true
+    stack.host.view.accessibilityElementsHidden = true
+    // Do not drive `viewDidAppear` here: presenting the keyboard unfocused in a
+    // hidden window, then moving the host into the tab, left the grid keyboard
+    // gone and the results full-width. Views are loaded; the real tab presents.
     stack.host.view.layoutIfNeeded()
     stack.search.searchBar.layoutIfNeeded()
+    stack.container.view.layoutIfNeeded()
     parkingWindow = window
   }
 
@@ -131,6 +169,8 @@ public enum TVSearchChrome {
     if parkingWindow?.rootViewController === stack.host {
       parkingWindow?.rootViewController = nil
     }
+    parkingWindow?.isHidden = true
+    parkingWindow?.accessibilityElementsHidden = true
     parkingWindow = nil
     if stack.host.parent != nil {
       stack.host.willMove(toParent: nil)

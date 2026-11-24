@@ -53,6 +53,26 @@ final class TVSearchLayoutUITests: XCTestCase {
     assertBesideGridKeyboard(frame, width: app.frame.width)
   }
 
+  /// Opening Search from Watch Now must paint the field / keyboard / filters without
+  /// a multi-second empty tab. Production selects Home first; Search's SwiftUI `Tab`
+  /// is lazy. `-KINOPUBSearchFixtureStartOnWatchNow` is that path.
+  func testSearchTabChromeAppearsWhenOpenedFromWatchNow() throws {
+    let app = launch(gridKeyboard: true, startOnWatchNow: true)
+    XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar never appeared")
+    let opened = Date()
+    press(.left, wait: 0.2)
+    // The collection id is assigned when the tab takes the pre-warmed stack —
+    // not on a parking window. `searchFields` / `keyboards` would match that
+    // window if it were visible to XCTest.
+    XCTAssertTrue(
+      app.collectionViews["kinopub.page.search"].waitForExistence(timeout: 3),
+      "Search chrome did not appear after opening the tab"
+    )
+    let elapsed = Date().timeIntervalSince(opened)
+    try shoot(app, name: "from-watch-now")
+    XCTAssertLessThan(elapsed, 3, "Search tab first chrome took \(elapsed)s")
+  }
+
   /// «Grid keyboard always visible» off. Focus below the keyboard: the grid keyboard slides
   /// away and the page takes the screen's width, as in Apple's apps. Down from the suggestions lands on the filter row
   /// (Genre), not a poster; the keyboard is already gone there. Left from the first column
@@ -293,7 +313,8 @@ final class TVSearchLayoutUITests: XCTestCase {
 
   /// `alwaysVisible`: «Grid keyboard always visible», passed every time so a switch left in
   /// the simulator's Settings cannot decide the run.
-  private func launch(gridKeyboard: Bool, topCards: Bool = false, alwaysVisible: Bool = true) -> XCUIApplication {
+  private func launch(gridKeyboard: Bool, topCards: Bool = false, alwaysVisible: Bool = true,
+                      startOnWatchNow: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture", "-KINOPUBForceColorScheme", "dark",
                             "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO",
@@ -304,7 +325,13 @@ final class TVSearchLayoutUITests: XCTestCase {
                             "-UserPreferredKeyboardStyle", gridKeyboard ? "2" : "1",
                             "-featureFlag.gridKeyboardAlwaysVisible", alwaysVisible ? "<true/>" : "<false/>"]
     if topCards { app.launchArguments.append("-KINOPUBSearchFixtureTopCards") }
+    if startOnWatchNow { app.launchArguments.append("-KINOPUBSearchFixtureStartOnWatchNow") }
     app.launch()
+    if startOnWatchNow {
+      XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar never appeared")
+      Thread.sleep(forTimeInterval: 0.6)
+      return app
+    }
     XCTAssertTrue(app.collectionViews["kinopub.page.search"].cells.firstMatch.waitForExistence(timeout: 20),
                   "search results never appeared")
     Thread.sleep(forTimeInterval: 1.5)
