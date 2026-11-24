@@ -390,6 +390,10 @@
 			isa = PBXBuildFile;
 			fileRef = 1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */;
 		};
+		B2C3D4E5F60718293A4B5C6D /* TitleInfoStripSettingsView.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */;
+		};
 		D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */;
@@ -933,6 +937,10 @@
 		D0990800B2FF6BE619DD6B65 /* ContentStoreRecordTests.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = E10FA2AD79E5A0512FE65860 /* ContentStoreRecordTests.swift */;
+		};
+		D4E5F60718293A4B5C6D7E8F /* AgeRatingPresentationTests.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = C3D4E5F60718293A4B5C6D7E /* AgeRatingPresentationTests.swift */;
 		};
 		CDB773355D7D1F80EE141572 /* WatchingListCacheTests.swift in Sources */ = {
 			isa = PBXBuildFile;
@@ -1823,6 +1831,12 @@
 			path = DetailsEnrichmentPreferences.swift;
 			sourceTree = "<group>";
 		};
+		A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = TitleInfoStripSettingsView.swift;
+			sourceTree = "<group>";
+		};
 		E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -2651,6 +2665,12 @@
 			path = ContentStoreRecordTests.swift;
 			sourceTree = "<group>";
 		};
+		C3D4E5F60718293A4B5C6D7E /* AgeRatingPresentationTests.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = AgeRatingPresentationTests.swift;
+			sourceTree = "<group>";
+		};
 		CADBEEEB9E8DF40FDD919F6B /* WatchingListCacheTests.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -3341,6 +3361,7 @@
 				DA79558A1AB7C9D51E59C848 /* AdvancedSettingsPane.swift */,
 				F2753EF87A4C1E0E17D4E08E /* WorkerImageAdminTokenEntryView.swift */,
 				CDA9952A21443E59651A168F /* PlaceholderSettingsPanes.swift */,
+				A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */,
 				E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */,
 				FBC45B7F4BD8A0FC87EDE68A /* DevicesSettingsPane.swift */,
 			);
@@ -3722,6 +3743,7 @@
 				C199C6ADD492730E7F9C45B5 /* PlayerLiveModeTests.swift */,
 				A1263BDB6FDBF99CF2587ECA /* BestVideoQualityFinderTests.swift */,
 				E10FA2AD79E5A0512FE65860 /* ContentStoreRecordTests.swift */,
+				C3D4E5F60718293A4B5C6D7E /* AgeRatingPresentationTests.swift */,
 				CADBEEEB9E8DF40FDD919F6B /* WatchingListCacheTests.swift */,
 				FE6D3048F081FE0EE0D6DFC1 /* LocalWatchProgressStoreTests.swift */,
 				E695483B740FC341A366DE8D /* PlaybackPreflightTests.swift */,
@@ -4071,6 +4093,7 @@
 				C9C1748FA49070EC119C1FDA /* AppearancePreference.swift in Sources */,
 				3F15FCB7D5B6F14704806A35 /* AppIconBadgePreferences.swift in Sources */,
 				36E9876B86969455D5EF919F /* DetailsEnrichmentPreferences.swift in Sources */,
+				B2C3D4E5F60718293A4B5C6D /* TitleInfoStripSettingsView.swift in Sources */,
 				D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */,
 				C415449FFA3974094F66839C /* SettingsSearch.swift in Sources */,
 				CA980414CBFB666B647A7289 /* SettingsIconView.swift in Sources */,
@@ -4215,6 +4238,7 @@
 				C47987F808259266543873A4 /* PlayerLiveModeTests.swift in Sources */,
 				CD5D34C4A7257367BA0B487B /* BestVideoQualityFinderTests.swift in Sources */,
 				D0990800B2FF6BE619DD6B65 /* ContentStoreRecordTests.swift in Sources */,
+				D4E5F60718293A4B5C6D7E8F /* AgeRatingPresentationTests.swift in Sources */,
 				CDB773355D7D1F80EE141572 /* WatchingListCacheTests.swift in Sources */,
 				C7083A280843A413C8D9263C /* LocalWatchProgressStoreTests.swift in Sources */,
 				C0B9E0184C93F515F09ECEF9 /* PlaybackPreflightTests.swift in Sources */,

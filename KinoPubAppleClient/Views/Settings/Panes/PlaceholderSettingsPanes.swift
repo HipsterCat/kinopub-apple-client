@@ -318,82 +318,85 @@ struct DetailsSettingsPane: View {
   }
 
   var body: some View {
-    Form {
-      Section {
-        Toggle("Metadata Fetching", isOn: $metadataFetching)
-      } footer: {
-        Text("Off stops outside metadata on title pages. kino.pub data still loads.")
+    // Trackpad-style: segmented control full width of the column, outside the Form blocks.
+    VStack(alignment: .leading, spacing: 12) {
+      Form {
+        Section {
+          Toggle("Metadata Fetching", isOn: $metadataFetching)
+        } footer: {
+          Text("Off stops outside metadata on title pages. kino.pub data still loads.")
+        }
       }
+      .formStyle(.grouped)
 
-      Section {
-        Picker("Details", selection: pane) {
-          ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
-            Text(LocalizedStringKey(value.titleKey)).tag(value)
-          }
+      Picker("Details", selection: pane) {
+        ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
+          Text(LocalizedStringKey(value.titleKey)).tag(value)
         }
-        .pickerStyle(.segmented)
-        .disabled(!metadataFetching)
-        .labelsHidden()
       }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .disabled(!metadataFetching)
+      .padding(.horizontal, 20)
 
-      if pane.wrappedValue == .items {
-        Section {
-          ForEach(DetailsEnrichmentItem.imageItems) { item in
-            NavigationLink(value: SettingsDetailRoute.detailsItem(item)) {
-              Label(LocalizedStringKey(item.titleKey), systemImage: item.systemImage)
+      Form {
+        if pane.wrappedValue == .items {
+          Section {
+            ForEach(DetailsEnrichmentItem.imageItems) { item in
+              DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
             }
-            .disabled(!metadataFetching)
+          } header: {
+            Text("Images")
           }
-        } header: {
-          Text("Images")
-        }
 
-        Section {
-          ForEach(DetailsEnrichmentItem.infoItems) { item in
-            NavigationLink(value: SettingsDetailRoute.detailsItem(item)) {
-              Label(LocalizedStringKey(item.titleKey), systemImage: item.systemImage)
+          Section {
+            ForEach(DetailsEnrichmentItem.infoItems) { item in
+              DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
             }
-            .disabled(!metadataFetching)
-          }
-        } header: {
-          Text("Info")
-        }
-      } else {
-        Section {
-          ForEach(DetailsEnrichmentSource.rows) { integration in
-            NavigationLink(value: SettingsDetailRoute.integration(integration)) {
+
+            NavigationLink(value: SettingsDetailRoute.titleInfoStrip) {
               HStack(spacing: 10) {
-                IntegrationIconView(integration: integration)
-                Text(verbatim: integration.name)
+                SettingsLeadingIcon(systemImage: "checkmark.seal.fill")
+                Text("Age rating badge")
+                Spacer(minLength: 8)
+                Text(showAgeRatingBadge ? "On" : "Off")
+                  .foregroundStyle(.secondary)
               }
             }
             .disabled(!metadataFetching)
+          } header: {
+            Text("Info")
           }
+        } else {
+          Section {
+            ForEach(DetailsEnrichmentSource.rows) { integration in
+              NavigationLink(value: SettingsDetailRoute.integration(integration)) {
+                HStack(spacing: 10) {
+                  IntegrationIconView(integration: integration)
+                    .frame(width: SettingsLeadingIcon.width, alignment: .center)
+                  Text(verbatim: integration.name)
+                  Spacer(minLength: 8)
+                }
+              }
+              .disabled(!metadataFetching)
+            }
+          } footer: {
+            Text("Opens the same pages as Integrations — keys, proxy, data and playback.")
+          }
+        }
+
+        Section {
+          Toggle("Hide descriptions", isOn: $hideDescriptions)
+          Toggle("Hide titles", isOn: $hideTitles)
+          Toggle("Blur previews", isOn: $blurPreviews)
+        } header: {
+          Text("Spoilers")
         } footer: {
-          Text("Opens the same pages as Integrations — keys, proxy, data and playback.")
+          Text("Facts, stills and titles that can spoil — including when rewatching.")
         }
       }
-
-      Section {
-        Toggle("Age rating badge", isOn: $showAgeRatingBadge)
-          .disabled(!metadataFetching)
-      } header: {
-        Text("Display")
-      } footer: {
-        Text("Certification chip beside the year on the hero. Always listed in Facts.")
-      }
-
-      Section {
-        Toggle("Hide descriptions", isOn: $hideDescriptions)
-        Toggle("Hide titles", isOn: $hideTitles)
-        Toggle("Blur previews", isOn: $blurPreviews)
-      } header: {
-        Text("Spoilers")
-      } footer: {
-        Text("Facts, stills and titles that can spoil — including when rewatching.")
-      }
+      .formStyle(.grouped)
     }
-    .formStyle(.grouped)
   }
 }
 

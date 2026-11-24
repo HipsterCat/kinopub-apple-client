@@ -21,6 +21,8 @@ enum SettingsDetailRoute: Hashable {
   case integration(Integration)
   /// Settings › Details › Items › one enrichment surface.
   case detailsItem(DetailsEnrichmentItem)
+  /// Settings › Details › Info › Age rating badge (upper info strip prefs).
+  case titleInfoStrip
   /// Playback › the ordered audio or subtitle languages.
   case languageList(PlaybackLanguageList.Kind)
 #if DEBUG

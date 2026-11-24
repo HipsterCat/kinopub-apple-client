@@ -179,11 +179,18 @@ enum DetailsEnrichmentItem: String, CaseIterable, Identifiable, Hashable {
   }
 
   static var imageItems: [DetailsEnrichmentItem] {
-    allCases.filter { $0.group == .images }
+    [.posters, .thumbnails, .covers, .backdrops, .logos]
   }
 
+  /// Title-page order: playable rails, then Ratings → … → Skip (player).
   static var infoItems: [DetailsEnrichmentItem] {
-    allCases.filter { $0.group == .info }
+    [
+      .episodes, .seasons, .specials,
+      .ratings, .reviews, .castAndTeam, .characters,
+      .photos, .trivia, .lists, .videos,
+      .studios, .awards, .boxOffice, .counters,
+      .airDate, .releaseDate, .skipTimings,
+    ]
   }
 }
 
