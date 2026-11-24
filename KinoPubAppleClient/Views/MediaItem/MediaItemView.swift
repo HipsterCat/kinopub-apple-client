@@ -195,10 +195,6 @@ struct MediaItemView: View {
   @State private var imagePickerTarget: TitleImagePickerTarget?
   /// The Title IDs form, while open.
   @State private var idsTarget: TitleImagePickerTarget?
-#if !os(tvOS)
-  @State private var showsNewFolderAlert = false
-  @State private var newFolderName = ""
-#endif
 #if os(iOS)
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -319,9 +315,10 @@ struct MediaItemView: View {
 #endif
         ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
-          // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.
-          // Everything else is an item in More.
-          bookmarkToolbarMenu
+          // One glass group, the way Notes pairs Share with its «…»: the bell and More,
+          // as the iPhone's bar has them; Bookmarks are in the hero's row on both
+          // (Sasha, 2026-11-23: the Mac had them the other way round).
+          followToolbarButton
 #endif
 #if os(iOS)
           // iPhone: one button there, not three — the bell; Bookmarks are in the hero's
@@ -472,54 +469,6 @@ struct MediaItemView: View {
   }
 
 #if !os(tvOS)
-  /// Bookmarks lives in the window toolbar on a Mac, not in the hero row: a `Menu` in the
-  /// row never wore the buttons' glass, hover or inactive-window state, and the toolbar's
-  /// own items have all three (Sasha, 2026-10-30). Mark as Watched is in More. iPhone:
-  /// in the navigation bar, beside More (2026-11-10).
-  private var bookmarkToolbarMenu: some View {
-    Menu {
-      Section {
-        if itemModel.folders.isEmpty {
-          Text("No bookmark folders yet")
-        } else {
-          ForEach(itemModel.folders, id: \.id) { folder in
-            Toggle(isOn: Binding(
-              get: { itemModel.folderIDsContainingItem.contains(folder.id) },
-              set: { _ in itemModel.toggleFolder(folder) }
-            )) {
-              Text(folder.title)
-            }
-          }
-        }
-      } header: {
-        Text("Bookmarks")
-      }
-      Button {
-        newFolderName = ""
-        showsNewFolderAlert = true
-      } label: {
-        Label("New Folder", systemImage: "plus.circle")
-      }
-    } label: {
-      Label("Bookmarks", systemImage: itemModel.isBookmarked ? "bookmark.fill" : "bookmark")
-    }
-#if os(iOS)
-    // Stays open while folders are ticked, as the hero's menu did.
-    .menuActionDismissBehavior(.disabled)
-#endif
-    .menuIndicator(.hidden)
-    .help("Bookmarks")
-    .disabled(!itemModel.itemLoaded)
-    .alert("New Folder", isPresented: $showsNewFolderAlert) {
-      TextField("Folder name", text: $newFolderName)
-      Button("Create") {
-        itemModel.createFolderAndAdd(named: newFolderName)
-        newFolderName = ""
-      }
-      Button("Cancel", role: .cancel) { newFolderName = "" }
-    }
-  }
-
   /// Mark as Watched, as items of More: the plain mark, and for a series the hero's
   /// per-episode and per-season choices beside it.
   @ViewBuilder
@@ -567,7 +516,7 @@ struct MediaItemView: View {
 
 #endif
 
-#if os(iOS)
+#if os(iOS) || os(macOS)
   /// The bell, for a series that can be followed — not while labelled Follow leads the
   /// hero's row (nothing left to play), where it would be said twice.
   @ViewBuilder
@@ -583,10 +532,16 @@ struct MediaItemView: View {
         Label(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist),
               systemImage: itemModel.isInWatchlist ? "bell.fill" : "bell")
       }
+#if os(macOS)
+      .help(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist))
+#endif
       .disabled(!itemModel.itemLoaded)
     }
   }
 
+#endif
+
+#if os(iOS)
   /// Download (with the flag on), in «…»: what Play opens, or pausing it; for a series
   /// also the season, its unwatched episodes, or all of them.
   @ViewBuilder
