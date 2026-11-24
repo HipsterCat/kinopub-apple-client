@@ -18,6 +18,7 @@
 
 import Foundation
 import SwiftUI
+import Synchronization
 import UIKit
 import KinoPubBackend
 import KinoPubMetadata
@@ -513,18 +514,17 @@ enum DetailFixture: String, CaseIterable, Identifiable {
 
 /// kino.pub's memory of what was watched, as far as the fixtures need it: the stand-in
 /// player marks, the next details payload carries it.
-final class DetailFixtureServer: @unchecked Sendable {
+final class DetailFixtureServer: Sendable {
   static let shared = DetailFixtureServer()
 
-  private let lock = NSLock()
-  private var watched: Set<String> = []
+  private let watched = Mutex<Set<String>>([])
 
   func markWatched(item: Int, season: Int?, video: Int?) {
-    lock.withLock { _ = watched.insert(Self.key(item, season, video)) }
+    watched.withLock { _ = $0.insert(Self.key(item, season, video)) }
   }
 
   func isWatched(item: Int, season: Int?, video: Int?) -> Bool {
-    lock.withLock { watched.contains(Self.key(item, season, video)) }
+    watched.withLock { $0.contains(Self.key(item, season, video)) }
   }
 
   private static func key(_ item: Int, _ season: Int?, _ video: Int?) -> String {
@@ -733,12 +733,11 @@ enum LibraryFixture {
 }
 
 /// Ids the stand-in API reads from any thread.
-final class FixtureIDs: @unchecked Sendable {
-  private let lock = NSLock()
-  private var ids = Set<Int>()
+final class FixtureIDs: Sendable {
+  private let ids = Mutex<Set<Int>>([])
 
-  func insert(_ id: Int) { lock.withLock { _ = ids.insert(id) } }
-  func contains(_ id: Int) -> Bool { lock.withLock { ids.contains(id) } }
+  func insert(_ id: Int) { ids.withLock { _ = $0.insert(id) } }
+  func contains(_ id: Int) -> Bool { ids.withLock { $0.contains(id) } }
 }
 
 /// The real Library, signed in, on the stand-in API, with a store of its own that is never

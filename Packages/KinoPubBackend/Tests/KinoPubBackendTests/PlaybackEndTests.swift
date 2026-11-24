@@ -182,7 +182,8 @@ final class PlaybackEndTests: XCTestCase {
 
   // MARK: - Fixtures
 
-  /// Two seasons of three listed episodes. `unlisted` episodes have an empty files ladder.
+  /// Two seasons of three listed episodes. `unlisted` episodes have no files and no
+  /// runtime — the unreleased-placeholder shape (`Episode.isOnService` is false).
   private func series(unlisted: [(season: Int, number: Int)] = []) -> MediaItem {
     let blocked = Set(unlisted.map { "\($0.season)-\($0.number)" })
     let seasons = (1...2).map { season -> Season in
@@ -190,7 +191,7 @@ final class PlaybackEndTests: XCTestCase {
         let listed = !blocked.contains("\(season)-\(number)")
         return listed
           ? listedEpisode(id: season * 100 + number, number: number)
-          : Episode(id: season * 100 + number, title: "", thumbnail: "", duration: 3_000,
+          : Episode(id: season * 100 + number, title: "", thumbnail: "", duration: 0,
                     tracks: 1, number: number, ac3: 0, audios: [], watched: 0,
                     watching: EpisodeWatching(status: 0, time: 0), subtitles: [], files: [])
       }

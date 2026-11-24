@@ -45,23 +45,21 @@ private struct WriteRequest: Endpoint {
 
 final class APIHostPoolTests: XCTestCase {
 
-  private var defaults: UserDefaults!
   private let suite = "APIHostPoolTests"
 
   override func setUp() {
     super.setUp()
     UserDefaults().removePersistentDomain(forName: suite)
-    defaults = UserDefaults(suiteName: suite)
   }
 
   private func makeClient(_ session: HostRoutingSession) -> (APIClient, APIHostPool) {
-    let pool = APIHostPool(primary: URL(string: "https://api.service-kp.com")!, defaults: defaults)
+    let pool = APIHostPool(primary: URL(string: "https://api.service-kp.com")!, defaults: .suite(suite))
     let client = APIClient(baseUrl: "https://api.service-kp.com", session: session, hosts: pool)
     return (client, pool)
   }
 
   func testOrderIsTizensAndThePrimaryComesFirst() {
-    let pool = APIHostPool(primary: URL(string: "https://api.service-kp.com/")!, defaults: defaults)
+    let pool = APIHostPool(primary: URL(string: "https://api.service-kp.com/")!, defaults: .suite(suite))
     XCTAssertEqual(pool.hosts.map(\.label), ["api.service-kp.com", "api.srvkp.com", "kino.watch/api"])
     XCTAssertEqual(pool.current.label, "api.service-kp.com")
   }
@@ -87,7 +85,7 @@ final class APIHostPoolTests: XCTestCase {
     XCTAssertEqual(session.asked.count, 3)
 
     // And so does the next launch.
-    let relaunched = APIHostPool(primary: URL(string: "https://api.service-kp.com")!, defaults: defaults)
+    let relaunched = APIHostPool(primary: URL(string: "https://api.service-kp.com")!, defaults: .suite(suite))
     XCTAssertEqual(relaunched.current.label, "api.srvkp.com")
   }
 

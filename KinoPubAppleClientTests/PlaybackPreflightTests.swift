@@ -29,13 +29,13 @@ final class PlaybackPreflightTests: XCTestCase {
   private var suiteName: String!
   private var store: TrackPreferenceStore!
 
-  override func setUpWithError() throws {
+  override func setUp() async throws {
     suiteName = "PlaybackPreflightTests.\(UUID().uuidString)"
     defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    store = TrackPreferenceStore(defaults: defaults)
+    store = TrackPreferenceStore(defaults: .suite(suiteName))
   }
 
-  override func tearDownWithError() throws {
+  override func tearDown() async throws {
     defaults.removePersistentDomain(forName: suiteName)
   }
 

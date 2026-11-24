@@ -45,10 +45,10 @@ final class PlayerTrackSelectionTests: XCTestCase {
                                     PlaybackLanguagePreferences.subtitleModeKey]
   private var savedSettings: [String: Any] = [:]
 
-  override func setUpWithError() throws {
+  override func setUp() async throws {
     suiteName = "PlayerTrackSelectionTests.\(UUID().uuidString)"
     defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    store = TrackPreferenceStore(defaults: defaults)
+    store = TrackPreferenceStore(defaults: .suite(suiteName))
     preflight = PlaybackPreflight(preferences: store, contentService: VideoContentServiceMock())
     // Runs the one-time migration first, so it cannot overwrite the list below.
     _ = PlaybackLanguagePreferences.current
@@ -60,7 +60,7 @@ final class PlayerTrackSelectionTests: XCTestCase {
     PlaybackLanguagePreferences.setSubtitleMode(.foreignAudio)
   }
 
-  override func tearDownWithError() throws {
+  override func tearDown() async throws {
     defaults.removePersistentDomain(forName: suiteName)
     for key in Self.settingKeys {
       UserDefaults.standard.set(savedSettings[key], forKey: key)

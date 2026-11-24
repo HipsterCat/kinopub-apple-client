@@ -42,7 +42,7 @@ final class TrackPreferenceStoreTests: XCTestCase {
   /// A play teaches every scope it belongs to, not only the most specific one — that is
   /// what lets the next season start from the series' own preference.
   func testAPlayTeachesEveryScopeInTheChain() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     store.recordAudio(syenduk(), in: chain())
 
     XCTAssertEqual(store.ledger(for: .episode(titleID: seriesID, season: 2, episode: 5))?.audio.first?.weight, 1)
@@ -52,13 +52,13 @@ final class TrackPreferenceStoreTests: XCTestCase {
   }
 
   func testAnAnimeAlsoTeachesTheAnimeBucket() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     store.recordAudio(syenduk(), in: chain(isAnime: true))
     XCTAssertEqual(store.ledger(for: .anime)?.audio.first?.signature, syenduk())
   }
 
   func testWeightAccumulatesAcrossEpisodesOfOneSeries() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     for episode in 1...4 {
       let scopes = TrackMemoryScope.chain(titleID: seriesID, season: 1, episode: episode)
       store.recordAudio(syenduk(), in: scopes)
@@ -71,13 +71,13 @@ final class TrackPreferenceStoreTests: XCTestCase {
   }
 
   func testAnEmptyChainWritesNothing() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     store.recordAudio(syenduk(), in: [])
     XCTAssertTrue(store.all.isEmpty)
   }
 
   func testTheMenuIsRecordedEvenWhenNothingIsChosen() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     let dub = AudioTrackInfo(lang: "ru", typeId: 1, typeTitle: "Дубляж", authorTitle: "Мосфильм")
     store.noteMenu([dub], in: chain())
 
@@ -90,7 +90,7 @@ final class TrackPreferenceStoreTests: XCTestCase {
 
   /// The resolver walks a uniform shape, so a scope that learned nothing still appears.
   func testEveryScopeInTheChainIsReturnedEvenWhenEmpty() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     let scoped = store.ledgers(for: chain(isAnime: true))
 
     XCTAssertEqual(scoped.count, 4)
@@ -99,13 +99,13 @@ final class TrackPreferenceStoreTests: XCTestCase {
   }
 
   func testLedgersSurviveANewStoreOverTheSameDefaults() {
-    TrackPreferenceStore(defaults: defaults).recordAudio(syenduk(), in: chain())
-    let reopened = TrackPreferenceStore(defaults: defaults)
+    TrackPreferenceStore(defaults: .suite(suiteName)).recordAudio(syenduk(), in: chain())
+    let reopened = TrackPreferenceStore(defaults: .suite(suiteName))
     XCTAssertEqual(reopened.ledger(for: .title(id: seriesID))?.audio.first?.signature, syenduk())
   }
 
   func testForgettingOneScopeLeavesTheOthers() {
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     store.recordAudio(syenduk(), in: chain())
     store.forget(scope: .season(titleID: seriesID, season: 2))
 
@@ -121,7 +121,7 @@ final class TrackPreferenceStoreTests: XCTestCase {
                                 secondary: nil)
     defaults.set(try JSONEncoder().encode([String(seriesID): choice]), forKey: "subtitleTrackChoices")
 
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     let migrated = store.ledger(for: .title(id: seriesID))?.subtitles.first?.signature
 
     XCTAssertEqual(migrated, SubtitleChoiceSignature(languageKey: "en", isCC: false))
@@ -133,18 +133,18 @@ final class TrackPreferenceStoreTests: XCTestCase {
     let choice = SubtitleChoice(primary: nil, secondary: nil)
     defaults.set(try JSONEncoder().encode([String(seriesID): choice]), forKey: "subtitleTrackChoices")
 
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     XCTAssertEqual(store.ledger(for: .title(id: seriesID))?.subtitles.first?.signature, .off)
   }
 
   func testMigrationDoesNotOverwriteALedgerThatAlreadyExists() throws {
-    TrackPreferenceStore(defaults: defaults).recordAudio(syenduk(), in: [.title(id: seriesID)])
+    TrackPreferenceStore(defaults: .suite(suiteName)).recordAudio(syenduk(), in: [.title(id: seriesID)])
 
     let choice = SubtitleChoice(primary: SubtitleTrackReference(lang: "en", isCC: false, ordinal: 0),
                                 secondary: nil)
     defaults.set(try JSONEncoder().encode([String(seriesID): choice]), forKey: "subtitleTrackChoices")
 
-    let store = TrackPreferenceStore(defaults: defaults)
+    let store = TrackPreferenceStore(defaults: .suite(suiteName))
     XCTAssertEqual(store.ledger(for: .title(id: seriesID))?.audio.first?.signature, syenduk())
   }
 }

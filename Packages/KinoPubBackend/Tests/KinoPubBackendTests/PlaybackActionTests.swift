@@ -128,4 +128,15 @@ final class PlaybackActionTests: XCTestCase {
   func testSeriesWithNoEpisodesFallsBackToPlay() {
     XCTAssertEqual(item(seasons: [season(1, episodes: [])]).playbackAction, .play)
   }
+
+  /// Unreleased placeholders (no file, no runtime) do not keep the series "in progress".
+  func testCaughtUpWithUnreleasedPlaceholdersOffersPlayAgain() {
+    let aired = [episode(number: 1, watched: 1), episode(number: 2, watched: 1)]
+    let upcoming = Episode(id: 3, title: "E3", thumbnail: "", duration: 0, tracks: 1,
+                           number: 3, ac3: 0, audios: [], watched: 0,
+                           watching: EpisodeWatching(status: 0, time: 0),
+                           subtitles: [], files: [])
+    let seasons = [season(1, episodes: aired + [upcoming])]
+    XCTAssertEqual(item(seasons: seasons).playbackAction, .playAgain)
+  }
 }

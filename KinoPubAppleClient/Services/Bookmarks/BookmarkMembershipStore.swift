@@ -11,60 +11,62 @@
 import Foundation
 import KinoPubBackend
 import KinoPubUI
+import Synchronization
 
 /// Persists which bookmark folders contain which titles. Thread-safe, UserDefaults-backed.
-/// `@unchecked Sendable` because every mutation of `map` goes through `lock`.
-final class BookmarkMembershipStore: @unchecked Sendable {
+final class BookmarkMembershipStore: Sendable {
 
   static let shared = BookmarkMembershipStore()
 
   private let defaultsKey = "com.soda.kinopub.bookmarkMembership"
   private let addedKey = "com.soda.kinopub.bookmarkAddedAt"
-  private let lock = NSLock()
-  /// itemID → folderIDs. Absent key = "never touched locally, trust the card/payload hint".
-  private var map: [Int: Set<Int>] = [:]
-  /// itemID → when this device last added it to a folder. kino.pub keeps no such date,
-  /// and Continue Watching mixes bookmarks in by it.
-  private var addedAt: [Int: Date] = [:]
 
-  init(defaults: UserDefaults = .standard) {
-    self.defaults = defaults
-    load()
+  private struct State {
+    /// itemID → folderIDs. Absent key = "never touched locally, trust the card/payload hint".
+    var map: [Int: Set<Int>] = [:]
+    /// itemID → when this device last added it to a folder. kino.pub keeps no such date,
+    /// and Continue Watching mixes bookmarks in by it.
+    var addedAt: [Int: Date] = [:]
   }
 
-  private let defaults: UserDefaults
+  private let state: Mutex<State>
+  private let suite: DefaultsSuite
+
+  init(defaults suite: DefaultsSuite = .standard) {
+    self.suite = suite
+    state = Mutex(Self.load(from: suite.defaults, mapKey: defaultsKey, addedKey: addedKey))
+  }
 
   /// Resolved membership: local overlay wins; otherwise the server hint from the card/item.
   func folderIDs(for itemID: Int, serverHint: Set<Int> = []) -> Set<Int> {
-    lock.lock(); defer { lock.unlock() }
-    return map[itemID] ?? serverHint
+    state.withLock { $0.map[itemID] } ?? serverHint
   }
 
   func isBookmarked(_ itemID: Int, serverHint: Set<Int> = []) -> Bool {
-    lock.lock(); defer { lock.unlock() }
-    return !(map[itemID] ?? serverHint).isEmpty
+    !folderIDs(for: itemID, serverHint: serverHint).isEmpty
   }
 
   /// Replace membership from a trusted payload (`MediaItem.bookmarks` on detail, etc.).
   /// The folders this device knows the title is in, or nil when it has never been told.
   func knownFolderIDs(for itemID: Int) -> Set<Int>? {
-    lock.lock(); defer { lock.unlock() }
-    return map[itemID]
+    state.withLock { $0.map[itemID] }
   }
 
   func replace(itemID: Int, folderIDs: Set<Int>) {
-    lock.lock(); defer { lock.unlock() }
-    map[itemID] = folderIDs
-    persistLocked()
+    state.withLock { state in
+      state.map[itemID] = folderIDs
+      persist(state)
+    }
   }
 
   /// Adopt a non-empty catalogue hint only when we have no local row yet.
   func adoptServerHint(itemID: Int, folderIDs: Set<Int>) {
     guard !folderIDs.isEmpty else { return }
-    lock.lock(); defer { lock.unlock() }
-    guard map[itemID] == nil else { return }
-    map[itemID] = folderIDs
-    persistLocked()
+    state.withLock { state in
+      guard state.map[itemID] == nil else { return }
+      state.map[itemID] = folderIDs
+      persist(state)
+    }
   }
 
   /// Seed from a `MediaItem` when the payload included `bookmarks` (even if empty).
@@ -75,60 +77,63 @@ final class BookmarkMembershipStore: @unchecked Sendable {
 
   @discardableResult
   func toggle(itemID: Int, folderID: Int, serverHint: Set<Int> = []) -> Set<Int> {
-    lock.lock(); defer { lock.unlock() }
-    var set = map[itemID] ?? serverHint
-    if set.contains(folderID) {
-      set.remove(folderID)
-      if set.isEmpty { addedAt[itemID] = nil }
-    } else {
-      set.insert(folderID)
-      addedAt[itemID] = Date()
+    state.withLock { state in
+      var set = state.map[itemID] ?? serverHint
+      if set.contains(folderID) {
+        set.remove(folderID)
+        if set.isEmpty { state.addedAt[itemID] = nil }
+      } else {
+        set.insert(folderID)
+        state.addedAt[itemID] = Date()
+      }
+      state.map[itemID] = set
+      persist(state)
+      return set
     }
-    map[itemID] = set
-    persistLocked()
-    return set
   }
 
   /// When this device added each title to a bookmark folder, for the ones it did.
   func addedDates() -> [Int: Date] {
-    lock.lock(); defer { lock.unlock() }
-    return addedAt
+    state.withLock { $0.addedAt }
   }
 
   func clear() {
-    lock.lock(); defer { lock.unlock() }
-    map = [:]
-    addedAt = [:]
-    defaults.removeObject(forKey: defaultsKey)
-    defaults.removeObject(forKey: addedKey)
+    state.withLock { state in
+      state = State()
+      let defaults = suite.defaults
+      defaults.removeObject(forKey: defaultsKey)
+      defaults.removeObject(forKey: addedKey)
+    }
   }
 
   // MARK: - Persistence
 
-  private func load() {
-    guard let raw = defaults.dictionary(forKey: defaultsKey) as? [String: [Int]] else { return }
-    var loaded: [Int: Set<Int>] = [:]
+  private static func load(from defaults: UserDefaults, mapKey: String, addedKey: String) -> State {
+    var state = State()
+    guard let raw = defaults.dictionary(forKey: mapKey) as? [String: [Int]] else { return state }
     for (key, value) in raw {
       guard let id = Int(key) else { continue }
-      loaded[id] = Set(value)
+      state.map[id] = Set(value)
     }
-    map = loaded
     if let rawAdded = defaults.dictionary(forKey: addedKey) as? [String: Double] {
       for (key, value) in rawAdded {
         guard let id = Int(key) else { continue }
-        addedAt[id] = Date(timeIntervalSince1970: value)
+        state.addedAt[id] = Date(timeIntervalSince1970: value)
       }
     }
+    return state
   }
 
-  private func persistLocked() {
+  /// Holding `state`, so the disk sees writes in the order memory did.
+  private func persist(_ state: State) {
+    let defaults = suite.defaults
     var raw: [String: [Int]] = [:]
-    raw.reserveCapacity(map.count)
-    for (id, folders) in map {
+    raw.reserveCapacity(state.map.count)
+    for (id, folders) in state.map {
       raw["\(id)"] = folders.sorted()
     }
     defaults.set(raw, forKey: defaultsKey)
-    defaults.set(Dictionary(uniqueKeysWithValues: addedAt.map { ("\($0.key)", $0.value.timeIntervalSince1970) }),
+    defaults.set(Dictionary(uniqueKeysWithValues: state.addedAt.map { ("\($0.key)", $0.value.timeIntervalSince1970) }),
                  forKey: addedKey)
   }
 }

@@ -26,7 +26,7 @@ final class AgeRatingBadgeTests: XCTestCase {
 
   /// No drawing, or one that would drop part of the rating: stays typed.
   func testUndrawnCertificationsStayTyped() {
-    for rating in ["TV-14", "TV-Y7", "R18+", "X18+", "15", "PG-12"] {
+    for rating in ["R18+", "X18+", "15", "PG-12"] {
       XCTAssertNil(MediaBadgeImages.ageRatingAssetName(rating), rating)
     }
   }

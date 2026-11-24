@@ -7,6 +7,7 @@ import Foundation
 import KinoPubBackend
 import KinoPubLogging
 import OSLog
+import Synchronization
 
 /// **What a surface can know about playback before the player exists.**
 ///
@@ -25,13 +26,9 @@ import OSLog
 /// however many callers ask, and `Episode` is a class, so a filled one is filled for
 /// everybody already holding it.
 ///
-/// **Not `@MainActor` as a whole**, on purpose: asking what a title will play has to work
-/// from `PlayerManager`, which is not main-actor-isolated and asks synchronously — from its
-/// periodic time observer among other places. Only `warm` is isolated, because the resolver
-/// it drives is. The cache is behind a lock rather than an actor for the same reason.
-///
-/// `@unchecked Sendable` because every read/write of `cache` goes through `cacheLock`.
-final class PlaybackPreflight: @unchecked Sendable {
+/// Not `@MainActor` as a whole: any surface may ask, synchronously, so the cache is behind
+/// a `Mutex`. Only `warm` is isolated, because the resolver it drives is.
+final class PlaybackPreflight: Sendable {
 
   static let shared = PlaybackPreflight()
 
@@ -54,17 +51,14 @@ final class PlaybackPreflight: @unchecked Sendable {
     let subtitleFingerprint: Int
   }
 
-  private var cache: [Int: CachedPlan] = [:]
-  private let cacheLock = NSLock()
+  private let cache = Mutex<[Int: CachedPlan]>([:])
 
   private func cachedPlan(for id: Int) -> CachedPlan? {
-    cacheLock.lock(); defer { cacheLock.unlock() }
-    return cache[id]
+    cache.withLock { $0[id] }
   }
 
   private func store(_ cached: CachedPlan, for id: Int) {
-    cacheLock.lock(); defer { cacheLock.unlock() }
-    cache[id] = cached
+    cache.withLock { $0[id] = cached }
   }
 
   // MARK: - Knowing
