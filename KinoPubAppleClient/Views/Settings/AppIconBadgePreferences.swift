@@ -10,9 +10,6 @@ import KinoPubBackend
 #if canImport(UserNotifications)
 import UserNotifications
 #endif
-#if canImport(UIKit)
-import UIKit
-#endif
 
 enum AppIconBadgePreferences {
   static let enabledKey = "settings.appIconBadge.enabled"
@@ -88,13 +85,7 @@ enum AppIconBadgeController {
 
   private static func setBadge(_ count: Int) {
 #if canImport(UserNotifications)
-    if #available(iOS 16.0, macOS 13.0, *) {
-      UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
-      return
-    }
-#endif
-#if canImport(UIKit)
-    UIApplication.shared.applicationIconBadgeNumber = count
+    UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
 #endif
   }
 }
