@@ -80,7 +80,14 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
   /// - Parameters:
   ///   - authService: The authorization service used for authentication.
   ///   - accessTokenService: The access token service used for managing access tokens.
-  init(authService: AuthorizationService, accessTokenService: AccessTokenService) {
+  ///   - handlesAppWideAuthEvents: `true` only for the app's own `AuthState`. The 401 /
+  ///     session-invalidated notifications and `UnauthorizedRequestRecovery.shared` are
+  ///     process-wide: every other instance (previews, fixtures, unit tests) that joined
+  ///     them heard the host app's real 401s — a test's state flipped to signed out — and
+  ///     the last one created took the API client's recovery away from the app's.
+  init(authService: AuthorizationService,
+       accessTokenService: AccessTokenService,
+       handlesAppWideAuthEvents: Bool = false) {
     self.authService = authService
     self.accessTokenService = accessTokenService
     // Optimistic: a Keychain token is enough to show the shell and cached shelves.
@@ -96,6 +103,8 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
       self.userState = .unauthorized
       self.shouldShowAuthentication = true
     }
+
+    guard handlesAppWideAuthEvents else { return }
 
     // Content 401 → refresh. Prefer the API client's awaitable recovery (retry the
     // failed request); this notification is the belt for anything that bypasses it.

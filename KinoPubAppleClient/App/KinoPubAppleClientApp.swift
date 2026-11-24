@@ -27,7 +27,8 @@ struct KinoPubAppleClientApp: App {
   @State private var errorHandler = ErrorHandler()
   @StateObject var networkMonitor = NetworkMonitor()
   @StateObject var authState = AuthState(authService: AppContext.shared.authService,
-                                         accessTokenService: AppContext.shared.accessTokenService)
+                                         accessTokenService: AppContext.shared.accessTokenService,
+                                         handlesAppWideAuthEvents: true)
   
 #if os(macOS)
   @State private var windowSettings = WindowSettings()
