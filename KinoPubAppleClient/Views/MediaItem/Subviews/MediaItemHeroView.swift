@@ -1722,7 +1722,10 @@ struct MediaItemHeroView: View {
     let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
     let blocks = factBlocks
     // On a phone the age rating closes the playback line instead (Sasha, 2026-11-16).
-    let rating = centersColumn ? nil : ageRating.flatMap { $0.isEmpty ? nil : $0 }
+    // Elsewhere the upper strip is this facts line — honor Settings › Details › Age rating.
+    let rating = centersColumn
+      ? nil
+      : MediaItemDisplayPreferences.ageRatingForInfoStrip(ageRating)
     if status != nil || !blocks.isEmpty || rating != nil {
       AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
                       centersRows: centersColumn) {
@@ -1734,8 +1737,7 @@ struct MediaItemHeroView: View {
             .lineLimit(1)
             .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         }
-        // Always: the «show age rating» preference is the poster's, not this line's
-        // (Sasha, 2026-11-08). Drawn where `badges/` has the mark (2026-11-09).
+        // Drawn where `badges/` has the mark (2026-11-09).
         if let rating {
           if let asset = MediaBadgeImages.ageRatingAssetName(rating) {
             MediaBadgeImages([asset])
@@ -2028,14 +2030,20 @@ struct MediaItemHeroView: View {
   private var playbackLine: some View {
     let runtime = runtimeText
     let languages = audioLanguageCodes
-    let voicing = preferredVoicingTag
-    let captions = subtitleSummary != nil
-    let rating = centersColumn ? ageRating.flatMap { $0.isEmpty ? nil : $0 } : nil
+    let voicing = MediaItemDisplayPreferences.showVoicingBadges ? preferredVoicingTag : nil
+    let captions = MediaItemDisplayPreferences.showCaptionsBadge && subtitleSummary != nil
+    let rating = centersColumn
+      ? MediaItemDisplayPreferences.ageRatingForInfoStrip(ageRating)
+      : nil
     let views = centersColumn || lineScores.hasDisplayableScore ? 0 : mediaItem.views
-    let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
+    let quality = MediaItemDisplayPreferences.showQualityBadges
+      ? MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
+      : []
+    let badges = quality
       + (rating.flatMap(MediaBadgeImages.ageRatingAssetName).map { [$0] } ?? [])
     let typedRating = rating.flatMap { MediaBadgeImages.ageRatingAssetName($0) == nil ? $0 : nil }
-    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0 {
+    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0
+        || voicing != nil || captions {
       ViewThatFits(in: .horizontal) {
         phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
                          badges: badges, typedRating: typedRating, views: views)

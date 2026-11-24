@@ -425,6 +425,10 @@ struct SettingsRootView: View {
     case .integration(let integration):
       IntegrationDetailView(integration: integration)
         .navigationTitle(integration.name)
+    case .detailsItem(let item):
+      DetailsEnrichmentItemView(item: item)
+    case .titleInfoStrip:
+      TitleInfoStripSettingsView()
     case .languageList(let kind):
       PlaybackLanguageListEditor(kind: kind)
 #if os(iOS)
@@ -469,6 +473,8 @@ struct SettingsRootView: View {
     case .networkLog: return "Network log"
     case .featureFlags: return "Feature flags"
     case .integration(let integration): return LocalizedStringKey(integration.name)
+    case .detailsItem(let item): return LocalizedStringKey(item.titleKey)
+    case .titleInfoStrip: return "Age rating badge"
     case .languageList(let kind):
       return kind == .audio ? "Prefer audio in" : "Prefer subtitles in"
 #if DEBUG

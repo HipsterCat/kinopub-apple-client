@@ -923,19 +923,21 @@ struct TabsNavigationView: View {
   /// fetch per sign-in for nothing. Left over from the parked sidebar shell.
   private func loadSidebarChrome() async {
     async let foldersTask = fetchFolders()
-    async let watchlistTask: Void = refreshFollowedList()
+    async let watchlistTask = refreshFollowedList()
     sidebarFolders = await foldersTask
-    await watchlistTask
+    let serials = await watchlistTask
+    AppIconBadgeController.apply(serials: serials)
     sidebarSyncedAt = Date()
   }
 
   private func syncSidebarFolders() async {
     if let sidebarSyncedAt, Date().timeIntervalSince(sidebarSyncedAt) < Self.sidebarSyncTTL { return }
     async let foldersTask = fetchFolders()
-    async let watchlistTask: Void = refreshFollowedList()
+    async let watchlistTask = refreshFollowedList()
     let folders = await foldersTask
-    await watchlistTask
+    let serials = await watchlistTask
     if folders != sidebarFolders { sidebarFolders = folders }
+    AppIconBadgeController.apply(serials: serials)
     sidebarSyncedAt = Date()
   }
 
@@ -948,10 +950,15 @@ struct TabsNavigationView: View {
 
   /// The badge reads `WatchingListCache.followedEpisodeTotal`; this only makes sure the
   /// followed list is there (a warm cache answers without a request). Errors keep the
-  /// last number.
-  private func refreshFollowedList() async {
-    _ = try? await WatchingListCache.shared.serials(subscribedOnly: true,
-                                                   using: appContext.contentService)
+  /// last number. Also returns the serials so the Home Screen badge can count
+  /// shows-with-new when that mode is on.
+  private func refreshFollowedList() async -> [WatchingItem] {
+    do {
+      return try await WatchingListCache.shared.serials(subscribedOnly: true,
+                                                       using: appContext.contentService)
+    } catch {
+      return []
+    }
   }
 }
 
