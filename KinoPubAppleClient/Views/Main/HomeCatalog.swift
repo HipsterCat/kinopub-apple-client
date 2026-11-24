@@ -1551,6 +1551,8 @@ class HomeCatalog: ObservableObject {
       title = split.artist
       overlay = split.show
     }
+    // kino.pub's frame of what the card offers. Under the pointer `MediaCardView` asks the
+    // worker for the title page's own picture of it and keeps this as the fallback.
     let hoverStill = offered?.thumbnail ?? offeredVersion?.thumbnail
       ?? (isResuming ? history?.media?.thumbnail : nil)
     let unwatched = (isSeries && isInWatchlist)
@@ -1580,6 +1582,7 @@ class HomeCatalog: ObservableObject {
                      unwatchedEpisodes: unwatched,
                      durationSeconds: durationSeconds,
                      primaryAction: .play,
+                     imdbID: detail?.imdb,
                      kinopoiskID: item.kinopoisk)
   }
 
