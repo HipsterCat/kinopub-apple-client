@@ -85,6 +85,11 @@ public struct MediaRowsView: View {
     let card: Int
   }
 
+  private struct PageFrame: Equatable {
+    var size: CGSize
+    var insets: EdgeInsets
+  }
+
   private static let bannerRowID = "__banner__"
 
   @FocusState private var focusedCard: CardKey?
@@ -93,6 +98,14 @@ public struct MediaRowsView: View {
   @State private var containerHeight: CGFloat = 0
   /// The bars' insets over the page: the hero's picture runs on under the top one.
   @State private var barInsets = EdgeInsets()
+#if os(macOS)
+  /// The page has been measured in its window. Before that AppKit sizes the hosting view
+  /// at 100 × 100 pt with no insets: the hero was built 100 pt wide, then laid out again
+  /// ten times as wide with the scroll still at its old offset, and its geometry observer
+  /// ran several times in that frame (`OnScrollGeometryChange tried to update multiple
+  /// times per frame`, 2026-11-24). In a window the toolbar or the sidebar insets it.
+  @State private var isPlaced = false
+#endif
   /// The page's side margins where it bleeds (`PageMargins`).
   @Environment(\.pageMargins) private var pageMargins
   /// The hero is still under the navigation bar / window toolbar: its titles and
@@ -148,17 +161,18 @@ public struct MediaRowsView: View {
       }
 #else
     scroll
-      .onGeometryChange(for: CGSize.self) { proxy in
-        proxy.size
-      } action: { size in
+      // Size and insets as one value: the hero is sized from both.
+      .onGeometryChange(for: PageFrame.self) { proxy in
+        PageFrame(size: proxy.size, insets: proxy.safeAreaInsets)
+      } action: { frame in
+        let size = frame.size
         if size.width > 0 { containerWidth = size.width }
         if size.height > 0 { containerHeight = size.height }
+        barInsets = frame.insets
+#if os(macOS)
+        if size.width > 0, size.height > 0, frame.insets != EdgeInsets() { isPlaced = true }
+#endif
         if size.width > 0, size.height > 0 { PerfSignpost.notePageResize(size) }
-      }
-      .onGeometryChange(for: EdgeInsets.self) { proxy in
-        proxy.safeAreaInsets
-      } action: { insets in
-        barInsets = insets
       }
 #endif
   }
@@ -324,7 +338,12 @@ public struct MediaRowsView: View {
 #if os(tvOS)
     false
 #else
-    !(hero?.features.isEmpty ?? true) && containerHeight > 0
+    guard !(hero?.features.isEmpty ?? true), containerHeight > 0 else { return false }
+#if os(macOS)
+    return isPlaced
+#else
+    return true
+#endif
 #endif
   }
 
