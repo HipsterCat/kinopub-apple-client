@@ -7,7 +7,7 @@ import Foundation
 
 /// One audio rendition of an item, with everything the detail page and the player
 /// default-picker need to order and label it.
-public struct AudioTrackInfo: Hashable {
+public struct AudioTrackInfo: Hashable, Sendable {
   public let lang: String
   public let typeId: Int?
   public let typeTitle: String?

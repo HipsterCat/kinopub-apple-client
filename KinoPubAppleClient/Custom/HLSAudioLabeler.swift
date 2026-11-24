@@ -46,6 +46,7 @@
 
 import AVFoundation
 import Foundation
+import Synchronization
 import KinoPubBackend
 import KinoPubLogging
 import OSLog
@@ -334,7 +335,7 @@ enum HLSAudioLabeler {
 /// exactly one request. A payload that can't be rewritten is passed through untouched
 /// (worst case the pickers show the CDN's plain names), and a fetch failure fails the
 /// player item so the screen shows an error instead of an endless spinner.
-final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked Sendable {
+final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate, Sendable {
 
   static let scheme = "kinopub-hls"
 
@@ -395,19 +396,12 @@ final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate, @u
   /// its own, so the player reads this, says it in the log and retries on the plain URL
   /// (`PlayerManager.fallBackWithoutMasterRewrite`) — the idea is Rivulet's
   /// `HLSManifestEnricher`, which does the same for its Plex master.
-  var lastFailure: String? {
-    failureLock.lock()
-    defer { failureLock.unlock() }
-    return _lastFailure
-  }
+  var lastFailure: String? { failure.withLock { $0 } }
 
-  private let failureLock = NSLock()
-  private var _lastFailure: String?
+  private let failure = Mutex<String?>(nil)
 
   private func recordFailure(_ reason: String) {
-    failureLock.lock()
-    _lastFailure = reason
-    failureLock.unlock()
+    failure.withLock { $0 = reason }
   }
 
   private func relabeledIfPossible(_ data: Data) -> Data {

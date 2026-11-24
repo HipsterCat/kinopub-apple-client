@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Synchronization
 import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
@@ -82,26 +83,20 @@ enum KinoEpisodeGrid {
     }
   }
 
-  private final class AlignmentMemo: @unchecked Sendable {
+  private final class AlignmentMemo: Sendable {
     private struct Entry {
       let key: AlignmentKey
       let result: EpisodeGridMatch.Result
     }
-    private let lock = NSLock()
-    private var entries: [Entry] = []
+    private let entries = Mutex<[Entry]>([])
 
     func result(key: AlignmentKey, compute: () -> EpisodeGridMatch.Result) -> EpisodeGridMatch.Result {
-      lock.lock()
-      if let hit = entries.first(where: { $0.key == key }) {
-        lock.unlock()
-        return hit.result
-      }
-      lock.unlock()
+      if let hit = entries.withLock({ $0.first { $0.key == key } }) { return hit.result }
       let result = compute()
-      lock.lock()
-      entries.insert(Entry(key: key, result: result), at: 0)
-      if entries.count > 4 { entries.removeLast() }
-      lock.unlock()
+      entries.withLock { entries in
+        entries.insert(Entry(key: key, result: result), at: 0)
+        if entries.count > 4 { entries.removeLast() }
+      }
       return result
     }
   }

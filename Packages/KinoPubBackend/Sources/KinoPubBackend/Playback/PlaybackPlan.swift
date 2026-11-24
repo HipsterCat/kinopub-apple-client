@@ -17,7 +17,7 @@ import Foundation
 /// it does. `isProvisional` says which of those you are holding.
 ///
 /// Rules behind the decision: [docs/product/playback-tracks.md].
-public struct PlaybackPlan: Equatable {
+public struct PlaybackPlan: Equatable, Sendable {
 
   public let itemID: Int
   /// The scopes this decision was read from, most specific first. Empty for an item with

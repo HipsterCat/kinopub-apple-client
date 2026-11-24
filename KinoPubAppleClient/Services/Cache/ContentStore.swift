@@ -9,6 +9,7 @@ import KinoPubMedia
 import KinoPubUI
 import OSLog
 import KinoPubLogging
+import Synchronization
 
 /// Owns Home/Library rows so views stop re-fetching them on every tab switch. Views
 /// read `cards(_:)` synchronously (paints instantly, even offline); callers kick
@@ -344,39 +345,42 @@ extension Notification.Name {
 /// fills). The titles `ContentStore`'s rows show are also kept on disk beside them: a warm
 /// launch paints Home from those rows without asking the API, so nothing else would
 /// bring their listing back.
-final class ListedItemCache: @unchecked Sendable {
+final class ListedItemCache: Sendable {
   static let shared = ListedItemCache()
 
-  private let lock = NSLock()
-  private var items: [Int: MediaItem] = [:]
-  private var order: [Int] = []
+  private struct State {
+    var items: [Int: MediaItem] = [:]
+    var order: [Int] = []
+    var restored = false
+  }
+
+  private let state = Mutex(State())
   private let capacity = 2_000
   private let fileURL: URL = {
     let dir = RowSnapshotStore.defaultDirectory
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir.appendingPathComponent("listed-items-v1.json")
   }()
-  private var restored = false
 
   func remember(_ listed: [MediaItem]) {
     guard !listed.isEmpty else { return }
-    lock.lock(); defer { lock.unlock() }
-    for item in listed {
-      if items.updateValue(item, forKey: item.id) == nil {
-        order.append(item.id)
+    state.withLock { state in
+      for item in listed {
+        if state.items.updateValue(item, forKey: item.id) == nil {
+          state.order.append(item.id)
+        }
       }
-    }
-    if order.count > capacity {
-      let dropped = order.prefix(order.count - capacity / 2)
-      dropped.forEach { items[$0] = nil }
-      order.removeFirst(dropped.count)
+      if state.order.count > capacity {
+        let dropped = state.order.prefix(state.order.count - capacity / 2)
+        dropped.forEach { state.items[$0] = nil }
+        state.order.removeFirst(dropped.count)
+      }
     }
   }
 
   func item(id: Int) -> MediaItem? {
     restoreIfNeeded()
-    lock.lock(); defer { lock.unlock() }
-    return items[id]
+    return state.withLock { $0.items[id] }
   }
 
   /// Writes the listings of the titles the rows show (`ContentStore.save`), off the main
@@ -385,9 +389,7 @@ final class ListedItemCache: @unchecked Sendable {
     // Without this the first save of a warm session wrote only what it had fetched so
     // far over the whole file.
     restoreIfNeeded()
-    lock.lock()
-    let kept = items.values.filter { refs.contains($0.titleRef) }
-    lock.unlock()
+    let kept = state.withLock { $0.items.values.filter { refs.contains($0.titleRef) } }
     let url = fileURL
     Task.detached(priority: .utility) {
       guard let data = try? JSONEncoder().encode(kept) else { return }
@@ -398,21 +400,26 @@ final class ListedItemCache: @unchecked Sendable {
   /// The rows' listings from the last session, read the first time one is asked for. A
   /// listing fetched since then wins.
   private func restoreIfNeeded() {
-    lock.lock()
-    guard !restored else { lock.unlock(); return }
-    restored = true
-    lock.unlock()
+    let isFirst = state.withLock { state in
+      defer { state.restored = true }
+      return !state.restored
+    }
+    guard isFirst else { return }
     guard let data = try? Data(contentsOf: fileURL),
           let saved = try? JSONDecoder().decode([MediaItem].self, from: data) else { return }
-    lock.lock(); defer { lock.unlock() }
-    for item in saved where items[item.id] == nil {
-      items[item.id] = item
-      order.insert(item.id, at: 0)
+    state.withLock { state in
+      for item in saved where state.items[item.id] == nil {
+        state.items[item.id] = item
+        state.order.insert(item.id, at: 0)
+      }
     }
   }
 
   func clear() {
-    lock.lock(); items = [:]; order = []; lock.unlock()
+    state.withLock {
+      $0.items = [:]
+      $0.order = []
+    }
     try? FileManager.default.removeItem(at: fileURL)
   }
 }

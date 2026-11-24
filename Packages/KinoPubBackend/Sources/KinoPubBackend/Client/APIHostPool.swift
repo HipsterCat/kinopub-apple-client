@@ -19,13 +19,13 @@
 //
 
 import Foundation
-import os
+import Synchronization
 
 /// The kino.pub API hosts, in the order they are tried, and the one in use now.
 ///
 /// Sticky: the host that last answered stays first for every later request and across
 /// launches, until it fails. Thread safe; one per app.
-public final class APIHostPool: @unchecked Sendable {
+public final class APIHostPool: Sendable {
 
   /// One host. `url` carries the prefix the paths go under (`kino.watch/api`).
   public struct Host: Hashable, Sendable, Identifiable {
@@ -79,19 +79,23 @@ public final class APIHostPool: @unchecked Sendable {
 
   public let hosts: [Host]
 
-  private let defaults: UserDefaults
+  private let suite: DefaultsSuite
   private let storageKey: String
-  private let lock = OSAllocatedUnfairLock()
-  private var index: Int
-  private var outcomes: [String: Outcome] = [:]
-  private var lastSwitch: (date: Date, from: String, to: String, reason: String)?
+
+  private struct State {
+    var index: Int
+    var outcomes: [String: Outcome] = [:]
+    var lastSwitch: (date: Date, from: String, to: String, reason: String)?
+  }
+
+  private let state: Mutex<State>
 
   /// - Parameters:
   ///   - primary: the configured `BaseURL`. Put first when it is not in `urls` already.
   ///   - urls: the hosts, in order.
   public init(primary: URL? = nil,
               urls: [URL] = APIHostPool.defaultHostURLs,
-              defaults: UserDefaults = .standard,
+              defaults suite: DefaultsSuite = .standard,
               storageKey: String = "KinoPubAPIHost") {
     var ordered = urls.map(Self.normalized)
     if let primary {
@@ -100,34 +104,35 @@ public final class APIHostPool: @unchecked Sendable {
       ordered.insert(primary, at: 0)
     }
     self.hosts = ordered.map(Host.init)
-    self.defaults = defaults
+    self.suite = suite
+    let defaults = suite.defaults
     self.storageKey = storageKey
     // Stored by URL, not index: a reordered list must not land on a different host.
     let stored = defaults.string(forKey: storageKey)
-    self.index = hosts.firstIndex { $0.id == stored } ?? 0
+    var state = State(index: hosts.firstIndex { $0.id == stored } ?? 0)
     if let saved = defaults.dictionary(forKey: storageKey + ".lastSwitch"),
        let date = saved["date"] as? Date, let from = saved["from"] as? String,
        let to = saved["to"] as? String, let reason = saved["reason"] as? String {
-      self.lastSwitch = (date, from, to, reason)
+      state.lastSwitch = (date, from, to, reason)
     }
+    self.state = Mutex(state)
   }
 
   /// The host requests go to now.
   public var current: Host {
-    lock.withLock { hosts[index] }
+    hosts[state.withLock { $0.index }]
   }
 
   /// The hosts in the order one request tries them: the current one, then the rest in
   /// list order.
   public var attemptOrder: [Host] {
-    lock.withLock {
-      Array(hosts[index...]) + Array(hosts[..<index])
-    }
+    let index = state.withLock { $0.index }
+    return Array(hosts[index...]) + Array(hosts[..<index])
   }
 
   public func snapshot() -> Snapshot {
-    lock.withLock {
-      Snapshot(hosts: hosts, currentIndex: index, outcomes: outcomes, lastSwitch: lastSwitch)
+    state.withLock {
+      Snapshot(hosts: hosts, currentIndex: $0.index, outcomes: $0.outcomes, lastSwitch: $0.lastSwitch)
     }
   }
 
@@ -147,20 +152,21 @@ public final class APIHostPool: @unchecked Sendable {
   }
 
   private func update(host: Host, outcome: Outcome.Kind?, makeCurrent: Bool, reason: String?) {
-    let changed: Bool = lock.withLock {
+    let changed: Bool = state.withLock { state in
       guard let hostIndex = hosts.firstIndex(of: host) else { return false }
       var changed = false
       if let outcome {
-        outcomes[host.id] = Outcome(kind: outcome, date: Date())
+        state.outcomes[host.id] = Outcome(kind: outcome, date: Date())
         changed = true
       }
-      if makeCurrent, hostIndex != index {
-        lastSwitch = (Date(), hosts[index].label, host.label, reason ?? lastFailureReason(excluding: host) ?? "answered")
-        index = hostIndex
+      if makeCurrent, hostIndex != state.index {
+        state.lastSwitch = (Date(), hosts[state.index].label, host.label, reason ?? lastFailureReason(in: state, excluding: host) ?? "answered")
+        state.index = hostIndex
+        let defaults = suite.defaults
         defaults.set(host.id, forKey: storageKey)
         // Kept across launches with the host itself: "why am I on a mirror?" is asked
         // after the relaunch, not before.
-        if let lastSwitch {
+        if let lastSwitch = state.lastSwitch {
           defaults.set(["date": lastSwitch.date, "from": lastSwitch.from,
                         "to": lastSwitch.to, "reason": lastSwitch.reason],
                        forKey: storageKey + ".lastSwitch")
@@ -176,10 +182,10 @@ public final class APIHostPool: @unchecked Sendable {
     }
   }
 
-  /// Under the lock: why the host before this one was left.
-  private func lastFailureReason(excluding host: Host) -> String? {
-    let current = hosts[index]
-    guard current != host, case .failed(let reason)? = outcomes[current.id]?.kind else { return nil }
+  /// Why the host before this one was left.
+  private func lastFailureReason(in state: State, excluding host: Host) -> String? {
+    let current = hosts[state.index]
+    guard current != host, case .failed(let reason)? = state.outcomes[current.id]?.kind else { return nil }
     return reason
   }
 

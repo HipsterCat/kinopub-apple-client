@@ -90,7 +90,7 @@ public extension TrackMemoryScope {
   }
 }
 
-public struct ScopedLedger: Equatable {
+public struct ScopedLedger: Equatable, Sendable {
   public let scope: TrackMemoryScope
   public var ledger: TrackPreferenceLedger
 
@@ -100,7 +100,7 @@ public struct ScopedLedger: Equatable {
   }
 }
 
-public enum AudioSelectionReason: String, Equatable {
+public enum AudioSelectionReason: String, Equatable, Sendable {
   /// The scope's strongest remembered dub was on the menu.
   case remembered
   /// The leader was missing; a weaker remembered dub took it — top-2, top-3.
@@ -116,7 +116,7 @@ public enum AudioSelectionReason: String, Equatable {
   case none
 }
 
-public enum SubtitleSelectionReason: String, Equatable {
+public enum SubtitleSelectionReason: String, Equatable, Sendable {
   /// The viewer's latest pick for this title.
   case remembered
   /// `SubtitleMode.always`.
@@ -127,7 +127,7 @@ public enum SubtitleSelectionReason: String, Equatable {
   case none
 }
 
-public struct TrackDecision: Equatable {
+public struct TrackDecision: Equatable, Sendable {
   public var audio: AudioTrackInfo?
   public var subtitle: SubtitleTrack?
   public var audioReason: AudioSelectionReason

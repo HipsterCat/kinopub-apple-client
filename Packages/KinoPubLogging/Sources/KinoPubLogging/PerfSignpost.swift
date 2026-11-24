@@ -220,30 +220,29 @@ public enum PerfSignpost {
 }
 
 /// One begin/end pair. `end` is idempotent so `defer` and a callback can both fire.
-public final class PerfInterval: @unchecked Sendable {
+public final class PerfInterval: Sendable {
   /// Shared no-op when nothing is recording. `end` is a lock + nil check.
   public static let disabled = PerfInterval(poster: PerfSignpost.artwork, name: "disabled", state: nil)
 
   private let poster: OSSignposter
   private let name: StaticString
-  private var state: OSSignpostIntervalState?
-  private let lock = NSLock()
+  private let state: Mutex<OSSignpostIntervalState?>
 
-  fileprivate init(poster: OSSignposter, name: StaticString, state: OSSignpostIntervalState?) {
+  fileprivate init(poster: OSSignposter, name: StaticString, state: sending OSSignpostIntervalState?) {
     self.poster = poster
     self.name = name
-    self.state = state
+    self.state = Mutex(state)
   }
 
   public func end(_ detail: String = "") {
-    lock.lock()
-    defer { lock.unlock() }
-    guard let state else { return }
-    self.state = nil
-    if detail.isEmpty {
-      poster.endInterval(name, state)
-    } else {
-      poster.endInterval(name, state, "\(detail, privacy: .public)")
+    state.withLock { state in
+      guard let open = state else { return }
+      state = nil
+      if detail.isEmpty {
+        poster.endInterval(name, open)
+      } else {
+        poster.endInterval(name, open, "\(detail, privacy: .public)")
+      }
     }
   }
 
@@ -254,11 +253,10 @@ public final class PerfInterval: @unchecked Sendable {
 }
 
 /// One open interval at a time for a continuous gesture (scroll, hero page).
-public final class PerfScrollSession: @unchecked Sendable {
+public final class PerfScrollSession: Sendable {
   private let poster: OSSignposter
   private let name: StaticString
-  private let lock = NSLock()
-  private var interval: PerfInterval?
+  private let interval = Mutex<PerfInterval?>(nil)
 
   public init(_ poster: OSSignposter, name: StaticString) {
     self.poster = poster
@@ -267,26 +265,25 @@ public final class PerfScrollSession: @unchecked Sendable {
 
   public func begin(_ detail: String = "") {
     guard poster.isEnabled else { return }
-    lock.lock()
-    defer { lock.unlock() }
-    guard interval == nil else { return }
-    interval = poster.start(name, detail)
+    interval.withLock { interval in
+      guard interval == nil else { return }
+      interval = poster.start(name, detail)
+    }
   }
 
   public func end(_ detail: String = "") {
-    lock.lock()
-    defer { lock.unlock() }
-    interval?.end(detail)
-    interval = nil
+    interval.withLock { interval in
+      interval?.end(detail)
+      interval = nil
+    }
   }
 }
 
 /// One cancelled-and-replaced `DispatchWorkItem` instead of a block per frame.
-private final class IdleEnd: @unchecked Sendable {
+private final class IdleEnd: Sendable {
   private let session: PerfScrollSession
   private let delay: TimeInterval
-  private let lock = NSLock()
-  private var work: DispatchWorkItem?
+  private let work = Mutex<DispatchWorkItem?>(nil)
 
   init(session: PerfScrollSession, delay: TimeInterval) {
     self.session = session
@@ -294,19 +291,19 @@ private final class IdleEnd: @unchecked Sendable {
   }
 
   func reschedule() {
-    lock.lock()
-    work?.cancel()
-    let item = DispatchWorkItem { [session] in session.end("idle") }
-    work = item
-    lock.unlock()
-    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    work.withLock { work in
+      work?.cancel()
+      let item = DispatchWorkItem { [session] in session.end("idle") }
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+      work = item
+    }
   }
 
   func cancel() {
-    lock.lock()
-    work?.cancel()
-    work = nil
-    lock.unlock()
+    work.withLock { work in
+      work?.cancel()
+      work = nil
+    }
   }
 }
 

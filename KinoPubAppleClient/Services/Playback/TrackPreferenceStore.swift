@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import Synchronization
 
 /// **Owns what every scope has learned about dubs and subtitles.** One store, keyed by
 /// `TrackMemoryScope.storageKey`; `TrackResolver` reads it and never writes.
@@ -15,34 +16,29 @@ import KinoPubBackend
 /// no concept of.
 ///
 /// Rules: docs/product/playback-tracks.md
-///
-/// `@unchecked Sendable` because every read/write of `ledgers` / `storedRevision`
-/// goes through `lock`. The player records from a time observer off-main; cards
-/// read a plan on the main actor.
-final class TrackPreferenceStore: @unchecked Sendable {
+final class TrackPreferenceStore: Sendable {
 
   static let shared = TrackPreferenceStore()
 
   private static let storageKey = "trackPreferenceLedgers.v1"
 
-  private let defaults: UserDefaults
-  private var ledgers: [String: TrackPreferenceLedger]
-  /// `PlayerManager` records a play from its periodic time observer, which is not the main
-  /// thread, while a card reads a plan on it. Same shape as `LocalWatchProgressStore`.
-  private let lock = NSLock()
+  private let suite: DefaultsSuite
+
+  private struct State {
+    var ledgers: [String: TrackPreferenceLedger]
+    var revision = 0
+  }
+
+  private let state: Mutex<State>
 
   /// Bumped on every write. A cached `PlaybackPlan` was decided from this history, so a
   /// change here is what makes it stale — cheaper and more honest than a time-based cache,
   /// which would go stale exactly when the viewer switched dub and expected it to stick.
-  private var storedRevision: Int = 0
-  var revision: Int {
-    lock.lock(); defer { lock.unlock() }
-    return storedRevision
-  }
+  var revision: Int { state.withLock { $0.revision } }
 
-  init(defaults: UserDefaults = .standard) {
-    self.defaults = defaults
-    self.ledgers = Self.load(from: defaults)
+  init(defaults suite: DefaultsSuite = .standard) {
+    self.suite = suite
+    state = Mutex(State(ledgers: Self.load(from: suite.defaults)))
     migrateLegacySubtitleChoicesIfNeeded()
   }
 
@@ -51,21 +47,19 @@ final class TrackPreferenceStore: @unchecked Sendable {
   /// One entry per step of the chain, empty where nothing was learned, so the resolver
   /// walks the same shape every time.
   func ledgers(for chain: [TrackMemoryScope]) -> [ScopedLedger] {
-    lock.lock(); defer { lock.unlock() }
+    let ledgers = all
     return chain.map { scope in
       ScopedLedger(scope: scope, ledger: ledgers[scope.storageKey] ?? TrackPreferenceLedger())
     }
   }
 
   func ledger(for scope: TrackMemoryScope) -> TrackPreferenceLedger? {
-    lock.lock(); defer { lock.unlock() }
-    return ledgers[scope.storageKey]
+    state.withLock { $0.ledgers[scope.storageKey] }
   }
 
   /// Everything stored, keyed by its raw storage key.
   var all: [String: TrackPreferenceLedger] {
-    lock.lock(); defer { lock.unlock() }
-    return ledgers
+    state.withLock { $0.ledgers }
   }
 
   /// Everything stored, back as scopes — what Settings shows the viewer. A key that no
@@ -109,17 +103,11 @@ final class TrackPreferenceStore: @unchecked Sendable {
   }
 
   func forget(scope: TrackMemoryScope) {
-    lock.lock()
-    ledgers.removeValue(forKey: scope.storageKey)
-    persistLocked()
-    lock.unlock()
+    update { $0.removeValue(forKey: scope.storageKey) }
   }
 
   func forgetEverything() {
-    lock.lock()
-    ledgers = [:]
-    persistLocked()
-    lock.unlock()
+    update { $0 = [:] }
   }
 
   // MARK: - Private
@@ -127,20 +115,21 @@ final class TrackPreferenceStore: @unchecked Sendable {
   private func mutate(_ chain: [TrackMemoryScope],
                       _ body: (inout TrackPreferenceLedger) -> Void) {
     guard !chain.isEmpty else { return }
-    lock.lock(); defer { lock.unlock() }
-    for scope in chain {
-      var ledger = ledgers[scope.storageKey] ?? TrackPreferenceLedger()
-      body(&ledger)
-      ledgers[scope.storageKey] = ledger
+    update { ledgers in
+      for scope in chain {
+        body(&ledgers[scope.storageKey, default: TrackPreferenceLedger()])
+      }
     }
-    persistLocked()
   }
 
-  /// Callers already hold `lock`.
-  private func persistLocked() {
-    storedRevision &+= 1
-    guard let data = try? JSONEncoder().encode(ledgers) else { return }
-    defaults.set(data, forKey: Self.storageKey)
+  /// One change, persisted before the lock is let go: the disk sees them in order.
+  private func update(_ change: (inout [String: TrackPreferenceLedger]) -> Void) {
+    state.withLock { state in
+      change(&state.ledgers)
+      state.revision &+= 1
+      guard let data = try? JSONEncoder().encode(state.ledgers) else { return }
+      suite.defaults.set(data, forKey: Self.storageKey)
+    }
   }
 
   private static func load(from defaults: UserDefaults) -> [String: TrackPreferenceLedger] {
@@ -155,32 +144,32 @@ final class TrackPreferenceStore: @unchecked Sendable {
   /// exactly the handle this design replaced — reversing a localized label back into a
   /// language code guesses, so those choices are dropped and re-learned on the next pick.
   private func migrateLegacySubtitleChoicesIfNeeded() {
+    let defaults = suite.defaults
     let legacyKey = "subtitleTrackChoices"
     guard let data = defaults.data(forKey: legacyKey),
           let choices = try? JSONDecoder().decode([String: SubtitleChoice].self, from: data)
     else { return }
 
     let migratedAt = Date()
-    for (rawID, choice) in choices {
-      guard let itemID = Int(rawID) else { continue }
-      let scope = TrackMemoryScope.title(id: itemID)
-      guard ledgers[scope.storageKey] == nil else { continue }
-      let signature: SubtitleChoiceSignature
-      if let primary = choice.primary {
-        signature = SubtitleChoiceSignature(languageKey: primary.lang, isCC: primary.isCC)
-      } else if choice.isEmpty {
-        signature = .off
-      } else {
-        continue
+    update { ledgers in
+      for (rawID, choice) in choices {
+        guard let itemID = Int(rawID) else { continue }
+        let scope = TrackMemoryScope.title(id: itemID)
+        guard ledgers[scope.storageKey] == nil else { continue }
+        let signature: SubtitleChoiceSignature
+        if let primary = choice.primary {
+          signature = SubtitleChoiceSignature(languageKey: primary.lang, isCC: primary.isCC)
+        } else if choice.isEmpty {
+          signature = .off
+        } else {
+          continue
+        }
+        var ledger = TrackPreferenceLedger()
+        // They were made in the old picker, so they are picks.
+        ledger.recordSubtitle(signature, at: migratedAt, picked: true)
+        ledgers[scope.storageKey] = ledger
       }
-      var ledger = TrackPreferenceLedger()
-      // They were made in the old picker, so they are picks.
-      ledger.recordSubtitle(signature, at: migratedAt, picked: true)
-      ledgers[scope.storageKey] = ledger
     }
-
     defaults.removeObject(forKey: legacyKey)
-    // Runs from `init`, before any other thread can hold this store.
-    persistLocked()
   }
 }
