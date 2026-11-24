@@ -13,50 +13,39 @@ class FileSaverTests: XCTestCase {
 
     // MARK: - Test Variables
 
-    var fileSaver: FileSaver!
-    let fileManagerMock = FileManagerMock()
-
-    // MARK: - Test Setup
-
-    override func setUp() {
-        super.setUp()
-        fileSaver = FileSaver(fileManager: fileManagerMock)
-    }
-
-    override func tearDown() {
-        fileSaver = nil
-        super.tearDown()
-    }
+    private let attempts = FileManagerMock.Attempts()
 
     // MARK: - Test Methods
 
     func testSaveFile_Success() {
         // Arrange
+        let fileSaver = FileSaver(fileManager: FileManagerMock(attempts: attempts))
         let sourceURL = URL(string: "http://example.com/sourcefile.txt")!
         let destinationURL = URL(string: "file:///path/to/destinationfile.txt")!
 
         // Act & Assert
         XCTAssertNoThrow(try fileSaver.saveFile(from: sourceURL, to: destinationURL))
-        XCTAssertTrue(fileManagerMock.didAttemptRemoveItem)
-        XCTAssertTrue(fileManagerMock.didAttemptMoveItem)
+        XCTAssertTrue(attempts.didAttemptRemoveItem)
+        XCTAssertTrue(attempts.didAttemptMoveItem)
     }
 
     func testSaveFile_ThrowsError() {
         // Arrange
+        let fileSaver = FileSaver(fileManager: FileManagerMock(attempts: attempts, shouldThrowError: true))
         let sourceURL = URL(string: "http://example.com/sourcefile.txt")!
         let destinationURL = URL(string: "file:///path/to/destinationfile.txt")!
-        fileManagerMock.shouldThrowError = true
 
         // Act & Assert
         // The pre-emptive removeItem is wrapped in `try?`, so its failure is swallowed
         // and the move is still attempted — it is the move's error that propagates.
         XCTAssertThrowsError(try fileSaver.saveFile(from: sourceURL, to: destinationURL))
-        XCTAssertTrue(fileManagerMock.didAttemptRemoveItem)
-        XCTAssertTrue(fileManagerMock.didAttemptMoveItem)
+        XCTAssertTrue(attempts.didAttemptRemoveItem)
+        XCTAssertTrue(attempts.didAttemptMoveItem)
     }
 
     func testGetDocumentsDirectoryURL() {
         // Arrange
+        let fileSaver = FileSaver(fileManager: FileManagerMock(attempts: attempts))
         let filename = "testfile.txt"
 
         // Act

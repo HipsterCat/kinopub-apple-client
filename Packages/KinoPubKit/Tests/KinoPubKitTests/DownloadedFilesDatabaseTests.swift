@@ -64,6 +64,16 @@ class DownloadedFilesDatabaseTests: XCTestCase {
     XCTAssertEqual(database.readData()?.count, 2)
   }
 
+  /// The delegate queue records while the main one reads and removes: no record is lost.
+  func testConcurrentSavesLoseNothing() {
+    let database = database!
+    let files = (0..<20).map { makeFileInfo("file\($0).txt") }
+
+    DispatchQueue.concurrentPerform(iterations: files.count) { database.save(fileInfo: files[$0]) }
+
+    XCTAssertEqual(Set(database.readData()?.map(\.localFilename) ?? []), Set(files.map(\.localFilename)))
+  }
+
   func testReadDataIsSortedNewestFirst() {
     let older = makeFileInfo("older.txt", downloadedAt: Date(timeIntervalSince1970: 1_000))
     let newer = makeFileInfo("newer.txt", downloadedAt: Date(timeIntervalSince1970: 2_000))

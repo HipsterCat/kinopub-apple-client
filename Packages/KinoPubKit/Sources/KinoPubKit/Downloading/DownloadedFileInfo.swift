@@ -36,3 +36,4 @@ public extension DownloadedFileInfo {
 }
 
 extension DownloadedFileInfo: Equatable {}
+extension DownloadedFileInfo: Sendable where Meta: Sendable {}

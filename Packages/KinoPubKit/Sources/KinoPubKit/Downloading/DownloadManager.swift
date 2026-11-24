@@ -9,7 +9,9 @@ import Foundation
 import Combine
 import OSLog
 import KinoPubLogging
+import Synchronization
 
+@MainActor
 public protocol DownloadManaging {
   associatedtype Meta: Codable & Equatable & Sendable
 
@@ -25,23 +27,37 @@ public protocol DownloadFileNaming {
   var downloadFileBaseName: String? { get }
 }
 
-public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject, @unchecked Sendable {
-  @Published public var activeDownloads: [URL: Download<Meta>] = [:]
-  private var fileSaver: FileSaving
-  private var database: DownloadedFilesDatabase<Meta>
-  private var controlDatabase: DownloadsControlDatabase<Meta>?
+/// Main actor: the downloads drive the screens. The session calls its delegate on a
+/// serial background queue; those methods are `nonisolated`, take what they need out of
+/// the callback and bring it here through the main queue, so it arrives in the order the
+/// session said it (and before `urlSessionDidFinishEvents`). Only a finished file is
+/// dealt with right there: the system deletes it when the method returns.
+@MainActor
+public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObject, URLSessionDownloadDelegate, DownloadManaging, ObservableObject {
+  @Published public var activeDownloads: [URL: Download<Meta>] = [:] {
+    didSet {
+      let metadata = activeDownloads.mapValues(\.metadata)
+      activeMetadata.withLock { $0 = metadata }
+    }
+  }
+  /// What `activeDownloads` holds, for the delegate queue: whether a file finishing there
+  /// is ours, and the name to save it under.
+  private nonisolated let activeMetadata = Mutex<[URL: Meta]>([:])
+  private nonisolated let fileSaver: FileSaving
+  private nonisolated let database: DownloadedFilesDatabase<Meta>
+  private let controlDatabase: DownloadsControlDatabase<Meta>?
 
   /// Completion handler stored by the app delegate when the system relaunches the app to finish
   /// background URLSession events. Invoked once the session reports it finished delivering events.
   public var backgroundCompletionHandler: (() -> Void)?
 
-  /// Invoked on the main thread when a download finishes successfully. The app uses this to post a
+  /// Invoked when a download finishes successfully. The app uses this to post a
   /// local notification and to advance season-download groups. Kept generic so KinoPubKit stays
   /// UI- and platform-agnostic.
-  public var onDownloadFinished: ((_ url: URL, _ metadata: Meta) -> Void)?
+  public var onDownloadFinished: (@MainActor (_ url: URL, _ metadata: Meta) -> Void)?
 
-  /// Invoked on the main thread when a download fails with an error.
-  public var onDownloadFailed: ((_ url: URL, _ metadata: Meta, _ error: Error) -> Void)?
+  /// Invoked when a download fails with an error.
+  public var onDownloadFailed: (@MainActor (_ url: URL, _ metadata: Meta, _ error: Error) -> Void)?
 
   public init(fileSaver: FileSaving,
               database: DownloadedFilesDatabase<Meta>,
@@ -86,20 +102,8 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
   }
 
   public func completeDownload(_ url: URL) {
-    // Delegate callbacks arrive on a background queue; `activeDownloads` is @Published and drives
-    // the UI, so its mutations must land on the main thread.
-    onMain { self.activeDownloads[url] = nil }
+    activeDownloads[url] = nil
     controlDatabase?.remove(url: url)
-  }
-
-  /// Runs `work` synchronously if already on the main thread (keeps unit-test assertions simple),
-  /// otherwise hops to the main queue.
-  private func onMain(_ work: @escaping @Sendable () -> Void) {
-    if Thread.isMainThread {
-      work()
-    } else {
-      DispatchQueue.main.async(execute: work)
-    }
   }
 
   /// Rebuilds `activeDownloads` from persisted control info. Each comes back paused; the
@@ -130,7 +134,7 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
   /// starts again from its resume data. Deferred by the caller: creating a background
   /// session is an XPC round trip.
   public func reattachBackgroundTasks() {
-    session.getAllTasks { [weak self] tasks in
+    session.getAllTasks { @Sendable [weak self] tasks in
       let live = tasks.compactMap { $0 as? URLSessionDownloadTask }
       DispatchQueue.main.async {
         guard let self else { return }
@@ -181,8 +185,9 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
 
   // MARK: URLSessionDownloadDelegate methods
 
-  public func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-    guard let sourceURL = downloadTask.originalRequest?.url, let download = activeDownloads[sourceURL] else { return }
+  public nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+    guard let sourceURL = downloadTask.originalRequest?.url,
+          let metadata = activeMetadata.withLock({ $0[sourceURL] }) else { return }
     Logger.kit.debug("[DOWNLOAD] Download finished: \(location)")
 
     // URLSession reports an HTTP error (403 / expired signature / etc.) as a successful "finish" and
@@ -191,7 +196,7 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
     if let http = downloadTask.response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       Logger.kit.error("[DOWNLOAD] HTTP \(http.statusCode) for \(sourceURL) — discarding error body")
       try? FileManager.default.removeItem(at: location)
-      completeDownload(sourceURL)
+      DispatchQueue.main.async { self.completeDownload(sourceURL) }
       return
     }
     // Only reject when we can actually read a (small) size — a real video is many MB, so anything
@@ -201,7 +206,7 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
        let fileSize = attrs[.size] as? Int64, fileSize < 100_000 {
       Logger.kit.error("[DOWNLOAD] file too small (\(fileSize) bytes) for \(sourceURL) — likely an error page, discarding")
       try? FileManager.default.removeItem(at: location)
-      completeDownload(sourceURL)
+      DispatchQueue.main.async { self.completeDownload(sourceURL) }
       return
     }
 
@@ -209,7 +214,7 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
     // component. This is what shows in the Files app.
     let filename: String = {
       let ext = sourceURL.pathExtension
-      if let base = (download.metadata as? DownloadFileNaming)?.downloadFileBaseName, !base.isEmpty {
+      if let base = (metadata as? DownloadFileNaming)?.downloadFileBaseName, !base.isEmpty {
         return ext.isEmpty ? base : "\(base).\(ext)"
       }
       return sourceURL.lastPathComponent
@@ -220,71 +225,77 @@ public final class DownloadManager<Meta: Codable & Equatable & Sendable>: NSObje
       try fileSaver.saveFile(from: location, to: destinationURL)
       Logger.kit.info("[DOWNLOAD] File: \(location) moved to documents folder as \(filename)")
 
-      let fileInfo = DownloadedFileInfo(originalURL: sourceURL, localFilename: filename, downloadDate: Date(), metadata: download.metadata)
+      let fileInfo = DownloadedFileInfo(originalURL: sourceURL, localFilename: filename, downloadDate: Date(), metadata: metadata)
       database.save(fileInfo: fileInfo)
     } catch {
       Logger.kit.error("[DOWNLOAD] Error during moving file: \(error)")
     }
 
-    let metadata = download.metadata
-    onMain { self.onDownloadFinished?(sourceURL, metadata) }
-    completeDownload(sourceURL)
+    DispatchQueue.main.async {
+      self.onDownloadFinished?(sourceURL, metadata)
+      self.completeDownload(sourceURL)
+    }
   }
 
-  public func urlSession(_ session: URLSession,
-                         downloadTask: URLSessionDownloadTask,
-                         didWriteData bytesWritten: Int64,
-                         totalBytesWritten: Int64,
-                         totalBytesExpectedToWrite: Int64) {
-    if totalBytesExpectedToWrite > 0, let download = activeDownloads[downloadTask.originalRequest?.url ?? URL(fileURLWithPath: "")] {
+  public nonisolated func urlSession(_ session: URLSession,
+                                     downloadTask: URLSessionDownloadTask,
+                                     didWriteData bytesWritten: Int64,
+                                     totalBytesWritten: Int64,
+                                     totalBytesExpectedToWrite: Int64) {
+    guard totalBytesExpectedToWrite > 0, let url = downloadTask.originalRequest?.url else { return }
+    DispatchQueue.main.async {
+      guard let download = self.activeDownloads[url] else { return }
       let progress = Float(totalBytesWritten) / Float(totalBytesExpectedToWrite)
-      Logger.kit.debug("[DOWNLOAD] progress for download: \(download.url), value: \(progress)")
+      Logger.kit.debug("[DOWNLOAD] progress for download: \(url), value: \(progress)")
       // Persist a progress checkpoint (throttled to whole-percent steps) so a partially
       // completed download survives a relaunch without writing the plist on every callback.
       let shouldCheckpoint = Int(progress * 100) != Int(download.progress * 100)
-      DispatchQueue.main.async {
-        download.updateProgress(progress)
-        download.updateTransfer(bytesWritten: totalBytesWritten, totalBytes: totalBytesExpectedToWrite)
-        if shouldCheckpoint {
-          self.persist(download)
-        }
+      download.updateProgress(progress)
+      download.updateTransfer(bytesWritten: totalBytesWritten, totalBytes: totalBytesExpectedToWrite)
+      if shouldCheckpoint {
+        self.persist(download)
       }
     }
   }
 
-  public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-    guard let error = error, let url = task.originalRequest?.url else { return }
+  public nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    guard let error, let url = task.originalRequest?.url else { return }
     Logger.kit.debug("[DOWNLOAD] Download error for \(url): \(error)")
     let nsError = error as NSError
+    let code = nsError.code
     let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
-    onMain {
-      guard let download = self.activeDownloads[url] else { return }
-      // The viewer's pause, or a download restored paused whose old task reports in after
-      // a force quit: the row stays paused, and keeps the resume data the session handed over.
-      if download.state == .paused, nsError.code == NSURLErrorCancelled {
-        if let resumeData { download.interrupted(resumeData: resumeData) }
-        return
-      }
-      // A stale callback for a task this download no longer runs (it was resumed since).
-      if download.state == .inProgress, download.hasTask, nsError.code == NSURLErrorCancelled { return }
-      // The session gave up but left resume data (lost network, the app was force quit):
-      // keep the row, paused, so it continues from where it stopped instead of vanishing.
-      if resumeData != nil {
-        download.interrupted(resumeData: resumeData)
-        if nsError.code != NSURLErrorCancelled {
-          self.onDownloadFailed?(url, download.metadata, error)
-        }
-        return
-      }
-      if nsError.code != NSURLErrorCancelled {
-        self.onDownloadFailed?(url, download.metadata, error)
-      }
-      self.activeDownloads[url] = nil
-      self.controlDatabase?.remove(url: url)
+    DispatchQueue.main.async {
+      self.transferEnded(url, error: error, code: code, resumeData: resumeData)
     }
   }
 
-  public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+  /// The session stopped a transfer with `error` (its code, `code`).
+  private func transferEnded(_ url: URL, error: Error, code: Int, resumeData: Data?) {
+    guard let download = activeDownloads[url] else { return }
+    // The viewer's pause, or a download restored paused whose old task reports in after
+    // a force quit: the row stays paused, and keeps the resume data the session handed over.
+    if download.state == .paused, code == NSURLErrorCancelled {
+      if let resumeData { download.interrupted(resumeData: resumeData) }
+      return
+    }
+    // A stale callback for a task this download no longer runs (it was resumed since).
+    if download.state == .inProgress, download.hasTask, code == NSURLErrorCancelled { return }
+    // The session gave up but left resume data (lost network, the app was force quit):
+    // keep the row, paused, so it continues from where it stopped instead of vanishing.
+    if resumeData != nil {
+      download.interrupted(resumeData: resumeData)
+      if code != NSURLErrorCancelled {
+        onDownloadFailed?(url, download.metadata, error)
+      }
+      return
+    }
+    if code != NSURLErrorCancelled {
+      onDownloadFailed?(url, download.metadata, error)
+    }
+    completeDownload(url)
+  }
+
+  public nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
     Logger.kit.debug("[DOWNLOAD] background session finished events")
     DispatchQueue.main.async {
       let handler = self.backgroundCompletionHandler

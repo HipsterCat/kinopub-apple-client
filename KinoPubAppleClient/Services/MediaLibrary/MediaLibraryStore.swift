@@ -22,9 +22,7 @@ import KinoPubBackend
 import KinoPubKit
 import KinoPubMedia
 
-/// Not `@MainActor` so it can be built inside `AppContext.shared`'s nonisolated
-/// initializer; mutations come from views / `@MainActor` models, and the download
-/// republish sinks deliver on main, so `@Published` stays on the main thread.
+@MainActor
 final class MediaLibraryStore: ObservableObject {
 
   // MARK: - Owned optimistic state (persisted)
@@ -141,7 +139,7 @@ final class MediaLibraryStore: ObservableObject {
 
   /// The follow mark to keep once the server has answered: the server's, unless the
   /// local one is a toggle made after the request left (the answer predates it).
-  static func reconciledFollow(local: Bool?, toggledAt: Date?,
+  nonisolated static func reconciledFollow(local: Bool?, toggledAt: Date?,
                                server: Bool, requestedAt: Date) -> Bool? {
     if let toggledAt, toggledAt >= requestedAt { return local }
     return server

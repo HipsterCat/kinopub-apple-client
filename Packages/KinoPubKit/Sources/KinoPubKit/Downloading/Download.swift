@@ -11,7 +11,10 @@ import OSLog
 
 /// `Download` represents a downloadable resource. It provides methods for controlling the download,
 /// such as pausing and resuming, and notifies about the progress through a progress handler.
-public class Download<Meta: Codable & Equatable>: ObservableObject {
+/// Main actor: its state drives the screens, and `DownloadManager` brings the session's
+/// callbacks there before they reach it.
+@MainActor
+public final class Download<Meta: Codable & Equatable & Sendable>: ObservableObject {
   /// The state of the download, such as not started, queued, in progress, or paused.
   public enum State: String {
     case notStarted
@@ -90,12 +93,10 @@ public class Download<Meta: Codable & Equatable>: ObservableObject {
     speed = 0
     let pausing = task
     task = nil
-    // The session calls back on its delegate queue; the download is only ever touched on
-    // the main thread, so the hop below is what makes this weak reference safe to carry.
-    nonisolated(unsafe) weak let pausedDownload = self
-    pausing?.cancel(byProducingResumeData: { data in
+    // The session calls back on its delegate queue.
+    pausing?.cancel(byProducingResumeData: { @Sendable [weak self] data in
       DispatchQueue.main.async {
-        guard let self = pausedDownload else { return }
+        guard let self else { return }
         if let data { self.resumeData = data }
         Logger.kit.debug("[DOWNLOAD] Download for url: \(self.url.absoluteString) is paused (resume data: \(data != nil))")
         self.onStateChange?(self)

@@ -9,11 +9,13 @@ import Foundation
 import KinoPubLogging
 import OSLog
 
+@MainActor
 public protocol DownloadsControlDataReading {
   associatedtype Meta: Codable & Equatable
   func readData() -> [DownloadControlInfo<Meta>]?
 }
 
+@MainActor
 public protocol DownloadsControlDataWriting {
   associatedtype Meta: Codable & Equatable
   func writeData(_ downloads: [DownloadControlInfo<Meta>])
@@ -23,7 +25,9 @@ public protocol DownloadsControlDataWriting {
 
 /// Persists in-progress / paused downloads (their resume data, progress and metadata) so they can be
 /// restored after the app is relaunched. Uses the same `FileSaver`/plist approach as `DownloadedFilesDatabase`.
-public class DownloadsControlDatabase<Meta: Codable & Equatable>: DownloadsControlDataReading, DownloadsControlDataWriting {
+/// Main actor: `DownloadManager`, its only user, is.
+@MainActor
+public final class DownloadsControlDatabase<Meta: Codable & Equatable>: DownloadsControlDataReading, DownloadsControlDataWriting {
   private let fileSaver: FileSaving
   private let dataFileURL: URL
 

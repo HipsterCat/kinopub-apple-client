@@ -12,6 +12,7 @@ import Combine
 import XCTest
 @testable import KinoPubKit
 
+@MainActor
 final class DownloadFlowTests: XCTestCase {
 
   var manager: DownloadManager<TestMeta>!
@@ -19,17 +20,15 @@ final class DownloadFlowTests: XCTestCase {
   let url = URL(string: "http://example.com/movie.mp4")!
   let metadata = TestMeta(id: 1, title: "movie")
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
     fileSaver = FileSaverMock()
     manager = DownloadManager(fileSaver: fileSaver,
                               database: DownloadedFilesDatabase(fileSaver: fileSaver))
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     manager = nil
     fileSaver = nil
-    super.tearDown()
   }
 
   /// Regression guard for the fix: background transfers must NOT be discretionary (otherwise the
@@ -40,7 +39,7 @@ final class DownloadFlowTests: XCTestCase {
   }
 
   /// Full pipeline: start → byte progress → finish → file saved and removed from the active list.
-  func testDownloadFlow_progressThenFinishSavesFile() {
+  func testDownloadFlow_progressThenFinishSavesFile() async {
     let task = URLSessionDownloadTaskMock(url: url)
     let download = manager.startDownload(url: url, withMetadata: metadata)
     download.task = task
@@ -58,7 +57,7 @@ final class DownloadFlowTests: XCTestCase {
                        didWriteData: 512,
                        totalBytesWritten: 512,
                        totalBytesExpectedToWrite: 1024)
-    wait(for: [progressExpectation], timeout: 1.0)
+    await fulfillment(of: [progressExpectation], timeout: 1.0)
     cancellable.cancel()
 
     // Finishing saves the file to the documents directory and clears the active entry.
@@ -69,6 +68,7 @@ final class DownloadFlowTests: XCTestCase {
     XCTAssertEqual(fileSaver.savedFileSourceURL, location)
     XCTAssertEqual(fileSaver.savedFileDestinationURL,
                    fileSaver.getDocumentsDirectoryURL(forFilename: "movie.mp4"))
+    await drainMainQueue()
     XCTAssertNil(manager.activeDownloads[url], "A finished download is removed from the active list")
   }
 }

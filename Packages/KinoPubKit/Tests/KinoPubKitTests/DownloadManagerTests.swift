@@ -9,7 +9,8 @@ import Foundation
 import XCTest
 @testable import KinoPubKit
 
-class DownloadManagerTests: XCTestCase {
+@MainActor
+final class DownloadManagerTests: XCTestCase {
 
   // MARK: - Test Variables
 
@@ -22,19 +23,16 @@ class DownloadManagerTests: XCTestCase {
 
   // MARK: - Test Setup
 
-  override func setUp() {
-    super.setUp()
-
+  override func setUp() async throws {
     fileSaverMock = FileSaverMock()
     database = DownloadedFilesDatabase<TestMeta>(fileSaver: fileSaverMock)
     downloadManager = DownloadManager<TestMeta>(fileSaver: fileSaverMock, database: database)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     downloadManager = nil
     database = nil
     fileSaverMock = nil
-    super.tearDown()
   }
 
   // MARK: - Helpers
@@ -86,7 +84,7 @@ class DownloadManagerTests: XCTestCase {
     XCTAssertNotNil(downloadManager.activeDownloads[url])
   }
 
-  func testFinishingADownloadSavesTheFileAndRecordsIt() {
+  func testFinishingADownloadSavesTheFileAndRecordsIt() async {
     registerDownload()
     let location = URL(fileURLWithPath: "/path/to/temporary/location.txt")
     let task = URLSessionDownloadTaskMock(url: url)
@@ -98,10 +96,11 @@ class DownloadManagerTests: XCTestCase {
     XCTAssertEqual(fileSaverMock.savedFileDestinationURL,
                    fileSaverMock.getDocumentsDirectoryURL(forFilename: "testfile.txt"))
     XCTAssertEqual(database.readData()?.map(\.localFilename), ["testfile.txt"])
+    await drainMainQueue()
     XCTAssertNil(downloadManager.activeDownloads[url], "the download should no longer be active")
   }
 
-  func testFinishingADownloadRecordsNothingWhenSavingFails() {
+  func testFinishingADownloadRecordsNothingWhenSavingFails() async {
     registerDownload()
     fileSaverMock.shouldThrowError = true
     let task = URLSessionDownloadTaskMock(url: url)
@@ -110,11 +109,57 @@ class DownloadManagerTests: XCTestCase {
                                downloadTask: task,
                                didFinishDownloadingTo: URL(fileURLWithPath: "/tmp/location.txt"))
 
+    await drainMainQueue()
     XCTAssertNil(database.readData())
     XCTAssertNil(downloadManager.activeDownloads[url])
   }
 
-  func testProgressIsPublishedWhileDownloading() {
+  /// The session calls on its own queue, with the main thread busy: the file is moved and
+  /// recorded before the callback returns, the rest follows on the main actor in order.
+  func testCallbacksFromTheSessionsQueueReachTheMainActorInOrder() async {
+    let download = registerDownload()
+    let task = URLSessionDownloadTaskMock(url: url)
+    let manager = downloadManager!
+    let saver = fileSaverMock!
+    let location = URL(fileURLWithPath: "/tmp/movie.mp4")
+    var events: [String] = []
+    let observation = download.$progress.dropFirst().sink { events.append("progress \($0)") }
+    manager.onDownloadFinished = { [url] finished, meta in
+      XCTAssertEqual(finished, url)
+      XCTAssertEqual(meta, TestMeta(id: 1, title: "Test"))
+      events.append("finished")
+    }
+    manager.backgroundCompletionHandler = { events.append("events delivered") }
+
+    let savedBeforeReturning = DispatchQueue(label: "session").sync {
+      manager.urlSession(.shared, downloadTask: task, didWriteData: 1,
+                         totalBytesWritten: 1, totalBytesExpectedToWrite: 2)
+      manager.urlSession(.shared, downloadTask: task, didFinishDownloadingTo: location)
+      manager.urlSessionDidFinishEvents(forBackgroundURLSession: .shared)
+      return saver.savedFileSourceURL
+    }
+
+    XCTAssertEqual(savedBeforeReturning, location)
+    XCTAssertEqual(events, [])
+    await drainMainQueue()
+    XCTAssertEqual(events, ["progress 0.5", "finished", "events delivered"])
+    XCTAssertNil(manager.activeDownloads[url])
+    observation.cancel()
+  }
+
+  /// A download removed before its file arrives is not saved.
+  func testAFileOfARemovedDownloadIsNotSaved() async {
+    registerDownload()
+    downloadManager.removeDownload(for: url)
+
+    downloadManager.urlSession(.shared, downloadTask: URLSessionDownloadTaskMock(url: url),
+                               didFinishDownloadingTo: URL(fileURLWithPath: "/tmp/movie.mp4"))
+
+    XCTAssertFalse(fileSaverMock.didSaveFileCalled)
+    XCTAssertNil(database.readData())
+  }
+
+  func testProgressIsPublishedWhileDownloading() async {
     let download = registerDownload()
     let task = URLSessionDownloadTaskMock(url: url)
     let progressUpdated = expectation(description: "progress updated")
@@ -132,7 +177,7 @@ class DownloadManagerTests: XCTestCase {
                                totalBytesWritten: 1024,
                                totalBytesExpectedToWrite: 2048)
 
-    wait(for: [progressUpdated], timeout: 1.0)
+    await fulfillment(of: [progressUpdated], timeout: 1.0)
     observation.cancel()
   }
 
@@ -140,37 +185,40 @@ class DownloadManagerTests: XCTestCase {
 
   /// Pausing cancels the task "by producing resume data"; the session then reports a
   /// cancellation. That used to drop the download from the list.
-  func testCancellationOfAPausedDownloadKeepsIt() {
+  func testCancellationOfAPausedDownloadKeepsIt() async {
     let download = registerDownload()
     download.state = .paused
     let cancelled = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
 
     downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: cancelled)
+    await drainMainQueue()
 
     XCTAssertNotNil(downloadManager.activeDownloads[url])
     XCTAssertEqual(download.state, .paused)
   }
 
   /// The session gave up but left resume data (network, force quit): keep it, paused.
-  func testFailureWithResumeDataPausesTheDownload() {
+  func testFailureWithResumeDataPausesTheDownload() async {
     let download = registerDownload()
     download.state = .inProgress
     let lost = NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost,
                        userInfo: [NSURLSessionDownloadTaskResumeData: Data([1, 2, 3])])
 
     downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: lost)
+    await drainMainQueue()
 
     XCTAssertNotNil(downloadManager.activeDownloads[url])
     XCTAssertEqual(download.state, .paused)
     XCTAssertEqual(download.resumeData, Data([1, 2, 3]))
   }
 
-  func testFailureWithoutResumeDataDropsTheDownload() {
+  func testFailureWithoutResumeDataDropsTheDownload() async {
     let download = registerDownload()
     download.state = .inProgress
     let failed = NSError(domain: NSURLErrorDomain, code: NSURLErrorBadServerResponse)
 
     downloadManager.urlSession(.shared, task: URLSessionDownloadTaskMock(url: url), didCompleteWithError: failed)
+    await drainMainQueue()
 
     XCTAssertNil(downloadManager.activeDownloads[url])
   }
@@ -178,7 +226,7 @@ class DownloadManagerTests: XCTestCase {
 
 // MARK: - Mock Classes
 
-class URLSessionDownloadTaskMock: URLSessionDownloadTask {
+final class URLSessionDownloadTaskMock: URLSessionDownloadTask, @unchecked Sendable {
   private let url: URL?
 
   init(url: URL? = nil) {

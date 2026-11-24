@@ -11,6 +11,7 @@ import Foundation
 import KinoPubBackend
 import KinoPubMedia
 
+@MainActor
 protocol ViewerStateReading {
   /// `reported` is what the payload in hand says (`ViewerState(reportedBy:)`), or
   /// `.unknown` when there is none.
@@ -18,14 +19,13 @@ protocol ViewerStateReading {
 }
 
 protocol ViewerStateProvider {
-  var viewerState: ViewerStateReading { get }
+  @MainActor var viewerState: ViewerStateReading { get }
 }
 
-/// `@unchecked Sendable`: it holds no state of its own, only reads stores that guard their
-/// own — `LocalWatchProgressStore` and `BookmarkMembershipStore` behind locks,
-/// `MediaLibraryStore` written on the main thread — so `AppContext` can hand it to the
-/// main-actor `ContentStore` it builds.
-final class ViewerStateReader: ViewerStateReading, @unchecked Sendable {
+/// Holds no state of its own, only reads stores that guard their own —
+/// `LocalWatchProgressStore` and `BookmarkMembershipStore` behind locks,
+/// `MediaLibraryStore` on the main actor.
+final class ViewerStateReader: ViewerStateReading {
 
   private let library: MediaLibraryStore
   private let progress: LocalWatchProgressStore

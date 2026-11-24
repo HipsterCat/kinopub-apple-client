@@ -6,19 +6,33 @@
 //
 
 import Foundation
+import Synchronization
 @testable import KinoPubKit
 
 /// Records what it was asked to do, and hands out paths inside a throwaway
 /// directory so `DownloadedFilesDatabase` — which reads and writes the plist
 /// itself rather than going through `FileSaving` — has somewhere real to work.
-class FileSaverMock: FileSaving {
+/// Locked: the download manager saves from its delegate queue.
+final class FileSaverMock: FileSaving {
 
-  var shouldThrowError = false
-  var didSaveFileCalled = false
-  var savedFileSourceURL: URL?
-  var savedFileDestinationURL: URL?
-  var didRemoveFileCalled = false
-  var removedFileURL: URL?
+  private struct Calls {
+    var shouldThrowError = false
+    var savedFrom: URL?
+    var savedTo: URL?
+    var removed: URL?
+  }
+
+  private let calls = Mutex(Calls())
+
+  var shouldThrowError: Bool {
+    get { calls.withLock { $0.shouldThrowError } }
+    set { calls.withLock { $0.shouldThrowError = newValue } }
+  }
+  var didSaveFileCalled: Bool { savedFileSourceURL != nil }
+  var savedFileSourceURL: URL? { calls.withLock { $0.savedFrom } }
+  var savedFileDestinationURL: URL? { calls.withLock { $0.savedTo } }
+  var didRemoveFileCalled: Bool { removedFileURL != nil }
+  var removedFileURL: URL? { calls.withLock { $0.removed } }
 
   let directoryURL: URL
 
@@ -37,9 +51,10 @@ class FileSaverMock: FileSaving {
       throw NSError(domain: "FileSaverMockErrorDomain", code: 123, userInfo: nil)
     }
 
-    didSaveFileCalled = true
-    savedFileSourceURL = sourceURL
-    savedFileDestinationURL = destinationURL
+    calls.withLock {
+      $0.savedFrom = sourceURL
+      $0.savedTo = destinationURL
+    }
   }
 
   func removeFile(at sourceURL: URL) throws {
@@ -47,8 +62,7 @@ class FileSaverMock: FileSaving {
       throw NSError(domain: "FileSaverMockErrorDomain", code: 123, userInfo: nil)
     }
 
-    didRemoveFileCalled = true
-    removedFileURL = sourceURL
+    calls.withLock { $0.removed = sourceURL }
   }
 
   func getDocumentsDirectoryURL(forFilename filename: String) -> URL {

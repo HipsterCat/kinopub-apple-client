@@ -118,6 +118,7 @@ enum PlaybackMediaContext {
   /// The Up Next tab's first card: the first episode after `current` the viewer has
   /// **not** watched — by this device's own state too, not only the payload's
   /// (`EpisodeQueue.nextUnwatched`). Nil when every episode after it is watched.
+  @MainActor
   static func nextUnwatched(after current: Episode, in series: MediaItem?,
                             viewer: ViewerStateReading) -> Episode? {
     EpisodeQueue(series: series) { ref, episode in
