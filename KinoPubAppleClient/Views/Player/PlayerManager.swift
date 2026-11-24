@@ -40,7 +40,7 @@ enum PlaybackState: Equatable {
 }
 
 @MainActor
-class PlayerManager: ObservableObject, @unchecked Sendable {
+class PlayerManager: ObservableObject {
 
   @Published var isPlaying: Bool = false
   @Published var watchMark: WatchData?
@@ -324,7 +324,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     self.trackProfile = trackProfile
     self.trackPreferences = trackPreferences
     self.preflight = preflight
-    rateObservation = player.observe(\.rate, options: [.new]) { [weak self] player, _ in
+    // KVO handlers here are `@Sendable`: a change may be reported from any thread, so they
+    // touch nothing of the main actor's and go to the main queue, in order.
+    rateObservation = player.observe(\.rate, options: [.new]) { @Sendable [weak self] player, _ in
       DispatchQueue.main.async {
         self?.isPlaying = player.rate > 0
       }
@@ -332,17 +334,14 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 
     // Local resume every ~10s; server marktime every ~30s (see `saveWatchMark`).
     playerTimeObserver = PlayerTimeObserver(player: player, period: 10.0, timeUpdateHandler: { [weak self] time in
-      self?.saveWatchMark(time: time)
-      // On main, with the selection-change notification: the pick state is read and
-      // written in one place. The pick first, so a pick the notification missed is
-      // recorded as one and not as a play. Subtitles have no plays to count — they are
-      // the mode plus the latest pick (docs/product/playback-tracks.md).
-      DispatchQueue.main.async {
-        // Ten seconds into a playing stream the selection has settled whatever the system
-        // reported on the way there.
-        self?.noteViewerPicks(settling: true)
-        self?.persistAudioSelectionIfNeeded(at: time)
-      }
+      guard let self else { return }
+      self.saveWatchMark(time: time)
+      // The pick first, so a pick the selection-change notification missed is recorded as
+      // one and not as a play. Subtitles have no plays to count — they are the mode plus
+      // the latest pick (docs/product/playback-tracks.md). Ten seconds into a playing
+      // stream the selection has settled whatever the system reported on the way there.
+      self.noteViewerPicks(settling: true)
+      self.persistAudioSelectionIfNeeded(at: time)
     })
 
     addCueTimeObserver()
@@ -478,7 +477,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// when it dies, either before the first frame or mid-stream.
   private func observePlaybackState(of item: AVPlayerItem) {
     playbackState = .preparing
-    statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+    statusObservation = item.observe(\.status, options: [.new, .initial]) { @Sendable [weak self] item, _ in
       DispatchQueue.main.async {
         // A change queued by an item that has since been torn down (a reload already
         // replaced it) says nothing about what is playing now.
@@ -506,9 +505,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           self.prepareWatchdog?.cancel()
           let error = item.error
           let message = Self.failureMessage(for: item)
-          MainActor.assumeIsolated {
-            self.handleStreamFailure(error: error, message: message)
-          }
+          self.handleStreamFailure(error: error, message: message)
         default:
           break
         }
@@ -517,11 +514,12 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     playbackFailureObserver = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
     ) { [weak self] note in
-      // Same rule as the status change above: a torn-down item's failure is not news.
-      guard let self, (note.object as AnyObject?) === self.player.currentItem else { return }
+      let failed = note.object as? AVPlayerItem
       let error = note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
       let message = error?.localizedDescription ?? "Couldn't Load".localized
       MainActor.assumeIsolated {
+        // Same rule as the status change above: a torn-down item's failure is not news.
+        guard let self, failed === self.player.currentItem else { return }
         self.handleStreamFailure(error: error, message: message)
       }
     }
@@ -1190,7 +1188,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       return
     }
     guard player.currentItem != nil, seekObservation == nil else { return }
-    seekObservation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
+    seekObservation = player.currentItem?.observe(\.status, options: [.new]) { @Sendable [weak self] item, _ in
       guard item.status == .readyToPlay else { return }
       DispatchQueue.main.async {
         self?.applyPendingSeekIfPossible()
@@ -1451,7 +1449,7 @@ extension PlayerManager {
       return
     }
     audioReadyObservation?.invalidate()
-    audioReadyObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+    audioReadyObservation = item.observe(\.status, options: [.new]) { @Sendable [weak self] item, _ in
       guard item.status == .readyToPlay else { return }
       DispatchQueue.main.async {
         self?.applyAudibleGroup(from: item)

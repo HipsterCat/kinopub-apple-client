@@ -14,8 +14,8 @@
 //    places: progress rolled back after a relaunch, or a cleared title came back.
 //  - A payload is encoded where the item is handed in (`cacheItem`, on the main
 //    actor), never from the player's tick. `MediaItem` holds `Season`/`Episode`
-//    classes the detail page updates in place on the main thread; the tick runs on a
-//    background queue (`PlayerTimeObserver`) and must not read them.
+//    classes the detail page updates in place on the main thread; encoding one every
+//    ten seconds of playback would also be work for nothing.
 //
 
 import Foundation
