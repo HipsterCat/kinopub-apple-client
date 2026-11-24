@@ -102,7 +102,9 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     NotificationCenter.default.addObserver(
       forName: .kinopubUnauthorizedResponse, object: nil, queue: .main
     ) { [weak self] _ in
-      Task { @MainActor in
+      // Posted on `.main` (queue above), so this is already the main actor; staying
+      // synchronous keeps the reaction in the same turn as the failed request.
+      MainActor.assumeIsolated {
         self?.handleUnauthorizedResponse()
       }
     }
@@ -111,7 +113,7 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     NotificationCenter.default.addObserver(
       forName: .kinopubSessionInvalidated, object: nil, queue: .main
     ) { [weak self] _ in
-      Task { @MainActor in
+      MainActor.assumeIsolated {
         self?.handleSessionInvalidated(reason: "content auth rejection")
       }
     }
@@ -362,8 +364,8 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     UserDefaults.standard.removeObject(forKey: Self.pendingPreviousUsernameKey)
     do {
       let user = try await AppContext.shared.userService.fetchUserData()
-      UserProfileStore.shared.save(user)
-      rememberSignedInUsername(user.username)
+      // The previous account's caches go before the new profile is written: clearing
+      // after `save` wiped the profile that had just been stored.
       if let previous {
         let prior = previous.trimmingCharacters(in: .whitespacesAndNewlines)
         let next = user.username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -372,6 +374,8 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
           authService.clearPersonalSessionData()
         }
       }
+      UserProfileStore.shared.save(user)
+      rememberSignedInUsername(user.username)
     } catch {
       Logger.app.warning("Could not reconcile account after sign-in: \(error)")
     }

@@ -118,10 +118,12 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
 #endif
   }
 
+  @MainActor
   func logout() {
     logout(userInitiated: true)
   }
 
+  @MainActor
   func logout(userInitiated: Bool) {
     accessTokenService.clear(userInitiated: userInitiated)
     // The device record belonged to the account we just left — the next activation has
@@ -138,19 +140,21 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
     // (genres/countries). Those never change per account on kino.pub.
   }
 
+  /// Synchronous on purpose: a deferred clear ran *after* the caller had already saved
+  /// the new account's profile (`AuthState.reconcileAccountAfterInteractiveSignIn`) and
+  /// wiped it, and for a turn the previous account's rows were still served.
+  @MainActor
   func clearPersonalSessionData() {
     BookmarkMembershipStore.shared.clear()
-    Task { @MainActor in
-      AppContext.shared.libraryState.clear()
-      AppContext.shared.localProgressStore.clearAll()
-      BookmarkFoldersStore.shared.clear()
-      AppContext.shared.contentStore.clearPersonalAccountData()
-      UserProfileStore.shared.clear()
+    AppContext.shared.libraryState.clear()
+    AppContext.shared.localProgressStore.clearAll()
+    BookmarkFoldersStore.shared.clear()
+    AppContext.shared.contentStore.clearPersonalAccountData()
+    UserProfileStore.shared.clear()
 #if os(tvOS)
-      // The shelf showed this account's titles; signed out, it is the static image again.
-      TopShelfPublisher.clear()
+    // The shelf showed this account's titles; signed out, it is the static image again.
+    TopShelfPublisher.clear()
 #endif
-    }
   }
 
 }
