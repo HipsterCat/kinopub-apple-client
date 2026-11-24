@@ -105,6 +105,23 @@ final class TitleMetadataMergeTests: XCTestCase {
     XCTAssertEqual(enriched[2].character, "Tyler Durden")
   }
 
+  /// kino.pub and the worker transliterate Korean names differently; the match must hold,
+  /// and one worker person answers one kino.pub name only.
+  func testEnrichMatchesAnotherTransliterationOfTheSameName() {
+    var meta = TitleMetadata()
+    meta.cast = [
+      CastMember(name: "До Кён Су", tmdbPersonId: 2, episodeCount: 12),
+      CastMember(name: "Ли Кван Су", tmdbPersonId: 3, episodeCount: 12),
+      CastMember(name: "Майкл С. Холл", tmdbPersonId: 4)
+    ]
+    let enriched = TitleMetadata.enrich(names: ["То Гён-су", "Ли Гван-су", "До Кён-су", "Иван Петров"],
+                                        roleDepartment: "Acting", from: meta)
+    XCTAssertEqual(enriched.map(\.name), ["То Гён-су", "Ли Гван-су", "До Кён-су", "Иван Петров"])
+    XCTAssertEqual(enriched.map(\.tmdbPersonId), [2, 3, nil, nil])
+    XCTAssertEqual(TitleMetadata.soundKey("Чжан Цзыи"), TitleMetadata.soundKey("Чжан Цзы-и"))
+    XCTAssertNotEqual(TitleMetadata.soundKey("Майкл С. Холл"), TitleMetadata.soundKey("Майкл К. Холл"))
+  }
+
   func testMergePrefersExistingLogo() {
     var base = TitleMetadata()
     base.artwork.titleLogo = URL(string: "https://example.com/a.png")
