@@ -301,3 +301,45 @@ test("a cold title without imdb matches by name, year and runtime", async () => 
     globalThis.fetch = original;
   }
 });
+
+async function openCard(card, details) {
+  const original = globalThis.fetch;
+  const pending = [];
+  const updates = [];
+  const base = catalog({ card: [card] });
+  const env = {
+    TMDB_READ_TOKEN: "t",
+    CATALOG: {
+      ...base,
+      batch: (...args) => base.batch(...args),
+      prepare(sql) {
+        if (!sql.startsWith("UPDATE c2_card")) return base.prepare(sql);
+        return { bind: (...args) => ({ run: async () => { updates.push(args); } }) };
+      },
+    },
+  };
+  globalThis.fetch = async () => tmdbJson(details);
+  try {
+    const response = await handleTitleV2(
+      new URL("https://example.test/v2/title/by/kinopub/1"), env,
+      { waitUntil(promise) { pending.push(promise); } },
+    );
+    assert.equal((await response.json()).kinopub_id, 1);
+    await Promise.all(pending);
+  } finally {
+    globalThis.fetch = original;
+  }
+  return updates;
+}
+
+test("opening a card stores a score TMDB got after the title was built", async () => {
+  const unscored = { ...TRANSFORMERS, tmdb: null, tmdb_votes: null };
+  assert.deepEqual(await openCard(unscored, { vote_average: 7.1, vote_count: 83 }),
+                   [[7.1, 83, 1, "movie/1858"]]);
+});
+
+test("an unchanged score, or none at TMDB, writes nothing", async () => {
+  assert.deepEqual(await openCard(TRANSFORMERS, { vote_average: 6.8, vote_count: 1000 }), []);
+  assert.deepEqual(await openCard({ ...TRANSFORMERS, tmdb: null, tmdb_votes: null },
+                                  { vote_average: 0, vote_count: 0 }), []);
+});

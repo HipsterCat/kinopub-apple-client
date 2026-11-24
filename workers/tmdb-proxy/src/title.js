@@ -159,6 +159,11 @@ export async function handleTitleV2(url, env, ctx) {
     const cardURL = new URL(`https://title.invalid/v2/title/by/kinopub/${pathId}`);
     const existing = await handleCard(cardURL, env);
     if (existing.status !== 404) {
+      if (ctx && existing.status === 200) {
+        ctx.waitUntil(refreshScore(env, pathId, existing.clone()).catch((error) => {
+          console.log(JSON.stringify({ score: "failed", id: pathId, message: error?.message || String(error) }));
+        }));
+      }
       if (ctx && (hints.imdb || hints.kinopoisk)) {
         const stored = await readDocument(env, pathId);
         const missingImdb = hints.imdb && !stored?.ids?.imdb;
@@ -189,6 +194,26 @@ export async function handleTitleV2(url, env, ctx) {
     return handleCard(new URL(`https://title.invalid/v2/title/by/kinopub/${found}`), env);
   }
   return cardJson({ error: "not_found", hint: "no card" }, 404);
+}
+
+/**
+ * The stored TMDB score is written when a title is built and nothing read it again,
+ * so a title built before its first vote never got one. Opening the card now asks
+ * TMDB behind the response (`tmdb()` answers from the edge for six hours) and
+ * writes D1 only when the score moved. KV is left alone: it has a daily write cap.
+ */
+async function refreshScore(env, id, response) {
+  if (!env.CATALOG || !env.TMDB_READ_TOKEN) return;
+  const card = await response.json();
+  const tmdbId = card?.ids?.tmdb;
+  if (!/^(tv|movie)\/\d+$/.test(tmdbId || "")) return;
+  const details = await tmdb(env, `/3/${tmdbId}`, { language: "ru-RU" });
+  if (!details?.vote_count) return;
+  const held = card.ratings?.tmdb;
+  if (held?.value === details.vote_average && held?.votes === details.vote_count) return;
+  await env.CATALOG.prepare(
+    "UPDATE c2_card SET tmdb = ?, tmdb_votes = ? WHERE kinopub_id = ? AND tmdb_id = ?",
+  ).bind(details.vote_average, details.vote_count, Number(id), tmdbId).run();
 }
 
 const HINT_V2 = "/v2/title/by/kinopub/{id} · /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original=";
@@ -818,9 +843,11 @@ function mergeTMDB(base, mediaType, tmdbId, details, method = "find:imdb") {
     logo: artworkFromTmdb(previousArt, "logo", images.logos),
   };
 
+  // Replaced, not kept: after a relink the old id's score must not stay.
+  document.ratings = (document.ratings || []).filter((item) => item?.source !== "tmdb");
   if (details.vote_count) {
-    document.ratings = [{ source: "tmdb", value: details.vote_average,
-                          votes: details.vote_count, scale: 10 }];
+    document.ratings.push({ source: "tmdb", value: details.vote_average,
+                            votes: details.vote_count, scale: 10 });
   }
   document.status = details.status || null;
   document.networks = (details.networks || []).map((network) => ({

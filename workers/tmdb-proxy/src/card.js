@@ -204,8 +204,10 @@ function upsertCard(db, kinopubId, document) {
        kinopoisk_id = COALESCE(excluded.kinopoisk_id, c2_card.kinopoisk_id),
        wikidata_id = COALESCE(excluded.wikidata_id, c2_card.wikidata_id),
        myshows_id = COALESCE(excluded.myshows_id, c2_card.myshows_id),
-       tmdb = COALESCE(excluded.tmdb, c2_card.tmdb),
-       tmdb_votes = COALESCE(excluded.tmdb_votes, c2_card.tmdb_votes),
+       tmdb = CASE WHEN excluded.tmdb_id <> c2_card.tmdb_id THEN excluded.tmdb
+                   ELSE COALESCE(excluded.tmdb, c2_card.tmdb) END,
+       tmdb_votes = CASE WHEN excluded.tmdb_id <> c2_card.tmdb_id THEN excluded.tmdb_votes
+                         ELSE COALESCE(excluded.tmdb_votes, c2_card.tmdb_votes) END,
        updated_at = excluded.updated_at`,
   ).bind(
     kinopubId,
