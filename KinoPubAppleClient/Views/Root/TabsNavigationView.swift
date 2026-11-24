@@ -432,9 +432,6 @@ struct TabsNavigationView: View {
           }
         }
       }
-      // The TV app's width, and fixed as its is: its divider does not move.
-      .navigationSplitViewColumnWidth(min: Self.macSidebarWidth, ideal: Self.macSidebarWidth,
-                                      max: Self.macSidebarWidth)
       // SwiftUI's width is a preference the divider can still be dragged past, and the
       // sidebar could be dragged shut (Sasha, 2026-10-31). The TV app's is fixed: the
       // split view item itself is pinned.
@@ -442,7 +439,11 @@ struct TabsNavigationView: View {
       // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
-      .modifier(MacSidebarSearchIfOn())
+      // The TV app's width, and fixed as its is: its divider does not move. Last on the
+      // column, with the search field on the split view and not in here: `.searchable`
+      // on the column kept the width from the split view, whose limits stayed at 140 pt
+      // and up — the sidebar came in at 144 and the pin moved it mid-layout.
+      .navigationSplitViewColumnWidth(Self.macSidebarWidth)
     } detail: {
       // Focus lives in the page, not the list, as in Apple's own sidebar apps: the
       // selection then sits grey under bold type instead of the blue of a focused list,
@@ -535,6 +536,7 @@ struct TabsNavigationView: View {
           if navigationState.selectedTab != .search { detailFocused = true }
         }
     }
+    .modifier(MacSidebarSearchIfOn())
   }
 
   /// A click on the row already selected: back to its root, or up to its top. The list
@@ -1355,14 +1357,15 @@ struct MacFixedSidebar: NSViewRepresentable {
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
       guard window != nil else { return }
-      // At once when the split view is already there, so the page beside the sidebar
-      // is laid out at its final width from the first frame; again on the next turn in
-      // case the controller was not set up yet.
-      pin()
-      DispatchQueue.main.async { [weak self] in self?.pin() }
+      // The limits at once, as constraints the layout under way picks up; the divider on
+      // the next turn and only if it is still off (a width from an earlier session):
+      // moving it here laid the split view out inside its own layout («It's not legal to
+      // call -layoutSubtreeIfNeeded…», Sasha, 2026-11-24).
+      pin(movesDivider: false)
+      DispatchQueue.main.async { [weak self] in self?.pin(movesDivider: true) }
     }
 
-    private func pin() {
+    private func pin(movesDivider: Bool) {
       var view: NSView? = superview
       while let current = view, !(current is NSSplitView) { view = current.superview }
       guard let split = view as? NSSplitView,
@@ -1374,7 +1377,7 @@ struct MacFixedSidebar: NSViewRepresentable {
       sidebar.maximumThickness = width
       sidebar.holdingPriority = .defaultHigh
       if sidebar.isCollapsed { sidebar.isCollapsed = false }
-      if split.arrangedSubviews.first?.frame.width != width {
+      if movesDivider, split.arrangedSubviews.first?.frame.width != width {
         split.setPosition(width, ofDividerAt: 0)
       }
     }

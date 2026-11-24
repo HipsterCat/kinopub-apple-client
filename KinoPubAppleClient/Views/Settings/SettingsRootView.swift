@@ -81,11 +81,12 @@ struct SettingsRootView: View {
       .onAppear {
           isFocused = true
       }
-      .navigationSplitViewColumnWidth(Self.macSidebarWidth)
       // System Settings' sidebar does not move; ours was dragged to zero and stayed
       // there (Sasha, 2026-11-08). Pinned, and opened again each time the window opens.
       .background(MacFixedSidebar(width: Self.macSidebarWidth))
       .toolbar(removing: .sidebarToggle)
+      // Last, so nothing on the column hides it from the split view (as the main window's).
+      .navigationSplitViewColumnWidth(Self.macSidebarWidth)
     } detail: {
       NavigationStack(path: detailPath) {
         macDetailRoot
