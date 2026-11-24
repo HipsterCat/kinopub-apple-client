@@ -47,6 +47,12 @@ public struct HomeHeroCarousel: View {
   /// The page's side margins where it measured them (`PageMargins`).
   @Environment(\.pageMargins) private var pageMargins
 
+  /// What the pager is laid out in: a change of either can leave it off its page.
+  private struct PagerFrame: Equatable {
+    var width: CGFloat
+    var inset: CGFloat
+  }
+
   /// One page: which title, on which lap of the three.
   struct Slot: Hashable, Sendable {
     var lap: Int
@@ -258,10 +264,18 @@ public struct HomeHeroCarousel: View {
     // not inside it: a scroll from `onChange(of: size.width)` moved the scroll's geometry
     // a second time in the frame that changed it (`OnScrollGeometryChange tried to update
     // multiple times per frame`, Sasha's Mac launch log 2026-11-23).
-    .task(id: size.width) {
+    //
+    // A new leading inset does the same: the Mac's sidebar comes in at launch (inset
+    // 0 → 144 → 220 pt) after the width has settled, and the scroll view corrects its
+    // offset for it twice inside one layout. The last correction can be lost to the
+    // geometry observer, which then reports the page at rest while it is drawn 220 pt
+    // aside: the first slide kept a white strip until the first turn (Sasha, 2026-11-24).
+    // So the re-snap is unconditional — a scroll to where the reading says it already
+    // is, outside the layout pass, which costs nothing when it is true.
+    .task(id: PagerFrame(width: size.width, inset: pager.reading.inset)) {
       await Task.yield()
-      guard !Task.isCancelled else { return }
-      if !isOnCurrentPage { move(to: current, animated: false) }
+      guard !Task.isCancelled, size.width > 0 else { return }
+      if !isScrolling, !isTurning { move(to: current, animated: false) }
       try? await Task.sleep(for: .milliseconds(300))
       guard !Task.isCancelled else { return }
       // Built afresh only when the scroll view stayed off its page after the re-snap
@@ -672,6 +686,10 @@ final class HeroPager {
     var isAtRest = true
     /// The scroll has reported at least once; until then `page` is only the default.
     var isMeasured = false
+    /// The leading content inset. On the Mac it grows while the sidebar comes in at
+    /// launch (0 → 144 → 220 pt) and the scroll view keeps its offset, so the page slides
+    /// off by the difference with no width change and no scroll phase to notice it.
+    var inset: CGFloat = 0
 
     init() {}
 
@@ -686,6 +704,7 @@ final class HeroPager {
       page = Int(position.rounded())
       isAtRest = abs(position - position.rounded()) <= 0.001
       isMeasured = width > 0
+      inset = geometry.contentInsets.leading
     }
   }
 
