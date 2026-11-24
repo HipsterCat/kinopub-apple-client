@@ -160,6 +160,7 @@ final class MediaCardMenuCoordinator: ObservableObject {
       do {
         try await actionsService.toggleWatchlist(id: card.itemID)
         contentStore.invalidate(family: .watch)
+        await WatchingListCache.shared.refreshFollowed(using: contentService)
       } catch {
         errorHandler?.setError(error)
       }

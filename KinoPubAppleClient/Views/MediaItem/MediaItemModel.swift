@@ -1339,6 +1339,9 @@ class MediaItemModel: ObservableObject {
       do {
         try await actionsService.toggleWatchlist(id: mediaItemId)
         contentStore.invalidate(family: .watch)
+        // The badge and «Новые серии» count from this list: fetch it now, not at the
+        // next tab switch or launch (2026-11-24).
+        await WatchingListCache.shared.refreshFollowed(using: itemsService)
       } catch {
         isInWatchlist = previous
         libraryState.setWatchlist(itemId: mediaItemId, value: previous)

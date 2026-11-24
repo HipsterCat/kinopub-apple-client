@@ -59,8 +59,8 @@ struct TabsNavigationView: View {
   @State private var heroStep: HeroStepRequest?
   @State private var pageScroll: PageScrollRequest?
 #endif
-  @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
+  @Environment(\.scenePhase) private var scenePhase
   private static let sidebarSyncTTL: TimeInterval = 120
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
@@ -150,6 +150,12 @@ struct TabsNavigationView: View {
       }
       .onChange(of: navigationState.selectedTab) { _, _ in
         guard authState.phase == .signedIn else { return }
+        Task { await syncSidebarFolders() }
+      }
+      // Back from the background: kino.pub may have new episodes, or the list changed on
+      // another device. Same two-minute floor as a tab switch.
+      .onChange(of: scenePhase) { _, phase in
+        guard phase == .active, authState.phase == .signedIn else { return }
         Task { await syncSidebarFolders() }
       }
       // DESIGN: offline / reachability banner when `networkMonitor.isOnline` flips false.
@@ -381,7 +387,7 @@ struct TabsNavigationView: View {
 
         Section("Library") {
           Label("NewEpisodesTitle".localized, systemImage: "bell")
-            .badge(watchlistBadgeCount)
+            .badge(unwatchedEpisodesCount)
             .tag(NavigationTabs.watchlist)
             .sidebarReselect(.watchlist, using: sidebarReselect)
           Label("Continue Watching", systemImage: "play.circle")
@@ -764,11 +770,12 @@ struct TabsNavigationView: View {
 
   // MARK: - Badges
 
-  /// Episodes out and not yet watched, across every followed serial — kino.pub's own
-  /// `new` per serial, summed. The Library badge it replaces added the number of followed
+  /// Episodes out and not yet watched, across every followed serial — never the number of
+  /// serials. Read from `WatchingListCache` as it changes, the very number «Новые серии»
+  /// puts under its title. The Library badge it replaces added the number of followed
   /// serials to the number of titles in every bookmark folder: a sum of two unrelated
   /// counts (Sasha, 2026-10-30). Zero shows no badge.
-  private var unwatchedEpisodesCount: Int { watchlistBadgeCount }
+  private var unwatchedEpisodesCount: Int { WatchingListCache.shared.followedEpisodeTotal ?? 0 }
 
   // MARK: - Tab roots
 
@@ -914,20 +921,19 @@ struct TabsNavigationView: View {
   /// fetch per sign-in for nothing. Left over from the parked sidebar shell.
   private func loadSidebarChrome() async {
     async let foldersTask = fetchFolders()
-    async let watchlistTask = fetchWatchlistCount()
+    async let watchlistTask: Void = refreshFollowedList()
     sidebarFolders = await foldersTask
-    watchlistBadgeCount = await watchlistTask
+    await watchlistTask
     sidebarSyncedAt = Date()
   }
 
   private func syncSidebarFolders() async {
     if let sidebarSyncedAt, Date().timeIntervalSince(sidebarSyncedAt) < Self.sidebarSyncTTL { return }
     async let foldersTask = fetchFolders()
-    async let watchlistTask = fetchWatchlistCount()
+    async let watchlistTask: Void = refreshFollowedList()
     let folders = await foldersTask
-    let watchlist = await watchlistTask
+    await watchlistTask
     if folders != sidebarFolders { sidebarFolders = folders }
-    if watchlist != watchlistBadgeCount { watchlistBadgeCount = watchlist }
     sidebarSyncedAt = Date()
   }
 
@@ -938,14 +944,12 @@ struct TabsNavigationView: View {
       .recentlyUpdatedFirst()
   }
 
-  private func fetchWatchlistCount() async -> Int {
-    do {
-      return try await WatchingListCache.shared.serials(subscribedOnly: true,
-                                                       using: appContext.contentService)
-        .unwatchedEpisodeTotal
-    } catch {
-      return watchlistBadgeCount
-    }
+  /// The badge reads `WatchingListCache.followedEpisodeTotal`; this only makes sure the
+  /// followed list is there (a warm cache answers without a request). Errors keep the
+  /// last number.
+  private func refreshFollowedList() async {
+    _ = try? await WatchingListCache.shared.serials(subscribedOnly: true,
+                                                   using: appContext.contentService)
   }
 }
 

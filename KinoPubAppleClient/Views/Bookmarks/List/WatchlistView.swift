@@ -55,6 +55,11 @@ struct WatchlistView: View {
           await load()
         }
         .task { await cardMenu.refreshFolders() }
+        // A follow, an unfollow or a fresher list fetched anywhere (the badge, Home):
+        // repaint from it. The page used to load once per appearance and keep what it had.
+        .onChange(of: WatchingListCache.shared.followedListRevision) { _, _ in
+          Task { await load() }
+        }
         .mediaCardNewFolderAlert(cardMenu)
         .handleError(state: $errorHandler.state)
   }
@@ -117,11 +122,17 @@ struct WatchlistView: View {
     }
   }
 
-  /// Episodes still unwatched across the followed serials — the numbers the covers
-  /// paint (`followedUnwatchedEpisodes`), summed; the badge sums the same list.
+  /// Episodes still unwatched across the followed serials — the tab badge's number
+  /// (`WatchingListCache.followedEpisodeTotal`); before the list is fetched this launch,
+  /// what the covers from disk paint, summed.
   private var newEpisodesSubtitle: String {
-    let total = cards.compactMap(\.followedUnwatchedEpisodes).reduce(0, +)
+    let total = Self.newEpisodesTotal(cached: WatchingListCache.shared.followedEpisodeTotal,
+                                      cards: cards)
     return total > 0 ? String.localizedStringWithFormat("NewEpisodesCount".localized, total) : ""
+  }
+
+  nonisolated static func newEpisodesTotal(cached: Int?, cards: [MediaCard]) -> Int {
+    cached ?? cards.compactMap(\.followedUnwatchedEpisodes).reduce(0, +)
   }
 
   nonisolated static func card(for item: WatchingItem) -> MediaCard {

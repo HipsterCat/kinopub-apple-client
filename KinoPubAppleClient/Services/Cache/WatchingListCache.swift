@@ -12,13 +12,29 @@
 
 import Foundation
 import KinoPubBackend
+import Observation
 
 @MainActor
+@Observable
 final class WatchingListCache {
   static let shared = WatchingListCache()
 
   /// How long a successful list is reused across CW / Library / sidebar.
   static let ttl: TimeInterval = 3 * 60
+
+  /// Episodes still unwatched across the followed serials (`unwatchedEpisodeTotal`) of
+  /// the last followed list stored — the «Новые серии» tab badge and the page's subtitle,
+  /// one number from one list. Observed, so both repaint the moment a fetch lands.
+  ///
+  /// Before 2026-11-24 the badge was the root view's own `@State`, fetched at sign-in and
+  /// on a tab switch at most every two minutes: following «12 12 12» and «Reggie Dinkins»
+  /// left it at Dexter's 2 while the page under it said 4 (Sasha). `invalidate` keeps it
+  /// (the badge does not blink to nothing while the list refetches); `clear` drops it.
+  private(set) var followedEpisodeTotal: Int?
+  /// Bumped when a fetched followed list differs from the one stored before — pages
+  /// showing that list reload from it (no extra request: the cache is warm).
+  private(set) var followedListRevision = 0
+  @ObservationIgnored private var lastFollowed: [WatchingItem]?
 
   enum List: Hashable, Sendable {
     case movies
@@ -33,15 +49,15 @@ final class WatchingListCache {
   /// Told the ids on every followed-serials list fetched from the network, with when the
   /// request left — the app reconciles its local follow marks with them
   /// (`MediaLibraryStore.reconcileWatchlist`). Unset in unit tests and fixture runs.
-  var onFollowedSerialsFetched: (([Int], Date) -> Void)?
+  @ObservationIgnored var onFollowedSerialsFetched: (([Int], Date) -> Void)?
 
-  private var entries: [List: Entry] = [:]
+  @ObservationIgnored private var entries: [List: Entry] = [:]
   /// Continuations waiting on an in-flight fetch for the same list (no `Task` — keeps
   /// non-Sendable `WatchingItem` on the main actor).
-  private var waiters: [List: [CheckedContinuation<[WatchingItem], Error>]] = [:]
-  private var fetching: Set<List> = []
+  @ObservationIgnored private var waiters: [List: [CheckedContinuation<[WatchingItem], Error>]] = [:]
+  @ObservationIgnored private var fetching: Set<List> = []
   /// Bumped on `invalidate` so a fetch that started before the clear cannot write back.
-  private var generation = 0
+  @ObservationIgnored private var generation = 0
 
   /// Fresh cached items, or `nil` when missing / past TTL.
   func cached(_ list: List, now: Date = Date()) -> [WatchingItem]? {
@@ -112,6 +128,7 @@ final class WatchingListCache {
       entries[list] = Entry(items: items, fetchedAt: Date())
       if list == .serials(subscribed: true) {
         onFollowedSerialsFetched?(items.map(\.id), requestedAt)
+        storeFollowed(items)
       }
       let pending = waiters.removeValue(forKey: list) ?? []
       for waiter in pending { waiter.resume(returning: items) }
@@ -139,7 +156,27 @@ final class WatchingListCache {
     }
   }
 
+  /// Fetch the followed list again now — after a follow or unfollow, so the badge and
+  /// «Новые серии» show the change without waiting for a tab switch or a relaunch.
+  /// Errors keep the last total.
+  func refreshFollowed(using service: VideoContentService) async {
+    _ = try? await serials(subscribedOnly: true, using: service, force: true)
+  }
+
+  private func storeFollowed(_ items: [WatchingItem]) {
+    let total = items.unwatchedEpisodeTotal
+    if followedEpisodeTotal != total { followedEpisodeTotal = total }
+    if lastFollowed != items {
+      lastFollowed = items
+      followedListRevision += 1
+    }
+  }
+
+  /// Account switch: drop the lists and the badge's number with them.
   func clear() {
     invalidate()
+    followedEpisodeTotal = nil
+    lastFollowed = nil
+    followedListRevision += 1
   }
 }

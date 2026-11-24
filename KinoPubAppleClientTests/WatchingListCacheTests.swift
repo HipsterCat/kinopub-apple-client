@@ -4,6 +4,8 @@
 //
 
 import XCTest
+import Observation
+import Synchronization
 import KinoPubBackend
 import KinoPubUI
 @testable import KinoPub
@@ -206,6 +208,77 @@ final class WatchingListCacheTests: XCTestCase {
     XCTAssertEqual(reports.map(\.0), [[2]])
     XCTAssertGreaterThanOrEqual(reports.first?.1 ?? .distantPast, before)
   }
+
+  // MARK: - «Новые серии» badge follows the list (2026-11-24)
+
+  /// Sasha's case: Dexter (2 new) followed at launch, then «12 12 12» and «Reggie Dinkins»
+  /// (1 each). The badge stayed at 2 while the page said 4 — the badge was the root
+  /// view's own number, fetched at sign-in and on a tab switch at most every two minutes.
+  /// The arithmetic test above passed: nothing checked that the badge *changes* with the
+  /// list. Here the follow path (invalidate + `refreshFollowed`) must move the one number
+  /// both read, at once, and it counts episodes (4), not serials (3).
+  func testFollowingASeriesMovesTheBadgeAndTheSubtitleAtOnce() async throws {
+    let box = WatchingFetchBox()
+    let service = box.service()
+    let cache = WatchingListCache.shared
+    let posters = WatchingFetchBox.emptyPosters
+    let dexter = WatchingItem(id: 1, type: "serial", title: "Декстер / Dexter", posters: posters,
+                              total: 10, watched: 8, new: 2)
+    box.serialsSubscribed = [dexter]
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+    XCTAssertEqual(cache.followedEpisodeTotal, 2)
+    let revision = cache.followedListRevision
+
+    // Follow two more, the way the title page and the card menu do.
+    box.serialsSubscribed = [
+      dexter,
+      WatchingItem(id: 2, type: "serial", title: "12 12 12", posters: posters,
+                   total: 3, watched: 2, new: 1),
+      WatchingItem(id: 3, type: "serial", title: "Падение и взлёт / Reggie Dinkins", posters: posters,
+                   total: 1, watched: 0, new: 1)
+    ]
+    let disk = FileManager.default.temporaryDirectory
+      .appendingPathComponent("FollowMovesBadge-\(UUID().uuidString)", isDirectory: true)
+    let store = ContentStore(disk: RowSnapshotStore(directory: disk), viewer: ViewerStateReaderMock())
+    store.setItems([.card(WatchlistView.card(for: dexter))], for: .watchlist)
+
+    let badgeRepainted = RepaintFlag()
+    withObservationTracking { _ = cache.followedEpisodeTotal } onChange: { badgeRepainted.set() }
+    store.invalidate(family: .watch)
+    XCTAssertEqual(cache.followedEpisodeTotal, 2, "the badge does not blink to nothing while the list refetches")
+    await cache.refreshFollowed(using: service)
+
+    XCTAssertTrue(badgeRepainted.value, "the tab badge reads this number in its body")
+    XCTAssertEqual(cache.followedEpisodeTotal, 4, "episodes, not the 3 serials")
+    XCTAssertGreaterThan(cache.followedListRevision, revision, "«Новые серии» reloads its covers")
+    XCTAssertEqual(box.serialFetchesSubscribed, 2)
+
+    let staleCards = store.cards(.watchlist)
+    XCTAssertEqual(WatchlistView.newEpisodesTotal(cached: cache.followedEpisodeTotal, cards: staleCards), 4,
+                   "the subtitle says what the badge says, even before the covers reload")
+  }
+
+  /// The same list fetched again (a tab switch, Home) changes nothing: no reload of the
+  /// page, no repaint. An account switch drops the number.
+  func testAnUnchangedListKeepsTheRevisionAndClearDropsTheBadge() async throws {
+    let box = WatchingFetchBox()
+    let service = box.service()
+    let cache = WatchingListCache.shared
+    _ = try await cache.serials(subscribedOnly: true, using: service)
+    let revision = cache.followedListRevision
+    XCTAssertEqual(cache.followedEpisodeTotal, 9, "total 10, watched 1")
+    await cache.refreshFollowed(using: service)
+    XCTAssertEqual(cache.followedListRevision, revision)
+    cache.clear()
+    XCTAssertNil(cache.followedEpisodeTotal)
+  }
+}
+
+/// Set from `withObservationTracking`'s `@Sendable` onChange.
+private final class RepaintFlag: Sendable {
+  private let flag = Mutex(false)
+  func set() { flag.withLock { $0 = true } }
+  var value: Bool { flag.withLock { $0 } }
 }
 
 /// Counting mock that can `await Task.sleep` so two callers overlap on MainActor.
