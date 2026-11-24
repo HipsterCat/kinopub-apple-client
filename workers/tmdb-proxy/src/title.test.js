@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
+import { ensureKinopoiskId, handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -255,7 +255,7 @@ test("backdrop on a cold id 404s and resolves behind it", async () => {
   assert.equal(ctx.pending.length, 0);
 });
 
-test("Russian poster with a Kinopoisk id skips TMDB and never echoes kino.pub", async () => {
+test("Russian poster with a Kinopoisk id prefers TMDB ru over Kinopoisk and never echoes kino.pub", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       ids: { kinopoisk: { value: "326" } },
@@ -273,6 +273,87 @@ test("Russian poster with a Kinopoisk id skips TMDB and never echoes kino.pub", 
     response.headers.get("location"),
     "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
   );
+});
+
+test("Russian poster falls back to Kinopoisk when TMDB has no ru file", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      ids: { kinopoisk: { value: "326" } },
+      artwork: {
+        poster: [
+          { source: "tmdb", url: TMDB_POSTER_EN, lang: "en", width: 2000, height: 3000 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("poster"), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(
+    response.headers.get("location"),
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
+  );
+});
+
+test("cover picks the language-tagged TMDB backdrop, not the textless one", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        backdrop: [
+          { source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 3840, height: 2160 },
+          { source: "tmdb", url: TMDB_TITLED, lang: "ru", width: 3840, height: 2160 },
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/en-titled.jpg", lang: "en", width: 1920, height: 1080 },
+        ],
+      },
+    },
+  });
+  const ru = await handleImage(imageRequest("cover"), env, ctxSpy());
+  assert.equal(ru.status, 302);
+  assert.equal(ru.headers.get("location"), "https://example.test/img/cover/by/kinopub/82852/ru/cover.jpg");
+  assert.equal(ru.headers.get("content-language"), "ru");
+  const en = await handleImage(imageRequest("cover", { lang: "en" }), env, ctxSpy());
+  assert.equal(en.headers.get("location"), "https://example.test/img/cover/by/kinopub/82852/en/cover.jpg");
+  assert.equal(en.headers.get("content-language"), "en");
+});
+
+test("cover does not fall back to textless or to poster", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        backdrop: [{ source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 3840, height: 2160 }],
+        poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru", width: 2000, height: 3000 }],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("cover"), env, ctxSpy());
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).hint, "no language cover");
+});
+
+test("cover admin pin wins over the automatic lang-tagged backdrop", async () => {
+  const pinned = "https://image.tmdb.org/t/p/original/pinned-cover-ru.jpg";
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        cover: [{ source: "admin", url: pinned, lang: "ru", pinned: true, width: 1920, height: 1080 }],
+        backdrop: [
+          { source: "tmdb", url: TMDB_TITLED, lang: "ru", width: 3840, height: 2160 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("cover"), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://example.test/img/cover/by/kinopub/82852/ru/cover.jpg");
+});
+
+test("ensureKinopoiskId keeps an existing id and stores a client hint", async () => {
+  const kept = await ensureKinopoiskId({}, {
+    ids: { kinopoisk: { value: "326", method: "dump" } },
+  });
+  assert.equal(kept.ids.kinopoisk.value, "326");
+  const fromHint = await ensureKinopoiskId({}, { ids: {} }, { kinopoisk: "999" });
+  assert.equal(fromHint.ids.kinopoisk.value, "999");
+  assert.equal(fromHint.ids.kinopoisk.method, "client");
 });
 
 test("Russian poster prefers tvoe over the Kinopoisk file", async () => {

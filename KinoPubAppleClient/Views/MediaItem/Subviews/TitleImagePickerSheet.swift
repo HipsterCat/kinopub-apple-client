@@ -2,7 +2,8 @@
 //  TitleImagePickerSheet.swift
 //  KinoPubAppleClient
 //
-//  "Change Images": which TMDB logo and backdrop the worker serves for a title.
+//  "Change Images": which TMDB logo, cover and backdrop the worker serves for a
+//  title. Cover is the language-tagged TMDB backdrop; backdrop stays textless.
 //  The sheet, grid and toolbar policy are AniShelf's poster picker
 //  (`PosterSelectionView` / `PosterGridView`, github.com/samuelhe52/AniShelf); the
 //  per-language selection and the worker writes are ours.
@@ -22,11 +23,12 @@ struct TitleImagePickerTarget: Identifiable, Hashable {
   var id: Int { kinopubID }
 }
 
-/// Opens on a Logo / Backdrop segment. Logos take one pick per language (ru, en, und), the
-/// way the worker stores them; a backdrop is one picture per title in the worker, so its
-/// grid takes one pick across all languages. With no pick stored, each language starts on
-/// its most-voted file. Save drops what the worker had for that kind and pins exactly
-/// what is selected, so no automatic choice is left behind next to a pick.
+/// Opens on a Logo / Cover / Backdrop segment. Logos and covers take one pick per
+/// language (ru, en, and und for logos), the way the worker stores them; a backdrop is
+/// one picture per title in the worker, so its grid takes one pick across all languages.
+/// Cover lists language-tagged TMDB backdrops only. With no pick stored, each language
+/// starts on its most-voted file. Save drops what the worker had for that kind and pins
+/// exactly what is selected, so no automatic choice is left behind next to a pick.
 struct TitleImagePickerSheet: View {
   let target: TitleImagePickerTarget
   let images: TitleImageRoute
@@ -65,6 +67,7 @@ struct TitleImagePickerSheet: View {
           HStack(spacing: 12) {
             Picker("Image Kind", selection: $kind) {
               Text("Logo").tag(WorkerImageAdminKind.logo)
+              Text("Cover").tag(WorkerImageAdminKind.cover)
               Text("Backdrop").tag(WorkerImageAdminKind.backdrop)
             }
             .pickerStyle(.segmented)
@@ -101,15 +104,15 @@ struct TitleImagePickerSheet: View {
 #endif
     }
     .task(id: kind) { await model.load(kind) }
-    .alert(kind == .logo ? "Logo by Link" : "Backdrop by Link", isPresented: $showsLinkEntry) {
+    .alert(linkAlertTitle, isPresented: $showsLinkEntry) {
       TextField("https://image.tmdb.org/t/p/original/…", text: $linkText)
 #if os(iOS)
         .keyboardType(.URL)
         .textInputAutocapitalization(.never)
 #endif
         .autocorrectionDisabled()
-      if kind == .logo {
-        ForEach(model.languageOrder(for: .logo), id: \.self) { language in
+      if kind == .logo || kind == .cover {
+        ForEach(model.languageOrder(for: kind), id: \.self) { language in
           Button(language.pickerTitle) { pinLink(language: language) }
         }
       } else {
@@ -117,9 +120,7 @@ struct TitleImagePickerSheet: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text(kind == .logo
-           ? "Replaces the logo of the language you choose."
-           : "Replaces the title's backdrop.")
+      Text(linkAlertMessage)
     }
 #if os(iOS)
     .presentationDragIndicator(.visible)
@@ -128,13 +129,29 @@ struct TitleImagePickerSheet: View {
     .macSheetFrame(width: 900, height: 680)
   }
 
-  /// DEBUG `-KINOPUBOpenImagePicker logo|backdrop`: the title page opens this sheet on load.
+  /// DEBUG `-KINOPUBOpenImagePicker logo|cover|backdrop`: the title page opens this sheet on load.
   static var launchKind: WorkerImageAdminKind? {
 #if DEBUG
     UserDefaults.standard.string(forKey: "KINOPUBOpenImagePicker").flatMap(WorkerImageAdminKind.init(rawValue:))
 #else
     nil
 #endif
+  }
+
+  private var linkAlertTitle: LocalizedStringKey {
+    switch kind {
+    case .logo: "Logo by Link"
+    case .cover: "Cover by Link"
+    case .backdrop, .poster: "Backdrop by Link"
+    }
+  }
+
+  private var linkAlertMessage: LocalizedStringKey {
+    switch kind {
+    case .logo: "Replaces the logo of the language you choose."
+    case .cover: "Replaces the cover of the language you choose."
+    case .backdrop, .poster: "Replaces the title's backdrop."
+    }
   }
 
   private func pinLink(language: WorkerArtworkLanguageTag) {
@@ -618,11 +635,12 @@ final class TitleImagePickerModel {
   }
 
   /// Backdrops: no language first, then English, then Russian — text-free art leads.
-  /// Logos: the app's language first.
+  /// Logos and covers: the app's language first. Cover has no textless bucket.
   func languageOrder(for kind: WorkerImageAdminKind) -> [WorkerArtworkLanguageTag] {
     switch kind {
     case .logo: userLanguage == .en ? [.en, .ru, .und] : [.ru, .en, .und]
-    default: [.und, .en, .ru]
+    case .cover: userLanguage == .en ? [.en, .ru] : [.ru, .en]
+    case .backdrop, .poster: [.und, .en, .ru]
     }
   }
 
@@ -653,7 +671,7 @@ final class TitleImagePickerModel {
               language: WorkerArtworkLanguageTag,
               kind: WorkerImageAdminKind) {
     saveError = nil
-    if kind == .logo {
+    if kind == .logo || kind == .cover {
       selection[kind, default: [:]][language] = file.url
     } else {
       // One backdrop per title in the worker: a pick anywhere replaces the last one.
@@ -687,7 +705,7 @@ final class TitleImagePickerModel {
     saveError = nil
     defer { isSaving = false }
     do {
-      for kind in [WorkerImageAdminKind.logo, .backdrop] {
+      for kind in [WorkerImageAdminKind.logo, .cover, .backdrop] {
         let selected = selection[kind] ?? [:]
         guard !selected.isEmpty, selected != (pinned[kind] ?? [:]) else { continue }
         for language in languageOrder(for: kind) {
@@ -695,8 +713,9 @@ final class TitleImagePickerModel {
           let file = catalogs[kind].flatMap { catalog in
             languageOrder(for: kind).lazy.flatMap { catalog.bucket($0) }.first { $0.url == url }
           }
+          let pinLanguage: WorkerArtworkLanguageTag? = (kind == .logo || kind == .cover) ? language : nil
           _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
-                                    language: kind == .logo ? language : nil,
+                                    language: pinLanguage,
                                     width: file?.width, height: file?.height)
         }
         pinned[kind] = selected
@@ -721,8 +740,9 @@ final class TitleImagePickerModel {
     saveError = nil
     defer { isSaving = false }
     do {
+      let pinLanguage: WorkerArtworkLanguageTag? = (kind == .logo || kind == .cover) ? language : nil
       _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
-                                language: kind == .logo ? language : nil)
+                                language: pinLanguage)
       Artwork.clearCaches()
       await load(kind, force: true)
       return true
@@ -766,8 +786,10 @@ final class TitleImagePickerModel {
 
     // What the worker serves: per language a pin, else the first stored file — its list
     // keeps pins first, then its own ranking. Backdrops: the one pin, else a textless one.
+    // Covers: per-language pins in artwork.cover; automatic files still come from the
+    // catalog buckets (lang-tagged TMDB backdrops).
     var now: [TitleImagePickerCurrent] = []
-    if kind == .logo {
+    if kind == .logo || kind == .cover {
       for language in order {
         let mine = stored.filter { tag($0.lang) == language }
         if let asset = mine.first(where: { $0.pinned == true }) ?? mine.first {
@@ -787,7 +809,7 @@ final class TitleImagePickerModel {
     var served: [WorkerArtworkLanguageTag: String] = [:]
     for item in now {
       guard let match = fileFor[Self.fileKey(item.url)] else { continue }
-      let language = kind == .logo ? item.language : match.language
+      let language = (kind == .logo || kind == .cover) ? item.language : match.language
       if item.isPinned { pins[language] = match.url }
       served[language] = match.url
     }
@@ -796,7 +818,7 @@ final class TitleImagePickerModel {
     // Start on what is on the title now; a language with nothing stored starts on its
     // most-voted file.
     var chosen = served
-    if kind == .logo {
+    if kind == .logo || kind == .cover {
       for language in order where chosen[language] == nil {
         chosen[language] = Self.ranked(catalog.bucket(language)).first?.url
       }
@@ -958,12 +980,18 @@ struct TitleImageAdminMenuItems: View {
       Button { actions.refresh(.logo) } label: {
         Label("Refresh Logo", systemImage: "arrow.clockwise")
       }
+      Button { actions.refresh(.cover) } label: {
+        Label("Refresh Cover", systemImage: "arrow.clockwise")
+      }
       Button { actions.refresh(.backdrop) } label: {
         Label("Refresh Backdrop", systemImage: "arrow.clockwise")
       }
       Divider()
       Button(role: .destructive) { actions.forget(.logo) } label: {
         Label("Forget Logo", systemImage: "trash")
+      }
+      Button(role: .destructive) { actions.forget(.cover) } label: {
+        Label("Forget Cover", systemImage: "trash")
       }
       Button(role: .destructive) { actions.forget(.backdrop) } label: {
         Label("Forget Backdrop", systemImage: "trash")
@@ -1014,8 +1042,15 @@ private enum TitleImagePickerPreviewData {
             candidate("/lzWHmYdfeFiMIY4JaMmtR7GEli3.jpg", lang: "und", w: 1920, h: 1080, vote: 5.2)],
       stored: nil
     )
+    let covers = WorkerImageAdminCatalog(
+      ok: true, id: "1", kind: "cover", tmdb: "movie/438631",
+      ru: [candidate("/ru-cover.jpg", lang: "ru", w: 1920, h: 1080, vote: 4.8)],
+      en: [candidate("/jYEW5xZkZk2WTrdbMGAPFuBqbDc.jpg", lang: "en", w: 3840, h: 2160, vote: 5.4)],
+      und: [],
+      stored: nil
+    )
     return TitleImagePickerModel(target: target, userLanguage: .ru,
-                                 catalogs: [.logo: logos, .backdrop: backdrops])
+                                 catalogs: [.logo: logos, .cover: covers, .backdrop: backdrops])
   }
 }
 

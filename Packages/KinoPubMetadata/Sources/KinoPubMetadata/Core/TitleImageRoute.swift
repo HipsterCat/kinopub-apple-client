@@ -7,11 +7,14 @@ import Foundation
 ///     /img/logo/by/kinopub/{id}/ru/logo.png
 ///     /img/logo/by/kinopub/{id}/en/logo.png
 ///     /img/backdrop/by/kinopub/{id}/und/backdrop.jpg
+///     /img/cover/by/kinopub/{id}/ru/cover.jpg
 ///
 /// The `{ru|en|und}` segment is the file's language (`und` = textless / no language).
 /// **`Content-Language`** on the response matches that tag (not `en-US`). Parse the
 /// final URL or header with ``WorkerArtworkLanguageTag`` — the `?lang=` query only
-/// states preference, not what was served.
+/// states preference, not what was served. ``Kind/cover`` is the language-tagged
+/// TMDB backdrop (`images.backdrops` with `iso_639_1`); ``Kind/backdrop`` stays
+/// textless.
 ///
 /// `w` is the pixel width the picture will be drawn at, snapped onto TMDB/worker
 /// buckets (`bucketedWidth`) so the worker never falls through to `/original` (a 5K Mac
@@ -68,7 +71,8 @@ public enum TitleLogoRequestKind: Sendable, Equatable {
 public struct TitleImageRoute: Sendable, Hashable {
   public enum Kind: String, Sendable {
     /// `thumbnail` is an episode still and needs a season and an episode.
-    case logo, backdrop, poster, thumbnail
+    /// `cover` is a language-tagged wide TMDB backdrop (not the textless `backdrop`).
+    case logo, backdrop, cover, poster, thumbnail
   }
 
   public let baseURL: URL?
@@ -174,6 +178,12 @@ public struct TitleImageRoute: Sendable, Hashable {
   /// Textless backdrop, drawn at `width` pixels.
   public func backdrop(kinopubID: Int, imdb: Int?, width: Int?) -> URL? {
     url(.backdrop, kinopubID: kinopubID, imdb: imdb, width: width)
+  }
+
+  /// Language-tagged TMDB backdrop (`images.backdrops` with `iso_639_1`), drawn at
+  /// `width` pixels. Uses the route's ``language`` (Russian when `nil`).
+  public func cover(kinopubID: Int, imdb: Int?, width: Int?) -> URL? {
+    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width)
   }
 
   /// The app's own localization (the per-app language setting included), not the

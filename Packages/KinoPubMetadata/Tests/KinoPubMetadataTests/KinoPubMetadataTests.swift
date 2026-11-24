@@ -174,6 +174,15 @@ final class TitleImageRouteTests: XCTestCase {
     )
   }
 
+  func testCoverUsesBackdropLadderAndLanguage() {
+    let route = TitleImageRoute(baseURL: worker, language: "en")
+    XCTAssertEqual(
+      route.cover(kinopubID: 7, imdb: 903_747, width: 1920)?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/cover/by/kinopub/7?w=1920&imdb=tt0903747&lang=en"
+    )
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.cover, pixels: 2400), 2400)
+  }
+
   func testBucketedWidthNeverOriginal() {
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 680), 780)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.logo, pixels: 1080), 1280)

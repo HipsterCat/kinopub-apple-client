@@ -3,7 +3,10 @@ import KinoPubLogging
 
 public enum WorkerImageAdminKind: String, Sendable, CaseIterable {
   case logo
+  /// Textless wide frame (`iso_639_1 == null`).
   case backdrop
+  /// Language-tagged TMDB backdrop (`images.backdrops` with `iso_639_1`).
+  case cover
   case poster
 }
 
@@ -207,10 +210,16 @@ public struct WorkerImageAdminClient: Sendable {
     try await pick(kinopubID: kinopubID, kind: .backdrop, url: url, language: nil)
   }
 
-  /// Pins `url` for one kind. A logo or poster replaces every file of its language
-  /// (`nil` / `.und` = textless), a backdrop all backdrops; the worker also writes the
-  /// pin to D1 `c2_image`. Any https URL is accepted. `width` / `height` are stored
-  /// with the pin when known.
+  public func pickCover(kinopubID: Int, url: String, language: WorkerArtworkLanguageTag?) async throws
+    -> WorkerImageAdminActionResponse {
+    try await pick(kinopubID: kinopubID, kind: .cover, url: url, language: language)
+  }
+
+  /// Pins `url` for one kind. A logo, poster or cover replaces every file of its
+  /// language (`nil` / `.und` = textless), a backdrop all backdrops; the worker also
+  /// writes the pin to D1 `c2_image`. Cover pins live in `artwork.cover`; automatic
+  /// covers still read language-tagged rows from `artwork.backdrop`. Any https URL
+  /// is accepted. `width` / `height` are stored with the pin when known.
   public func pick(kinopubID: Int,
                    kind: WorkerImageAdminKind,
                    url: String,

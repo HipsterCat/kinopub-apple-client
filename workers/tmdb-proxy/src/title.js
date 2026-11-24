@@ -1,6 +1,6 @@
 /**
  * /v1/title/by/kinopub/{id}
- * /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
+ * /img/{logo|backdrop|cover|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
  *
  * The contract the client actually wanted: ask by kino.pub id, get everything,
  * never resolve anything yourself, never make a second call to find out whether
@@ -9,12 +9,14 @@
  * Image route: `w` is a pixel width (omit it for the largest file we will
  * serve, 3840). Language is the `Accept-Language` header, default ru — it is
  * not a query parameter. Backdrop ignores that header completely: it is always
- * a textless wide frame, never a titled banner and never a poster. `s` / `e`
- * pick a season poster or an episode thumbnail. Logos / posters / backdrops
- * never redirect at a kino.pub CDN (the app already has those). Episode
- * thumbnails may: a staticpop still is resized through wsrv.nl so the client
- * does not pull a raw 1280×720 JPEG into a 300–600 px rail slot. Optional
- * `src=` (staticpop host only) seeds a thumb the document never stored.
+ * a textless wide frame, never a titled banner and never a poster. Cover is the
+ * opposite of backdrop: a language-tagged wide TMDB backdrop (`images.backdrops`
+ * with `iso_639_1`), never a poster. `s` / `e` pick a season poster or an
+ * episode thumbnail. Logos / posters / backdrops / covers never redirect at a
+ * kino.pub CDN (the app already has those). Episode thumbnails may: a staticpop
+ * still is resized through wsrv.nl so the client does not pull a raw 1280×720
+ * JPEG into a 300–600 px rail slot. Optional `src=` (staticpop host only) seeds
+ * a thumb the document never stored.
  *
  * Two rules shape the whole file:
  *
@@ -233,8 +235,8 @@ function cardFromDocument(id, document, hints) {
   };
 }
 
-const QUERY_KINDS = new Set(["logo", "backdrop", "poster", "thumbnail"]);
-const QUERY_HINT = "/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=";
+const QUERY_KINDS = new Set(["logo", "backdrop", "cover", "poster", "thumbnail"]);
+const QUERY_HINT = "/img/{logo|backdrop|cover|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=";
 
 // Largest file we will send. TMDB "original" backdrops run well past this;
 // tvoe's resizer tops out here. 1920×2.
@@ -259,6 +261,8 @@ const TMDB_LADDER = {
   logo: TMDB_WIDTHS,
   poster: TMDB_WIDTHS,
   backdrop: TMDB_WIDTHS,
+  // Cover reuses the backdrop ladder — same wide TMDB plate, language kept.
+  cover: TMDB_WIDTHS,
   thumbnail: TMDB_WIDTHS,
 };
 const TMDB_ORIGINAL_IF_WIDTH_UNKNOWN = new Set(["logo", "poster", "thumbnail"]);
@@ -276,12 +280,15 @@ const TMDB_SIZE_TOKEN = {
 const KINOPOISK_POSTER = "https://kinopoiskapiunofficial.tech/images/posters";
 
 // Same language first, then source. tvoe wins ru logos and textless backdrops.
-// A Kinopoisk id means the Russian poster is theirs; we do not also shop TMDB
-// for that poster. kino.pub's own CDN is never a candidate.
+// Russian posters prefer TMDB over Kinopoisk (Sasha, 2026-11-24): KP often
+// lacks a Russian plate for non-Russian titles while TMDB has one. Kinopoisk
+// stays as a fallback when we have (or just resolved) that id. Cover is the
+// lang-aware TMDB backdrop only. kino.pub's own CDN is never a candidate.
 const SOURCE_ORDER = {
   logo: ["tvoe", "tmdb"],
   backdrop: ["tvoe", "tmdb"],
-  poster: ["tvoe", "kinopoisk", "tmdb"],
+  cover: ["tmdb"],
+  poster: ["tvoe", "tmdb", "kinopoisk"],
   // kinopub last: real stills beat a catalogue thumb, but a catalogue thumb
   // beats a 404 that forces the client to download a giant staticpop JPEG.
   thumbnail: ["tvoe", "tmdb", "kinopub"],
@@ -302,7 +309,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const id = numericId(route.id);
   if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
   if (!QUERY_KINDS.has(route.kind)) {
-    return imageNotFound("kind must be logo, backdrop, poster, or thumbnail");
+    return imageNotFound("kind must be logo, backdrop, cover, poster, or thumbnail");
   }
 
   const imageRequest = {
@@ -310,7 +317,8 @@ async function handleImageQuery(request, url, env, ctx, route) {
     id,
     w: readWidth(url),
     // Backdrop is a wide textless frame. The header cannot turn it into a
-    // titled banner, a wide poster, or a portrait.
+    // titled banner, a wide poster, or a portrait. Cover keeps the language:
+    // it is the titled / lang-tagged TMDB backdrop.
     lang: route.kind === "backdrop" ? null : preferredLang(request),
     s: readIndex(url, "s"),
     e: readIndex(url, "e"),
@@ -324,7 +332,9 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const started = Date.now();
   let stored = await readDocument(env, id);
   let asset = selectQueryAsset(stored, imageRequest, hints);
-  const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
+  const vary = imageRequest.kind === "poster"
+    || imageRequest.kind === "logo"
+    || imageRequest.kind === "cover";
 
   // A finished document with no file is a real miss. Anything still cold
   // waits, up to five seconds, and only then 404s. A locale with no logo is
@@ -342,6 +352,18 @@ async function handleImageQuery(request, url, env, ctx, route) {
     stored = waited.stored;
     asset = selectQueryAsset(stored, imageRequest, hints);
     if (asset) noteImage(env, ctx, "waited", imageRequest, waitedMs);
+  }
+
+  // Russian poster miss with no Kinopoisk id on the document: resolve that id
+  // in this request (Wikidata via IMDb) so the KP poster URL can still answer
+  // when TMDB has no ru file either.
+  if (!asset && imageRequest.kind === "poster" && imageRequest.lang === "ru" && stored) {
+    const withKp = await ensureKinopoiskId(env, stored, hints);
+    if (withKp && withKp !== stored) {
+      await writeDocument(env, id, withKp);
+      stored = withKp;
+      asset = selectQueryAsset(stored, imageRequest, hints);
+    }
   }
 
   // The title payload lists seasons with no episodes. The still is a separate
@@ -424,7 +446,7 @@ function draftDocument(id, hints) {
     // Empty on purpose. kino.pub artwork stays in the app: its CDN host
     // depends on the viewer, and echoing it makes the card fade from a
     // picture the app already painted to the same picture again.
-    artwork: { poster: [], backdrop: [], logo: [] },
+    artwork: { poster: [], backdrop: [], cover: [], logo: [] },
     ratings: [], synopsis: [], genres: [], genre_sources: [], countries: [], credits: [],
     seasons: [], trailers: [], awards: [], badges: [], copies: [],
     facts: [], reviews: [],
@@ -1164,10 +1186,10 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   let via = "legacy";
 
   // Prefer wsrv.nl for every kind: q=80 + WebP (or `format=`). Logo / backdrop /
-  // poster feed the durable original so weserv can hit exact `w=` (incl. 2400).
-  // Thumbnails feed the TMDB ladder URL — face crops live in the size token
-  // (`w454_and_h254_face`, …); weserv only re-encodes that file, it does not
-  // invent the crop. Kill switch: WESERV_DISABLED=1 (or true/yes).
+  // cover / poster feed the durable original so weserv can hit exact `w=`
+  // (incl. 2400). Thumbnails feed the TMDB ladder URL — face crops live in the
+  // size token (`w454_and_h254_face`, …); weserv only re-encodes that file, it
+  // does not invent the crop. Kill switch: WESERV_DISABLED=1 (or true/yes).
   if (weservEnabled(env)) {
     const source = stamp.kind === "thumbnail"
       ? legacy
@@ -1282,11 +1304,14 @@ function defaultContentType(kind, format, via) {
 }
 
 function assetInLang(document, kind, lang, hints) {
-  const pinned = kind === "logo" || kind === "poster"
+  const pinned = kind === "logo" || kind === "poster" || kind === "cover"
     ? pinnedAssetForLang(document, kind, lang)
     : pinnedAsset(document, kind);
   if (pinned) return pinned;
   if (kind === "backdrop") return bestAsset(textlessBackdrops(document), "backdrop", null);
+  if (kind === "cover") {
+    return bestAsset(coverCandidates(document, lang || "ru"), "cover", lang || "ru", { strict: true });
+  }
   if (kind === "logo") return bestAsset(logoCandidates(document), "logo", lang, { strict: true });
   if (kind === "poster") return bestAsset(posterCandidates(document, hints, lang || "ru"), "poster", lang, { strict: true });
   return null;
@@ -1394,7 +1419,7 @@ export function preferredLang(request) {
 
 function selectQueryAsset(document, request, hints) {
   const { kind, lang, s, e } = request;
-  const pinned = kind === "logo" || kind === "poster"
+  const pinned = kind === "logo" || kind === "poster" || kind === "cover"
     ? pinnedAssetForLang(document, kind, lang)
     : pinnedAsset(document, kind);
   if (pinned) return pinned;
@@ -1409,6 +1434,12 @@ function selectQueryAsset(document, request, hints) {
   if (kind === "backdrop") {
     if (!document) return null;
     return bestAsset(textlessBackdrops(document), "backdrop", null);
+  }
+  if (kind === "cover") {
+    if (!document) return null;
+    // Language-tagged wide plates already stored under artwork.backdrop
+    // (TMDB `images.backdrops` with iso_639_1), plus any admin cover pin.
+    return bestAsset(coverCandidates(document, lang || "ru"), "cover", lang || "ru", { strict: true });
   }
   const assets = kind === "poster"
     ? posterCandidates(document, hints, lang)
@@ -1425,10 +1456,11 @@ function posterCandidates(document, hints, lang) {
     .map(normalizeAsset)
     .filter((asset) => asset && !isKinopubHost(asset.url) && asset.source !== "kinopub");
   const kp = numericId(String(document?.ids?.kinopoisk?.value || hints.kinopoisk || ""));
-  // The Kinopoisk id is the Russian poster. Don't go shopping TMDB for
-  // another Russian one once we have it. No id: tvoe or a TMDB ru file, or 404.
+  // TMDB ru stays in the pool even when we have a Kinopoisk id — SOURCE_ORDER
+  // prefers tmdb over kinopoisk. Inject the synthetic KP URL as a fallback
+  // candidate when that id is known.
   if (lang === "ru" && kp) {
-    const kept = stored.filter((asset) => asset.source !== "tmdb");
+    const kept = stored.filter((asset) => (asset.lang ?? null) === "ru");
     if (!kept.some((asset) => asset.source === "kinopoisk")) {
       kept.push({
         source: "kinopoisk",
@@ -1438,9 +1470,108 @@ function posterCandidates(document, hints, lang) {
         height: 1000,
       });
     }
-    return kept.filter((asset) => (asset.lang ?? null) === "ru");
+    return kept;
   }
   return stored.filter((asset) => (asset.lang ?? null) === lang);
+}
+
+/** Lang-aware wide backdrop from the stored TMDB backdrop list (not textless). */
+function coverCandidates(document, lang) {
+  const want = lang ?? null;
+  const fromBackdrop = (document?.artwork?.backdrop || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset
+      && (asset.lang ?? null) === want
+      && asset.source !== "kinopub"
+      && !isKinopubHost(asset.url)
+      && isWideFrame(asset));
+  const fromCover = (document?.artwork?.cover || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset
+      && (asset.lang ?? null) === want
+      && asset.source !== "kinopub"
+      && !isKinopubHost(asset.url)
+      && isWideFrame(asset));
+  return [...fromCover, ...fromBackdrop];
+}
+
+/**
+ * When a Russian poster is asked and the document has no Kinopoisk id, look it
+ * up via Wikidata (IMDb → P2603) inside this request and persist it.
+ */
+export async function ensureKinopoiskId(env, document, hints = {}) {
+  if (!document) return document;
+  const existing = numericId(String(document.ids?.kinopoisk?.value || hints.kinopoisk || ""));
+  if (existing) {
+    if (!document.ids?.kinopoisk?.value && hints.kinopoisk) {
+      return {
+        ...document,
+        ids: {
+          ...document.ids,
+          kinopoisk: { value: String(existing), confidence: 1, method: "client" },
+        },
+      };
+    }
+    return document;
+  }
+  const imdb = preferredId(document.ids, "imdb", hints.imdb);
+  const wikidata = document.ids?.wikidata?.value;
+  let kp = null;
+  let method = "wikidata:P2603";
+  try {
+    if (wikidata) {
+      kp = await kinopoiskIdFromWikidataEntity(wikidata);
+    } else if (imdb) {
+      kp = await kinopoiskIdFromImdb(imdb);
+      method = "wikidata:imdb";
+    }
+  } catch (_) {
+    return document;
+  }
+  if (!kp) return document;
+  return {
+    ...document,
+    ids: {
+      ...document.ids,
+      kinopoisk: { value: String(kp), confidence: 0.9, method },
+    },
+  };
+}
+
+async function kinopoiskIdFromImdb(imdb) {
+  const tt = String(imdb).startsWith("tt") ? String(imdb) : `tt${imdb}`;
+  const searchURL = "https://www.wikidata.org/w/api.php"
+    + "?action=query&format=json&list=search&srlimit=1"
+    + `&srsearch=${encodeURIComponent(`haswbstatement:P345=${tt}`)}`;
+  const search = await fetch(searchURL, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "KinoPubAppleClient/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
+    },
+    cf: { cacheTtl: 60 * 60 * 24 * 7, cacheEverything: true },
+  });
+  if (!search.ok) return null;
+  const body = await search.json();
+  const qid = body?.query?.search?.[0]?.title;
+  if (!qid || !String(qid).startsWith("Q")) return null;
+  return kinopoiskIdFromWikidataEntity(qid);
+}
+
+async function kinopoiskIdFromWikidataEntity(qid) {
+  const entityURL = "https://www.wikidata.org/w/api.php"
+    + `?action=wbgetentities&format=json&props=claims&ids=${encodeURIComponent(qid)}`;
+  const response = await fetch(entityURL, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "KinoPubAppleClient/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
+    },
+    cf: { cacheTtl: 60 * 60 * 24 * 7, cacheEverything: true },
+  });
+  if (!response.ok) return null;
+  const body = await response.json();
+  const claims = body?.entities?.[qid]?.claims?.P2603;
+  const raw = claims?.[0]?.mainsnak?.datavalue?.value;
+  return numericId(String(raw || ""));
 }
 
 function logoCandidates(document) {
@@ -1593,6 +1724,9 @@ function bestAsset(assets, kind, lang, { strict = false } = {}) {
     // Backdrop is textless or it is a miss. Language never promotes a titled frame.
     if (kind === "backdrop" && (asset.lang ?? null) !== null) continue;
     if (kind === "backdrop" && !isWideFrame(asset)) continue;
+    // Cover is the lang-aware wide plate (TMDB backdrop with iso_639_1).
+    if (kind === "cover" && (asset.lang ?? null) === null) continue;
+    if (kind === "cover" && !isWideFrame(asset)) continue;
     if (strict && (asset.lang ?? null) !== lang) continue;
     const sizeKey = kind === "logo"
       ? logoRank(asset)
@@ -1734,6 +1868,7 @@ function safeHttpURL(url) {
 function missHint(request) {
   if (request.kind === "logo") return "no stored logo";
   if (request.kind === "backdrop") return "no textless backdrop";
+  if (request.kind === "cover") return "no language cover";
   if (request.kind === "thumbnail") return "no episode thumbnail";
   if (request.kind === "poster" && request.s != null) return "no season poster";
   return "no poster";
