@@ -16,6 +16,7 @@ import KinoPubBackend
 import KinoPubKit
 import KinoPubLogging
 import OSLog
+import Synchronization
 
 /// A record describing a fully-downloaded HLS asset.
 public struct HLSDownloadedAsset: Codable, Equatable {
@@ -43,11 +44,14 @@ public struct HLSDownloadedAsset: Codable, Equatable {
 }
 
 /// Persists `[HLSDownloadedAsset]` to a plist in the Documents directory and
-/// provides reconciliation / removal helpers. Thread-safety: callers use it from
-/// the main actor (matching the rest of the download code).
+/// provides reconciliation / removal helpers. Safe from any thread: the screens use it on
+/// the main actor, the launch sweep (`sweepOrphans`) runs off it. Every access to the plist
+/// holds `file`, a change across its read and its write — a sweep that read the list
+/// half-written would see no downloads and delete them all.
 public final class HLSDownloadsStore: Sendable {
 
   private let dataFileURL: URL
+  private let file = Mutex(())
 
   public init() {
     let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -57,6 +61,23 @@ public final class HLSDownloadsStore: Sendable {
   // MARK: - Read / Write
 
   public func readData() -> [HLSDownloadedAsset] {
+    file.withLock { _ in read() }
+  }
+
+  public func writeData(_ assets: [HLSDownloadedAsset]) {
+    file.withLock { _ in write(assets) }
+  }
+
+  private func update(_ change: (inout [HLSDownloadedAsset]) -> Void) {
+    file.withLock { _ in
+      var assets = read()
+      change(&assets)
+      write(assets)
+    }
+  }
+
+  /// Holding `file`.
+  private func read() -> [HLSDownloadedAsset] {
     guard let data = try? Data(contentsOf: dataFileURL),
           let decoded = try? PropertyListDecoder().decode([HLSDownloadedAsset].self, from: data) else {
       return []
@@ -64,18 +85,19 @@ public final class HLSDownloadsStore: Sendable {
     return decoded.sorted(by: { $0.downloadDate > $1.downloadDate })
   }
 
-  public func writeData(_ assets: [HLSDownloadedAsset]) {
+  /// Holding `file`.
+  private func write(_ assets: [HLSDownloadedAsset]) {
     if let data = try? PropertyListEncoder().encode(assets) {
       try? data.write(to: dataFileURL)
     }
   }
 
   public func save(_ asset: HLSDownloadedAsset) {
-    var current = readData()
-    // Replace any existing record for the same logical item/episode.
-    current.removeAll(where: { Self.sameItem($0.meta, asset.meta) })
-    current.append(asset)
-    writeData(current)
+    update { assets in
+      // Replace any existing record for the same logical item/episode.
+      assets.removeAll(where: { Self.sameItem($0.meta, asset.meta) })
+      assets.append(asset)
+    }
     Logger.kit.debug("[HLS] saved asset for id: \(asset.meta.id) at \(asset.relativePath)")
   }
 
@@ -114,9 +136,7 @@ public final class HLSDownloadsStore: Sendable {
     if asset.fileExists {
       try? FileManager.default.removeItem(at: asset.localFileURL)
     }
-    var current = readData()
-    current.removeAll(where: { $0.relativePath == asset.relativePath })
-    writeData(current)
+    update { $0.removeAll(where: { $0.relativePath == asset.relativePath }) }
     Logger.kit.debug("[HLS] removed asset at \(asset.relativePath)")
   }
 
@@ -126,13 +146,15 @@ public final class HLSDownloadsStore: Sendable {
   /// by the system to reclaim space). Returns the surviving records.
   @discardableResult
   public func reconcile() -> [HLSDownloadedAsset] {
-    let current = readData()
-    let alive = current.filter { $0.fileExists }
-    if alive.count != current.count {
-      writeData(alive)
-      Logger.kit.debug("[HLS] reconciled, dropped \(current.count - alive.count) missing assets")
+    file.withLock { _ in
+      let current = read()
+      let alive = current.filter { $0.fileExists }
+      if alive.count != current.count {
+        write(alive)
+        Logger.kit.debug("[HLS] reconciled, dropped \(current.count - alive.count) missing assets")
+      }
+      return alive
     }
-    return alive
   }
 
   // MARK: - Orphan cleanup

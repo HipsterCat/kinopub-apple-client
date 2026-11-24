@@ -97,7 +97,12 @@ final class BackgroundWork {
   }
 }
 
-public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetDownloadDelegate, @unchecked Sendable {
+/// Main actor, its delegate methods too: the session is made with `delegateQueue: .main`.
+/// `AVAssetDownloadDelegate` cannot say so, hence `@preconcurrency` — the compiler checks on
+/// entry to each method that it is on the main actor. They are not `nonisolated` with a hop:
+/// `AVMediaSelection` is not `Sendable`, so it cannot be carried to another turn.
+@MainActor
+public final class HLSAssetDownloadManager: NSObject, ObservableObject, @preconcurrency AVAssetDownloadDelegate {
 
   /// In-flight downloads keyed by `HLSDownloadKey`.
   @Published public private(set) var activeDownloads: [HLSActiveDownload] = []
@@ -110,11 +115,11 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   /// Maximum desired resolution height (px) used to derive a bitrate cap, or nil
   /// for "best available" (adaptive). Injected from the app's StreamQuality
   /// setting where one exists.
-  private let maxResolutionProvider: () -> Int?
+  private let maxResolutionProvider: @MainActor () -> Int?
 
   /// Notification hooks (mirrors the mp4 path). Optional so macOS / tests can omit.
-  public var onDownloadFinished: ((DownloadMeta) -> Void)?
-  public var onDownloadFailed: ((DownloadMeta) -> Void)?
+  public var onDownloadFinished: (@MainActor (DownloadMeta) -> Void)?
+  public var onDownloadFailed: (@MainActor (DownloadMeta) -> Void)?
 
   // Per-running-task state.
   private struct TaskContext {
@@ -218,7 +223,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   }
 
   public init(store: HLSDownloadsStore,
-              maxResolutionProvider: @escaping () -> Int? = { nil }) {
+              maxResolutionProvider: @escaping @MainActor () -> Int? = { nil }) {
     self.store = store
     self.maxResolutionProvider = maxResolutionProvider
     super.init()
@@ -368,7 +373,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   /// Cancels an in-flight download for the given key and deletes what it fetched.
   public func cancelDownload(key: String) {
     tasks[key] = nil
-    session.getAllTasks { [weak self] tasks in
+    session.getAllTasks { @Sendable [weak self] tasks in
       for task in tasks where task.taskDescription == key {
         task.cancel()
       }
@@ -428,16 +433,15 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
     }
     guard !pending.isEmpty else { return }
 
-    session.getAllTasks { [weak self] tasks in
-      guard let self else { return }
-      var liveTasksByKey: [String: AVAggregateAssetDownloadTask] = [:]
-      for task in tasks {
-        if let aggregate = task as? AVAggregateAssetDownloadTask, let key = aggregate.taskDescription {
-          liveTasksByKey[key] = aggregate
-        }
-      }
-
+    session.getAllTasks { @Sendable [weak self] tasks in
       DispatchQueue.main.async {
+        guard let self else { return }
+        var liveTasksByKey: [String: AVAggregateAssetDownloadTask] = [:]
+        for task in tasks {
+          if let aggregate = task as? AVAggregateAssetDownloadTask, let key = aggregate.taskDescription {
+            liveTasksByKey[key] = aggregate
+          }
+        }
         var interruptedNow: [HLSInterruptedDownload] = []
         for entry in pending {
           // Completed in the background while we were away → already in the store; drop the pending row.
@@ -688,17 +692,18 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
 
 // macOS (and any non-iOS platform): no-op shim with the same public surface so
 // shared code compiles. The mp4 DownloadManager handles downloads on macOS.
-public final class HLSAssetDownloadManager: ObservableObject, @unchecked Sendable {
+@MainActor
+public final class HLSAssetDownloadManager: ObservableObject {
 
   @Published public private(set) var activeDownloads: [HLSActiveDownload] = []
   @Published public private(set) var interrupted: [HLSInterruptedDownload] = []
   @Published public var lastError: String?
 
-  public var onDownloadFinished: ((DownloadMeta) -> Void)?
-  public var onDownloadFailed: ((DownloadMeta) -> Void)?
+  public var onDownloadFinished: (@MainActor (DownloadMeta) -> Void)?
+  public var onDownloadFailed: (@MainActor (DownloadMeta) -> Void)?
 
   public init(store: HLSDownloadsStore,
-              maxResolutionProvider: @escaping () -> Int? = { nil }) {}
+              maxResolutionProvider: @escaping @MainActor () -> Int? = { nil }) {}
 
   @discardableResult
   public func startDownload(meta: DownloadMeta, hlsURL: URL, startPaused: Bool = false) async -> HLSDownloadStartResult {
