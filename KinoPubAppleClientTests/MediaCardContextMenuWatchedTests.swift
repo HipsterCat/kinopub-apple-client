@@ -2,12 +2,13 @@
 //  MediaCardContextMenuWatchedTests.swift
 //  KinoPubAppleClientTests
 //
-//  Watched submenu shape for series CW cards; follow title flips with library state.
+//  Watched submenu shape for series CW cards; sneak-peek aspect + metadata.
 //
 
 import XCTest
 @testable import KinoPub
 @testable import KinoPubBackend
+import KinoPubMedia
 import KinoPubUI
 
 @MainActor
@@ -19,12 +20,29 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
       posterURL: "https://example.com/poster.jpg",
       title: "Альтруисты",
       landscapeImageURL: "https://example.com/wide.jpg",
+      overlayLabel: "S1, E3",
       itemID: 42,
       video: 3,
       season: 1,
       seasonCount: 2,
       isWatched: watched,
-      isSeries: true
+      isSeries: true,
+      year: 2024,
+      durationSeconds: 50 * 60,
+      genres: [Genre(id: "drama", domain: .video,
+                     name: LocalizedName(en: "Drama", ru: "Драма"))]
+    )
+  }
+
+  private func posterCard() -> MediaCard {
+    MediaCard(
+      id: 7,
+      posterURL: "https://example.com/poster.jpg",
+      title: "Декстер: Воскрешение",
+      isSeries: true,
+      year: 2025,
+      genres: [Genre(id: "drama", domain: .video,
+                     name: LocalizedName(en: "Drama", ru: "Драма"))]
     )
   }
 
@@ -93,5 +111,23 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     let spec = MediaCardContextPreviewSpec.from(card: seriesCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .landscape)
     XCTAssertEqual(spec.url?.absoluteString, "https://example.com/wide.jpg")
+    XCTAssertEqual(spec.title, "Альтруисты")
+    XCTAssertTrue(
+      spec.subtitle == "S1, E3 · 50м" || spec.subtitle == "S1, E3 · 50m",
+      "unexpected subtitle \(spec.subtitle ?? "nil")"
+    )
+  }
+
+  func testPreviewSpecUsesPosterAspectAndYearGenre() {
+    let spec = MediaCardContextPreviewSpec.from(card: posterCard(), surface: .shelf)
+    XCTAssertEqual(spec.aspect, .poster)
+    XCTAssertEqual(spec.url?.absoluteString, "https://example.com/poster.jpg")
+    XCTAssertEqual(spec.title, "Декстер: Воскрешение")
+    // Language follows the process locale; accept either localisation of Drama.
+    XCTAssertTrue(
+      spec.subtitle == "2025 · Драма" || spec.subtitle == "2025 · Drama",
+      "unexpected subtitle \(spec.subtitle ?? "nil")"
+    )
+    XCTAssertGreaterThan(spec.preferredSize.height, spec.artSize.height)
   }
 }

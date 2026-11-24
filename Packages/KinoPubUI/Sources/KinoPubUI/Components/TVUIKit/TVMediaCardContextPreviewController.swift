@@ -3,30 +3,32 @@
 //  TVMediaCardContextPreviewController.swift
 //  KinoPubUI
 //
-//  UIKit preview for poster / video context menus: enlarged art, dark underlay,
-//  spinner while loading. Same box sizes as `MediaCardContextPreview`.
+//  UIKit sneak peek for poster / video context menus: native-aspect art (fit),
+//  metadata footer (title + secondary), spinner while loading. Same layout as
+//  `MediaCardContextPreview`.
 //
 
 import UIKit
 
 @MainActor
 public final class TVMediaCardContextPreviewController: UIViewController {
-  private let url: URL?
-  private let aspect: CardAspect
+  private let spec: MediaCardContextPreviewSpec
   private let imageView = UIImageView()
+  private let artContainer = UIView()
   private let spinner = UIActivityIndicatorView(style: .large)
-  private let underlay = UIView()
+  private let titleLabel = UILabel()
+  private let subtitleLabel = UILabel()
+  private let footer = UIView()
+  private let card = UIView()
 
-  public init(url: URL?, aspect: CardAspect) {
-    self.url = url
-    self.aspect = aspect
+  public init(spec: MediaCardContextPreviewSpec) {
+    self.spec = spec
     super.init(nibName: nil, bundle: nil)
-    let size = MediaCardContextPreviewSpec(url: url, aspect: aspect).preferredSize
-    preferredContentSize = size
+    preferredContentSize = spec.preferredSize
   }
 
-  public convenience init(spec: MediaCardContextPreviewSpec) {
-    self.init(url: spec.url, aspect: spec.aspect)
+  public convenience init(url: URL?, aspect: CardAspect, title: String = "", subtitle: String? = nil) {
+    self.init(spec: MediaCardContextPreviewSpec(url: url, aspect: aspect, title: title, subtitle: subtitle))
   }
 
   @available(*, unavailable)
@@ -36,53 +38,98 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
 
-    underlay.backgroundColor = UIColor.black.withAlphaComponent(0.55)
-    underlay.layer.cornerRadius = 16
-    underlay.layer.cornerCurve = .continuous
-    underlay.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(underlay)
+    let art = spec.artSize
+    let radius: CGFloat = 20
 
-    imageView.contentMode = .scaleAspectFill
+    card.backgroundColor = .clear
+    card.layer.cornerRadius = radius
+    card.layer.cornerCurve = .continuous
+    card.clipsToBounds = true
+    card.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(card)
+
+    artContainer.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+    artContainer.translatesAutoresizingMaskIntoConstraints = false
+    card.addSubview(artContainer)
+
+    imageView.contentMode = .scaleAspectFit
     imageView.clipsToBounds = true
-    imageView.layer.cornerRadius = 16
-    imageView.layer.cornerCurve = .continuous
     imageView.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(imageView)
+    artContainer.addSubview(imageView)
 
     spinner.color = .white
     spinner.hidesWhenStopped = true
     spinner.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(spinner)
+    artContainer.addSubview(spinner)
+
+    footer.backgroundColor = UIColor(white: 0.12, alpha: 1)
+    footer.translatesAutoresizingMaskIntoConstraints = false
+    card.addSubview(footer)
+
+    titleLabel.text = spec.title
+    titleLabel.font = .preferredFont(forTextStyle: .headline)
+    titleLabel.textColor = .label
+    titleLabel.numberOfLines = 2
+    titleLabel.translatesAutoresizingMaskIntoConstraints = false
+    footer.addSubview(titleLabel)
+
+    subtitleLabel.text = spec.subtitle
+    subtitleLabel.font = .preferredFont(forTextStyle: .subheadline)
+    subtitleLabel.textColor = .secondaryLabel
+    subtitleLabel.numberOfLines = 2
+    subtitleLabel.isHidden = spec.subtitle == nil
+    subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+    footer.addSubview(subtitleLabel)
 
     NSLayoutConstraint.activate([
-      underlay.topAnchor.constraint(equalTo: view.topAnchor),
-      underlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-      underlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      underlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      card.topAnchor.constraint(equalTo: view.topAnchor),
+      card.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      card.widthAnchor.constraint(equalToConstant: art.width),
+      card.heightAnchor.constraint(equalToConstant: spec.preferredSize.height),
 
-      imageView.topAnchor.constraint(equalTo: view.topAnchor),
-      imageView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-      imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      artContainer.topAnchor.constraint(equalTo: card.topAnchor),
+      artContainer.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+      artContainer.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+      artContainer.heightAnchor.constraint(equalToConstant: art.height),
 
-      spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+      imageView.topAnchor.constraint(equalTo: artContainer.topAnchor),
+      imageView.bottomAnchor.constraint(equalTo: artContainer.bottomAnchor),
+      imageView.leadingAnchor.constraint(equalTo: artContainer.leadingAnchor),
+      imageView.trailingAnchor.constraint(equalTo: artContainer.trailingAnchor),
+
+      spinner.centerXAnchor.constraint(equalTo: artContainer.centerXAnchor),
+      spinner.centerYAnchor.constraint(equalTo: artContainer.centerYAnchor),
+
+      footer.topAnchor.constraint(equalTo: artContainer.bottomAnchor),
+      footer.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+      footer.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+      footer.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+      footer.heightAnchor.constraint(equalToConstant: spec.footerHeight),
+
+      titleLabel.topAnchor.constraint(equalTo: footer.topAnchor, constant: 12),
+      titleLabel.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 14),
+      titleLabel.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -14),
+
+      subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+      subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      subtitleLabel.bottomAnchor.constraint(lessThanOrEqualTo: footer.bottomAnchor, constant: -12)
     ])
 
     loadArtwork()
   }
 
   private func loadArtwork() {
-    Artwork.prefetch([url])
-    let size = preferredContentSize
-    if let cached = TVUIKitRemoteImage.cached(url: url, size: size) {
+    Artwork.prefetch([spec.url])
+    let size = spec.artSize
+    if let cached = TVUIKitRemoteImage.cached(url: spec.url, size: size, mode: .fit) {
       imageView.image = cached
       return
     }
     spinner.startAnimating()
     Task { [weak self] in
       guard let self else { return }
-      let image = await TVUIKitRemoteImage.load(url: self.url, size: size)
+      let image = await TVUIKitRemoteImage.load(url: self.spec.url, size: size, mode: .fit)
       self.spinner.stopAnimating()
       self.imageView.image = image
     }
@@ -90,7 +137,7 @@ public final class TVMediaCardContextPreviewController: UIViewController {
 }
 
 public extension TVUIKitContextMenuBuilder {
-  /// Menu + artwork preview for a poster / video card.
+  /// Menu + sneak-peek preview for a poster / video card.
   @MainActor
   static func configuration(
     identifier: (any NSCopying)?,
