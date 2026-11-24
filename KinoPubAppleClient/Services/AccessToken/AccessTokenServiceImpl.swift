@@ -231,9 +231,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
       return (nil, false)
     }
 
-    let didChange: Bool = lastObservedToken.withLock {
-      defer { $0 = stored }
-      guard let previous = $0 else { return false }
+    let didChange: Bool = lastObservedToken.withLock { observed in
+      defer { observed = stored }
+      guard let previous = observed else { return false }
       return previous.refreshToken != stored.refreshToken
         || previous.accessToken != stored.accessToken
     }
