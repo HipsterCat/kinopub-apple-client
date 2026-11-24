@@ -227,6 +227,7 @@ class AuthModel: ObservableObject {
   /// Requests a device code only if there isn't already a valid, unexpired code.
   func requestDeviceCodeIfNeeded() async {
     if authState.adoptKeychainTokenIfPresent() {
+      resumeStateWakeup()
       return
     }
     if let range = codeValidRange, activeVerification != nil {
@@ -259,6 +260,7 @@ class AuthModel: ObservableObject {
   /// if it is still unexpired; otherwise requests a new device code.
   func retry() async {
     if authState.adoptKeychainTokenIfPresent() {
+      resumeStateWakeup()
       return
     }
 
@@ -317,7 +319,6 @@ class AuthModel: ObservableObject {
     if authState.adoptKeychainTokenIfPresent() {
       feedbackHandler.didAuthorize(inBackground: false)
       cancelPollingAndTimers()
-      resumeStateWakeup()
       return
     }
 
@@ -662,6 +663,10 @@ class AuthModel: ObservableObject {
     pollSleepTask = nil
     expiryTask?.cancel()
     expiryTask = nil
+    // Whoever calls this has changed what the run loop decides on (signed in, expired, a
+    // new code). Parked in `waitForStateWakeup`, it would not look again on its own: a
+    // sign-in found on return from Safari left `run()` waiting for good.
+    resumeStateWakeup()
   }
 
   private func waitForStateWakeup() async {

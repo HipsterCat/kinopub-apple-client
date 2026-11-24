@@ -898,8 +898,9 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
     // 4. At t=30s, iOS expires the background task (`beginBackgroundTask` expiration handler fires).
     clock.advance(by: 25)
     bgSpy.simulateExpiration()
-    await Task.yield()
-    await Task.yield()
+    // Long enough for the run loop to park until something changes: the sign-in below has
+    // to wake it, or `run()` never returns.
+    for _ in 0..<100 { await Task.yield() }
     XCTAssertFalse(bgSpy.isRunning, "Background task ended when iOS expiration handler fired")
     XCTAssertEqual(authService.polledCodes.count, 1, "Polling paused after background task expired")
 
@@ -911,7 +912,12 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
     XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1, "Must NEVER regenerate code on foreground return!")
 
     await model.handleDidBecomeActive()
-    await runTask.value
+    let runReturned = expectation(description: "run() returns once signed in")
+    Task {
+      await runTask.value
+      runReturned.fulfill()
+    }
+    await fulfillment(of: [runReturned], timeout: 5)
 
     // 6. Immediately polled on foreground entry without waiting for a timer tick, and signed in!
     XCTAssertEqual(authState.phase, .signedIn)
