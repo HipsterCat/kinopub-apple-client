@@ -40,8 +40,16 @@ struct TrackMemorySections: View {
       } else {
         ForEach(Array(sections.prefix(Self.maxSections)), id: \.titleID) { section in
           Section {
-            ForEach(Array(section.groups.enumerated()), id: \.offset) { _, group in
-              rows(for: group)
+            // One ForEach over the whole section: a grouped Form flattens nested ForEach
+            // rows into one list of cells, so per-group offsets (0, 1, 2 for audio, again
+            // for subtitles, again for the next scope) collided — «the ID 0 occurs
+            // multiple times within the collection» on the Mac (Sasha's log 2026-11-24).
+            ForEach(rows(for: section)) { row in
+              LabeledContent {
+                Text(row.detail)
+              } label: {
+                Text(row.label)
+              }
             }
           } header: {
             Text(title(for: section))
@@ -73,24 +81,35 @@ struct TrackMemorySections: View {
     }
   }
 
-  @ViewBuilder
-  private func rows(for group: TrackPreferenceDigest.Group) -> some View {
-    let scope = scopeLabel(for: group.scope)
-    // The closure form, not `LabeledContent(_:value:)`: these titles are runtime strings,
-    // and that initializer takes a `LocalizedStringKey`.
-    ForEach(Array(group.audio.prefix(Self.maxEntriesPerScope).enumerated()), id: \.offset) { _, entry in
-      LabeledContent {
-        Text(detail(entry))
-      } label: {
-        Text(entry.isLeader ? scope : "")
-      }
+  /// A Settings row, identified by where it comes from — scope, track kind and rank —
+  /// which is unique across the section and stays put when the weights change.
+  private struct Row: Identifiable {
+    struct ID: Hashable {
+      enum Kind: Hashable { case audio, subtitles }
+      let scope: TrackMemoryScope
+      let kind: Kind
+      let rank: Int
     }
-    ForEach(Array(group.subtitles.prefix(Self.maxEntriesPerScope).enumerated()), id: \.offset) { _, entry in
-      LabeledContent {
-        Text(detail(entry))
-      } label: {
-        Text(entry.isLeader ? "\(scope) · \("Subtitles".localized)" : "")
+
+    let id: ID
+    let label: String
+    let detail: String
+  }
+
+  private func rows(for section: TrackPreferenceDigest.Section) -> [Row] {
+    section.groups.flatMap { group -> [Row] in
+      let scope = scopeLabel(for: group.scope)
+      let audio = group.audio.prefix(Self.maxEntriesPerScope).enumerated().map { rank, entry in
+        Row(id: .init(scope: group.scope, kind: .audio, rank: rank),
+            label: entry.isLeader ? scope : "",
+            detail: detail(entry))
       }
+      let subtitles = group.subtitles.prefix(Self.maxEntriesPerScope).enumerated().map { rank, entry in
+        Row(id: .init(scope: group.scope, kind: .subtitles, rank: rank),
+            label: entry.isLeader ? "\(scope) · \("Subtitles".localized)" : "",
+            detail: detail(entry))
+      }
+      return audio + subtitles
     }
   }
 
