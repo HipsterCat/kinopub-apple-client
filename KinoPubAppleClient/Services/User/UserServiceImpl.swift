@@ -8,7 +8,7 @@
 import Foundation
 import KinoPubBackend
 
-final class UserServiceImpl: UserService, @unchecked Sendable {
+final class UserServiceImpl: UserService, Sendable {
   
   private let apiClient: APIClient
   

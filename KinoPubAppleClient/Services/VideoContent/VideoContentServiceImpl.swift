@@ -9,7 +9,7 @@ import Foundation
 import KinoPubBackend
 import KinoPubUI
 
-final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
+final class VideoContentServiceImpl: VideoContentService, Sendable {
 
   private let apiClient: APIClient
 

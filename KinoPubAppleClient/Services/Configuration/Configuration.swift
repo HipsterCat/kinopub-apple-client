@@ -7,7 +7,7 @@
 
 import Foundation
 
-protocol Configuration {
+protocol Configuration: Sendable {
   var clientID: String { get }
   var clientSecret: String { get }
   var baseURL: String { get }

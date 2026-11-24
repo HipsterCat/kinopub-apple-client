@@ -310,7 +310,7 @@ struct AppContext: AppContextProtocol {
 #if DEBUG
 /// `-KINOPUBFailAPIHost <host>[,<host>…][:502]`: those hosts are unreachable, or answer
 /// with that status. `kino.watch` matches `kino.watch/api`.
-private final class FailingAPIHostSession: URLSessionProtocol, @unchecked Sendable {
+private final class FailingAPIHostSession: URLSessionProtocol {
   private let hosts: Set<String>
   private let status: Int?
   private let wrapped: URLSessionProtocol

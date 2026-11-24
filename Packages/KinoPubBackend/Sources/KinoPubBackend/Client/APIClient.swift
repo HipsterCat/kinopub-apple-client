@@ -7,11 +7,11 @@
 
 import Foundation
 
-public class APIClient {
+public final class APIClient: Sendable {
   private let session: URLSessionProtocol
   private let requestBuilder: RequestBuilder
   private let baseUrl: URL
-  private var plugins: [APIClientPlugin]
+  private let plugins: [APIClientPlugin]
   private let cache: ResponseCaching?
   /// kino.pub's API hosts. Nil: every request goes to `baseUrl`, as before.
   public let hosts: APIHostPool?

@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import Synchronization
 
 // MARK: - Policy
 
@@ -51,7 +52,7 @@ public extension CacheableRequest where Self: Endpoint {
 
 // MARK: - Cache
 
-public protocol ResponseCaching: AnyObject {
+public protocol ResponseCaching: AnyObject, Sendable {
   func data(for key: String) -> Data?
   func store(_ data: Data, for key: String, ttl: TimeInterval, persist: Bool)
   func remove(for key: String)
@@ -73,8 +74,7 @@ public final class ResponseCache: ResponseCaching {
     let payload: Data
   }
 
-  private let lock = NSLock()
-  private var memory: [String: MemoryEntry] = [:]
+  private let memory = Mutex<[String: MemoryEntry]>([:])
   private let ioQueue = DispatchQueue(label: "com.kinopub.responsecache.io")
   private let directory: URL?
 
@@ -94,13 +94,10 @@ public final class ResponseCache: ResponseCaching {
     weak var cache: ResponseCache?
   }
 
-  private static let liveLock = NSLock()
-  nonisolated(unsafe) private static var live: [Live] = []
+  private static let live = Mutex<[Live]>([])
 
   private static func remember(_ cache: ResponseCache) {
-    liveLock.lock()
-    live.append(Live(cache: cache))
-    liveLock.unlock()
+    live.withLock { $0.append(Live(cache: cache)) }
   }
 
   /// Genres and countries. The directory name is the default one Settings measures.
@@ -124,24 +121,23 @@ public final class ResponseCache: ResponseCaching {
   }
 
   public static func clearAll() {
-    liveLock.lock()
-    live = live.filter { $0.cache != nil }
-    let caches = live.compactMap(\.cache)
-    liveLock.unlock()
+    let caches = live.withLock { live in
+      live.removeAll { $0.cache == nil }
+      return live.compactMap(\.cache)
+    }
     caches.forEach { $0.clear() }
   }
 
   public func data(for key: String) -> Data? {
-    lock.lock()
-    if let entry = memory[key] {
+    let remembered: Data? = memory.withLock { memory in
+      guard let entry = memory[key] else { return nil }
       if entry.isExpired {
         memory[key] = nil
-      } else {
-        lock.unlock()
-        return entry.data
+        return nil
       }
+      return entry.data
     }
-    lock.unlock()
+    if let remembered { return remembered }
 
     guard let url = fileURL(for: key),
           let raw = try? Data(contentsOf: url),
@@ -153,17 +149,13 @@ public final class ResponseCache: ResponseCaching {
       try? FileManager.default.removeItem(at: url)
       return nil
     }
-    lock.lock()
-    memory[key] = MemoryEntry(data: entry.payload, expiry: entry.expiry)
-    lock.unlock()
+    memory.withLock { $0[key] = MemoryEntry(data: entry.payload, expiry: entry.expiry) }
     return entry.payload
   }
 
   public func store(_ data: Data, for key: String, ttl: TimeInterval, persist: Bool) {
     let expiry = Date().addingTimeInterval(ttl)
-    lock.lock()
-    memory[key] = MemoryEntry(data: data, expiry: expiry)
-    lock.unlock()
+    memory.withLock { $0[key] = MemoryEntry(data: data, expiry: expiry) }
 
     guard persist, let url = fileURL(for: key) else { return }
     let entry = DiskEntry(key: key, expiry: expiry, payload: data)
@@ -175,18 +167,14 @@ public final class ResponseCache: ResponseCaching {
   }
 
   public func remove(for key: String) {
-    lock.lock()
-    memory[key] = nil
-    lock.unlock()
+    memory.withLock { $0[key] = nil }
     if let url = fileURL(for: key) {
       ioQueue.async { try? FileManager.default.removeItem(at: url) }
     }
   }
 
   public func clear() {
-    lock.lock()
-    memory.removeAll()
-    lock.unlock()
+    memory.withLock { $0.removeAll() }
     guard let directory else { return }
     ioQueue.async {
       let contents = (try? FileManager.default.contentsOfDirectory(at: directory,

@@ -91,7 +91,7 @@ private struct KpImagesResponse: Decodable {
 
 // MARK: - Service
 
-public final class KinopoiskExtrasService: @unchecked Sendable {
+public final class KinopoiskExtrasService: Sendable {
   private let session: URLSession
   private let baseURL: String
 

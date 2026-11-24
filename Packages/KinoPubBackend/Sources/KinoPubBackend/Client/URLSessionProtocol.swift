@@ -8,11 +8,11 @@
 import Foundation
 import KinoPubLogging
 
-public protocol URLSessionProtocol {
+public protocol URLSessionProtocol: Sendable {
   func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
-public class URLSessionImpl: URLSessionProtocol {
+public final class URLSessionImpl: URLSessionProtocol {
   let session: URLSession
 
   public init(session: URLSession) {

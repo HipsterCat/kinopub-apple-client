@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol APIClientPlugin {
+public protocol APIClientPlugin: Sendable {
   func prepare(_ request: URLRequest) -> URLRequest
   func willSend(_ request: URLRequest)
   func didReceive(_ response: URLResponse, data: Data?)

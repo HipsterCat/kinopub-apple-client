@@ -54,7 +54,7 @@ final class PlexAccount: AccountSigningIn {
     return id
   }
 
-  nonisolated(unsafe) private static let storage = KeychainStorageImpl(service: "com.soda.kinopub.plex")
+  nonisolated private static let storage = KeychainStorageImpl(service: "com.soda.kinopub.plex")
 
   nonisolated static var storedToken: String? {
     guard storedUsername != nil else { return nil }

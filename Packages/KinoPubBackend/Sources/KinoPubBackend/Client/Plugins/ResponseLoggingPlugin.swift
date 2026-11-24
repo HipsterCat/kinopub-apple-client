@@ -9,7 +9,7 @@ import Foundation
 import OSLog
 import KinoPubLogging
 
-public class ResponseLoggingPlugin: APIClientPlugin {
+public final class ResponseLoggingPlugin: APIClientPlugin {
 
   public init() {}
 

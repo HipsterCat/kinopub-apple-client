@@ -9,7 +9,7 @@ import Foundation
 import OSLog
 import KinoPubLogging
 
-public class CURLLoggingPlugin: APIClientPlugin {
+public final class CURLLoggingPlugin: APIClientPlugin {
 
   public init() {}
 

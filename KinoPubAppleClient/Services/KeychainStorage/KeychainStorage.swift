@@ -18,7 +18,7 @@ struct Key<Value>: KeyRepresentable {
   }
 }
 
-protocol KeychainStorage {
+protocol KeychainStorage: Sendable {
   func object<Value>(for key: Key<Value>) -> Value? where Value: Codable
   func setObject<Value>(_ object: Value?, for key: Key<Value>) where Value: Codable
   func clear()

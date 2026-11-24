@@ -4,6 +4,7 @@
 //
 
 import XCTest
+import Synchronization
 import KinoPubBackend
 @testable import KinoPub
 
@@ -146,39 +147,70 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
   }
 
   private final class InMemoryKeychainStore: KeychainDataStore {
-    var storage: [String: Data] = [:]
-    var shouldThrowOnWrite = false
-    var shouldThrowOnRead = false
-    private(set) var setCallCount = 0
+    private struct State {
+      var storage: [String: Data] = [:]
+      var shouldThrowOnWrite = false
+      var shouldThrowOnRead = false
+      var setCallCount = 0
+    }
 
     private struct StoreError: Error {}
 
+    private let state = Mutex(State())
+
+    var storage: [String: Data] {
+      get { state.withLock { $0.storage } }
+      set { state.withLock { $0.storage = newValue } }
+    }
+    var shouldThrowOnWrite: Bool {
+      get { state.withLock { $0.shouldThrowOnWrite } }
+      set { state.withLock { $0.shouldThrowOnWrite = newValue } }
+    }
+    var shouldThrowOnRead: Bool {
+      get { state.withLock { $0.shouldThrowOnRead } }
+      set { state.withLock { $0.shouldThrowOnRead = newValue } }
+    }
+    var setCallCount: Int { state.withLock { $0.setCallCount } }
+
     func getData(_ key: String) throws -> Data? {
-      if shouldThrowOnRead { throw StoreError() }
-      return storage[key]
+      try state.withLock { state in
+        if state.shouldThrowOnRead { throw StoreError() }
+        return state.storage[key]
+      }
     }
 
     func set(_ value: Data, key: String) throws {
-      if shouldThrowOnWrite { throw StoreError() }
-      setCallCount += 1
-      storage[key] = value
+      try state.withLock { state in
+        if state.shouldThrowOnWrite { throw StoreError() }
+        state.setCallCount += 1
+        state.storage[key] = value
+      }
     }
 
     func remove(_ key: String) throws {
-      storage.removeValue(forKey: key)
+      state.withLock { $0.storage[key] = nil }
     }
 
     func removeAll() throws {
-      storage.removeAll()
+      state.withLock { $0.storage = [:] }
     }
   }
 
   private final class StubURLSession: URLSessionProtocol {
-    var handler: ((URLRequest) async throws -> (Data, URLResponse))?
-    private(set) var requestCount = 0
+    typealias Handler = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    private let state = Mutex<(handler: Handler?, requestCount: Int)>((nil, 0))
+
+    var handler: Handler? {
+      get { state.withLock { $0.handler } }
+      set { state.withLock { $0.handler = newValue } }
+    }
+    var requestCount: Int { state.withLock { $0.requestCount } }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-      requestCount += 1
+      let handler = state.withLock { state in
+        state.requestCount += 1
+        return state.handler
+      }
       if let handler {
         return try await handler(request)
       }

@@ -14,7 +14,7 @@ protocol Token: Codable {
   var expiresIn: Int { get }
 }
 
-protocol AccessTokenService {
+protocol AccessTokenService: Sendable {
   func set<T>(token: T) where T: Token
   func token<T>() -> T? where T: Token
   /// Re-reads the persistent Keychain store and reports whether the stored token changed

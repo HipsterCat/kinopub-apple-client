@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Synchronization
 import KinoPubBackend
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
 import CryptoKit
@@ -165,10 +166,9 @@ enum DevSessionMirror {
 public final class AccessTokenServiceImpl: AccessTokenService {
 
   private let storage: KeychainStorage
-  private let lock = NSLock()
   /// The last token baseline observed or written by this process, used to detect when
   /// another Apple device refreshed the token in iCloud Keychain underneath us.
-  private var lastObservedToken: AccessToken?
+  private let lastObservedToken = Mutex<AccessToken?>(nil)
 
   init(storage: KeychainStorage) {
     self.storage = storage
@@ -179,8 +179,8 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     // kino.pub gives `expires_in` as seconds from *now* on every grant/refresh.
     let expiresAt = Date().addingTimeInterval(TimeInterval(max(token.expiresIn, 0)))
     storage.setObject(expiresAt, for: .tokenExpiresAt)
-    lock.withLock {
-      lastObservedToken = AccessToken(
+    lastObservedToken.withLock {
+      $0 = AccessToken(
         accessToken: token.accessToken,
         refreshToken: token.refreshToken,
         expiresIn: token.expiresIn
@@ -193,9 +193,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
 
   func token<T>() -> T? where T: Token {
     if let stored: T = storage.object(for: .token) {
-      lock.withLock {
-        if lastObservedToken == nil {
-          lastObservedToken = AccessToken(
+      lastObservedToken.withLock {
+        if $0 == nil {
+          $0 = AccessToken(
             accessToken: stored.accessToken,
             refreshToken: stored.refreshToken,
             expiresIn: stored.expiresIn
@@ -231,9 +231,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
       return (nil, false)
     }
 
-    let didChange: Bool = lock.withLock {
-      defer { lastObservedToken = stored }
-      guard let previous = lastObservedToken else { return false }
+    let didChange: Bool = lastObservedToken.withLock {
+      defer { $0 = stored }
+      guard let previous = $0 else { return false }
       return previous.refreshToken != stored.refreshToken
         || previous.accessToken != stored.accessToken
     }
@@ -276,9 +276,7 @@ public final class AccessTokenServiceImpl: AccessTokenService {
         return
       }
     }
-    lock.withLock {
-      lastObservedToken = nil
-    }
+    lastObservedToken.withLock { $0 = nil }
     storage.clear()
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
     if userInitiated {

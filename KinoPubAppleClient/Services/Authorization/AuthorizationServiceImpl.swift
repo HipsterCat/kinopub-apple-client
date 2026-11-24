@@ -8,11 +8,11 @@
 import Foundation
 import KinoPubBackend
 
-final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable {
+final class AuthorizationServiceImpl: AuthorizationService, Sendable {
   
   private let apiClient: APIClient
-  private var configuration: Configuration
-  private var accessTokenService: AccessTokenService
+  private let configuration: Configuration
+  private let accessTokenService: AccessTokenService
 
   init(apiClient: APIClient, configuration: Configuration, accessTokenService: AccessTokenService) {
     self.apiClient = apiClient

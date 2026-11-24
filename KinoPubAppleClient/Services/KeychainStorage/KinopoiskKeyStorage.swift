@@ -19,7 +19,7 @@ extension Key where Value == String {
 /// are not kino.pub-session-scoped, so `KeychainStorageImpl.clear()` on logout must not
 /// wipe them. The two flags are not secrets: plain UserDefaults, and "validated" is
 /// cleared whenever the key text changes.
-final class IntegrationKeyProvider: @unchecked Sendable {
+final class IntegrationKeyProvider: Sendable {
   /// UserDefaults: the stored key passed a check.
   let validatedDefaultsKey: String
   /// UserDefaults: the viewer's switch beside the key. A key switched off stays stored.

@@ -7,7 +7,7 @@
 
 import Foundation
 
-internal class RequestBuilder {
+internal final class RequestBuilder: Sendable {
   let baseURL: URL
 
   init(baseURL: URL) {

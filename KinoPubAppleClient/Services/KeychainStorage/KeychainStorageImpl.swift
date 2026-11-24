@@ -9,34 +9,39 @@ import Foundation
 import KeychainAccess
 import KinoPubLogging
 import OSLog
+import Synchronization
 
 /// Underlying Keychain store abstraction so `KeychainStorageImpl` can pair an iCloud-synced
 /// (`kSecAttrSynchronizable = kCFBooleanTrue`) store with a local fallback store and be
 /// deterministically unit-tested.
-protocol KeychainDataStore {
+protocol KeychainDataStore: Sendable {
   func getData(_ key: String) throws -> Data?
   func set(_ value: Data, key: String) throws
   func remove(_ key: String) throws
   func removeAll() throws
 }
 
-private struct KeychainAccessStore: KeychainDataStore {
-  let keychain: Keychain
+private final class KeychainAccessStore: KeychainDataStore {
+  private let keychain: Mutex<Keychain>
+
+  init(keychain: sending Keychain) {
+    self.keychain = Mutex(keychain)
+  }
 
   func getData(_ key: String) throws -> Data? {
-    try keychain.getData(key, ignoringAttributeSynchronizable: false)
+    try keychain.withLock { try $0.getData(key, ignoringAttributeSynchronizable: false) }
   }
 
   func set(_ value: Data, key: String) throws {
-    try keychain.set(value, key: key, ignoringAttributeSynchronizable: false)
+    try keychain.withLock { try $0.set(value, key: key, ignoringAttributeSynchronizable: false) }
   }
 
   func remove(_ key: String) throws {
-    try keychain.remove(key, ignoringAttributeSynchronizable: false)
+    try keychain.withLock { try $0.remove(key, ignoringAttributeSynchronizable: false) }
   }
 
   func removeAll() throws {
-    try keychain.removeAll()
+    try keychain.withLock { try $0.removeAll() }
   }
 }
 

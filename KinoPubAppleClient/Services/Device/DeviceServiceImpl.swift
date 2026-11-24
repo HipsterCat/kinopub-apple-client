@@ -8,7 +8,7 @@ import KinoPubBackend
 import OSLog
 import KinoPubLogging
 
-final class DeviceServiceImpl: DeviceService, @unchecked Sendable {
+final class DeviceServiceImpl: DeviceService, Sendable {
 
   private let apiClient: APIClient
 
