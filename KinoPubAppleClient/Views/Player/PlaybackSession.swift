@@ -125,7 +125,13 @@ final class PlaybackSession: ObservableObject {
       setActive(manager: activeManager, request: next)
       return activeManager
     }
-    activeManager?.tearDownForReplacement()
+    // The outgoing manager is torn down on the next turn: a route's destination builder
+    // calls `play` from a view body, and the teardown publishes on the old manager
+    // («Publishing changes from within view updates»). It is a different object from the
+    // one returned, so nothing about the new stream waits on it.
+    if let outgoing = activeManager {
+      Task { @MainActor in outgoing.tearDownForReplacement() }
+    }
     if let media = item as? MediaItem {
       AppContext.shared.localProgressStore.cacheItem(media)
     }
