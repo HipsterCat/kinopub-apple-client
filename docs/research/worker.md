@@ -18,7 +18,7 @@ and are gitignored. The worker's own store is the KV namespace `DOCUMENTS`
 ## 1. Images by kino.pub id
 
 ```
-GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
+GET /img/{logo|backdrop|cover|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
 ```
 
 `w` is the pixel width the picture is drawn at. The worker snaps up to that
@@ -37,8 +37,9 @@ poster under a Russian request and call it a hit.
 | Kind | What comes back |
 | --- | --- |
 | `logo` | Requested language, then the other. An English logo is sent when Russian was asked and only English exists. 404 only when there is no logo at all. |
-| `poster` | Requested language only. Russian is tvoe, then the Kinopoisk image when we have that id, then a TMDB `ru` file. A missing Russian poster is a fast 404, never an English poster in its place. |
+| `poster` | Requested language only. Russian is tvoe, then a TMDB `ru` file, then the Kinopoisk image when we have (or just resolved) that id. A missing Russian poster is a fast 404, never an English poster in its place. Missing KP id on a miss is resolved inline via Wikidata (IMDb → P2603). |
 | `backdrop` | A textless wide frame, or 404. Language is ignored. A titled banner, a portrait, and any kino.pub url are not a backdrop. |
+| `cover` | Language-tagged wide TMDB backdrop (`images.backdrops` with `iso_639_1`). Reads the lang-tagged rows already stored under `artwork.backdrop`, plus admin pins in `artwork.cover`. Not a poster; not textless. |
 | `thumbnail` | That episode's still. 404 when we do not have one. Needs `s` and `e`. |
 
 We store links, not files. tvoe files go through `tvoe.live/_next/image` at
@@ -69,7 +70,8 @@ so.
 `/v1/title/by/kinopub/{id}/seasons/…` uses the same header, and the body
 contains that one language.
 
-Backdrop does not read the header. A backdrop has no language.
+Backdrop does not read the header. A backdrop has no language. Cover does read
+the header — it is the titled / lang-tagged TMDB backdrop.
 
 ---
 

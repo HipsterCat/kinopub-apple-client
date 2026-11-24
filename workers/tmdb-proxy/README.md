@@ -67,7 +67,7 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 **Two layers, kept apart:**
 
 1. **Instant, by kino.pub id, no details needed** —
-   `GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=`
+   `GET /img/{logo|backdrop|cover|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=`
    with `Accept-Language` (`ru` by default, `en` when the app is not Russian).
    Language is not a query parameter. The answer is **302** to our own URL
    `…/{ru|en|und}/{kind}.png`, and that URL returns the bytes.
@@ -80,16 +80,21 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    taller PNG wins, and the narrower one wins a tie.
    **Backdrop ignores `Accept-Language`.** It is a textless wide frame, or 404.
    A titled banner, a portrait, and any kino.pub CDN url are not a backdrop.
+   **Cover keeps `Accept-Language`** and answers with a language-tagged TMDB
+   backdrop (same `images.backdrops` field, `iso_639_1` set) — not a poster.
    `s` on `poster` is that season's poster. `s` and `e` on `thumbnail` is that
    episode's still. Optional `src=` on `thumbnail` may seed a
    `*.staticpop.net` catalogue thumb when TMDB has none yet (other hosts are
    rejected). Thumbnail **404s are not edge-cached** (`no-store`); a season
    with only missing/staticpop stills is re-fetched from TMDB after six hours.
-   A Russian poster uses tvoe, or the Kinopoisk image when we have that id, or
-   a TMDB `ru` file when we don't — never a kino.pub url, and never an English
-   poster in its place. A logo falls through to the other language (an English
-   logo is sent when Russian was asked and only English exists). We store
-   links, not files. **Stamped bytes** go through
+   A Russian poster uses tvoe, then a TMDB `ru` file, then the Kinopoisk image
+   when we have (or just resolved) that id — never a kino.pub url, and never an
+   English poster in its place. Missing Kinopoisk id on a Russian poster miss
+   is resolved inline via Wikidata (IMDb → P2603) in the same request.
+   **`cover`** is the language-tagged TMDB backdrop (`images.backdrops` with
+   `iso_639_1`); **`backdrop`** stays textless. A logo falls through to the
+   other language (an English logo is sent when Russian was asked and only
+   English exists). We store links, not files. **Stamped bytes** go through
    **[wsrv.nl](https://wsrv.nl/)** first (`w=`, `q=80`, `output=webp` by
    default; optional `format=jpeg|png|webp` on the route). Logo / backdrop /
    poster pass the durable original as `url=`. **Thumbnails** pass the TMDB

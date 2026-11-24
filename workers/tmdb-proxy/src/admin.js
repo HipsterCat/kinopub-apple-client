@@ -2,16 +2,19 @@
  * Private routes. They answer 404 unless ADMIN_TOKEN matches
  * `Authorization: Bearer …`, so a missing or wrong token looks like no route.
  *
- *   POST /admin/kinopub/{id}/forget?kind=logo|backdrop|poster
- *   POST /admin/kinopub/{id}/refresh?kind=logo|backdrop|poster&imdb=&kinopoisk=
+ *   POST /admin/kinopub/{id}/forget?kind=logo|backdrop|cover|poster
+ *   POST /admin/kinopub/{id}/refresh?kind=logo|backdrop|cover|poster&imdb=&kinopoisk=
  *   POST /admin/stats
- *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|poster&imdb=tt…
+ *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|cover|poster&imdb=tt…
  *   POST /admin/kinopub/{id}/pick
  *        { "logo": "https://…", "logo_lang": "en", "logo_width": 1200, "logo_height": 400,
- *          "backdrop": "https://…" }
- *        A logo or poster pick replaces every file of its language (`logo_lang`, none =
- *        textless), pinned or not; a backdrop pick replaces all backdrops. The pin is
- *        also written to D1 c2_image. Any https URL is accepted, not only TMDB's.
+ *          "backdrop": "https://…",
+ *          "cover": "https://…", "cover_lang": "ru" }
+ *        A logo, poster or cover pick replaces every file of its language
+ *        (`*_lang`, none = textless), pinned or not; a backdrop pick replaces
+ *        all backdrops. Cover lists/picks language-tagged TMDB backdrops
+ *        (`images.backdrops` with iso_639_1). The pin is also written to D1
+ *        c2_image. Any https URL is accepted, not only TMDB's.
  *   POST /admin/kinopub/{id}/link
  *        { "imdb": "tt…", "kinopoisk": "123", "tmdb": "tv/123", "myshows": "123", "kind": "show" }
  *        Pins ids kino.pub never sent. A bare tmdb number needs kind show or movie.
@@ -28,7 +31,7 @@ import {
   stitchDocument, writeDocument,
 } from "./title.js";
 
-const KINDS = new Set(["logo", "backdrop", "poster"]);
+const KINDS = new Set(["logo", "backdrop", "cover", "poster"]);
 
 export async function handleAdmin(request, env) {
   if (request.method !== "POST") return json({ error: "not_found" }, 404);
@@ -45,7 +48,7 @@ export async function handleAdmin(request, env) {
   if (action === "pick") return pick(request, env, id);
   if (action === "link") return link(request, env, id);
   const kind = url.searchParams.get("kind") || "logo";
-  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|poster" }, 400);
+  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|cover|poster" }, 400);
   if (action === "forget") return forget(env, id, kind);
   return refresh(env, id, kind, url);
 }
@@ -75,7 +78,14 @@ async function forget(env, id, kind) {
 async function refresh(env, id, kind, url) {
   const stored = (await readDocument(env, id)) || { artwork: {}, ids: {} };
   const artwork = { ...(stored.artwork || {}) };
-  artwork[kind] = [];
+  // Cover pins live in artwork.cover; automatic candidates are the lang-tagged
+  // files under artwork.backdrop. Clear both so resolve re-fills from TMDB.
+  if (kind === "cover") {
+    artwork.cover = [];
+    artwork.backdrop = [];
+  } else {
+    artwork[kind] = [];
+  }
   const base = { ...stored, artwork, pending: true };
   const hints = {
     imdb: url.searchParams.get("imdb") || stored.ids?.imdb?.value,
@@ -84,17 +94,18 @@ async function refresh(env, id, kind, url) {
   };
   await resolveAndStore(env, id, hints, base, { fresh: true });
   const saved = await readDocument(env, id);
+  const countKind = kind === "cover" ? "backdrop" : kind;
   return json({
     ok: true,
     id,
     kind,
-    count: Array.isArray(saved?.artwork?.[kind]) ? saved.artwork[kind].length : 0,
+    count: Array.isArray(saved?.artwork?.[countKind]) ? saved.artwork[countKind].length : 0,
   });
 }
 
 async function images(env, id, url) {
   const kind = url.searchParams.get("kind") || "logo";
-  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|poster" }, 400);
+  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|cover|poster" }, 400);
   const stored = await readDocument(env, id);
   const imdb = url.searchParams.get("imdb") || stored?.ids?.imdb?.value;
   const located = await locateTmdb(env, stored, imdb);
@@ -105,23 +116,35 @@ async function images(env, id, url) {
     env, `/3/${located.type}/${located.tmdbId}/images?include_image_language=${languages}`,
   );
   if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
+  // Cover and backdrop both list TMDB `backdrops`. Cover's automatic set is the
+  // language-tagged rows already stored on artwork.backdrop.
   const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
+  const storeKind = kind === "cover" ? "backdrop" : kind;
   // The list is fresh from TMDB, so the stored automatic choice follows it now: a
   // file uploaded to TMDB a minute ago is served without a refresh. Pins stay.
-  const storedArt = stored
-    ? await adoptTmdbFiles(env, id, stored, kind, payload[field])
+  const adopted = stored
+    ? await adoptTmdbFiles(env, id, stored, storeKind, payload[field])
     : [];
+  const storedArt = kind === "cover"
+    ? (stored?.artwork?.cover || [])
+    : adopted;
   const grouped = {};
   for (const file of payload[field] || []) {
     const bucket = langBucket(file.iso_639_1);
+    // Cover is lang-aware: skip textless plates in the picker grid (backdrop
+    // still lists them under und).
+    if (kind === "cover" && bucket === "und") continue;
     if (!grouped[bucket]) grouped[bucket] = [];
     grouped[bucket].push(presentFile(file, bucket));
   }
   for (const bucket of Object.keys(grouped)) {
-    grouped[bucket].sort((a, b) => compareRank(rankOf(kind, a), rankOf(kind, b)));
+    grouped[bucket].sort((a, b) => compareRank(rankOf(storeKind, a), rankOf(storeKind, b)));
     // The automatic choice is only ru / en / no-language. Every other file
     // is still listed, so a pin can select it.
-    if ((bucket === "ru" || bucket === "en" || bucket === "und") && grouped[bucket][0]) {
+    const auto = kind === "cover"
+      ? (bucket === "ru" || bucket === "en")
+      : (bucket === "ru" || bucket === "en" || bucket === "und");
+    if (auto && grouped[bucket][0]) {
       grouped[bucket][0].pick = true;
     }
   }
@@ -241,7 +264,7 @@ async function pick(request, env, id) {
   if (!body || typeof body !== "object") return json({ error: "bad_request" }, 400);
   const stored = (await readDocument(env, id)) || {
     version: 2, ids: { kinopub: { value: id, confidence: 1, method: "admin" } },
-    artwork: { poster: [], backdrop: [], logo: [] }, pending: false,
+    artwork: { poster: [], backdrop: [], cover: [], logo: [] }, pending: false,
   };
   const artwork = { ...(stored.artwork || {}) };
   const picked = {};
@@ -265,13 +288,17 @@ async function pick(request, env, id) {
     } else {
       // One file per language: the pick drops the language's automatic file too, so
       // the worker never holds two and a later refresh keeps the pin (title.js).
+      // Cover pins live in artwork.cover; automatic covers still read lang-tagged
+      // rows from artwork.backdrop when no pin exists.
       const prev = Array.isArray(artwork[kind]) ? artwork[kind] : [];
       artwork[kind] = [...prev.filter((item) => languageTag(item?.lang) !== lang), pin];
     }
     pins.push([kind, pin]);
     picked[kind] = safe;
   }
-  if (!Object.keys(picked).length) return json({ error: "bad_request", hint: "pass logo, backdrop, or poster" }, 400);
+  if (!Object.keys(picked).length) {
+    return json({ error: "bad_request", hint: "pass logo, backdrop, cover, or poster" }, 400);
+  }
   const next = { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1, pending: false };
   await writeDocument(env, id, next);
   for (const [kind, pin] of pins) await storeImageRow(env, id, kind, pin);

@@ -71,7 +71,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v2/title/by/kinopub/{id} · /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original= · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /v1/douban/by/imdb/{tt} · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v2/title/by/kinopub/{id} · /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original= · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|cover|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /v1/douban/by/imdb/{tt} · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };

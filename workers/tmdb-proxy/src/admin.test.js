@@ -357,3 +357,61 @@ test("freshImageLanguages adds a private-use code that changes every minute", ()
   assert.equal(b, "ru,en,null,qab");
   assert.match(freshImageLanguages("ru,en,null", 519 * 60_000), /^ru,en,null,qt[a-z]$/);
 });
+
+test("cover images lists lang-tagged backdrops and skips textless", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": { kind: "movie", ids: { tmdb: { value: "movie/550" } }, artwork: { cover: [] } },
+  });
+  env.TMDB_READ_TOKEN = "t";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    backdrops: [
+      { file_path: "/textless.jpg", iso_639_1: null, width: 3840, height: 2160, vote_average: 5.6 },
+      { file_path: "/ru.jpg", iso_639_1: "ru", width: 1920, height: 1080, vote_average: 4.2 },
+      { file_path: "/en.jpg", iso_639_1: "en", width: 1920, height: 1080, vote_average: 5.1 },
+    ],
+  }), { status: 200 });
+  try {
+    const response = await handleAdmin(admin("/admin/kinopub/7/images?kind=cover"), env);
+    const body = await response.json();
+    assert.equal(body.kind, "cover");
+    assert.equal(body.und.length, 0);
+    assert.equal(body.ru[0].url, "https://image.tmdb.org/t/p/original/ru.jpg");
+    assert.equal(body.ru[0].pick, true);
+    assert.equal(body.en[0].url, "https://image.tmdb.org/t/p/original/en.jpg");
+    // Automatic candidates land on artwork.backdrop for /img/cover to read.
+    const doc = env.documents["title:kinopub:7"];
+    assert.ok(doc.artwork.backdrop.some((item) => item.lang === "ru"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pick cover pins per language without wiping textless backdrops", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": {
+      artwork: {
+        backdrop: [
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/textless.jpg", lang: null },
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/auto-ru.jpg", lang: "ru" },
+        ],
+        cover: [],
+      },
+    },
+  });
+  const response = await handleAdmin(admin("/admin/kinopub/7/pick", {
+    body: {
+      cover: "https://image.tmdb.org/t/p/original/mine-ru.jpg",
+      cover_lang: "ru",
+      cover_width: 1920,
+      cover_height: 1080,
+    },
+  }), env);
+  assert.equal(response.status, 200);
+  const doc = env.documents["title:kinopub:7"];
+  assert.equal(doc.artwork.cover.length, 1);
+  assert.equal(doc.artwork.cover[0].url, "https://image.tmdb.org/t/p/original/mine-ru.jpg");
+  assert.equal(doc.artwork.cover[0].lang, "ru");
+  assert.equal(doc.artwork.cover[0].pinned, true);
+  assert.equal(doc.artwork.backdrop.length, 2);
+});
