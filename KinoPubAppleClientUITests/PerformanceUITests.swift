@@ -130,9 +130,12 @@ final class PerformanceUITests: XCTestCase {
     measure(metrics: hitchMetrics(
       signpost("scroll", "scroll.season")
     ), options: measureOptions) {
-      // Down is the CADisplayLink fold (`scroll.season`, 0.6 s). Right is the
-      // episode rail. Up returns to the hero so the next iteration is the same
-      // walk; Menu would pop the page.
+      // Down is the CADisplayLink fold (`scroll.season`, 0.6 s). Right must walk
+      // far enough that the horizontal collection actually scrolls — four presses
+      // stay inside the first viewport on a 1080p Apple TV and emit no signposts
+      // (CI 2026-11-24). seasonStrip opens on S2E4 with more episodes + S3 beyond.
+      // Up returns to the hero so the next iteration is the same walk; Menu would
+      // pop the page.
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 0.9)
       let onRail = app.descendants(matching: .any).matching(NSPredicate(
@@ -140,7 +143,7 @@ final class PerformanceUITests: XCTestCase {
         "kinopub.rivulet.still.", "kinopub.rail.item.")).firstMatch
       XCTAssertTrue(onRail.waitForExistence(timeout: 5),
                     "Down from the hero did not land on the season rail")
-      for _ in 0..<4 {
+      for _ in 0..<12 {
         XCUIRemote.shared.press(.right)
         waitForScrollSettle()
       }

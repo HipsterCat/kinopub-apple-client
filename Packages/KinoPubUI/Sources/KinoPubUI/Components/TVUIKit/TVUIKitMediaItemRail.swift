@@ -168,6 +168,10 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// When true, `detail` (secondary text) is shown only while focused — TV channels
   /// use this so the at-rest programme caption is not repeated as a second line.
   public let detailOnFocus: Bool
+  /// Stable UITest / VoiceOver id. Rails default to `kinopub.rail.item.{id}`; a page
+  /// tile keeps `kinopub.tile.{tile.id}` so caption copy (programme vs channel name)
+  /// cannot hide the cell from tests.
+  public let accessibilityID: String?
 
   /// A season's card on the episode rail. Each line comes as a list of candidates, longest
   /// first: the card is a poster's width, so the cell draws the first that fits.
@@ -216,7 +220,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               seasonCard: SeasonCard? = nil,
               bundledImageName: String? = nil,
               focusBackgroundName: String? = nil,
-              detailOnFocus: Bool = false) {
+              detailOnFocus: Bool = false,
+              accessibilityID: String? = nil) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -238,6 +243,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.bundledImageName = bundledImageName
     self.focusBackgroundName = focusBackgroundName
     self.detailOnFocus = detailOnFocus
+    self.accessibilityID = accessibilityID
   }
 
   /// A season's card, by its own id.
@@ -1197,7 +1203,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
           ? loadedURL == item.imageURL
           : loadedBundledName == item.bundledImageName)
     self.item = item
-    accessibilityIdentifier = "kinopub.rail.item.\(item.id)"
+    accessibilityIdentifier = item.accessibilityID ?? "kinopub.rail.item.\(item.id)"
     if !keepsArtwork {
       artwork = nil
       markImage = nil
