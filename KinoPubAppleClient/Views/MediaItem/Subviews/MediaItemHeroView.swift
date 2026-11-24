@@ -21,8 +21,7 @@ final class TrailerPreviewModel: ObservableObject {
   @Published private(set) var isReady: Bool = false
 
   private var statusObservation: NSKeyValueObservation?
-  // `deinit` is nonisolated; the token is only removed, never read as shared state.
-  nonisolated(unsafe) private var endObserver: Any?
+  private var endObserver: Any?
   private var startedURL: URL?
   /// False while the hero is scrolled off screen. Playback is gated on it rather than
   /// started unconditionally, so a trailer that becomes ready after the page has been
@@ -179,7 +178,7 @@ final class TrailerPreviewModel: ObservableObject {
     player = nil
   }
 
-  deinit {
+  isolated deinit {
     if let endObserver {
       NotificationCenter.default.removeObserver(endObserver)
     }

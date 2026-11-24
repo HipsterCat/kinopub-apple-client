@@ -9,6 +9,7 @@
 //  "coloured placeholder" has to be a real drawn image rather than a background view.
 //
 
+import Synchronization
 import UIKit
 
 public enum TVUIKitTileArtwork {
@@ -61,7 +62,7 @@ public enum TVUIKitTileArtwork {
     let resolved = tint.resolvedColor(with: traits)
     let ink = (glyphColor ?? UIColor.label.withAlphaComponent(0.9)).resolvedColor(with: traits)
     let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(style)-g\(ink.hashValue)-\(traits.userInterfaceStyle.rawValue)" as NSString
-    if let cached = cache.object(forKey: key) { return cached }
+    if let cached = cachedImage(for: key) { return cached }
 
     let bounds = CGRect(origin: .zero, size: size)
     let drawn = render(size: size) { context in
@@ -93,7 +94,7 @@ public enum TVUIKitTileArtwork {
         : (size.width - glyph.size.width) / 2
       glyph.draw(at: CGPoint(x: x, y: (size.height - glyph.size.height) / 2))
     }
-    cache.setObject(drawn, forKey: key)
+    remember(drawn, for: key)
     return drawn
   }
 
@@ -130,7 +131,7 @@ public enum TVUIKitTileArtwork {
       .resolvedColor(with: traits)
     let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .semibold)
     let key = "mono-v2-\(initials)-\(Int(diameter))-\(dark ? "d" : "l")" as NSString
-    if let cached = cache.object(forKey: key) { return cached }
+    if let cached = cachedImage(for: key) { return cached }
     let drawn = render(size: size) { _ in
       fill.setFill()
       UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
@@ -140,7 +141,7 @@ public enum TVUIKitTileArtwork {
       text.draw(at: CGPoint(x: (size.width - box.width) / 2, y: (size.height - box.height) / 2),
                 withAttributes: attributes)
     }
-    cache.setObject(drawn, forKey: key)
+    remember(drawn, for: key)
     return drawn
   }
 
@@ -246,7 +247,7 @@ public enum TVUIKitTileArtwork {
     let traits = traits ?? .current
     let fill = quietFill(traits: traits)
     let key = "yt-still-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-\(traits.userInterfaceStyle.rawValue)" as NSString
-    if let cached = cache.object(forKey: key) { return cached }
+    if let cached = cachedImage(for: key) { return cached }
     let logo = UIImage(named: "youtube-play", in: .module, with: nil)
     let bounds = CGRect(origin: .zero, size: size)
     let drawn = render(size: size) { _ in
@@ -264,7 +265,7 @@ public enum TVUIKitTileArtwork {
                            y: (size.height - height) / 2,
                            width: width, height: height))
     }
-    cache.setObject(drawn, forKey: key)
+    remember(drawn, for: key)
     return drawn
   }
 
@@ -305,9 +306,17 @@ public enum TVUIKitTileArtwork {
     return UIImage(cgImage: image, scale: scale, orientation: .up)
   }
 
-  /// `NSCache` is documented thread-safe, so the artwork helper does not need to be
-  /// main-actor bound — `TVUIKitMediaItem` builds tinted tiles off the actor.
-  nonisolated(unsafe) private static let cache = NSCache<NSString, UIImage>()
+  /// Behind a lock rather than on the main actor: `TVUIKitMediaItem` builds tinted tiles
+  /// off it.
+  private static let cache = Mutex(NSCache<NSString, UIImage>())
+
+  private static func cachedImage(for key: NSString) -> UIImage? {
+    cache.withLock { [key = key as String] in $0.object(forKey: key as NSString) }
+  }
+
+  private static func remember(_ image: UIImage, for key: NSString) {
+    cache.withLock { [key = key as String] in $0.setObject(image, forKey: key as NSString) }
+  }
 
   /// The same hue at a scaled brightness, for the two ends of a gradient tile.
   private static func shade(_ color: UIColor, brightness factor: CGFloat) -> UIColor {

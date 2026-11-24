@@ -400,7 +400,7 @@ enum PageBackdropWash {
   /// Long side of the blurred bitmap. Stretched to 1920 pt it reads as a heavy blur.
   static let side: CGFloat = 64
 
-  nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
+  private static let context = CIContext(options: [.useSoftwareRenderer: false])
 
   static func make(from image: UIImage) async -> UIImage? {
     guard let source = image.cgImage else { return nil }
@@ -527,7 +527,7 @@ private final class FoldBlurView: UIVisualEffectView {
     return animator
   }
 
-  deinit {
+  isolated deinit {
     animator?.stopAnimation(true)
   }
 }

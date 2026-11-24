@@ -19,7 +19,7 @@ import SwiftUI
 /// The app owns the switch (`FeatureFlag.combinedRating`, switchable in Settings) and
 /// writes it here once at launch, before any card is drawn; the package only reads it.
 public enum RatingFeature {
-    nonisolated(unsafe) public static var combinedEnabled = true
+    @MainActor public static var combinedEnabled = true
 }
 
 /// A single score combining the IMDb and Kinopoisk ratings.

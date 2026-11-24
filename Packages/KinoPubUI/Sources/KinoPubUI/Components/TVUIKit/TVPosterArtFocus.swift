@@ -47,14 +47,13 @@ enum TVPosterArtFocus {
     owners.setObject(cell, forKey: imageView)
   }
 
-  /// Image view → the cell whose focus it follows. Weak both ways; only touched on the main
-  /// thread, where UIKit lays out and updates focus.
-  nonisolated(unsafe) private static let owners = NSMapTable<UIImageView, UIView>(
+  /// Image view → the cell whose focus it follows. Weak both ways.
+  @MainActor private static let owners = NSMapTable<UIImageView, UIView>(
     keyOptions: .weakMemory, valueOptions: .weakMemory)
 
   /// Swizzled once. A no-op when the method is not there — tvOS 27.2 has none — or not in the
   /// shape this expects: `void (id focusedView, id coordinator)`.
-  private static let installed: Void = {
+  @MainActor private static let installed: Void = {
     let selector = NSSelectorFromString("_updateLayeredImageIsFocusedWithFocusedView:focusAnimationCoordinator:")
     guard let method = class_getInstanceMethod(UIImageView.self, selector),
           method_getNumberOfArguments(method) == 4,
@@ -62,9 +61,9 @@ enum TVPosterArtFocus {
           typeEncoding(ofArgument: 2, of: method) == "@",
           typeEncoding(ofArgument: 3, of: method) == "@" else { return }
 
-    typealias Original = @convention(c) (AnyObject, Selector, AnyObject?, AnyObject?) -> Void
+    typealias Original = @convention(c) @Sendable (AnyObject, Selector, AnyObject?, AnyObject?) -> Void
     let original = unsafeBitCast(method_getImplementation(method), to: Original.self)
-    let replacement: @convention(block) (UIImageView, AnyObject?, AnyObject?) -> Void = { imageView, focusedView, coordinator in
+    let replacement: @convention(block) @MainActor (UIImageView, AnyObject?, AnyObject?) -> Void = { imageView, focusedView, coordinator in
       var answered = focusedView
       if let focusedView, let owner = owners.object(forKey: imageView), owner !== focusedView {
         answered = nil

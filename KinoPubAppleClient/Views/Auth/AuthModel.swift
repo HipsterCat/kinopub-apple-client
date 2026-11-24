@@ -15,7 +15,7 @@ import OSLog
 import UIKit
 #endif
 #if os(iOS)
-@preconcurrency import UserNotifications
+import UserNotifications
 #endif
 #if canImport(AppKit)
 import AppKit
@@ -163,7 +163,7 @@ class AuthModel: ObservableObject {
   private var inFlightPollTask: Task<PollOutcome, Never>?
   private var stateWakeupContinuation: CheckedContinuation<Void, Never>?
   private let openURLHandler: (@MainActor (URL) -> Void)?
-  nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
+  private var lifecycleObservers: [NSObjectProtocol] = []
 
   init(
     authService: AuthorizationService,
@@ -190,7 +190,7 @@ class AuthModel: ObservableObject {
     }
   }
 
-  deinit {
+  isolated deinit {
     for observer in lifecycleObservers {
       NotificationCenter.default.removeObserver(observer)
     }

@@ -53,6 +53,7 @@ enum PlayerTransportMenu {
 #if os(tvOS)
 
 /// tvOS Skip gate: menus that sit over the player while (or without) the transport bar.
+@MainActor
 enum TVPlayerChrome {
   static func menuActive(in controller: AVPlayerViewController) -> Bool {
     if controller.presentedViewController != nil { return true }
@@ -118,8 +119,7 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
   private var pipWanted = false
   private var artworkURL: URL?
   private var didLogMissingVideo = false
-  /// Touched from `deinit` as well as the main actor. Only the main thread writes it.
-  nonisolated(unsafe) private var kvoTargets: [(object: NSObject, key: String)] = []
+  private var kvoTargets: [(object: NSObject, key: String)] = []
 
 #if os(macOS)
   private weak var playerView: AVPlayerView?
@@ -138,12 +138,10 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
   private var pinningTarget: NSObject?
 #endif
 
-  deinit {
-    // SwiftUI tears the player down on the main thread. `detach` is idempotent,
-    // so a representable `dismantle` that already ran is a no-op here.
-    MainActor.assumeIsolated {
-      detach()
-    }
+  isolated deinit {
+    // `detach` is idempotent, so a representable `dismantle` that already ran is a
+    // no-op here.
+    detach()
   }
 
 #if os(macOS)

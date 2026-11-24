@@ -127,7 +127,7 @@ private struct RememberedScroll: ViewModifier {
 @MainActor
 final class EnclosedScrollView {
   weak var view: NSScrollView?
-  nonisolated(unsafe) private var observer: NSObjectProtocol?
+  private var observer: NSObjectProtocol?
 
   func attach(_ scrollView: NSScrollView, memory: ScrollMemory?) {
     guard scrollView !== view else { return }
@@ -174,7 +174,7 @@ final class EnclosedScrollView {
     scrollView.reflectScrolledClipView(clip)
   }
 
-  deinit {
+  isolated deinit {
     if let observer { NotificationCenter.default.removeObserver(observer) }
   }
 }

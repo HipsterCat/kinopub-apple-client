@@ -725,7 +725,7 @@ public enum Artwork {
 
 /// Reports worker image routes (`/img/…`) on the in-flight overlay. Poster CDNs stay
 /// quiet — a rail of twenty covers is not twenty methods.
-private final class ActivityReportingDataLoader: DataLoading, @unchecked Sendable {
+private final class ActivityReportingDataLoader: DataLoading, Sendable {
   private let inner: DataLoader
 
   init(_ inner: DataLoader) {
@@ -742,26 +742,43 @@ private final class ActivityReportingDataLoader: DataLoading, @unchecked Sendabl
     }
     let token = NetworkActivity.begin(request)
     let box = ActivityReportCancellable(token: token)
-    box.inner = inner.loadData(with: request, didReceiveData: didReceiveData) { error in
+    box.hold(inner.loadData(with: request, didReceiveData: didReceiveData) { error in
       box.complete()
       completion(error)
-    }
+    })
     return box
   }
 }
 
-private final class ActivityReportCancellable: Cancellable, @unchecked Sendable {
+private final class ActivityReportCancellable: Cancellable, Sendable {
+  private struct State {
+    var ended = false
+    var isCancelled = false
+    var inner: (any Cancellable)?
+  }
+
   private let token: UUID
-  private let lock = NSLock()
-  private var ended = false
-  var inner: (any Cancellable)?
+  private let state = Mutex(State())
 
   init(token: UUID) {
     self.token = token
   }
 
+  /// The transfer this reports. Cancelled at once if `cancel()` came first.
+  func hold(_ inner: any Cancellable) {
+    let isCancelled = state.withLock { state in
+      state.inner = inner
+      return state.isCancelled
+    }
+    if isCancelled { inner.cancel() }
+  }
+
   func cancel() {
     end(holdMinimum: false)
+    let inner = state.withLock { state in
+      state.isCancelled = true
+      return state.inner
+    }
     inner?.cancel()
   }
 
@@ -770,10 +787,11 @@ private final class ActivityReportCancellable: Cancellable, @unchecked Sendable 
   }
 
   private func end(holdMinimum: Bool) {
-    lock.lock()
-    defer { lock.unlock() }
-    guard !ended else { return }
-    ended = true
+    let isFirst = state.withLock { state in
+      defer { state.ended = true }
+      return !state.ended
+    }
+    guard isFirst else { return }
     NetworkActivity.end(token, holdMinimum: holdMinimum)
   }
 }

@@ -1242,7 +1242,7 @@ private struct WindowSheetProbe: NSViewRepresentable {
 
   final class Probe: NSView {
     var onChange: ((Bool) -> Void)?
-    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
+    private var observers: [NSObjectProtocol] = []
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
@@ -1278,7 +1278,7 @@ private struct WindowSheetProbe: NSViewRepresentable {
       return !window.occlusionState.contains(.visible)
     }
 
-    deinit {
+    isolated deinit {
       observers.forEach(NotificationCenter.default.removeObserver)
     }
   }
