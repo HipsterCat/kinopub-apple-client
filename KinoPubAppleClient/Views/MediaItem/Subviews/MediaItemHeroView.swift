@@ -305,6 +305,8 @@ struct MediaItemOverflowMenu: View {
 struct MediaItemHeroView: View {
 
   var mediaItem: MediaItem
+  /// The title as the page has it now, for what outlives the body that started it (`live`).
+  var currentItem: (() -> MediaItem)? = nil
   /// The page's focus target — the primary action claims it, so a page whose content
   /// lands late still opens at the top rather than wherever the focus engine drifted.
   @FocusState.Binding var focus: MediaItemFocusTarget?
@@ -621,6 +623,16 @@ struct MediaItemHeroView: View {
     .entry(promotesFollow: actionContext.promoteFollow)
   }
 
+  /// This view with the title as it is now. A focus claim runs for a second or more in a
+  /// task that holds the view as it was when it started: back from the player that is the
+  /// title from before the page repainted, whose main button is still Play.
+  private var live: Self {
+    guard let currentItem else { return self }
+    var copy = self
+    copy.mediaItem = currentItem()
+    return copy
+  }
+
   /// Ids and chrome, in order — what decides whether a control survives an update.
   private var actionRowSignature: [String] {
     actionAppearances.map { "\($0.id.rawValue):\($0.chrome)" }
@@ -683,7 +695,7 @@ struct MediaItemHeroView: View {
       Task { @MainActor in
         try? await Task.sleep(for: .milliseconds(900))
         guard !isCovered, focus == nil, TVFocusProbe.nothingFocused else { return }
-        claim(actionEntryTarget, reason: "back with nothing focused")
+        claim(live.actionEntryTarget, reason: "back with nothing focused")
       }
       return
     }
@@ -693,7 +705,7 @@ struct MediaItemHeroView: View {
       for delay in [0, 150, 250, 400, 500] {
         try? await Task.sleep(for: .milliseconds(delay))
         guard !isCovered else { return }
-        let target = returnTarget(from: opener)
+        let target = live.returnTarget(from: opener)
         // Already there — but keep watching through the window: on tvOS 27.2 the
         // entry control (Play) was re-asserted ~20 ms after UIKit had restored Trailer,
         // and focus landing on Play cleared `returnsFromPlayer`, so this loop stopped
@@ -734,7 +746,7 @@ struct MediaItemHeroView: View {
     Task { @MainActor in
       for delay in [0, 80, 120, 150, 200, 250, 400] {
         try? await Task.sleep(for: .milliseconds(delay))
-        guard !isCovered, actionEntryTarget == new, focus != new else { return }
+        guard !isCovered, live.actionEntryTarget == new, focus != new else { return }
         // Before the entry control has ever had focus, the claim is still ours to make:
         // the old control can be rebuilt by this very change (Replay leaves the white
         // chrome as Follow takes the lead), and the engine then parks focus on a view
@@ -761,7 +773,7 @@ struct MediaItemHeroView: View {
         try? await Task.sleep(for: .milliseconds(delay))
         guard !isCovered, focus == nil else { return }
         if TVFocusProbe.nothingFocused {
-          claim(actionEntryTarget, reason: "row changed under the focused control")
+          claim(live.actionEntryTarget, reason: "row changed under the focused control")
         }
       }
     }

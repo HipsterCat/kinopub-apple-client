@@ -686,6 +686,7 @@ struct MediaItemView: View {
       ScrollView(.vertical) {
         VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
           MediaItemHeroView(mediaItem: itemModel.mediaItem,
+                            currentItem: { [itemModel] in itemModel.mediaItem },
                             focus: $focus,
                             trailer: trailer,
                             phase: itemModel.heroPhase,
