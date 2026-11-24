@@ -602,7 +602,7 @@ class MediaItemModel: ObservableObject {
 
   func ensureEpisodeGrid(preferringKinoSeason kinoSeasonNumber: Int? = nil) async {
     guard let identity, externalMetadataLoaded else { return }
-    if !usesTitleCard, identity.imdb == nil { return }
+    if !usesTitleCard, identity.imdb == nil, identity.linkedTMDB == nil { return }
 
     if usesTitleCard {
       guard !didLoadEpisodeGrid else { return }
@@ -815,14 +815,29 @@ class MediaItemModel: ObservableObject {
       Logger.metadata.info("title card fetch kinopub=\(self.mediaItemId)")
       meta = await metadataService.titleCardMetadata(for: identity)
     } else {
-      guard let imdb = identity.imdb else {
-        Logger.metadata.info("TMDB skip kinopub=\(self.mediaItemId): no imdb id")
+      // From kino.pub's own ids each time, so a relink in Title IDs is read again.
+      var asking = MediaIdentity(mediaItem: mediaItem)
+      if asking.imdb == nil, let linked = await metadataService.linkedIdentity(for: asking) {
+        asking = linked
+      }
+      guard asking.imdb != nil || asking.linkedTMDB != nil else {
+        Logger.metadata.info("TMDB skip kinopub=\(self.mediaItemId): no imdb id, nothing linked")
         return
       }
       Logger.metadata.info(
-        "TMDB metadata fetch kinopub=\(self.mediaItemId) imdb=\(imdb) series=\(identity.isSeries) title=\(identity.title)"
+        "TMDB metadata fetch kinopub=\(self.mediaItemId) imdb=\(asking.imdb ?? "nil") linked=\(asking.linkedTMDB ?? "nil") series=\(asking.isSeries) title=\(asking.title)"
       )
-      meta = await metadataService.metadata(for: identity)
+      var found = await metadataService.metadata(for: asking)
+      // TMDB does not know this IMDb id; the worker may hold the TMDB id itself.
+      if found.tmdbId == nil, asking.linkedTMDB == nil,
+         let linked = await metadataService.linkedIdentity(for: asking), linked.linkedTMDB != nil {
+        asking = linked
+        found = await metadataService.metadata(for: linked)
+      }
+      guard generation == metadataLoadGeneration else { return }
+      self.identity = asking
+      if (mediaItem.imdb ?? 0) <= 0 { found.linkedIMDb = asking.imdb }
+      meta = found
     }
     guard generation == metadataLoadGeneration else { return }
     externalMetadata = meta
@@ -1685,7 +1700,8 @@ extension MediaIdentity {
   init(mediaItem: MediaItem) {
     self.init(
       kinopubId: mediaItem.id,
-      imdb: mediaItem.imdb.map(TMDBIDFormatter.imdbString(from:)),
+      // kino.pub sends 0 for "no id" on some titles.
+      imdb: mediaItem.imdb.flatMap { $0 > 0 ? TMDBIDFormatter.imdbString(from: $0) : nil },
       kinopoisk: mediaItem.kinopoisk,
       title: mediaItem.localizedTitle,
       originalTitle: mediaItem.originalTitle,

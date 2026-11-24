@@ -72,6 +72,27 @@ public final class TitleCardSource: MetadataSource, Sendable {
     }
   }
 
+  /// The ids the worker stores for a title. By kino.pub id alone: no hints, so asking
+  /// never makes the worker match a title it has not seen. Nil when it has no card.
+  public func linkedIDs(kinopubID: Int) async -> (imdb: String?, tmdb: String?)? {
+    guard let base = configuration.proxyBaseURL else { return nil }
+    let url = base.appendingPathComponent("v2/title/by/kinopub/\(kinopubID)")
+    do {
+      return try Self.linkedIDs(from: try await client.getData(url: url), client: client)
+    } catch MetadataError.httpStatus(404) {
+      return nil
+    } catch {
+      Logger.metadata.error("Linked ids \(kinopubID) failed: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  /// The ids alone: the rest of the card must not be able to fail this lookup.
+  static func linkedIDs(from data: Data, client: MetadataHTTPClient) throws -> (imdb: String?, tmdb: String?) {
+    let ids = try client.decode(TitleCardIDsOnly.self, from: data).ids
+    return (nonEmpty(ids?.imdb), nonEmpty(ids?.tmdb))
+  }
+
   func makeURL(for identity: MediaIdentity) -> URL? {
     guard let base = configuration.proxyBaseURL else { return nil }
     let root = base.absoluteString.hasSuffix("/")
@@ -347,6 +368,10 @@ struct TitleCardDTO: Decodable, Sendable {
 struct TitleCardNames: Decodable, Sendable {
   var ru: String?
   var original: String?
+}
+
+struct TitleCardIDsOnly: Decodable, Sendable {
+  var ids: TitleCardIDs?
 }
 
 struct TitleCardIDs: Decodable, Sendable {

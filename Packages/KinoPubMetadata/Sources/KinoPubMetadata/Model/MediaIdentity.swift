@@ -15,6 +15,9 @@ public struct MediaIdentity: Hashable, Sendable {
   /// Average runtime in minutes, when kino.pub sent one. Helps the worker tell two
   /// same-year titles apart.
   public let runtimeMinutes: Int?
+  /// The TMDB id an admin linked in the worker, `tv/343022` or `movie/550`. Looked up
+  /// directly; nil means the title is found by its IMDb id.
+  public let linkedTMDB: String?
 
   public init(
     kinopubId: Int,
@@ -24,7 +27,8 @@ public struct MediaIdentity: Hashable, Sendable {
     originalTitle: String,
     year: Int,
     isSeries: Bool,
-    runtimeMinutes: Int? = nil
+    runtimeMinutes: Int? = nil,
+    linkedTMDB: String? = nil
   ) {
     self.kinopubId = kinopubId
     self.imdb = imdb
@@ -34,6 +38,23 @@ public struct MediaIdentity: Hashable, Sendable {
     self.year = year
     self.isSeries = isSeries
     self.runtimeMinutes = runtimeMinutes
+    self.linkedTMDB = linkedTMDB
+  }
+
+  /// The same title with the ids the worker holds: its TMDB id, and its IMDb id where
+  /// kino.pub has none.
+  public func withLinked(imdb: String?, tmdb: String?) -> MediaIdentity {
+    MediaIdentity(
+      kinopubId: kinopubId,
+      imdb: self.imdb ?? imdb,
+      kinopoisk: kinopoisk,
+      title: title,
+      originalTitle: originalTitle,
+      year: year,
+      isSeries: isSeries,
+      runtimeMinutes: runtimeMinutes,
+      linkedTMDB: tmdb ?? linkedTMDB
+    )
   }
 
   /// The same title with a Kinopoisk id the title card supplied.
@@ -46,7 +67,8 @@ public struct MediaIdentity: Hashable, Sendable {
       originalTitle: originalTitle,
       year: year,
       isSeries: isSeries,
-      runtimeMinutes: runtimeMinutes
+      runtimeMinutes: runtimeMinutes,
+      linkedTMDB: linkedTMDB
     )
   }
 }

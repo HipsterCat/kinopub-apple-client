@@ -205,8 +205,8 @@ enum RatingSources {
             logo: .imdb,
             value: bundle.imdbScore,
             votes: bundle.imdbVotes,
-            url: imdbURL(mediaItem),
-            known: (mediaItem.imdb ?? 0) > 0),
+            url: imdbURL(mediaItem, metadata: metadata),
+            known: (mediaItem.imdb ?? 0) > 0 || metadata.linkedIMDb != nil),
       score(id: "Кинопоиск",
             logo: .kinopoisk,
             value: bundle.kinopoiskScore,
@@ -339,15 +339,17 @@ enum RatingSources {
   }
 
 #if os(tvOS)
-  private static func imdbURL(_ mediaItem: MediaItem) -> URL? { nil }
+  private static func imdbURL(_ mediaItem: MediaItem, metadata: TitleMetadata) -> URL? { nil }
   private static func kinopoiskURL(_ mediaItem: MediaItem) -> URL? { nil }
   private static func tmdbURL(_ mediaItem: MediaItem, metadata: TitleMetadata) -> URL? { nil }
   private static func kinopubURL(_ mediaItem: MediaItem) -> URL? { nil }
 #else
   private static func kinopubURL(_ mediaItem: MediaItem) -> URL? { kinopubWebURL(mediaItem) }
 
-  private static func imdbURL(_ mediaItem: MediaItem) -> URL? {
-    guard let id = mediaItem.imdb, id > 0 else { return nil }
+  private static func imdbURL(_ mediaItem: MediaItem, metadata: TitleMetadata) -> URL? {
+    guard let id = mediaItem.imdb, id > 0 else {
+      return metadata.linkedIMDb.flatMap { URL(string: "https://www.imdb.com/title/\($0)/") }
+    }
     return URL(string: "https://www.imdb.com/title/tt\(String(format: "%07d", id))/")
   }
 

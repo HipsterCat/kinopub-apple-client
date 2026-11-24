@@ -768,6 +768,8 @@ public struct TitleMetadata: Sendable {
   public var awardsSummary: String?
   public var productionCompanies: [ProductionCompany] = []
   public var tmdbId: Int?
+  /// The IMDb id (`tt…`) linked in the worker, where the kino.pub item has none.
+  public var linkedIMDb: String?
   /// Kinopoisk film id the title card carried, when the page still needs the proxy
   /// and the kino.pub item did not have one.
   public var kinopoiskID: Int?
@@ -874,6 +876,7 @@ public struct TitleMetadata: Sendable {
     if awardsSummary == nil { awardsSummary = other.awardsSummary }
     if productionCompanies.isEmpty { productionCompanies = other.productionCompanies }
     if tmdbId == nil { tmdbId = other.tmdbId }
+    if linkedIMDb == nil { linkedIMDb = other.linkedIMDb }
     if kinopoiskID == nil { kinopoiskID = other.kinopoiskID }
     if tmdbRating == nil { tmdbRating = other.tmdbRating }
     if tmdbVotes == nil { tmdbVotes = other.tmdbVotes }

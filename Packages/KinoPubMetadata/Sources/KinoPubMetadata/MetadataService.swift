@@ -64,6 +64,14 @@ public actor MetadataService {
                           myShows: await myShowsPart, plex: await plexPart, wikidata: await wikidataPart)
   }
 
+  /// `identity` with the ids linked in the worker, or nil when it holds no TMDB or IMDb
+  /// id this identity lacks.
+  public func linkedIdentity(for identity: MediaIdentity) async -> MediaIdentity? {
+    guard let ids = await titleCard?.linkedIDs(kinopubID: identity.kinopubId) else { return nil }
+    let linked = identity.withLinked(imdb: ids.imdb, tmdb: ids.tmdb)
+    return linked == identity ? nil : linked
+  }
+
   private func fetchTrakt(identity: MediaIdentity) async -> TitleMetadata? {
     guard let trakt = sources.compactMap({ $0 as? TraktSource }).first, trakt.isConfigured else { return nil }
     do {

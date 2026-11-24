@@ -119,7 +119,21 @@ public final class TMDBSource: MetadataSource, Sendable {
     let type: TMDBMediaType
   }
 
+  /// `tv/343022` → its type and number.
+  static func linkedID(_ raw: String?) -> (tmdbId: Int, type: TMDBMediaType)? {
+    guard let parts = raw?.split(separator: "/"), parts.count == 2,
+          let type = TMDBMediaType(rawValue: String(parts[0])),
+          let id = Int(parts[1]), id > 0 else { return nil }
+    return (id, type)
+  }
+
   private func resolveID(for identity: MediaIdentity) async -> (Resolved?, SourceDebugEntry) {
+    if let linked = Self.linkedID(identity.linkedTMDB) {
+      return (Resolved(tmdbId: linked.tmdbId, type: linked.type),
+              SourceDebugEntry(source: .tmdb, endpoint: "linked", url: identity.linkedTMDB ?? "",
+                               proxied: isConfigured, succeeded: true,
+                               responseBody: "TMDB id linked in the worker."))
+    }
     guard let imdb = identity.imdb, !imdb.isEmpty else {
       return (nil, SourceDebugEntry(source: .tmdb, endpoint: "find", url: "(no imdb id on this title)",
                                     proxied: isConfigured, succeeded: false, responseBody: "Skipped — no IMDb id from kino.pub."))

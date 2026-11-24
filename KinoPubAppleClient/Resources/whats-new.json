@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Страница тайтла: если на кино.пабе нет IMDb, а айди TMDB или IMDb назначен вручную, появляются их плитки, оценки и актёры.",
         "Страница тайтла: снова можно листать серии влево/вправо через сезоны без обрыва — соседние сезоны подгружаются с заглушками, без запроса всех сезонов сразу.",
         "«Продолжить»: после последней вышедшей серии больше не показывает следующую, которой ещё нет («Через N дней») — сериал уходит из ряда, пока серия не появится.",
         "Русские постеры: сначала TMDB, Кинопоиск — запасной вариант; если id Кинопоиска не было в базе, воркер подтягивает его в том же запросе.",
@@ -147,6 +148,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Title page: where kino.pub has no IMDb id and a TMDB or IMDb id was assigned by hand, their tiles, scores and cast now show.",
         "Title page: episode rails scroll left/right across seasons again — neighbouring seasons load with placeholders, without fetching every season up front.",
         "Continue Watching: after the last released episode, no longer shows the next one that is not out yet (“In N days”) — the series leaves the row until that episode arrives.",
         "Russian posters: TMDB first, Kinopoisk as fallback; if the Kinopoisk id was missing from the store, the worker resolves it in the same request.",

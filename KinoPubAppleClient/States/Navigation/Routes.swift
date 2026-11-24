@@ -193,6 +193,7 @@ struct RatingsAndReviews: Hashable {
   /// Trakt, Rotten Tomatoes, Metacritic, Letterboxd, MyAnimeList.
   let externalRatings: [ExternalRating]
   let tmdbID: Int?
+  let linkedIMDb: String?
   /// Trakt: how its votes fall, what its users do, what its reviews praise and fault.
   let traktDistribution: [Int: Int]
   let audienceStats: AudienceStats?
@@ -222,6 +223,7 @@ struct RatingsAndReviews: Hashable {
     self.tmdbVotes = metadata.tmdbVotes
     self.externalRatings = metadata.externalRatings
     self.tmdbID = metadata.tmdbId
+    self.linkedIMDb = metadata.linkedIMDb
     self.traktDistribution = metadata.traktDistribution
     self.audienceStats = metadata.audienceStats
     self.reviewInsights = metadata.reviewInsights
@@ -250,6 +252,7 @@ struct RatingsAndReviews: Hashable {
     meta.tmdbVotes = tmdbVotes
     meta.externalRatings = externalRatings
     meta.tmdbId = tmdbID
+    meta.linkedIMDb = linkedIMDb
     meta.traktDistribution = traktDistribution
     meta.audienceStats = audienceStats
     meta.reviewInsights = reviewInsights

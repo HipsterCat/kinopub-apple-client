@@ -413,4 +413,36 @@ final class TitleCardMappingTests: XCTestCase {
     )
     return try Data(contentsOf: url)
   }
+
+  func testLinkedTMDBIDIsReadByTypeAndNumber() {
+    let show = TMDBSource.linkedID("tv/343022")
+    XCTAssertEqual(show?.tmdbId, 343022)
+    XCTAssertEqual(show?.type, .tv)
+    XCTAssertEqual(TMDBSource.linkedID("movie/550")?.type, .movie)
+    for bad in [nil, "", "343022", "tv/", "tv/0", "person/5", "tv/5/6"] {
+      XCTAssertNil(TMDBSource.linkedID(bad))
+    }
+  }
+
+  func testLinkedIdsFillWhatKinopubLacksAndKeepItsIMDb() {
+    let bare = MediaIdentity(kinopubId: 129247, imdb: nil, kinopoisk: 5236833, title: "Шанхай",
+                             originalTitle: "Шанхай", year: 2021, isSeries: true)
+    let linked = bare.withLinked(imdb: "tt40658685", tmdb: "tv/343022")
+    XCTAssertEqual(linked.imdb, "tt40658685")
+    XCTAssertEqual(linked.linkedTMDB, "tv/343022")
+    XCTAssertEqual(linked.withKinopoisk(7).linkedTMDB, "tv/343022")
+    XCTAssertEqual(linked.withLinked(imdb: "tt1", tmdb: nil), linked)
+  }
+
+  /// The live card of kino.pub 129247: `season_finale` arrives as 0, not a Bool.
+  func testLinkedIdsSurviveACardTheFullDecoderRejects() throws {
+    let json = """
+    {"kinopub_id":129247,"type":null,"year":null,
+     "ids":{"imdb":"tt40658685","tmdb":"tv/343022","kinopoisk":"5236833","myshows":null},
+     "seasons":[{"number":1,"episodes":[{"number":1,"season_finale":0}]}]}
+    """
+    let ids = try TitleCardSource.linkedIDs(from: Data(json.utf8), client: MetadataHTTPClient())
+    XCTAssertEqual(ids.imdb, "tt40658685")
+    XCTAssertEqual(ids.tmdb, "tv/343022")
+  }
 }
