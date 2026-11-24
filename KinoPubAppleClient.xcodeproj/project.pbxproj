@@ -978,6 +978,10 @@
 			isa = PBXBuildFile;
 			fileRef = E13F5E0A7F705D16844C6E1F /* SeasonTabStripTests.swift */;
 		};
+		C8F0A1B2C3D4E5F607182930 /* SeasonRailPagingTests.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = D1E2F3A4B5C6D7E8091A2B3C /* SeasonRailPagingTests.swift */;
+		};
 		C416E118678579177ABF4640 /* EpisodeRailContextMenuTests.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = C8BB7B738C58793842B52174 /* EpisodeRailContextMenuTests.swift */;
@@ -2697,6 +2701,12 @@
 			path = SeasonTabStripTests.swift;
 			sourceTree = "<group>";
 		};
+		D1E2F3A4B5C6D7E8091A2B3C /* SeasonRailPagingTests.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = SeasonRailPagingTests.swift;
+			sourceTree = "<group>";
+		};
 		C8BB7B738C58793842B52174 /* EpisodeRailContextMenuTests.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -3683,6 +3693,7 @@
 				C57280C0F448FC7AA846295D /* TestWindow.swift */,
 				C6A8F6F8825DF3AAF09678E9 /* MissingEpisodeAirStateTests.swift */,
 				E13F5E0A7F705D16844C6E1F /* SeasonTabStripTests.swift */,
+				D1E2F3A4B5C6D7E8091A2B3C /* SeasonRailPagingTests.swift */,
 				C8BB7B738C58793842B52174 /* EpisodeRailContextMenuTests.swift */,
 				CB52DC2F282D86C56B507221 /* AppChangelogTests.swift */,
 				C0CE57A7F5BB785053439600 /* LibrarySectionCardsTests.swift */,
@@ -4171,6 +4182,7 @@
 				C3C9FDF1FF4DF6F45151F176 /* TestWindow.swift in Sources */,
 				C247D3500DADBAE8C2EB3CF2 /* MissingEpisodeAirStateTests.swift in Sources */,
 				CABAE75DF7E53EB2DA615864 /* SeasonTabStripTests.swift in Sources */,
+				C8F0A1B2C3D4E5F607182930 /* SeasonRailPagingTests.swift in Sources */,
 				C416E118678579177ABF4640 /* EpisodeRailContextMenuTests.swift in Sources */,
 				CFBB8082567B2DF0064A49B7 /* AppChangelogTests.swift in Sources */,
 				C8D01D6A5ECC10C1D7FB57B9 /* LibrarySectionCardsTests.swift in Sources */,

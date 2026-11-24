@@ -826,12 +826,17 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// The season rail's way in: items and callbacks, without `apply`'s "a new entry
   /// scrolls the rail". Where the rail sits is `align(to:animated:)`, where focus lands is
   /// `preferredItemID`, each asked for on its own.
+  ///
+  /// `onNearEnd` is every `willDisplay` (Home filters to the last card). The season rail
+  /// uses it to hydrate neighbouring seasons while placeholders are still on screen.
   func configure(items: [TVUIKitMediaItem],
                  onSelect: @escaping (Int) -> Void,
                  onFocusedItem: ((Int) -> Void)?,
+                 onNearEnd: ((Int) -> Void)? = nil,
                  contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
     self.onSelect = onSelect
     self.onFocusedItem = onFocusedItem
+    self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
     guard self.items != items else { return }
     syncItems(to: items)

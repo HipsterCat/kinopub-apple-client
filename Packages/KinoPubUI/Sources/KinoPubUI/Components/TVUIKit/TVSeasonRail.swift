@@ -71,6 +71,9 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
   private let columns: Int
   private let onSelect: (Int) -> Void
   private let onTabSelected: ((Int) -> Void)?
+  /// A cell is about to appear — used to expand the hydrated season window (placeholders
+  /// → real cards) without fetching every season on appear.
+  private let onItemDisplayed: ((Int) -> Void)?
   private let contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
 
   /// - Parameters:
@@ -83,6 +86,7 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
   ///   - openingItemID: where the rail sits and focus lands coming down from the hero,
   ///     until the remote has been in the rail.
   ///   - onTabSelected: a tab became the selected one, by the remote or by an episode.
+  ///   - onItemDisplayed: `willDisplay` for each item — hydrate the next/previous season.
   public init(title: String,
               tabs: [TVSeasonTab],
               items: [TVUIKitMediaItem],
@@ -93,6 +97,7 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
               columns: Int,
               onSelect: @escaping (Int) -> Void,
               onTabSelected: ((Int) -> Void)? = nil,
+              onItemDisplayed: ((Int) -> Void)? = nil,
               contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil) {
     self.title = title
     self.tabs = tabs
@@ -104,6 +109,7 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
     self.columns = columns
     self.onSelect = onSelect
     self.onTabSelected = onTabSelected
+    self.onItemDisplayed = onItemDisplayed
     self.contextMenuProvider = contextMenuProvider
   }
 
@@ -126,6 +132,7 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
                      openingItemID: openingItemID,
                      onSelect: onSelect,
                      onTabSelected: onTabSelected,
+                     onItemDisplayed: onItemDisplayed,
                      contextMenuProvider: contextMenuProvider)
   }
 
@@ -297,6 +304,7 @@ public final class TVSeasonRailController: UIViewController {
              openingItemID: Int?,
              onSelect: @escaping (Int) -> Void,
              onTabSelected: ((Int) -> Void)?,
+             onItemDisplayed: ((Int) -> Void)? = nil,
              contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
     let tabsChanged = self.tabs != tabs || rowTitle != title
     let openingMoved = self.openingItemID != openingItemID
@@ -312,6 +320,7 @@ public final class TVSeasonRailController: UIViewController {
     rail.configure(items: items,
                    onSelect: onSelect,
                    onFocusedItem: { [weak self] id in self?.railFocused(id) },
+                   onNearEnd: onItemDisplayed,
                    contextMenuProvider: contextMenuProvider)
 
     if tabsChanged {
