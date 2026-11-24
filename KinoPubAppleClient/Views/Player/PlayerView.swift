@@ -1132,7 +1132,15 @@ final class PlaybackWindowState: ObservableObject {
     let mode: WatchMode
   }
 
-  @Published var request: Request?
+  @Published var request: Request? {
+    didSet { if request == nil { manager = nil } }
+  }
+
+  /// The stream the window shows, claimed from `PlaybackSession` in `show` — an action,
+  /// never a view body. Claiming it from `PlayerWindowContent.body` made the session
+  /// retarget / tear managers down mid-update: «Publishing changes from within view
+  /// updates» on every swap in the window (2026-11-24).
+  @Published private(set) var manager: PlayerManager?
 
   /// SwiftUI's window opener, for callers that are not views — the Dock menu, Open Recent
   /// after its fetch. Kept by the main window and the player window as they appear.
@@ -1154,8 +1162,16 @@ final class PlaybackWindowState: ObservableObject {
   /// top of a stream that is already running.
   func show(item: any PlayableItem, mode: WatchMode) {
     RecentPlaybacks.shared.record(item, mode: mode)
-    if let request, request.item.id == item.id, request.mode == mode { return }
+    if manager != nil, let request, request.item.id == item.id, request.mode == mode { return }
+    let context = AppContext.shared
+    let claimed = PlaybackSession.shared.play(
+      item: item,
+      mode: mode,
+      downloadedFilesDatabase: context.downloadedFilesDatabase,
+      actionsService: context.actionsService
+    )
     request = Request(item: item, mode: mode)
+    if manager !== claimed { manager = claimed }
   }
 }
 
@@ -1165,8 +1181,6 @@ final class PlaybackWindowState: ObservableObject {
 struct PlayerWindowContent: View {
 
   @ObservedObject private var playback = PlaybackWindowState.shared
-  @ObservedObject private var session = PlaybackSession.shared
-  @Environment(\.appContext) private var appContext
   @Environment(ErrorHandler.self) private var errorHandler
   @Environment(\.openWindow) private var openWindow
 
@@ -1177,13 +1191,7 @@ struct PlayerWindowContent: View {
 
   @ViewBuilder
   private var content: some View {
-    if let request = playback.request {
-      let manager = session.play(
-        item: request.item,
-        mode: request.mode,
-        downloadedFilesDatabase: appContext.downloadedFilesDatabase,
-        actionsService: appContext.actionsService
-      )
+    if let manager = playback.manager {
       PlayerView(manager: manager)
         .id(ObjectIdentifier(manager))
         .handleError(state: Bindable(errorHandler).state)
