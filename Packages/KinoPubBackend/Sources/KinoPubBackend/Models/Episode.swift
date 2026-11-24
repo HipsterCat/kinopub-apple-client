@@ -77,6 +77,14 @@ public extension Episode {
   var isWatchedToEnd: Bool { watchProgress.isFinished }
   /// Single "watched" verdict: the explicit server flag OR watched-to-the-credits.
   var isWatched: Bool { watched > 0 || isWatchedToEnd }
+
+  /// Something to play on kino.pub: a files ladder (even `nolinks`, URLs still empty) or a
+  /// runtime. Empty ladder + no duration is a placeholder for an episode that is not out
+  /// yet — the season rail shows «Через N дней», and Continue Watching / Play must not
+  /// advance to it. Same rule as `EpisodePlayability.onService` (duration ≥ 60 s).
+  var isOnService: Bool {
+    !files.isEmpty || duration >= 60
+  }
 }
 
 extension Episode: PlayableItem {

@@ -73,16 +73,21 @@ public struct EpisodeQueue {
 
   /// The episode after `current`, watched or not: the next number in the season, else the
   /// first of the season after. Matched by `id`, so an unstamped season cannot misplace it.
+  /// Availability is the caller's job (`PlaybackEnd` dismisses when the next is not on
+  /// service — it does not skip past a hole to a later season).
   public func next(after current: Episode) -> Entry? {
     guard let index = entries.firstIndex(where: { $0.episode.id == current.id }) else { return nil }
     return stamped(entries.dropFirst(index + 1).first)
   }
 
-  /// The first episode after `current` the viewer has **not** watched. Nil when every one
-  /// after it is watched — Up Next never offers a watched one (user's call, 2026-10-01).
+  /// The first episode after `current` the viewer has **not** watched that is **on
+  /// service**. Nil when every one after it is watched or not yet released — Up Next
+  /// never offers a watched one (user's call, 2026-10-01) or an unreleased placeholder.
   public func nextUnwatched(after current: Episode) -> Entry? {
     guard let index = entries.firstIndex(where: { $0.episode.id == current.id }) else { return nil }
-    return stamped(entries.dropFirst(index + 1).first { !$0.state.isWatched })
+    return stamped(entries.dropFirst(index + 1).first {
+      !$0.state.isWatched && $0.episode.isOnService
+    })
   }
 
   /// The next episode **in the same season** as `current`. Nil at the season finale
@@ -102,28 +107,31 @@ public struct EpisodeQueue {
     entries.first { !$0.state.isWatched && $0.state.resumeFraction != nil }
   }
 
-  /// The first episode not watched, from the start.
+  /// The first on-service episode not watched, from the start.
   public var firstUnwatched: Entry? {
-    entries.first { !$0.state.isWatched }
+    entries.first { !$0.state.isWatched && $0.episode.isOnService }
   }
 
-  /// The episode after the furthest one watched — skipped episodes before it stay skipped.
+  /// The next on-service episode after the furthest one watched — skipped episodes
+  /// before it stay skipped; unreleased placeholders after it are skipped too.
   public var afterFurthestWatched: Entry? {
     guard let furthest = entries.lastIndex(where: { $0.state.isWatched }) else {
-      return entries.first
+      return entries.first { $0.episode.isOnService }
     }
-    return entries.dropFirst(furthest + 1).first
+    return entries.dropFirst(furthest + 1).first { $0.episode.isOnService }
   }
 
   /// **Where the viewer is in the series** — what Play opens and what Continue Watching
   /// offers: the episode the viewer touched **last**, as the Apple TV app does (user's call,
-  /// D17, 2026-10-04). Started and not finished → that one. Finished → the one after it.
+  /// D17, 2026-10-04). Started and not finished → that one. Finished → the next **on
+  /// service** after it (never an unreleased placeholder the rail badges «Через N дней»).
   /// "Last" is by when it was played (`ViewerState.lastWatchedAt`) when the state knows,
   /// else by reading order: with E1, E2, E4, E5 watched and E6 half-way, it is E6; with E6
   /// untouched, it is E6 too — a skipped E3 stays skipped.
   ///
-  /// After the finale with earlier episodes skipped: the first unwatched. Everything
-  /// watched: the first episode again (Replay).
+  /// After the finale with earlier episodes skipped: the first unwatched on service.
+  /// Everything on service watched (later slots may still be unreleased): the first
+  /// on-service episode again (Replay).
   public var continueTarget: Entry? {
     let touched = entries.indices.filter {
       entries[$0].state.isWatched || entries[$0].state.resumeFraction != nil
@@ -133,13 +141,20 @@ public struct EpisodeQueue {
       let right = entries[rhs].state.lastWatchedAt ?? .distantPast
       return left != right ? left < right : lhs < rhs
     }
-    guard let last else { return entries.first }
+    guard let last else { return entries.first { $0.episode.isOnService } ?? entries.first }
     if !entries[last].state.isWatched { return entries[last] }
-    return entries.dropFirst(last + 1).first ?? firstUnwatched ?? entries.first
+    return stamped(
+      entries.dropFirst(last + 1).first { $0.episode.isOnService }
+        ?? firstUnwatched
+        ?? entries.first { $0.episode.isOnService }
+        ?? entries.first
+    )
   }
 
-  /// Every episode watched.
+  /// Every **on-service** episode watched. Unreleased placeholders do not keep the
+  /// series "in progress" for Play / Continue Watching.
   public var isFinished: Bool {
-    !entries.isEmpty && entries.allSatisfy(\.state.isWatched)
+    let playable = entries.filter { $0.episode.isOnService }
+    return !playable.isEmpty && playable.allSatisfy(\.state.isWatched)
   }
 }

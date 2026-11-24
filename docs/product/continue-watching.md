@@ -46,7 +46,10 @@ already there; a card the server never listed has nothing to take it back out ag
 sampled for a minute is not something to carry on with.
 
 **prd** — A finished film leaves the row. A finished *episode* does not remove the series — it steps
-it to the next episode.
+it to the next **on-service** episode. An unreleased placeholder (listed with no file and no
+runtime — the season rail's «Через N дней») is not a next episode: when every aired episode is
+watched, the series leaves the row the same way a fully watched one does (Replay / Follow on
+the detail page), never a card that advertises the future episode number.
 
 **prd** — Abandoned titles leave the row. Thresholds (on `ContinueWatchingOrder`):
 
@@ -71,11 +74,12 @@ as the server will.
 
 **The title's own payload decides, with the server's watched flags — the same answer the detail
 page gives** (Sasha, 2026-10-16: VisionQuest S1E2 was watched on its page and "in progress" on
-Home). The row asks `/v1/items/{id}` for every series in it, and for every title the server's
-watching lists do not carry (it came from history or this device: leaving those lists is the
-server saying "done"). A payload is reused for the session until its title moves — the server's
-counts, its newest history row or this device's play head — so a refresh after nothing happened
-costs no request.
+Home). `EpisodeQueue.continueTarget` / `Episode.isOnService` is that answer: same gate the season
+rail uses for playability (files ladder or runtime ≥ 60 s). The row asks `/v1/items/{id}` for
+every series in it, and for every title the server's watching lists do not carry (it came from
+history or this device: leaving those lists is the server saying "done"). A payload is reused for
+the session until its title moves — the server's counts, its newest history row or this device's
+play head — so a refresh after nothing happened costs no request.
 
 History alone only has a play head, and counts span the whole series, so a guess from them
 (`ContinueWatchingEpisode.forSeries`, used when a payload could not be had) treats the watched
