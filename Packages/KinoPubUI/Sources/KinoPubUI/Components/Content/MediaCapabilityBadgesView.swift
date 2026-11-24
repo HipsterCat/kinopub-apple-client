@@ -109,7 +109,7 @@ public struct MediaBadgeImages: View {
     ("G", "g"), ("PG", "pg"), ("PG-13", "pg-13"), ("R", "R"), ("NC-17", "nc-17"), ("X", "x"),
     ("NR", "nr"), ("Not Rated", "nr"), ("Unrated", "unrated"),
     // US TV Parental Guidelines
-    ("TV-Y", "tv-y"), ("TV-G", "tv-g"), ("TV-PG", "tv-pg"), ("TV-MA", "tv-ma"), ("TV-14", "tv-14"),
+    ("TV-Y", "tv-y"), ("TV-Y7", "tv-y7"), ("TV-G", "tv-g"), ("TV-PG", "tv-pg"), ("TV-MA", "tv-ma"), ("TV-14", "tv-14"),
     // Australia
     ("M", "m"), ("MA", "ma"), ("MA15+", "ma")
   ].map { (ageRatingKey($0.0), $0.1) })
