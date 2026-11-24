@@ -641,9 +641,15 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
       return nil
     }
     PosterContextMenuLog.log("mediaCollection menu → UIContextMenuConfiguration")
-    return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
+    let preview = MediaCardContextPreviewSpec.from(
+      card: card,
+      surface: isLandscape ? .episodeRail : .shelf
+    )
+    return TVUIKitContextMenuBuilder.configuration(
+      identifier: indexPath as NSIndexPath,
+      preview: preview,
+      entries: entries
+    )
   }
 
   public func collectionView(

@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Poster / video context menus (KP-73):** Apple TV–style sneak peek on every
+  long-press surface — native poster (2:3) / wide (16:9) aspect with fit (no
+  centre-crop), title + secondary line (`year · genre`, duration, or episode
+  meta), prefetch and loading spinner. Follow / unfollow flips the menu title
+  immediately and toasts success; Watched on series CW cards is a submenu like
+  the detail «…» menu (episode · season · unwatched in season · all).
 - **tvOS Search first paint:** pre-warm loads the system search stack in a hidden
   scene window at launch. The window stays out of the accessibility tree; after
   the tab takes the stack, later pre-warms do not build a second search UI (a

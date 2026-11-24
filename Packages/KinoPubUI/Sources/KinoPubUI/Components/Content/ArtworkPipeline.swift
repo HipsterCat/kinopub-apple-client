@@ -297,6 +297,20 @@ public enum Artwork {
     try await image(for: url, size: logoDecodeSize, mode: .fit)
   }
 
+  /// Warm the data cache for art that is about to appear (context-menu preview, etc.).
+  /// Bytes only — same policy as `TVUIKitRemoteImage.prefetch`.
+  public static func prefetch(_ urls: [URL?]) {
+    let requests = urls.compactMap { $0 }.map { request($0) }
+    guard !requests.isEmpty else { return }
+    prefetcher.startPrefetching(with: requests)
+  }
+
+  private static let prefetcher: ImagePrefetcher = {
+    let prefetcher = ImagePrefetcher(pipeline: pipeline, destination: .diskCache)
+    prefetcher.priority = .high
+    return prefetcher
+  }()
+
   /// `image(for:)`, plus where it came from: the URL that answered after redirects
   /// (nil from a cache, which does not keep it), the worker language stamp when the
   /// final URL or `Content-Language` carries `ru` / `en` / `und`, and the tier —

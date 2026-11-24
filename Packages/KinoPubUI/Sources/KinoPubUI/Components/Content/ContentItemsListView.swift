@@ -230,7 +230,8 @@ public struct ContentItemsListView<Header: View>: View {
 #endif
             .modifier(MediaCardContextMenuModifier(
               isEnabled: contextMenuProvider != nil,
-              entriesProvider: { contextMenuProvider?(item) ?? [] }
+              entriesProvider: { contextMenuProvider?(item) ?? [] },
+              previewSpecProvider: { .from(card: MediaCard(item), surface: .shelf) }
             ))
           }
         }
@@ -264,7 +265,8 @@ public struct ContentItemsListView<Header: View>: View {
 #endif
             .modifier(MediaCardContextMenuModifier(
               isEnabled: contextMenuProvider != nil,
-              entriesProvider: { contextMenuProvider?(item) ?? [] }
+              entriesProvider: { contextMenuProvider?(item) ?? [] },
+              previewSpecProvider: { .from(card: MediaCard(item), surface: .shelf) }
             ))
             Divider().opacity(0.35)
           }

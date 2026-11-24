@@ -1149,9 +1149,33 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
           !entries.isEmpty
     else { return nil }
 
-    return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
+    let item = items[indexPath.item]
+    let previewURL = item.seasonCard?.posterURL
+      ?? item.imageURL
+      ?? item.backdropImageURL
+      ?? item.fallbackImageURL
+    let aspect: CardAspect = item.seasonCard != nil ? .poster : .landscape
+    let title = item.seasonCard?.captions.first
+      ?? item.focusedCaption
+      ?? item.caption
+      ?? ""
+    let subtitle: String? = {
+      if let season = item.seasonCard {
+        return season.chips.first
+      }
+      if let detail = item.detail, !detail.isEmpty { return detail }
+      return item.timeLabel
+    }()
+    return TVUIKitContextMenuBuilder.configuration(
+      identifier: indexPath as NSIndexPath,
+      preview: MediaCardContextPreviewSpec(
+        url: previewURL,
+        aspect: aspect,
+        title: title,
+        subtitle: subtitle
+      ),
+      entries: entries
+    )
   }
 
   public func collectionView(
