@@ -304,13 +304,9 @@ struct CastAndCrew: Hashable {
   /// kino.pub's billed names plus everyone TMDB listed, then the crew.
   static func make(item: MediaItem, metadata: TitleMetadata,
                    tab: CastAndCrewTab = .featured) -> CastAndCrew {
-    var cast = TitleMetadata.enrich(names: item.castMembers, roleDepartment: "Acting",
-                                    from: metadata)
-    var seen = Set(cast.map { TitleMetadata.normalize($0.name) })
-    for member in metadata.cast {
-      let key = TitleMetadata.normalize(member.name)
-      if seen.insert(key).inserted { cast.append(member) }
-    }
+    let listed = TitleMetadata.enrich(names: item.castMembers, roleDepartment: "Acting",
+                                      from: metadata)
+    let cast = listed + CastRanking.unlisted(metadata.cast, besides: listed)
     return CastAndCrew(item: item, cast: cast, crew: metadata.crew, tab: tab)
   }
 
@@ -329,15 +325,24 @@ struct CastAndCrew: Hashable {
     return Entry(person: person, roleLine: cleaned, episodeLine: episodes)
   }
 
-  /// Regular vs guest floor — same rule as `MediaItemTVSections.rankedCast`.
+  /// Regular vs guest floor — same rule as `CastRanking.ranked`.
   var regularEpisodeFloor: Int {
     let most = cast.compactMap(\.episodeCount).max() ?? 0
     guard item.isEpisodicType, most > 0 else { return 0 }
     return most > 1 ? max(2, Int((Double(most) * 0.2).rounded(.up))) : 1
   }
 
+  /// The same people the title page's rail shows (`CastRanking.ranked`): `make` puts
+  /// kino.pub's names first.
+  private var featuredCast: [CastMember] {
+    let listedCount = min(item.castMembers.count, cast.count)
+    return CastRanking.ranked(listed: Array(cast.prefix(listedCount)),
+                              others: Array(cast.dropFirst(listedCount)),
+                              isEpisodic: item.isEpisodicType)
+  }
+
   var featuredPeople: [Entry] {
-    let leads = CastRanking.ranked(cast, isEpisodic: item.isEpisodicType)
+    let leads = featuredCast
     var rows = leads.map { entry(for: $0, role: .actor) }
     let keyCrew = crew.filter { member in
       let department = (member.department ?? "").lowercased()
@@ -358,9 +363,7 @@ struct CastAndCrew: Hashable {
       return cast.filter { ($0.episodeCount ?? 0) >= floor }.map { entry(for: $0, role: .actor) }
     }
     // Films: everyone past the featured billing still belongs under Regular.
-    let featuredNames = Set(CastRanking.ranked(cast, isEpisodic: false).map {
-      TitleMetadata.normalize($0.name)
-    })
+    let featuredNames = Set(featuredCast.map { TitleMetadata.normalize($0.name) })
     return cast.filter { !featuredNames.contains(TitleMetadata.normalize($0.name)) }
       .map { entry(for: $0, role: .actor) }
   }

@@ -47,6 +47,12 @@ public struct HomeHeroCarousel: View {
   /// The page's side margins where it measured them (`PageMargins`).
   @Environment(\.pageMargins) private var pageMargins
 
+  /// What the pager is laid out in: a change of either can leave it off its page.
+  private struct PagerFrame: Equatable {
+    var width: CGFloat
+    var inset: CGFloat
+  }
+
   /// One page: which title, on which lap of the three.
   struct Slot: Hashable, Sendable {
     var lap: Int
@@ -249,8 +255,27 @@ public struct HomeHeroCarousel: View {
     .onDisappear { isPresented = false }
     // A window resized, or a page pushed and popped, can leave the pager between two
     // pages: the old offset in a new page width, or a turn cut off on its way.
-    .onChange(of: size.width) { move(to: current, animated: false) }
-    .task(id: size.width) {
+    // Only when that left it off its page: at launch the width settles while the pager
+    // already sits where it was built, and moving it onto its own page there scrolled it
+    // inside the scroll's own update (`<OnScrollGeometryChange Modifier> tried to update
+    // multiple times per frame`, Sasha's Mac launch log 2026-11-23).
+    // A new width (a resize, or the page settling beside the Mac's sidebar at launch,
+    // 1136 → 1060 pt) leaves the pager off its page. Put back once that layout is done,
+    // not inside it: a scroll from `onChange(of: size.width)` moved the scroll's geometry
+    // a second time in the frame that changed it (`OnScrollGeometryChange tried to update
+    // multiple times per frame`, Sasha's Mac launch log 2026-11-23).
+    //
+    // A new leading inset does the same: the Mac's sidebar comes in at launch (inset
+    // 0 → 144 → 220 pt) after the width has settled, and the scroll view corrects its
+    // offset for it twice inside one layout. The last correction can be lost to the
+    // geometry observer, which then reports the page at rest while it is drawn 220 pt
+    // aside: the first slide kept a white strip until the first turn (Sasha, 2026-11-24).
+    // So the re-snap is unconditional — a scroll to where the reading says it already
+    // is, outside the layout pass, which costs nothing when it is true.
+    .task(id: PagerFrame(width: size.width, inset: pager.reading.inset)) {
+      await Task.yield()
+      guard !Task.isCancelled, size.width > 0 else { return }
+      if !isScrolling, !isTurning { move(to: current, animated: false) }
       try? await Task.sleep(for: .milliseconds(300))
       guard !Task.isCancelled else { return }
       // Built afresh only when the scroll view stayed off its page after the re-snap
@@ -268,8 +293,7 @@ public struct HomeHeroCarousel: View {
     // multiple times per frame`, Sasha's device log 2026-11-22: `move to 0:0` on each).
     // A turn cut off by the push still is put back, whatever phase it last reported.
     .onChange(of: isActive) {
-      guard let at = slots.firstIndex(of: current),
-            pager.page != at || !pager.reading.isAtRest else { return }
+      guard !isOnCurrentPage else { return }
       move(to: current, animated: false)
     }
     .onChange(of: advances) { _, now in
@@ -365,6 +389,10 @@ public struct HomeHeroCarousel: View {
   /// and one on an outer lap goes back to the same title in the middle one with nothing
   /// animated — the two pages look the same, so it does not show.
   private func settle() {
+    // Before the scroll has reported where it is, the reading is the default page 0 —
+    // the first page of the first lap — and the hero was sent onto a title it was never
+    // on, then back (`move to 0:0` twice at launch).
+    guard pager.reading.isMeasured else { return }
     let pages = slots
     if size.width > 0, !pages.isEmpty {
       let nearest = min(max(pager.page, 0), pages.count - 1)
@@ -386,12 +414,17 @@ public struct HomeHeroCarousel: View {
     return features.indices.contains(index) ? features[index] : nil
   }
 
+  /// The scroll is at rest exactly on the current page — or has not reported yet, in
+  /// which case it is where it was built: on `current`.
+  private var isOnCurrentPage: Bool {
+    guard pager.reading.isMeasured, let at = slots.firstIndex(of: current) else { return true }
+    return pager.page == at && pager.reading.isAtRest
+  }
+
   /// Puts the scroll back exactly on the current page when it is not there.
   private func snap() {
-    guard !isScrolling, !isTurning, let at = slots.firstIndex(of: current) else { return }
-    if pager.page != at || !pager.reading.isAtRest {
-      move(to: current, animated: false)
-    }
+    guard !isScrolling, !isTurning, !isOnCurrentPage else { return }
+    move(to: current, animated: false)
   }
 
   // MARK: Page
@@ -651,6 +684,12 @@ final class HeroPager {
     var page = 0
     /// Exactly on that page, not part-way through a turn.
     var isAtRest = true
+    /// The scroll has reported at least once; until then `page` is only the default.
+    var isMeasured = false
+    /// The leading content inset. On the Mac it grows while the sidebar comes in at
+    /// launch (0 → 144 → 220 pt) and the scroll view keeps its offset, so the page slides
+    /// off by the difference with no width change and no scroll phase to notice it.
+    var inset: CGFloat = 0
 
     init() {}
 
@@ -664,6 +703,8 @@ final class HeroPager {
       let position = width > 0 ? (geometry.contentOffset.x + geometry.contentInsets.leading) / width : 0
       page = Int(position.rounded())
       isAtRest = abs(position - position.rounded()) <= 0.001
+      isMeasured = width > 0
+      inset = geometry.contentInsets.leading
     }
   }
 

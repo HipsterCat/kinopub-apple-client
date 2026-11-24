@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Hover pictures match the title page (macOS):** Continue Watching and History bring up
+  the same episode still the title page's season rail draws (worker
+  `/img/thumbnail/by/kinopub/{id}?s=&e=&src=`, WebP at the card's drawn width), and a
+  film brings up the hero's backdrop. kino.pub's own frame is the fallback.
 - **Title open never waits (tvOS):** the previous title's backdrop is dropped at once
   for a blurred copy of the card's poster; the worker backdrop crossfades in when it
   has loaded. Hero logo/backdrop URLs are built immediately from the kino.pub id, not

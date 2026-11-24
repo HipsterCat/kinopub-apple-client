@@ -307,20 +307,13 @@ enum MediaItemTVSections {
   /// The most people the cast row holds — see `CastRanking.castLimit`.
   static let castLimit = CastRanking.castLimit
 
-  /// Who is worth a card — see `CastRanking.ranked`.
-  static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
-    CastRanking.ranked(members, isEpisodic: isEpisodic)
-  }
-
-    /// Actors as `MediaItemCastSection` has always chosen them — kino.pub's names, with
-  /// TMDB's photo and character where it has them — ranked and trimmed (`rankedCast`). The
-  /// caption is the character, then how many episodes for a series; a person with neither
-  /// has none, because "Actor" under an actor says nothing.
+  /// Actors as `MediaItemCastSection` chooses them — `CastRanking.rail`: kino.pub's names in
+  /// kino.pub's order, with TMDB's photo and character where it has them, then the metadata
+  /// worker's regulars. The caption is the character, then how many episodes for a series; a
+  /// person with neither has none, because "Actor" under an actor says nothing.
   private static func castCards(_ input: Input) -> [TVUIKitPerson] {
-    let members = TitleMetadata.enrich(names: input.mediaItem.castMembers, roleDepartment: "Acting",
-                                       from: input.metadata)
-    let ranked = rankedCast(members, isEpisodic: input.mediaItem.isEpisodicType)
-    let ordered = ranked.filter { $0.photo != nil } + ranked.filter { $0.photo == nil }
+    let ordered = CastRanking.rail(names: input.mediaItem.castMembers, metadata: input.metadata,
+                                   isEpisodic: input.mediaItem.isEpisodicType)
     return ordered.map { member in
       let person = MediaPerson(name: member.name, role: .actor,
                                photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),

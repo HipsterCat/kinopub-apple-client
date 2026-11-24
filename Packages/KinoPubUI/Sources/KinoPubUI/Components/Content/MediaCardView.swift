@@ -7,6 +7,7 @@ import Foundation
 import SwiftUI
 import KinoPubBackend
 import KinoPubMedia
+import KinoPubMetadata
 
 /// What a single-click / Select on the card does.
 public enum MediaCardPrimaryAction: String, Codable, Hashable, Sendable {
@@ -771,6 +772,7 @@ public struct MediaCardView: View {
   private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
   @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
   @Environment(\.mediaCardTitleFont) private var titleFont
+  @Environment(\.titleImageRoute) private var titleImageRoute
   @AppStorage(MediaCardDisplayPreferences.showCountryKey)
   private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
   @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
@@ -1287,10 +1289,18 @@ public struct MediaCardView: View {
       }
       .overlay {
         // The offered episode's own still over the title's cover while hovered, crossfaded.
-        if decodeSize.width > 1,
-           showsHoverStill,
-           let url = card.hoverStillURL.flatMap(URL.init(string:)) {
-          CachedRemoteImage(url: url, size: decodeSize, contentMode: .fill)
+        if decodeSize.width > 1, showsHoverStill,
+           let artwork = hoverArtwork(points: decodeSize.width) {
+          CachedRemoteImage(url: artwork.primary, size: decodeSize, contentMode: .fill,
+                            placeholder: { Color.clear },
+                            failure: {
+                              if let fallback = artwork.fallback {
+                                CachedRemoteImage(url: fallback, size: decodeSize,
+                                                  contentMode: .fill,
+                                                  placeholder: { Color.clear },
+                                                  failure: { Color.clear })
+                              }
+                            })
             .transition(.opacity)
         }
       }
@@ -1359,6 +1369,44 @@ public struct MediaCardView: View {
     } else {
       Rectangle().fill(.fill.tertiary)
     }
+  }
+
+  /// What the pointer brings up over the title's cover, by the title page's own rule
+  /// (Sasha, 2026-11-24: the same episode was a different picture here and inside):
+  /// an episode is the worker's episode still, as the season rail draws it; a film is the
+  /// title's backdrop, as the hero draws it. kino.pub's own frame (`hoverStillURL`) is the
+  /// fallback, and the whole picture when the worker is not configured. A title in several
+  /// videos keeps its video's own frame, as the title page's version rail does.
+  private func hoverArtwork(points: CGFloat) -> (primary: URL, fallback: URL?)? {
+    let kinopub = card.hoverStillURL.flatMap { $0.isEmpty ? nil : URL(string: $0) }
+    guard let kinopub else { return nil }
+    let itemID = card.itemID
+    if titleImageRoute.isConfigured, itemID > 0 {
+      if card.isSeries, let season = card.season, let episode = card.video,
+         let still = titleImageRoute.episodeStill(kinopubID: itemID, imdb: card.imdbID,
+                                                  season: season, episode: episode,
+                                                  pixelWidth: TitleImageRoute
+                                                    .episodeStillPixelWidth(points: Double(points),
+                                                                            scale: Double(hoverScale)),
+                                                  kinopubThumb: card.hoverStillURL) {
+        return (still, kinopub)
+      }
+      if !card.isSeries, card.offeredName == nil,
+         let backdrop = titleImageRoute.backdrop(kinopubID: itemID, imdb: card.imdbID,
+                                                 width: Int((points * hoverScale).rounded(.up))) {
+        return (backdrop, kinopub)
+      }
+    }
+    return (kinopub, nil)
+  }
+
+  /// Request pixels per point — the scale the pipeline decodes at.
+  private var hoverScale: CGFloat {
+#if os(macOS)
+    Artwork.macOSRequestScale
+#else
+    2
+#endif
   }
 
   private var showsHoverStill: Bool {
@@ -1837,4 +1885,7 @@ public extension EnvironmentValues {
   /// The caption title's style for the cards under it; nil is `TypeScale.cardTitle`.
   /// The title page's episodes are a step up (`TypeScale.episodeCardTitle`).
   @Entry var mediaCardTitleFont: Font? = nil
+  /// The worker's image route, so a card's hover picture comes from the same place the
+  /// title page takes it (`MediaCardView.hoverArtwork`). Unconfigured: kino.pub's own.
+  @Entry var titleImageRoute: TitleImageRoute = TitleImageRoute(baseURL: nil, language: nil)
 }

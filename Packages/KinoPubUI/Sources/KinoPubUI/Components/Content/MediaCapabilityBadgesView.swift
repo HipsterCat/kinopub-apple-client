@@ -86,22 +86,33 @@ public struct MediaBadgeImages: View {
     self.names = names
   }
 
-  /// The drawing for a certification — «18+», «16», «R», «PG-13», «TV-MA» — or nil when
-  /// `Media.xcassets/badges` has none for it («0+», «6+», «TV-14»), and the rating
-  /// stays typed. Matched without case, «+» or spaces.
+  /// The drawing for a certification — «0+», «18+», «R», «PG-13», «TV-G», «NR» — or nil
+  /// when `Media.xcassets/badges` has none for it («TV-14», «TV-Y7», «R18+»), and the
+  /// rating stays typed. Matched without case, «+», spaces or hyphens, after a Plex
+  /// region prefix («gb/15» → «15»).
   public static func ageRatingAssetName(_ rating: String) -> String? {
-    let key = rating.uppercased()
-      .replacingOccurrences(of: "+", with: "")
-      .replacingOccurrences(of: " ", with: "")
-    return ageRatingAssets[key]
+    let bare = rating.split(separator: "/").last.map(String.init) ?? rating
+    return ageRatingAssets[ageRatingKey(bare)]
   }
 
-  /// Certification → asset, for the files in `badges/` (Sasha, 2026-11-09).
-  private static let ageRatingAssets: [String: String] = [
-    "12": "12", "14": "14", "16": "16", "18": "18",
-    "G": "g", "PG": "pg", "PG-13": "pg-13", "R": "R", "NC-17": "nc-17",
-    "TV-Y": "tv-y", "TV-PG": "tv-pg", "TV-MA": "tv-ma"
-  ]
+  private static func ageRatingKey(_ rating: String) -> String {
+    rating.uppercased().filter { $0 != "+" && $0 != " " && $0 != "-" && $0 != "_" }
+  }
+
+  /// Certification → asset, for the files in `badges/` (Sasha, 2026-11-09; 0+, 6+, M,
+  /// MA, X, NR, Unrated 2026-11-20; TV-G 2026-11-24). A mark that would drop part of
+  /// the rating («R18+» drawn as «R») is left typed.
+  private static let ageRatingAssets: [String: String] = Dictionary(uniqueKeysWithValues: [
+    // Russia and the plain age ladders
+    ("0", "0"), ("6", "6"), ("12", "12"), ("14", "14"), ("16", "16"), ("18", "18"),
+    // MPA
+    ("G", "g"), ("PG", "pg"), ("PG-13", "pg-13"), ("R", "R"), ("NC-17", "nc-17"), ("X", "x"),
+    ("NR", "nr"), ("Not Rated", "nr"), ("Unrated", "unrated"),
+    // US TV Parental Guidelines
+    ("TV-Y", "tv-y"), ("TV-G", "tv-g"), ("TV-PG", "tv-pg"), ("TV-MA", "tv-ma"),
+    // Australia
+    ("M", "m"), ("MA", "ma"), ("MA15+", "ma")
+  ].map { (ageRatingKey($0.0), $0.1) })
 
   public var body: some View {
     BadgeImagesFitText(spacing: MediaCapabilityBadgesView.spacing) {

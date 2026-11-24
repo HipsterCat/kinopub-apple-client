@@ -141,6 +141,25 @@ public struct TitleImageRoute: Sendable, Hashable {
     return components?.url
   }
 
+  /// An episode's still — one rule for every place that shows one: the title page's
+  /// season rail, and the episode Continue Watching and History bring up under the
+  /// pointer. The worker answers with the best still it has (tvoe, TMDB, then kino.pub's
+  /// own frame via `src=`, resized to WebP), so the same episode is the same picture
+  /// everywhere. `season` is kino.pub's season number, never a year from the title.
+  public func episodeStill(kinopubID: Int, imdb: Int?, season: Int, episode: Int,
+                           pixelWidth: Int, kinopubThumb: String?) -> URL? {
+    url(.thumbnail, kinopubID: kinopubID, imdb: imdb, width: pixelWidth,
+        season: season, episode: episode, kinopubThumb: kinopubThumb)
+  }
+
+  /// Pixel width for `/img/thumbnail?w=`: the slot's own pixels, capped at the worker's
+  /// practical top bucket and floored at 300 so a tiny slot does not ask for a
+  /// postage-stamp face crop.
+  public static func episodeStillPixelWidth(points: Double, scale: Double) -> Int {
+    let raw = Int((points * scale).rounded(.up))
+    return min(max(raw, 300), 1280)
+  }
+
   /// Only kino.pub's own CDN may ride on `src=` — the worker rejects anything else.
   public static func isStaticpopThumb(_ raw: String) -> Bool {
     guard let host = URL(string: raw)?.host?.lowercased() else { return false }

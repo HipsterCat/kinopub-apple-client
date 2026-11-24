@@ -961,18 +961,37 @@ public struct TitleMetadata: Sendable {
   }
 
   /// Enrich kino.pub name list with TMDB cast/crew data, keeping kino.pub order.
+  ///
+  /// A name is looked up as written first, then by `soundKey` — kino.pub and the metadata
+  /// worker spell the same Korean or Chinese actor in different Russian transliterations
+  /// («То Гён-су» / «До Кён Су», «Ли Гван-су» / «Ли Кван Су»). An unmatched name had no
+  /// episode count and the cast rail dropped it as a guest. Each metadata person answers
+  /// one kino.pub name at most.
   public static func enrich(
     names: [String],
     roleDepartment: String?,
     from metadata: TitleMetadata
   ) -> [CastMember] {
     let pool = metadata.cast + metadata.crew
-    let byName = Dictionary(pool.map { (Self.normalize($0.name), $0) },
-                            uniquingKeysWith: { first, _ in first })
+    var byName: [String: Int] = [:]
+    var bySound: [String: Int] = [:]
+    for (index, member) in pool.enumerated() {
+      for spelling in [member.name, member.localizedName].compactMap({ $0 }) {
+        if byName[normalize(spelling)] == nil { byName[normalize(spelling)] = index }
+        let sound = soundKey(spelling)
+        if !sound.isEmpty, bySound[sound] == nil { bySound[sound] = index }
+      }
+    }
+    var taken = Set<Int>()
+    func lookup(_ name: String) -> CastMember? {
+      let candidates = [byName[normalize(name)], bySound[soundKey(name)]].compactMap { $0 }
+      guard let index = candidates.first(where: { !taken.contains($0) }) else { return nil }
+      taken.insert(index)
+      return pool[index]
+    }
     return names.map { name in
-      if let hit = byName[Self.normalize(name)] {
-        var member = hit
-        member = CastMember(
+      if let hit = lookup(name) {
+        return CastMember(
           name: name,
           localizedName: hit.localizedName,
           character: hit.character,
@@ -982,10 +1001,25 @@ public struct TitleMetadata: Sendable {
           episodeCount: hit.episodeCount,
           order: hit.order
         )
-        return member
       }
       return CastMember(name: name, department: roleDepartment)
     }
+  }
+
+  /// The same name in another transliteration, as one key: letters only, `ё` as `е`, soft and
+  /// hard signs gone, voiced consonants folded into their voiceless pairs and `дж`/`чж`/`чх`
+  /// into `ч`. Latin names only lose case, diacritics and punctuation.
+  public static func soundKey(_ name: String) -> String {
+    var key = normalize(name).filter(\.isLetter)
+    for (from, to) in [("дж", "ч"), ("чж", "ч"), ("чх", "ч"), ("тч", "ч")] {
+      key = key.replacingOccurrences(of: from, with: to)
+    }
+    let fold: [Character: Character] = ["ё": "е", "э": "е", "д": "т", "г": "к", "б": "п",
+                                        "з": "с", "ж": "ш", "в": "ф", "й": "и"]
+    return String(key.compactMap { char -> Character? in
+      if char == "ь" || char == "ъ" { return nil }
+      return fold[char] ?? char
+    })
   }
 
   public static func normalize(_ name: String) -> String {

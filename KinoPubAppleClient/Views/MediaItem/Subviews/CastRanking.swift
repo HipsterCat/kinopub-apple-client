@@ -10,37 +10,38 @@ import Foundation
 import KinoPubMetadata
 
 enum CastRanking {
-  /// The most people the cast row holds. A billing runs to dozens; past a dozen it is a
-  /// list of names nobody is looking for.
+  /// How many cards the row fills up to. kino.pub's own list is never cut to it; the
+  /// metadata worker's people only fill what kino.pub left (`ranked`).
   static let castLimit = 12
 
-  /// Who is worth a card, the most important first — "sort the stars by episodes or
-  /// popularity and drop the insignificant" (Sasha, 2026-10-06).
-  ///
-  /// A series ranks by how many of its episodes a person is in (TMDB's aggregate credits). A
-  /// film keeps kino.pub's own list order and only uses TMDB billing to drop bit parts
-  /// (`order >= castLimit`). Reordering a film by billing is what put Jason Statham tenth
-  /// in *Mutiny* and an unknown ahead of Bondarchuk in *Трудно быть богом*. kino.pub's order
-  /// also stands in for a title TMDB has nothing on. In a series, someone in fewer than a
-  /// fifth of the episodes the most-seen person is in — and never fewer than two, once
-  /// anyone has more than one — is a guest and is dropped; so is everything past `castLimit`.
-  ///
-  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11):
-  /// that is the lead, and a name TMDB could not match (no episode count) was dropped as a
-  /// guest — Dexter's own Dexter. If ranking would have left them out they open the row.
-  static func ranked(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
-    let ranked = ranking(members, isEpisodic: isEpisodic)
-    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
-    return [lead] + ranked.prefix(castLimit - 1)
+  /// The rail for a title: kino.pub's names enriched from the metadata worker, then the
+  /// worker's people kino.pub did not name.
+  static func rail(names: [String], metadata: TitleMetadata, isEpisodic: Bool) -> [CastMember] {
+    let listed = TitleMetadata.enrich(names: names, roleDepartment: "Acting", from: metadata)
+    return ranked(listed: listed, others: unlisted(metadata.cast, besides: listed), isEpisodic: isEpisodic)
   }
 
-  private static func ranking(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
-    var ranked = Array(members.enumerated())
-    let most = members.compactMap(\.episodeCount).max() ?? 0
+  /// Who is worth a card, in the order the row shows them (Sasha, 2026-11-24):
+  ///
+  /// 1. **everyone kino.pub lists, in kino.pub's order** — matched or not, a guest by episode
+  ///    count or not. That list is what kino.pub's own «В ролях» shows; dropping a name from
+  ///    it (an unmatched transliteration had no episode count and went as a guest) is what
+  ///    left a 40-person series with two faces;
+  /// 2. then the rest of the cast, up to `castLimit` in all: a series by how many episodes a
+  ///    person is in, guests (under a fifth of the most-seen person's episodes, and never
+  ///    fewer than two once anyone has more than one) left out; a film by TMDB billing, bit
+  ///    parts (`order >= castLimit`) left out.
+  ///
+  /// Reordering kino.pub's list by billing is what once put Jason Statham tenth in *Mutiny*.
+  static func ranked(listed: [CastMember], others: [CastMember], isEpisodic: Bool) -> [CastMember] {
+    let room = max(0, castLimit - listed.count)
+    guard room > 0 else { return listed }
+    var fill = Array(others.enumerated())
+    let most = (listed + others).compactMap(\.episodeCount).max() ?? 0
     if isEpisodic, most > 0 {
       let floor = most > 1 ? max(2, Int((Double(most) * 0.2).rounded(.up))) : 1
-      ranked = ranked.filter { ($0.element.episodeCount ?? 0) >= floor }
-      ranked.sort { lhs, rhs in
+      fill = fill.filter { ($0.element.episodeCount ?? 0) >= floor }
+      fill.sort { lhs, rhs in
         let (left, right) = (lhs.element, rhs.element)
         if (left.episodeCount ?? 0) != (right.episodeCount ?? 0) {
           return (left.episodeCount ?? 0) > (right.episodeCount ?? 0)
@@ -50,9 +51,24 @@ enum CastRanking {
         }
         return lhs.offset < rhs.offset
       }
-    } else if members.contains(where: { $0.order != nil }) {
-      ranked = ranked.filter { ($0.element.order ?? 0) < castLimit }
+    } else {
+      fill = fill.filter { ($0.element.order ?? .max) < castLimit }
+      fill.sort { ($0.element.order ?? .max, $0.offset) < ($1.element.order ?? .max, $1.offset) }
     }
-    return ranked.prefix(castLimit).map(\.element)
+    return listed + fill.prefix(room).map(\.element)
+  }
+
+  /// The worker's cast without anyone `listed` already holds — by person id, or by name in
+  /// either spelling — each person once.
+  static func unlisted(_ cast: [CastMember], besides listed: [CastMember]) -> [CastMember] {
+    var ids = Set(listed.compactMap(\.tmdbPersonId))
+    var names = Set(listed.flatMap { [$0.name, $0.localizedName].compactMap { $0 } }.map(TitleMetadata.normalize))
+    return cast.filter { member in
+      if let id = member.tmdbPersonId, !ids.insert(id).inserted { return false }
+      let spellings = [member.name, member.localizedName].compactMap { $0 }.map(TitleMetadata.normalize)
+      guard spellings.allSatisfy({ !names.contains($0) }) else { return false }
+      names.formUnion(spellings)
+      return true
+    }
   }
 }

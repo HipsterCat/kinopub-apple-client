@@ -253,19 +253,20 @@ private struct SkipHitRegionReporter: ViewModifier {
   let regions: SkipHitRegions
   @State private var appearance = 0
 
-  private struct Report: Equatable {
+  private struct Report: Equatable, Sendable {
     var frame: CGRect
     var appearance: Int
   }
 
   func body(content: Content) -> some View {
+    let appearance = appearance
     content
       .onGeometryChange(for: Report.self) { proxy in
         Report(frame: proxy.frame(in: .named(SkipHitRegions.space)), appearance: appearance)
       } action: { report in
         regions.set(report.frame, for: id)
       }
-      .onAppear { appearance &+= 1 }
+      .onAppear { self.appearance &+= 1 }
       .onDisappear { regions.remove(id) }
   }
 }

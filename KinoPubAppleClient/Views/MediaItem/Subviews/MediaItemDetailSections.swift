@@ -1114,19 +1114,11 @@ struct MediaItemCastSection: View {
     member.photo ?? ActorImageProvider.photoURL(for: member.name)
   }
 
-  /// Actors for the rail: kino.pub's names enriched from TMDB, ranked the same way as
-  /// tvOS (`MediaItemTVSections.rankedCast`), then soft-preferring people who already
-  /// have a real photo URL so the first screen is faces, not stubs.
+  /// Actors for the rail — `CastRanking.rail`, the same list tvOS shows: kino.pub's names
+  /// in kino.pub's order, then the metadata worker's regulars.
   private var people: [(person: MediaPerson, member: CastMember)] {
-    let enriched = TitleMetadata.enrich(
-      names: mediaItem.castMembers,
-      roleDepartment: "Acting",
-      from: externalMetadata
-    )
-    let ranked = CastRanking.ranked(enriched, isEpisodic: mediaItem.isEpisodicType)
-    let withPhoto = ranked.filter { $0.photo != nil }
-    let withoutPhoto = ranked.filter { $0.photo == nil }
-    return (withPhoto + withoutPhoto).map {
+    CastRanking.rail(names: mediaItem.castMembers, metadata: externalMetadata,
+                     isEpisodic: mediaItem.isEpisodicType).map {
       (MediaPerson(name: $0.name,
                    role: .actor,
                    photoURL: photoURL(for: $0),

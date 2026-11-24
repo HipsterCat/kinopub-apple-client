@@ -1794,8 +1794,7 @@ struct SeasonsRailView: View {
   /// Pixel width for `/img/thumbnail?w=`. Cap at the worker's practical top bucket;
   /// floor at 300 so a tiny slot does not ask for a postage-stamp face crop.
   static func stillPixelWidth(cardWidth: CGFloat, scale: CGFloat) -> Int {
-    let raw = Int((cardWidth * scale).rounded(.up))
-    return min(max(raw, 300), 1280)
+    TitleImageRoute.episodeStillPixelWidth(points: Double(cardWidth), scale: Double(scale))
   }
 
   /// Preferred photograph for callers that want one URL (Info sheet, rivulet).

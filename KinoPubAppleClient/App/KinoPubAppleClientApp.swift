@@ -8,6 +8,7 @@
 import SwiftUI
 import KinoPubKit
 import KinoPubUI
+import KinoPubMetadata
 import KinoPubLogging
 import OSLog
 
@@ -78,6 +79,8 @@ struct KinoPubAppleClientApp: App {
         .tint(.primary)
 #endif
         .environment(\.appContext, AppContext.shared)
+        // Hover pictures on cards come from the worker the title page uses.
+        .environment(\.titleImageRoute, AppContext.shared.metadataService.images)
         .environment(navigationState)
         .environmentObject(authState)
         .environment(errorHandler)
