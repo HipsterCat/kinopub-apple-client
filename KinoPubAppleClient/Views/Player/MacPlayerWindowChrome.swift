@@ -27,6 +27,12 @@ final class MacPlayerHostView: AVPlayerView {
     super.viewDidMoveToWindow()
     onWindowChange?(window)
   }
+
+  /// View › Enter Full Screen (⌃⌘F) and the responder chain land here: the window's own
+  /// full screen, never AVKit's detached one.
+  override func toggleFullScreen(_ sender: Any?) {
+    window?.toggleFullScreen(sender)
+  }
 }
 
 @MainActor
@@ -63,7 +69,14 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
     if doubleClick == nil {
       let recognizer = NSClickGestureRecognizer(target: self, action: #selector(doubleClicked(_:)))
       recognizer.numberOfClicksRequired = 2
-      recognizer.delaysPrimaryMouseButtonEvents = false
+      // The clicks wait for the recognizer: AVKit takes a double-click on its content
+      // view as «enter *its* full screen» (a detached window of its own), and with the
+      // clicks passed through both full screens opened at once — the window's and AVKit's
+      // — leaving AVKit's content view constrained to width 0 (Sasha's log, 2026-11-24).
+      // A recognized double-click is the window's alone; single clicks arrive a double-click
+      // interval late, as in IINA. Clicks on AVKit's controls are not held (see the
+      // delegate below).
+      recognizer.delaysPrimaryMouseButtonEvents = true
       recognizer.delegate = self
       playerView.addGestureRecognizer(recognizer)
       doubleClick = recognizer

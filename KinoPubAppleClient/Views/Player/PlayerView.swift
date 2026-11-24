@@ -822,11 +822,20 @@ private struct MacVideoPlayer: NSViewRepresentable {
       window.orderOut(nil)
     }
 
-    private func comeBack(_ playerView: AVPlayerView) {
+    /// `makeKey`: false while AVKit is still bringing its content view back (the
+    /// `restoreUserInterface…` callbacks) — keying the window then makes AppKit pick a
+    /// first responder that still sits in AVKit's detached window («…as the first
+    /// responder for window …, but it is in a different window», Sasha's log 2026-11-24).
+    /// The did-exit / did-stop callbacks key it once the content is home.
+    private func comeBack(_ playerView: AVPlayerView, makeKey: Bool = true) {
       guard !isFullScreen, !isPictureInPicture else { return }
       let window = playerView.window ?? hiddenWindow
       hiddenWindow = nil
-      window?.makeKeyAndOrderFront(nil)
+      if makeKey {
+        window?.makeKeyAndOrderFront(nil)
+      } else {
+        window?.orderFront(nil)
+      }
     }
 
     // MARK: Full screen
@@ -848,7 +857,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
     func playerView(_ playerView: AVPlayerView,
                     restoreUserInterfaceForFullScreenExitWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
       isFullScreen = false
-      comeBack(playerView)
+      comeBack(playerView, makeKey: false)
       completionHandler(true)
     }
 
@@ -882,7 +891,7 @@ private struct MacVideoPlayer: NSViewRepresentable {
                     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
       restoresFromPictureInPicture = true
       isPictureInPicture = false
-      comeBack(playerView)
+      comeBack(playerView, makeKey: false)
       completionHandler(true)
     }
 
