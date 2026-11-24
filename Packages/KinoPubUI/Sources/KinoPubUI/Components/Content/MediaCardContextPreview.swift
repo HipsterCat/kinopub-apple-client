@@ -11,6 +11,11 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 /// Artwork + metadata for a card's long-press sneak peek.
 public struct MediaCardContextPreviewSpec: Equatable, Sendable {
@@ -252,7 +257,8 @@ public struct MediaCardContextPreview: View {
 #if os(macOS)
     Color(nsColor: .windowBackgroundColor)
 #elseif os(tvOS)
-    Color.KinoPub.background
+    // tvOS has no systemBackground; `Color.KinoPub.background` is clear (page fill).
+    Color.KinoPub.glassSubstitute
 #else
     Color(uiColor: .systemBackground)
 #endif
@@ -264,13 +270,12 @@ public struct MediaCardContextPreview: View {
   MediaCardContextPreview(
     spec: .from(
       card: MediaCard(
-        id: 1,
-        posterURL: "https://m.staticpop.net/poster/item/big/10581.jpg",
-        title: "Декстер: Воскрешение",
-        isSeries: true,
-        year: 2025,
-        genres: [Genre(id: "drama", domain: .video,
-                       name: LocalizedName(en: "Drama", ru: "Драма"))]
+        id: 9944,
+        posterURL: "https://m.staticpop.net/poster/item/big/9944.jpg",
+        title: "Иностранная интрига",
+        year: 2024,
+        genres: [Genre(id: "thriller", domain: .video,
+                       name: LocalizedName(en: "Thriller", ru: "Триллер"))]
       ),
       surface: .shelf
     )
@@ -283,15 +288,15 @@ public struct MediaCardContextPreview: View {
   MediaCardContextPreview(
     spec: .from(
       card: MediaCard(
-        id: 2,
-        posterURL: "https://m.staticpop.net/poster/item/big/10581.jpg",
-        title: "Декстер: Воскрешение",
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/10581.jpg",
-        overlayLabel: "S2, E1",
-        video: 1,
+        id: 15042,
+        posterURL: "https://m.staticpop.net/poster/item/big/15042.jpg",
+        title: "Название эпизода",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/15042.jpg",
+        overlayLabel: "S2, E5",
+        video: 5,
         season: 2,
         isSeries: true,
-        durationSeconds: 58 * 60,
+        durationSeconds: 42 * 60,
         genres: [Genre(id: "drama", domain: .video,
                        name: LocalizedName(en: "Drama", ru: "Драма"))]
       ),
