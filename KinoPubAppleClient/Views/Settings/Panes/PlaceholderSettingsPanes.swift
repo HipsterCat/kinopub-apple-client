@@ -302,7 +302,7 @@ struct DetailsSettingsPane: View {
   @AppStorage(DetailsEnrichmentPreferences.paneKey)
   private var paneRaw = DetailsEnrichmentPreferences.Pane.items.rawValue
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
-  private var showAgeRatingBadge = false
+  private var showAgeRatingBadge = true
   @AppStorage(DetailsEnrichmentPreferences.hideDescriptionsKey)
   private var hideDescriptions = false
   @AppStorage(DetailsEnrichmentPreferences.hideTitlesKey)

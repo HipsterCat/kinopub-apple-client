@@ -1669,6 +1669,11 @@ struct MediaItemHeroView: View {
     }
   }
 
+  /// The first production country.
+  private var phoneCountry: String? {
+    mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
+  }
+
   /// The phone's caption: the other name, then where it was made — the name alone does
   /// not always say in what language it is (Sasha, 2026-11-16): «Dexter: Resurrection · США».
   private var phoneCaption: String? {
@@ -1723,10 +1728,11 @@ struct MediaItemHeroView: View {
     let blocks = factBlocks
     // On a phone the age rating closes the playback line instead (Sasha, 2026-11-16).
     // Elsewhere the upper strip is this facts line — honor Settings › Details › Age rating.
-    let rating = centersColumn
-      ? nil
-      : MediaItemDisplayPreferences.ageRatingForInfoStrip(ageRating)
-    if status != nil || !blocks.isEmpty || rating != nil {
+    // Convert + show-foreign can yield both «16+» and «R» (Sasha, 2026-11-25).
+    let ratings = centersColumn
+      ? []
+      : MediaItemDisplayPreferences.ageRatingsForInfoStrip(ageRating)
+    if status != nil || !blocks.isEmpty || !ratings.isEmpty {
       AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
                       centersRows: centersColumn) {
         if let status {
@@ -1737,16 +1743,9 @@ struct MediaItemHeroView: View {
             .lineLimit(1)
             .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         }
-        // Drawn where `badges/` has the mark (2026-11-09).
-        if let rating {
-          if let asset = MediaBadgeImages.ageRatingAssetName(rating) {
-            MediaBadgeImages([asset])
-              .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
-          } else {
-            Text(verbatim: rating)
-              .lineLimit(1)
-              .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
-          }
+        if !ratings.isEmpty {
+          TitleInfoStripAgeBadges(ratings: ratings)
+            .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         }
       }
       .font(Self.secondaryFont)
@@ -1769,71 +1768,19 @@ struct MediaItemHeroView: View {
   }
 
   /// «Аниме-сериал 2025–26 окончен», «3 сезона», «Триллер, драма, спорт», «США», «18+».
-  /// A film: «Мультфильм 2026», «2ч 53м», genres, country. The kind is the Home hero's
-  /// vocabulary (`MediaPresentationProfile.kindTitleKey`), and the genre it already says
-  /// (anime, animation, documentary) is not repeated after it.
+  /// A film: «Мультфильм 2026», «2ч 53м», genres, country. Shared with the synopsis modal.
   private var factBlocks: [String] { factBlocks() }
 
-  /// `genreLimit` genres at most; `place` false leaves the country out (the phone writes
-  /// it beside the original title).
-  private func factBlocks(genreLimit: Int = MediaItemHeroView.genreLimit, place showsPlace: Bool = true) -> [String] {
-    let card = MediaCard(mediaItem)
-    let profile = mediaItem.presentation
-    var blocks: [String] = []
-
-    let kindKey = profile.kindTitleKey(isSeries: isSeries)
-    // A plain film says nothing about being a film: the runtime says it. On a phone a
-    // series does not say it either — the season count and the episodes under the hero
-    // do; a documentary series stays one by its genre (Sasha, 2026-11-16).
-    let dropsKind = kindKey == "Kind_movies_One" || (centersColumn && isSeries)
-    let kind = dropsKind ? nil : kindKey.localized
-    let years = isSeries
-      ? SeriesFacts.heroYears(mediaItem, externalMetadata, fallbackSpan: card.bannerYearSpan)
-      : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
-    // «Сериал с 2013 в эфире», «Документальный фильм 2011»: the kind first with its
-    // capital, then the years, then where the series stands, whatever anyone knows of it
-    // (Sasha, 2026-11-09).
-    let statusKey = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata) : nil
-    let status = statusKey?.localized
-    // «с 2011 в эфире» reads as one; «с 2011 продлён» does not, so the word stands apart.
-    let statusJoins = statusKey != "MediaItem_StatusReturningShort"
-    let head = [kind, years, statusJoins ? status : nil].compactMap { $0 }
-    if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
-    if !statusJoins, let status { blocks.append(status) }
-
-    if isSeries {
-      let seasons = mediaItem.seasons ?? []
-      let episodes = seasons.reduce(0) { $0 + $1.episodes.count }
-      if seasons.count > 1, let text = SeasonCountText(seasons.count)?.formatted() {
-        blocks.append(text)
-      } else if let text = EpisodesLeftText(episodes)?.formatted() {
-        blocks.append(text)
-      }
-    }
-
-    // Not the genre the kind already says: «Концерт  …, концерт», «ТВ-шоу  Развлекательные».
-    let restated = kind == nil ? [] : Set(card.genres.filter { profile.kindGenreIDs.contains($0.id) }
-      .map { $0.name.value(languageCode: MediaLanguage.current.rawValue) })
-    let genres = card.usefulGenres(limit: genreLimit + restated.count,
-                                   omittingDocumentary: kind != nil && profile.kind == .documentary)
-      .filter { !restated.contains($0) }
-      .prefix(genreLimit)
-    let place = showsPlace ? phoneCountry : nil
-    // A concert is told apart by where it was played, not by its genres — the artist's
-    // are the same on every live record — so the place goes first (Sasha, 2026-11-09).
-    let placeLeads = profile.kind == .concert
-    if placeLeads, let place { blocks.append(place) }
-    if let first = genres.first {
-      let rest = genres.dropFirst().map { $0.lowercased() }
-      blocks.append(([first] + rest).joined(separator: ", "))
-    }
-    if !placeLeads, let place { blocks.append(place) }
-    return blocks
-  }
-
-  /// The first production country.
-  private var phoneCountry: String? {
-    mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
+  /// `genreLimit` nil → every useful genre when they fit (Sasha, 2026-11-25). `place` false
+  /// leaves the country out (the phone writes it beside the original title).
+  private func factBlocks(genreLimit: Int? = nil, place showsPlace: Bool = true) -> [String] {
+    TitleInfoStripFacts.textBlocks(
+      mediaItem: mediaItem,
+      metadata: externalMetadata,
+      genreLimit: genreLimit,
+      showsPlace: showsPlace,
+      dropsSeriesKind: centersColumn
+    )
   }
 
   /// The phone's facts: one line under the original title, never two — a second line
@@ -1846,8 +1793,9 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var phoneFactsLine: some View {
     let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
+    let maxGenres = TitleInfoStripFacts.usefulGenreCount(mediaItem: mediaItem)
     ViewThatFits(in: .horizontal) {
-      ForEach((0...Self.genreLimit).reversed(), id: \.self) { limit in
+      ForEach((0...maxGenres).reversed(), id: \.self) { limit in
         HStack(spacing: Self.metaSpacing) {
           if let status {
             TitleStatusBadge(status.text)
@@ -2032,27 +1980,25 @@ struct MediaItemHeroView: View {
     let languages = audioLanguageCodes
     let voicing = MediaItemDisplayPreferences.showVoicingBadges ? preferredVoicingTag : nil
     let captions = MediaItemDisplayPreferences.showCaptionsBadge && subtitleSummary != nil
-    let rating = centersColumn
-      ? MediaItemDisplayPreferences.ageRatingForInfoStrip(ageRating)
-      : nil
-    let views = centersColumn || lineScores.hasDisplayableScore ? 0 : mediaItem.views
-    let quality = MediaItemDisplayPreferences.showQualityBadges
-      ? MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
+    let ratings = centersColumn
+      ? MediaItemDisplayPreferences.ageRatingsForInfoStrip(ageRating)
       : []
-    let badges = quality
-      + (rating.flatMap(MediaBadgeImages.ageRatingAssetName).map { [$0] } ?? [])
-    let typedRating = rating.flatMap { MediaBadgeImages.ageRatingAssetName($0) == nil ? $0 : nil }
-    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0
+    let views = centersColumn || lineScores.hasDisplayableScore ? 0 : mediaItem.views
+    let quality = TitleInfoStripFacts.qualityBadgeAssets(mediaItem: mediaItem)
+    let ageAssets = ratings.compactMap(MediaBadgeImages.ageRatingAssetName)
+    let typedRatings = ratings.filter { MediaBadgeImages.ageRatingAssetName($0) == nil }
+    let badges = quality + ageAssets
+    if runtime != nil || !languages.isEmpty || !badges.isEmpty || !typedRatings.isEmpty || views > 0
         || voicing != nil || captions {
       ViewThatFits(in: .horizontal) {
         phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
-                         badges: badges, typedRating: typedRating, views: views)
+                         badges: badges, typedRatings: typedRatings, views: views)
         phonePlaybackRow(runtime: runtime, languages: languages, voicing: nil, captions: captions,
-                         badges: badges, typedRating: typedRating, views: views)
+                         badges: badges, typedRatings: typedRatings, views: views)
         phonePlaybackRow(runtime: nil, languages: languages, voicing: nil, captions: captions,
-                         badges: badges, typedRating: typedRating, views: views)
+                         badges: badges, typedRatings: typedRatings, views: views)
         phonePlaybackRow(runtime: nil, languages: Array(languages.prefix(1)), voicing: nil, captions: captions,
-                         badges: badges, typedRating: typedRating, views: 0)
+                         badges: badges, typedRatings: typedRatings, views: 0)
       }
       .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
@@ -2061,7 +2007,7 @@ struct MediaItemHeroView: View {
   }
 
   private func phonePlaybackRow(runtime: String?, languages: [String], voicing: String?, captions: Bool,
-                                badges: [String], typedRating: String?, views: Int) -> some View {
+                                badges: [String], typedRatings: [String], views: Int) -> some View {
     HStack(spacing: Self.metaSpacing) {
       if let runtime {
         Text(verbatim: runtime)
@@ -2087,8 +2033,8 @@ struct MediaItemHeroView: View {
       if !badges.isEmpty {
         MediaBadgeImages(badges)
       }
-      if let typedRating {
-        PlaybackTag(typedRating)
+      ForEach(typedRatings, id: \.self) { rating in
+        PlaybackTag(rating)
       }
       if views > 0 {
         HStack(spacing: Self.glyphSpacing) {
@@ -2905,8 +2851,9 @@ struct MediaItemHeroView: View {
   /// Directors / creators named in the hero; the Credits card names them all.
   static let authorNameLimit = 2
 
-  /// Genres in the facts line, one block; kino.pub happily returns six.
-  static let genreLimit = 3
+  /// Phone ViewThatFits ceiling when useful-genre count is unknown; the strip itself
+  /// names every useful genre when they fit (Sasha, 2026-11-25).
+  static let genreLimit = 12
 
   /// The people's column, as a share of the synopsis measure beside it.
   static let creditsColumnRatio: CGFloat = 0.42

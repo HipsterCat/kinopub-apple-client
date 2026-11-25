@@ -714,6 +714,10 @@
 			isa = PBXBuildFile;
 			fileRef = C4BA455BD4B2A43C0866C7C8 /* MediaItemDisplayPreferences.swift */;
 		};
+		3A6805CCB72B490A8726A8B2 /* TitleInfoStripFacts.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = EF2EBA0303824E6086535510 /* TitleInfoStripFacts.swift */;
+		};
 		CB1CA7675B13A043CB96A012 /* PlayerView.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = C4F588ADFBF101B786E9653A /* PlayerView.swift */;
@@ -2334,6 +2338,12 @@
 			path = MediaItemDisplayPreferences.swift;
 			sourceTree = "<group>";
 		};
+		EF2EBA0303824E6086535510 /* TitleInfoStripFacts.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = TitleInfoStripFacts.swift;
+			sourceTree = "<group>";
+		};
 		C4F588ADFBF101B786E9653A /* PlayerView.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -3615,6 +3625,7 @@
 				C6A6DA289309C232EA41C197 /* MediaItemView.swift */,
 				D41A6D0C7796D0E6A1E1C138 /* MediaItemModel.swift */,
 				C4BA455BD4B2A43C0866C7C8 /* MediaItemDisplayPreferences.swift */,
+				EF2EBA0303824E6086535510 /* TitleInfoStripFacts.swift */,
 			);
 			path = MediaItem;
 			sourceTree = "<group>";
@@ -4207,6 +4218,7 @@
 				C365FB1E089BD4668D52485A /* MediaItemView.swift in Sources */,
 				C6F8861237F0C03B14FB7FC8 /* MediaItemModel.swift in Sources */,
 				CD868B7611B69222DDF27F71 /* MediaItemDisplayPreferences.swift in Sources */,
+				3A6805CCB72B490A8726A8B2 /* TitleInfoStripFacts.swift in Sources */,
 				CB1CA7675B13A043CB96A012 /* PlayerView.swift in Sources */,
 				A5D3207326915098DCEC067B /* PlayerManager.swift in Sources */,
 				C92FECB6C7F03D99E06E6EC4 /* PlaybackSession.swift in Sources */,

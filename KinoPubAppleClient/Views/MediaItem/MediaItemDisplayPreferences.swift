@@ -18,20 +18,20 @@ enum MediaItemDisplayPreferences {
   static let showVoicingBadgesKey = "settings.details.infoStrip.showVoicingBadges"
   static let showCaptionsBadgeKey = "settings.details.infoStrip.showCaptionsBadge"
 
-  /// Off. A certification tells a viewer who already chose to open the page nothing
-  /// they were looking for, and it costs the meta line a chip. It stays available
-  /// in the information table further down.
+  /// Certification chip(s) on the upper info strip. Default on — off hid R/16+ entirely
+  /// (Sasha, 2026-11-25). Still listed in the information table when off.
   static var showAgeRatingBadge: Bool {
-    bool(forKey: showAgeRatingBadgeKey, default: false)
+    bool(forKey: showAgeRatingBadgeKey, default: true)
   }
 
-  /// When the only certification is foreign (PG-13, TV-MA…), show it on the strip.
-  /// Off hides a foreign code unless convert is on (then it becomes a local age).
-  static var showForeignAgeRatingWhenMissing: Bool {
+  /// Keep the MPA / TV foreign mark (R, PG-13…). With convert on, that is the *second*
+  /// chip beside the local age; with convert off it is the only chip for a foreign source.
+  static var showForeignAgeRating: Bool {
     bool(forKey: showForeignAgeRatingKey, default: true)
   }
 
   /// Map MPA / TV Parental Guidelines to a Russian-style age («16+») when we can.
+  /// With foreign also on, both chips show (16+ and R).
   static var convertAgeRatingToLocal: Bool {
     bool(forKey: convertAgeRatingKey, default: true)
   }
@@ -51,20 +51,32 @@ enum MediaItemDisplayPreferences {
     bool(forKey: showCaptionsBadgeKey, default: true)
   }
 
-  /// Certification for the upper strip, after prefs. Nil → draw nothing there.
-  static func ageRatingForInfoStrip(_ raw: String?) -> String? {
-    guard showAgeRatingBadge else { return nil }
+  /// Certifications for the upper strip / matching modal, after prefs.
+  /// Order: local age first («16+»), then foreign («R») when both apply. Empty → nothing.
+  static func ageRatingsForInfoStrip(_ raw: String?) -> [String] {
+    guard showAgeRatingBadge else { return [] }
     guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
-      return nil
+      return []
     }
-    let foreign = AgeRatingPresentation.isForeign(raw)
+
+    if !AgeRatingPresentation.isForeign(raw) {
+      return [AgeRatingPresentation.localEquivalent(raw) ?? raw]
+    }
+
+    var ratings: [String] = []
     if convertAgeRatingToLocal, let local = AgeRatingPresentation.localEquivalent(raw) {
-      return local
+      ratings.append(local)
     }
-    if foreign, !showForeignAgeRatingWhenMissing {
-      return nil
+    if showForeignAgeRating {
+      let already = ratings.contains { AgeRatingPresentation.same($0, raw) }
+      if !already { ratings.append(raw) }
     }
-    return raw
+    return ratings
+  }
+
+  /// First strip rating, for call sites that still take one string.
+  static func ageRatingForInfoStrip(_ raw: String?) -> String? {
+    ageRatingsForInfoStrip(raw).first
   }
 
   private static func bool(forKey key: String, default defaultValue: Bool) -> Bool {
@@ -91,6 +103,10 @@ enum AgeRatingPresentation {
     }
     if key.allSatisfy(\.isNumber) { return "\(key)+" }
     return nil
+  }
+
+  static func same(_ lhs: String, _ rhs: String) -> Bool {
+    normalize(lhs) == normalize(rhs)
   }
 
   private static func normalize(_ rating: String) -> String {
