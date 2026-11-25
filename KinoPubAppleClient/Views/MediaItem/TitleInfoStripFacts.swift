@@ -105,7 +105,8 @@ struct TitleInfoStripAgeBadges: View {
     let assets = ratings.compactMap(MediaBadgeImages.ageRatingAssetName)
     let typed = ratings.filter { MediaBadgeImages.ageRatingAssetName($0) == nil }
     if !assets.isEmpty || !typed.isEmpty {
-      HStack(spacing: MediaCapabilityBadgesView.spacing) {
+      // Same gap as `MediaCapabilityBadgesView` (package-internal; keep a local copy).
+      HStack(spacing: 8) {
         if !assets.isEmpty {
           MediaBadgeImages(assets)
         }
