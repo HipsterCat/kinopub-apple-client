@@ -129,6 +129,41 @@ struct LibraryViewOptionsMenu<Catalog: FilterBarDriver>: View {
   }
 }
 
+/// Native `.searchScopes` under the Search field: Everywhere / Titles / People.
+/// Maps onto `LibraryCatalog.searchField` (`nil` / `.title` / `.cast`).
+enum LibrarySearchScope: String, CaseIterable, Identifiable, Hashable {
+  case everywhere
+  case titles
+  case people
+
+  var id: String { rawValue }
+
+  /// Short labels for the scope bar (not the long tvOS chip menu copy).
+  var titleKey: String {
+    switch self {
+    case .everywhere: return "Scope_Bar_Everywhere"
+    case .titles: return "Scope_Bar_Titles"
+    case .people: return "Scope_Bar_People"
+    }
+  }
+
+  var field: SearchItemsRequest.Field? {
+    switch self {
+    case .everywhere: return nil
+    case .titles: return .title
+    case .people: return .cast
+    }
+  }
+
+  static func from(_ field: SearchItemsRequest.Field?) -> LibrarySearchScope {
+    switch field {
+    case .title: return .titles
+    case .cast, .director: return .people
+    case nil: return .everywhere
+    }
+  }
+}
+
 /// Native toolbar Filters control — filled symbol + system badge when active.
 /// No nested capsule, no `.glass` / `.bordered` (toolbar Liquid Glass is the system’s).
 struct LibraryFiltersButton: View {
@@ -156,6 +191,17 @@ struct LibraryFiltersButton: View {
     .accessibilityValue(activeCount > 0
                         ? Text("\(activeCount)")
                         : Text("None"))
+  }
+}
+
+extension View {
+  /// Native scope bar under `.searchable` — Everywhere / Titles / People.
+  func librarySearchScopes(_ scope: Binding<LibrarySearchScope>) -> some View {
+    searchScopes(scope) {
+      ForEach(LibrarySearchScope.allCases) { item in
+        Text(LocalizedStringKey(item.titleKey)).tag(item)
+      }
+    }
   }
 }
 
