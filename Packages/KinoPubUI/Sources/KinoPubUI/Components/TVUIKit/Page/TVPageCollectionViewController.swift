@@ -1376,7 +1376,7 @@ public final class TVPageCollectionViewController: UIViewController {
         let frame = collectionView.convert(attrs.frame, to: view)
         chromeBottomInView = max(chromeBottomInView, frame.maxY)
       }
-      if let header = collectionView.layoutAttributesForSupplementaryView(
+      if let header = collectionView.collectionViewLayout.layoutAttributesForSupplementaryView(
         ofKind: UICollectionView.elementKindSectionHeader,
         at: IndexPath(item: 0, section: index)
       ) {
