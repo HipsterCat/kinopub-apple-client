@@ -720,7 +720,9 @@ public struct MediaCardView: View {
   /// A watched card's artwork sits dimmed, and on macOS hovering it restores it to full.
   /// `isHovered` only exists there — there is no pointer on tvOS or iOS — so the dim is
   /// simply constant off macOS rather than reading a state that does not compile.
+  /// Titles not on Kinopub (`unavailableNotice`) stay dimmed the same way.
   private var watchedArtworkOpacity: Double {
+    if card.unavailableNotice != nil { return 0.55 }
     guard dimsWatchedArtwork else { return 1 }
 #if os(macOS)
     return isHovered ? 1 : 0.5
@@ -1168,6 +1170,16 @@ public struct MediaCardView: View {
         RatingBadgeView(rating: rating)
           .padding(3)
           .accessibilityLabel(Text("Rating \(rating.formatted)"))
+      }
+      if let notice = card.unavailableNotice {
+        Label(notice, systemImage: "lock.fill")
+          .font(.caption2.weight(.medium))
+          .labelStyle(.titleAndIcon)
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 3)
+          .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+          .padding(6)
       }
     }
     .overlay(alignment: .topTrailing) {

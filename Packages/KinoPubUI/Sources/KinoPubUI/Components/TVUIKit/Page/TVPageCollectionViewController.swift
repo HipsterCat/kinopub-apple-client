@@ -117,6 +117,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }()
 
   private let statusView = TVPageStatusView()
+  /// Adjusted so empty/error status sits *below* masthead + filter chips, not over them.
+  private var statusCenterY: NSLayoutConstraint!
   /// The hero's state and its picture, which live behind the collection — see `TVPageHero`.
   private let heroCarousel = TVPageHeroCarousel()
   private let heroBackdrop = TVPageHeroBackdropView()
@@ -150,9 +152,10 @@ public final class TVPageCollectionViewController: UIViewController {
       view.bottomAnchor.constraint(equalTo: collectionView.bottomAnchor)
     ]
     windowExtension = edges
+    statusCenterY = statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
     NSLayoutConstraint.activate(edges + [
       statusView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
-      statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
+      statusCenterY
     ])
 
     if DebugLaunch.layoutDebug {
@@ -236,6 +239,9 @@ public final class TVPageCollectionViewController: UIViewController {
     updateAdjustedLeading(invalidate: true)
     if boundsChanged {
       scheduleLayoutWork { [weak self] in self?.refreshLoadingTails() }
+    }
+    if !statusView.isHidden {
+      updateStatusPlacementBelowChrome()
     }
     if DebugLaunch.layoutDebug {
       NSLog("PAGEPROBE %@ view=%@ collection=%@ adjusted=%@ safe=%@", accessibilityID ?? "-",
@@ -1331,7 +1337,8 @@ public final class TVPageCollectionViewController: UIViewController {
   ///
   /// An empty grid with a header (the Library's "0 unwatched episodes" and its chips)
   /// is the same hole: `.unavailable` and `.failed` draw over it. The header stays,
-  /// because those chips are how the empty page is changed.
+  /// because those chips are how the empty page is changed. Status is pinned below that
+  /// chrome so the chips are not covered (person filmography offline error).
   private func applyStatus() {
     guard isViewLoaded else { return }
     let onlyChrome = sections.allSatisfy { $0.kind == .chip || $0.kind == .masthead }
@@ -1348,7 +1355,44 @@ public final class TVPageCollectionViewController: UIViewController {
     statusView.isHidden = !showsStatus
     collectionView.isHidden = showsStatus && sections.isEmpty
     statusView.apply(status)
-    if showsStatus { setNeedsFocusUpdate() }
+    if showsStatus {
+      updateStatusPlacementBelowChrome()
+      setNeedsFocusUpdate()
+    } else {
+      statusCenterY.constant = 0
+    }
+  }
+
+  /// Center the status in the space under masthead + chip rows when those stay visible.
+  private func updateStatusPlacementBelowChrome() {
+    view.layoutIfNeeded()
+    collectionView.layoutIfNeeded()
+    var chromeBottomInView: CGFloat = view.safeAreaInsets.top
+    for (index, section) in sections.enumerated()
+    where section.kind == .chip || section.kind == .masthead {
+      guard !section.items.isEmpty else { continue }
+      let last = IndexPath(item: section.items.count - 1, section: index)
+      if let attrs = collectionView.layoutAttributesForItem(at: last) {
+        let frame = collectionView.convert(attrs.frame, to: view)
+        chromeBottomInView = max(chromeBottomInView, frame.maxY)
+      }
+      if let header = collectionView.layoutAttributesForSupplementaryView(
+        ofKind: UICollectionView.elementKindSectionHeader,
+        at: IndexPath(item: 0, section: index)
+      ) {
+        let frame = collectionView.convert(header.frame, to: view)
+        chromeBottomInView = max(chromeBottomInView, frame.maxY)
+      }
+    }
+    let safeMidY = view.safeAreaLayoutGuide.layoutFrame.midY
+    let availableTop = chromeBottomInView + 24
+    let availableBottom = view.bounds.maxY - view.safeAreaInsets.bottom
+    guard availableBottom > availableTop + 80 else {
+      statusCenterY.constant = 0
+      return
+    }
+    let targetY = (availableTop + availableBottom) / 2
+    statusCenterY.constant = targetY - safeMidY
   }
 
   // MARK: - Focus

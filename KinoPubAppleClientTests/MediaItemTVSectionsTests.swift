@@ -421,6 +421,7 @@ final class MediaItemTVSectionsTests: XCTestCase {
                              caption: nil, photoURL: nil)
     XCTAssertEqual(MediaItemTVSections.person(from: card)?.role, .actor)
     XCTAssertEqual(MediaItemTVSections.person(from: card)?.name, "Валид Зуэйтер")
+    XCTAssertEqual(MediaItemTVSections.person(from: card)?.tmdbPersonId, 77)
   }
 
   func testACardNamesThePersonItStandsFor() {

@@ -312,8 +312,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     // `cast` / `director`, matched on the name as it appears in the credits — one name
     // per request, see the note above.
     // (`cast`, not the docs' `actor` — see `MediaPerson.Role.itemsQueryParameter`.)
+    // Prefer `catalogNames` over a TMDB-localized display name that Kinopub never wrote.
     if let person {
-      params[person.role.itemsQueryParameter] = person.name
+      params[person.role.itemsQueryParameter] = person.preferredCatalogName
     }
     return params
   }

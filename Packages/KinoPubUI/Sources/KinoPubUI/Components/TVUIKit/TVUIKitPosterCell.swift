@@ -164,6 +164,11 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     }
     configureProgress(card)
     configureWatched(card)
+    // Titles not on Kinopub (TMDB-only filmography) — dimmed, still focusable.
+    posterView.alpha = card.unavailableNotice == nil ? 1 : 0.55
+    if let notice = card.unavailableNotice {
+      accessibilityLabel = "\(card.title). \(notice)"
+    }
     loadImage(from: URL(string: card.coverURL))
   }
 
@@ -287,6 +292,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     imageTask = nil
     currentURL = nil
     posterView.image = nil
+    posterView.alpha = 1
     placeholderPanel.isHidden = false
     progressTrack.isHidden = true
     bottomInfoBlur?.isHidden = true

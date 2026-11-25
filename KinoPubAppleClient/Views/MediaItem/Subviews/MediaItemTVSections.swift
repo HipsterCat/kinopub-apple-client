@@ -297,9 +297,9 @@ enum MediaItemTVSections {
     let profile = input.mediaItem.presentation
     let names = MediaPerson.each(of: input.mediaItem.directorNames, role: .director, limit: 3).map(\.name)
     return TitleMetadata.enrich(names: names, roleDepartment: "Directing", from: input.metadata).map { member in
-      let person = MediaPerson(name: member.name, role: .director,
-                               photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
-                               tmdbPersonId: member.tmdbPersonId)
+      let person = MediaPerson.from(member, role: .director,
+                                    photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
+                                    sourceItemID: input.mediaItem.id)
       return card(for: person, caption: profile.authorRoleKey.localized)
     }
   }
@@ -315,9 +315,9 @@ enum MediaItemTVSections {
     let ordered = CastRanking.rail(names: input.mediaItem.castMembers, metadata: input.metadata,
                                    isEpisodic: input.mediaItem.isEpisodicType)
     return ordered.map { member in
-      let person = MediaPerson(name: member.name, role: .actor,
-                               photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
-                               tmdbPersonId: member.tmdbPersonId)
+      let person = MediaPerson.from(member, role: .actor,
+                                    photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
+                                    sourceItemID: input.mediaItem.id)
       var parts: [String] = []
       if let character = member.character?.trimmingCharacters(in: .whitespacesAndNewlines), !character.isEmpty {
         parts.append(character)
@@ -348,11 +348,31 @@ enum MediaItemTVSections {
 
   /// The person a card stands for. The id is unique (TMDB when known); the name is
   /// on the card itself. Role is the prefix of `role:name` or `role.tmdb.<id>`.
-  static func person(from card: TVUIKitPerson) -> MediaPerson? {
+  ///
+  /// When `metadata` is passed, alternate spellings and the TMDB id are restored so
+  /// the person page can query Kinopub with more than the display localization.
+  static func person(from card: TVUIKitPerson,
+                     metadata: TitleMetadata? = nil,
+                     sourceItemID: Int? = nil) -> MediaPerson? {
     let separator = card.id.firstIndex(where: { $0 == ":" || $0 == "." })
     guard let separator,
           let role = MediaPerson.Role(rawValue: String(card.id[..<separator])) else { return nil }
-    return MediaPerson(name: card.name, role: role, photoURL: card.photoURL)
+    let rest = String(card.id[card.id.index(after: separator)...])
+    let tmdbId: Int?
+    if rest.hasPrefix("tmdb.") {
+      tmdbId = Int(rest.dropFirst(5))
+    } else {
+      tmdbId = nil
+    }
+    if let metadata, let tmdbId {
+      let pool = metadata.cast + metadata.crew
+      if let member = pool.first(where: { $0.tmdbPersonId == tmdbId }) {
+        return MediaPerson.from(member, role: role, photoURL: card.photoURL ?? member.photo,
+                                sourceItemID: sourceItemID)
+      }
+    }
+    return MediaPerson(name: card.name, role: role, photoURL: card.photoURL,
+                       tmdbPersonId: tmdbId, sourceItemID: sourceItemID)
   }
 
   // MARK: - Similar

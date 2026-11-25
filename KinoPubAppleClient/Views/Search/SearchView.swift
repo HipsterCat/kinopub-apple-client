@@ -261,9 +261,9 @@ struct SearchView: View {
     return merged
   }
 
-  /// People whose name holds the query, from the credits of what the server returned —
-  /// the search endpoint matches `cast` and `director`, so a name typed into the field
-  /// is as likely to be a person as a title. Directors first, then cast, in result order.
+  /// People whose name holds the query, from title hits *and* cast/director-only hits
+  /// (`creditSearchItems`). Directors first, then cast. Multi-word queries require a
+  /// strong name match so «майки мэдисон» does not promote Mike Rohl / Austin Madison.
   private var tvPeople: [MediaPerson] {
     let query = catalog.searchQuery
     guard !query.isEmpty else { return [] }
@@ -274,27 +274,63 @@ struct SearchView: View {
     case .director: [.director]
     case nil: [.director, .actor]
     }
-    let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    let pool = catalog.items + catalog.creditSearchItems
+    var scored: [(score: Int, person: MediaPerson)] = []
     var seen = Set<String>()
-    var out: [MediaPerson] = []
     for role in roles {
-      for item in catalog.items {
+      for item in pool {
         let credits = role == .director ? item.director : item.cast
-        // A word of the name starts with the query ("ма" → Мадс, not Томас) — the same
-        // prefix rule kino.pub's type-ahead uses.
         for name in credits.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) })
-        // A multi-word query ("мадс мик") matches the name as a whole.
-        where !name.isEmpty && (query.contains(" ")
-          ? name.range(of: query, options: options) != nil
-          : name.split(separator: " ").contains(where: {
-              $0.range(of: query, options: options.union(.anchored)) != nil
-            })) {
+        where !name.isEmpty {
+          guard let score = Self.personNameMatchScore(name: name, query: query) else { continue }
           guard seen.insert(name.lowercased()).inserted else { continue }
-          out.append(MediaPerson(name: name, role: role))
+          scored.append((score, MediaPerson(name: name, role: role)))
         }
       }
     }
-    return Array(out.prefix(Self.topPeopleLimit))
+    scored.sort { $0.score > $1.score }
+    return scored.prefix(Self.topPeopleLimit).map(\.person)
+  }
+
+  /// Higher is better. `nil` = not a person match worth showing.
+  /// Multi-word: every query token must anchor a word of the name (order-free), or the
+  /// whole query is a contiguous substring of the name. Single-word: prefix of a word.
+  private static func personNameMatchScore(name: String, query: String) -> Int? {
+    let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    let nameWords = name.split(separator: " ").map(String.init).filter { !$0.isEmpty }
+    guard !nameWords.isEmpty else { return nil }
+    let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !q.isEmpty else { return nil }
+
+    if q.contains(" ") {
+      let tokens = q.split(separator: " ").map(String.init).filter { !$0.isEmpty }
+      guard tokens.count >= 2 else { return nil }
+      // Contiguous full-query hit inside the name — strongest.
+      if name.range(of: q, options: options) != nil {
+        return 100 + tokens.count * 10
+      }
+      // Every token prefixes some name word; prefer covering more distinct words.
+      var used = Set<Int>()
+      var covered = 0
+      for token in tokens {
+        guard let index = nameWords.indices.first(where: { i in
+          !used.contains(i)
+            && nameWords[i].range(of: token, options: options.union(.anchored)) != nil
+        }) else { return nil }
+        used.insert(index)
+        covered += 1
+      }
+      return 40 + covered * 10
+    }
+
+    // Single token: prefix of a name word only ("ма" → Мадс, not Томас).
+    guard nameWords.contains(where: {
+      $0.range(of: q, options: options.union(.anchored)) != nil
+    }) else { return nil }
+    if nameWords.contains(where: { $0.compare(q, options: options) == .orderedSame }) {
+      return 80
+    }
+    return 30
   }
 
   /// The grids that are the listing itself, and so page.

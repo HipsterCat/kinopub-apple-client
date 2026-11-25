@@ -465,11 +465,70 @@ struct TMDBPersonDetails: Codable, Sendable {
   let placeOfBirth: String?
   let profilePath: String?
   let knownForDepartment: String?
+  let alsoKnownAs: [String]?
+  let combinedCredits: TMDBPersonCombinedCredits?
 
   enum CodingKeys: String, CodingKey {
     case id, name, biography, birthday
     case placeOfBirth = "place_of_birth"
     case profilePath = "profile_path"
     case knownForDepartment = "known_for_department"
+    case alsoKnownAs = "also_known_as"
+    case combinedCredits = "combined_credits"
+  }
+}
+
+struct TMDBPersonCombinedCredits: Codable, Sendable {
+  let cast: [TMDBPersonCredit]?
+  let crew: [TMDBPersonCredit]?
+}
+
+/// One row of `/person/{id}?append_to_response=combined_credits`.
+struct TMDBPersonCredit: Codable, Sendable {
+  let id: Int?
+  let mediaType: String?
+  let title: String?
+  let name: String?
+  let originalTitle: String?
+  let originalName: String?
+  let character: String?
+  let job: String?
+  let department: String?
+  let posterPath: String?
+  let releaseDate: String?
+  let firstAirDate: String?
+  let voteAverage: Double?
+  let popularity: Double?
+  let episodeCount: Int?
+  let order: Int?
+
+  enum CodingKeys: String, CodingKey {
+    case id, title, name, character, job, department, popularity, order
+    case mediaType = "media_type"
+    case originalTitle = "original_title"
+    case originalName = "original_name"
+    case posterPath = "poster_path"
+    case releaseDate = "release_date"
+    case firstAirDate = "first_air_date"
+    case voteAverage = "vote_average"
+    case episodeCount = "episode_count"
+  }
+
+  var displayTitle: String? {
+    let raw = title ?? name
+    guard let raw, !raw.isEmpty else { return nil }
+    return raw
+  }
+
+  var originalDisplayTitle: String? {
+    let raw = originalTitle ?? originalName
+    guard let raw, !raw.isEmpty else { return nil }
+    return raw
+  }
+
+  var airOrReleaseDate: String? {
+    if let releaseDate, !releaseDate.isEmpty { return releaseDate }
+    if let firstAirDate, !firstAirDate.isEmpty { return firstAirDate }
+    return nil
   }
 }

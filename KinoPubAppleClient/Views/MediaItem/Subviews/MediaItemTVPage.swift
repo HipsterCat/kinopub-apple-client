@@ -99,7 +99,9 @@ struct MediaItemTVPage: View {
       mediaNavigation?(destination)
 
     case .person(let card):
-      guard let person = MediaItemTVSections.person(from: card) else { return }
+      guard let person = MediaItemTVSections.person(from: card,
+                                                   metadata: model.externalMetadata,
+                                                   sourceItemID: model.mediaItem.id) else { return }
       mediaNavigation?(model.linkProvider.person(for: person))
 
     case .info(let card):

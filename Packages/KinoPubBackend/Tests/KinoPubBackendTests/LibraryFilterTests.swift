@@ -89,6 +89,14 @@ final class LibraryFilterTests: XCTestCase {
     let director = LibraryFilter(person: MediaPerson(name: "Джеймс Ганн", role: .director))
     XCTAssertEqual(params(director)["director"], "Джеймс Ганн")
     XCTAssertNil(params(director)["cast"])
+
+    // Display localization must not win over an explicit catalog spelling.
+    let localized = LibraryFilter(person: MediaPerson(
+      name: "Майки Мэдисон",
+      role: .actor,
+      catalogNames: ["Mikey Madison", "Майки Мэдисон"]
+    ))
+    XCTAssertEqual(params(localized)["cast"], "Mikey Madison")
   }
 
   func testPeriodIsSentServerSide() {
