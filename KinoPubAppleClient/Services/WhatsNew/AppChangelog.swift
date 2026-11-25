@@ -2,10 +2,15 @@
 //  AppChangelog.swift
 //  KinoPubAppleClient
 //
-//  User-facing What's New. One entry per marketing version, ru + en bullets.
-//  Source of truth: `Resources/whats-new.json`. CHANGELOG.md stays the
-//  implementation log. TestFlight "What to Test" reads the same JSON.
-//  Bullets are newest first within an entry; a new one goes at the top.
+//  User-facing What's New. One marketing-version group, ru + en bullets.
+//
+//  Hybrid source of truth:
+//  - `Resources/whats-new.json` — frozen legacy archive (do not add new bullets here).
+//  - `Resources/WhatsNew/entries/<id>.json` — one new contribution per file; PRs only
+//    add a file under entries/. The directory listing is the index.
+//  Loader merges both; fragments sort by date (then id) and prepend onto their version.
+//  CHANGELOG.md stays the implementation log. TestFlight "What to Test" reads the same
+//  sources (Fastlane).
 //
 
 import Foundation
@@ -33,11 +38,24 @@ struct AppChangelog: Equatable, Sendable {
     }
   }
 
+  /// One PR-sized contribution under `WhatsNew/entries/`. Arrays allow several
+  /// related bullets in the same file without touching a shared mega-file.
+  struct Fragment: Equatable, Sendable, Identifiable, Hashable {
+    var id: String
+    var version: String
+    var date: String?
+    var ru: [String]
+    var en: [String]
+  }
+
   var entries: [Entry]
 
   static let lastSeenVersionKey = "whatsNew.lastSeenVersion"
   static let seenBulletsKey = "whatsNew.seenBullets"
-  static let resourceName = "whats-new"
+  /// Legacy archive still shipped for historical bullets.
+  static let legacyResourceName = "whats-new"
+  /// Folder-reference subdirectory inside the app bundle (blue folder in Xcode).
+  static let entriesSubdirectory = "WhatsNew/entries"
 
   static let empty = AppChangelog(entries: [])
 
@@ -97,22 +115,128 @@ struct AppChangelog: Equatable, Sendable {
   }
 
   static func load(from bundle: Bundle = .main) -> AppChangelog {
-    guard let url = bundle.url(forResource: resourceName, withExtension: "json") else {
+    let legacy = loadLegacy(from: bundle)
+    let fragments = loadFragments(from: bundle)
+    return merge(legacy: legacy, fragments: fragments)
+  }
+
+  static func loadLegacy(from bundle: Bundle = .main) -> AppChangelog {
+    guard let url = bundle.url(forResource: legacyResourceName, withExtension: "json") else {
       return .empty
     }
-    return (try? load(from: url)) ?? .empty
+    return (try? loadLegacy(from: url)) ?? .empty
   }
 
-  static func load(from url: URL) throws -> AppChangelog {
-    try decode(Data(contentsOf: url))
+  static func loadLegacy(from url: URL) throws -> AppChangelog {
+    try decodeLegacy(Data(contentsOf: url))
   }
 
-  static func decode(_ data: Data) throws -> AppChangelog {
-    let payload = try JSONDecoder().decode(Payload.self, from: data)
+  /// Discovers `*.json` under `WhatsNew/entries` in the bundle (folder reference).
+  static func loadFragments(from bundle: Bundle = .main) -> [Fragment] {
+    let urls = bundle.urls(
+      forResourcesWithExtension: "json",
+      subdirectory: entriesSubdirectory
+    ) ?? []
+    return loadFragments(from: urls)
+  }
+
+  static func loadFragments(from urls: [URL]) -> [Fragment] {
+    let fragments = urls.compactMap { url -> Fragment? in
+      guard let data = try? Data(contentsOf: url) else { return nil }
+      return try? decodeFragment(data, fallbackID: url.deletingPathExtension().lastPathComponent)
+    }
+    return sortedFragments(fragments)
+  }
+
+  static func decodeLegacy(_ data: Data) throws -> AppChangelog {
+    let payload = try JSONDecoder().decode(LegacyPayload.self, from: data)
     let entries = payload.entries.map {
       Entry(version: $0.version, date: $0.date, ru: $0.ru ?? [], en: $0.en ?? [])
     }
     return AppChangelog(entries: entries.filter { !$0.version.isEmpty })
+  }
+
+  /// Back-compat alias used by unit tests that still pass a legacy mega-file blob.
+  static func decode(_ data: Data) throws -> AppChangelog {
+    try decodeLegacy(data)
+  }
+
+  static func decodeFragment(_ data: Data, fallbackID: String) throws -> Fragment {
+    let payload = try JSONDecoder().decode(FragmentPayload.self, from: data)
+    let id = payload.id?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let resolvedID = (id?.isEmpty == false ? id! : fallbackID)
+    let version = payload.version.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !version.isEmpty, !resolvedID.isEmpty else {
+      throw DecodeError.invalidFragment
+    }
+    return Fragment(
+      id: resolvedID,
+      version: version,
+      date: payload.date,
+      ru: payload.ru ?? [],
+      en: payload.en ?? []
+    )
+  }
+
+  /// Fragments newest-first: ISO date descending, then id descending (stable unique names).
+  static func sortedFragments(_ fragments: [Fragment]) -> [Fragment] {
+    fragments.sorted { lhs, rhs in
+      switch compareOptionalDates(lhs.date, rhs.date) {
+      case .orderedAscending: return false
+      case .orderedDescending: return true
+      case .orderedSame:
+        return lhs.id.localizedStandardCompare(rhs.id) == .orderedDescending
+      }
+    }
+  }
+
+  /// Prepend fragment bullets (already newest-first) onto each marketing-version group.
+  static func merge(legacy: AppChangelog, fragments: [Fragment]) -> AppChangelog {
+    let ordered = sortedFragments(fragments)
+    guard !ordered.isEmpty else { return legacy }
+
+    var byVersion: [String: Entry] = [:]
+    var versionOrder: [String] = []
+
+    for entry in legacy.entries {
+      byVersion[entry.version] = entry
+      versionOrder.append(entry.version)
+    }
+
+    var fragmentRU: [String: [String]] = [:]
+    var fragmentEN: [String: [String]] = [:]
+    var fragmentDate: [String: String?] = [:]
+
+    for fragment in ordered {
+      fragmentRU[fragment.version, default: []].append(contentsOf: fragment.ru)
+      fragmentEN[fragment.version, default: []].append(contentsOf: fragment.en)
+      if fragmentDate[fragment.version] == nil {
+        fragmentDate[fragment.version] = fragment.date
+      }
+      if byVersion[fragment.version] == nil {
+        versionOrder.append(fragment.version)
+        byVersion[fragment.version] = Entry(
+          version: fragment.version,
+          date: fragment.date,
+          ru: [],
+          en: []
+        )
+      }
+    }
+
+    for version in versionOrder {
+      guard var entry = byVersion[version] else { continue }
+      let extraRU = fragmentRU[version] ?? []
+      let extraEN = fragmentEN[version] ?? []
+      entry.ru = extraRU + entry.ru
+      entry.en = extraEN + entry.en
+      if let newer = fragmentDate[version] ?? nil {
+        entry.date = newerDate(existing: entry.date, candidate: newer)
+      }
+      byVersion[version] = entry
+    }
+
+    return AppChangelog(entries: versionOrder.compactMap { byVersion[$0] })
   }
 
   static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
@@ -132,7 +256,11 @@ struct AppChangelog: Equatable, Sendable {
 }
 
 private extension AppChangelog {
-  struct Payload: Decodable {
+  enum DecodeError: Error {
+    case invalidFragment
+  }
+
+  struct LegacyPayload: Decodable {
     var entries: [PayloadEntry]
   }
 
@@ -141,5 +269,31 @@ private extension AppChangelog {
     var date: String?
     var ru: [String]?
     var en: [String]?
+  }
+
+  struct FragmentPayload: Decodable {
+    var id: String?
+    var version: String
+    var date: String?
+    var ru: [String]?
+    var en: [String]?
+  }
+
+  static func compareOptionalDates(_ lhs: String?, _ rhs: String?) -> ComparisonResult {
+    switch (lhs, rhs) {
+    case let (l?, r?):
+      return l.compare(r)
+    case (_?, nil):
+      return .orderedDescending
+    case (nil, _?):
+      return .orderedAscending
+    case (nil, nil):
+      return .orderedSame
+    }
+  }
+
+  static func newerDate(existing: String?, candidate: String) -> String {
+    guard let existing else { return candidate }
+    return compareOptionalDates(candidate, existing) == .orderedDescending ? candidate : existing
   }
 }

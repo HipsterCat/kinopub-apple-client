@@ -114,6 +114,10 @@
 			isa = PBXBuildFile;
 			fileRef = C9AE5124B127CC77596C994A /* whats-new.json */;
 		};
+		47A0E657A87BAEB06BEE3CA6 /* WhatsNew in Resources */ = {
+			isa = PBXBuildFile;
+			fileRef = BE0824F75DBDE48E117A2DDD /* WhatsNew */;
+		};
 		A8179161E56B039802ACF0DC /* AccessTokenService.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = CFCAD59B300FA1F75637E224 /* AccessTokenService.swift */;
@@ -1399,6 +1403,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = text.json;
 			path = "whats-new.json";
+			sourceTree = "<group>";
+		};
+		BE0824F75DBDE48E117A2DDD /* WhatsNew */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = folder;
+			path = WhatsNew;
 			sourceTree = "<group>";
 		};
 		C6DF3E289655A67DF0BFEE3A /* KinoPubAppleClient-tvOS.entitlements */ = {
@@ -3097,6 +3107,7 @@
 				ADAAD396863FF3B1CBC5D31F /* Launch Screen.storyboard */,
 				C56C499462BBFDE31A946813 /* Localizable.xcstrings */,
 				C9AE5124B127CC77596C994A /* whats-new.json */,
+				BE0824F75DBDE48E117A2DDD /* WhatsNew */,
 				C6DF3E289655A67DF0BFEE3A /* KinoPubAppleClient-tvOS.entitlements */,
 			);
 			path = Resources;
@@ -3993,6 +4004,7 @@
 				FEA50411EDE4A205449B753D /* Launch Screen.storyboard in Resources */,
 				BC756C9FA5C365E31DD4F875 /* Localizable.xcstrings in Resources */,
 				CE364EAB3806C3CB40D2E39B /* whats-new.json in Resources */,
+				47A0E657A87BAEB06BEE3CA6 /* WhatsNew in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

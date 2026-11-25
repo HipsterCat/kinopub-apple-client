@@ -8,7 +8,7 @@ popup and About (Sasha, 2026-10-16: "все устраивает").
 **prd** — The first launch of a build with notes this device has not shown yet presents
 What's New once, signed in, over the app: title, «Версия 1.0 • Сборка 10», the new
 bullets, and **Done**. The marketing version stays 1.0 across TestFlight builds, so the
-gate is per bullet, not per version: any bullet in `whats-new.json` that this device has
+gate is per bullet, not per version: any bullet in the catalog that this device has
 not shown is new; a reworded one counts as new. A fresh install records everything as
 seen and stays quiet.
 
@@ -34,15 +34,24 @@ were unreadable (Sasha, 2026-10-16).
 ## Copy
 
 **prd** — Bullets are user-facing, short, and localized **ru first, then en**. No
-implementation notes, no ticket numbers, no "fixed a crash in X". A new bullet goes at
-the **top** of the current version's list.
+implementation notes, no ticket numbers, no "fixed a crash in X". A new bullet goes in a
+**new file** under `entries/` (see Source); within that file, newest text first.
 
 The implementation log stays in [CHANGELOG.md](../../CHANGELOG.md). TestFlight
-"What to Test" is the Russian bullets for the current marketing version.
+"What to Test" is the Russian bullets for the current marketing version (fragments
+first, then the legacy archive).
 
 ## Source
 
-`KinoPubAppleClient/Resources/whats-new.json` — one object per marketing version.
-Agents add bullets on the current version when the change is visible to a viewer. See
-AGENTS.md › Working agreement. Licences: `OpenSourceLicenses.swift` — a package added to
-`Package.resolved` gets a line there.
+Hybrid catalog (Sasha, 2026-11-26):
+
+| Path | Role |
+| --- | --- |
+| `KinoPubAppleClient/Resources/WhatsNew/entries/<id>.json` | **New bullets.** One file per PR / visible change. Filename `YYYY-MM-DD-short-slug.json`. |
+| `KinoPubAppleClient/Resources/whats-new.json` | **Frozen legacy archive.** Do not add new bullets here. |
+
+`AppChangelog.load` merges both: entry files sort by date (then id), newest first, and
+prepend onto their marketing-version group. `WhatsNew` is an Xcode **folder reference**,
+so new files under `entries/` need no `project.pbxproj` edit. Schema and an example live
+in `entries/README.md`. Agents: see AGENTS.md › Working agreement. Licences:
+`OpenSourceLicenses.swift` — a package added to `Package.resolved` gets a line there.

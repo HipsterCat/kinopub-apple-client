@@ -9,11 +9,11 @@ import XCTest
 final class AppChangelogTests: XCTestCase {
   func testBundledCatalogHasCurrentMarketingVersionWithBothLanguages() throws {
     let catalog = AppChangelog.load()
-    XCTAssertFalse(catalog.entries.isEmpty, "whats-new.json must ship at least one version")
+    XCTAssertFalse(catalog.entries.isEmpty, "legacy whats-new.json must ship at least one version")
     let current = Bundle.main.appVersionLong
     let entry = try XCTUnwrap(
       catalog.entry(for: current),
-      "whats-new.json needs an entry for marketing version \(current)"
+      "catalog needs an entry for marketing version \(current)"
     )
     XCTAssertFalse(entry.ru.isEmpty, "ru bullets are required")
     XCTAssertFalse(entry.en.isEmpty, "en bullets are required")
@@ -68,6 +68,69 @@ final class AppChangelogTests: XCTestCase {
   func testNewestFirstOrdersByVersion() throws {
     let catalog = try AppChangelog.decode(Self.sampleJSON)
     XCTAssertEqual(catalog.newestFirst.map(\.version), ["1.1", "1.0"])
+  }
+
+  /// New contributions live as isolated files; they prepend onto the legacy version
+  /// group and sort by date (newest first) without editing the mega-file.
+  func testFragmentsMergeAheadOfLegacyAndSortByDate() throws {
+    let legacy = try AppChangelog.decode(Self.sampleJSON)
+    let older = try AppChangelog.decodeFragment(Data("""
+    {
+      "version": "1.1",
+      "date": "2026-11-01",
+      "ru": ["Старый фрагмент"],
+      "en": ["Older fragment"]
+    }
+    """.utf8), fallbackID: "2026-11-01-older")
+    let newer = try AppChangelog.decodeFragment(Data("""
+    {
+      "version": "1.1",
+      "date": "2026-11-26",
+      "ru": ["Новый фрагмент"],
+      "en": ["Newer fragment"]
+    }
+    """.utf8), fallbackID: "2026-11-26-newer")
+
+    let catalog = AppChangelog.merge(legacy: legacy, fragments: [older, newer])
+    let entry = try XCTUnwrap(catalog.entry(for: "1.1"))
+    XCTAssertEqual(entry.ru, ["Новый фрагмент", "Старый фрагмент", "Новое в 1.1"])
+    XCTAssertEqual(entry.en, ["Newer fragment", "Older fragment", "New in 1.1"])
+    XCTAssertEqual(entry.date, "2026-11-26")
+  }
+
+  func testFragmentCreatesVersionMissingFromLegacy() throws {
+    let legacy = try AppChangelog.decode(Data("""
+    {"entries":[{"version":"1.0","ru":["Старое"],"en":["Old"]}]}
+    """.utf8))
+    let fragment = try AppChangelog.decodeFragment(Data("""
+    {
+      "version": "1.2",
+      "date": "2026-12-01",
+      "ru": ["Два"],
+      "en": ["Two"]
+    }
+    """.utf8), fallbackID: "2026-12-01-two")
+
+    let catalog = AppChangelog.merge(legacy: legacy, fragments: [fragment])
+    XCTAssertEqual(catalog.newestFirst.map(\.version), ["1.2", "1.0"])
+    XCTAssertEqual(catalog.entry(for: "1.2")?.en, ["Two"])
+  }
+
+  func testLoadFragmentsFromDirectoryUsesFilenameAsID() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("WhatsNewEntries-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let url = directory.appendingPathComponent("2026-11-20-sample.json")
+    try Data("""
+    {"version":"1.0","date":"2026-11-20","ru":["Раз"],"en":["One"]}
+    """.utf8).write(to: url)
+
+    let fragments = AppChangelog.loadFragments(from: [url])
+    XCTAssertEqual(fragments.count, 1)
+    XCTAssertEqual(fragments[0].id, "2026-11-20-sample")
+    XCTAssertEqual(fragments[0].en, ["One"])
   }
 
   private func makeDefaults() throws -> UserDefaults {
