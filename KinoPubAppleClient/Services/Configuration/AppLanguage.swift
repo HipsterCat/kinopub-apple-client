@@ -16,7 +16,8 @@ import KinoPubUI
 @Observable
 final class AppLanguage {
   static let shared = AppLanguage()
-  static let storageKey = "selectedLanguage"
+  /// UserDefaults key — readable from nonisolated `.localized` / package helpers.
+  nonisolated static let storageKey = "selectedLanguage"
 
   /// Codes the Settings picker offers (`ProfileModel.availableLanguages`).
   nonisolated static let supportedCodes: Set<String> = ["en", "ru"]
