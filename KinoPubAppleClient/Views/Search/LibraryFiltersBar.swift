@@ -471,8 +471,9 @@ struct LibraryFilterGlassStyle: ViewModifier {
 #endif
 
 #if !os(tvOS)
-/// The listing pages' toolbar: grid ↔ list, Filters (badge → sheet), Sort
-/// (field + direction). Attach before `.catalogGridChrome()`.
+/// The listing pages' toolbar: one Files-style view Menu (grid/list + sort),
+/// plus a clean Filters button when the page can filter. Attach before
+/// `.catalogGridChrome()`.
 struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
   @ObservedObject var catalog: Catalog
   var chrome: LibraryFiltersBarChrome = .full
@@ -481,76 +482,18 @@ struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
 
   var body: some ToolbarContent {
     ToolbarItem(placement: .primaryAction) {
-      MediaGridLayoutPicker()
+      LibraryViewOptionsMenu(catalog: catalog, includesSort: chrome != .layoutOnly)
     }
-    if chrome != .layoutOnly {
+    if chrome == .full {
       ToolbarSpacer(.fixed, placement: .primaryAction)
-      if chrome == .full {
-        ToolbarItem(placement: .primaryAction) {
-          LibraryFiltersButton(
-            activeCount: catalog.filter.activeFilterCount,
-            action: { showingFilters = true },
-            showsTitle: showsLabels
-          )
-        }
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-      }
       ToolbarItem(placement: .primaryAction) {
-        LibrarySortMenu(catalog: catalog,
-                        showsTitle: showsLabels,
-                        iconOnly: !showsLabels)
+        LibraryFiltersButton(
+          activeCount: catalog.filter.activeFilterCount,
+          action: { showingFilters = true },
+          showsTitle: showsLabels
+        )
       }
     }
-  }
-}
-
-/// Posters or list/table — a system segmented control. On a phone a menu: two
-/// segments crowd a compact navigation bar.
-struct MediaGridLayoutPicker: View {
-  @AppStorage(MediaGridLayout.storageKey) private var layoutRaw = MediaGridLayout.posters.rawValue
-#if os(iOS)
-  @Environment(\.horizontalSizeClass) private var sizeClass
-#endif
-
-  private var current: MediaGridLayout { MediaGridLayout.resolved(from: layoutRaw) }
-
-  var body: some View {
-#if os(iOS)
-    if sizeClass == .compact {
-      Menu {
-        picker.pickerStyle(.inline)
-      } label: {
-        Label(LocalizedStringKey(current.titleKey), systemImage: current.systemImage)
-      }
-    } else {
-      segmented
-    }
-#else
-    segmented
-#endif
-  }
-
-  private var segmented: some View {
-    picker
-      .pickerStyle(.segmented)
-      .labelStyle(.iconOnly)
-      .help(Text(LocalizedStringKey(current.titleKey)))
-  }
-
-  private var picker: some View {
-    Picker("View Options", selection: layoutBinding) {
-      ForEach(MediaGridLayout.allCases) { layout in
-        Label(LocalizedStringKey(layout.titleKey), systemImage: layout.systemImage)
-          .tag(layout.rawValue)
-      }
-    }
-  }
-
-  private var layoutBinding: Binding<String> {
-    Binding(
-      get: { MediaGridLayout.resolved(from: layoutRaw).rawValue },
-      set: { layoutRaw = $0 }
-    )
   }
 }
 
@@ -582,8 +525,8 @@ private struct CatalogGridChrome: ViewModifier {
   @AppStorage(MediaGridLayout.storageKey) private var layoutRaw = MediaGridLayout.posters.rawValue
   @State private var showsLabels = false
 
-  /// The page's width past which the toolbar shows Sort's current pick and «Фильтры»
-  /// beside their glyphs; below it, glyphs alone.
+  /// The page's width past which the toolbar shows «Фильтры» beside its glyph;
+  /// below it, the glyph alone.
   nonisolated private static let labelledToolbarWidth: CGFloat = 760
 
   func body(content: Content) -> some View {

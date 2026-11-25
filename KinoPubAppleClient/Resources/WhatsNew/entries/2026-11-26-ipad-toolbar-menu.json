@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "iPad и iPhone: в Каталоге и Поиске сегмент «сетка / список» и отдельный кружок сортировки заменены одним меню; «Фильтры» — обычная кнопка тулбара без вложенной капсулы. В Поиске — системные области «Везде / Названия / Люди» под полем (поле по-прежнему по центру)."
+  ],
+  "en": [
+    "iPad and iPhone: Catalog and Search replace the grid/list segmented control and separate sort circle with one toolbar Menu; Filters is a plain toolbar button without a nested capsule badge. Search adds native Everywhere / Titles / People scopes under the centered field."
+  ]
+}
