@@ -109,9 +109,9 @@ final class NavigationState {
 
   var canReturnFromSearch: Bool { searchReturnTab != nil }
 
-  /// Drops every pushed route before an interface-language remount. Keeps the
-  /// selected tab (usually Settings) so the viewer lands back on the language row.
-  func clearStacksForLanguageRemount() {
+  /// Drops every pushed route before a shell remount (language or launch-time
+  /// feature flags). Keeps the selected tab so Settings stays under the loader.
+  func clearStacksForShellRemount() {
     mainRoutes = []
     searchRoutes = []
     catalogRoutes = []

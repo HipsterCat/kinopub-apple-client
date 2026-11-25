@@ -95,7 +95,7 @@ struct KinoPubAppleClientApp: App {
         .kinopubLaunchColorScheme()
         .kinopubAppearancePreference()
         .kinopubAppLanguage(appLanguage)
-        .onAppear { appLanguage.navigation = navigationState }
+        .onAppear { ShellRemount.shared.navigation = navigationState }
 #if os(tvOS)
         // Top Shelf items open here (`TopShelfLink`).
         .onOpenURL { url in

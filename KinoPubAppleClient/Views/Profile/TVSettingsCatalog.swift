@@ -884,10 +884,10 @@ final class TVSettingsCatalog {
       }
     }
     var defaults: [TSKRow] = []
-    if flags.contains(where: \.isPendingRelaunch) {
-      defaults.append(TSKRow(title: "Quit to apply".localized,
-                             description: "Launch-time switches take hold on the next launch. This quits the app.",
-                             kind: .action(pushes: false) { FeatureFlag.quitToApply() }))
+    if flags.contains(where: \.isPendingApply) {
+      defaults.append(TSKRow(title: "Apply".localized,
+                             description: "Shell switches rebuild the tabs and pages. Apply remounts the interface without quitting.".localized,
+                             kind: .action(pushes: false) { FeatureFlag.applyPending() }))
     }
     defaults.append(TSKRow(title: "Reset to defaults".localized,
                            description: "Stored on this device only. A build ships with the defaults.",
@@ -897,7 +897,7 @@ final class TVSettingsCatalog {
                              self.host.reloadPages()
                            }))
     return [
-      TSKSection(title: "Applies on next launch".localized, rows: rows(appliesAtLaunch: true)),
+      TSKSection(title: "Needs apply".localized, rows: rows(appliesAtLaunch: true)),
       TSKSection(title: "Applies when next opened".localized, rows: rows(appliesAtLaunch: false)),
       TSKSection(title: "Defaults".localized, rows: defaults),
     ]
