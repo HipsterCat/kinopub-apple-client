@@ -318,7 +318,10 @@ struct DetailsSettingsPane: View {
   }
 
   var body: some View {
-    // Trackpad-style: segmented control full width of the column, outside the Form blocks.
+    // Trackpad-style: segmented control full width of the column, outside the Form
+    // blocks. A bare VStack of two Forms sized to ideal height and clipped the
+    // Settings detail / iPhone sheet with no scroll (Sasha, 2026-11-25). Hug the
+    // metadata Form; the content Form fills the rest and scrolls (keeps NavigationLink).
     VStack(alignment: .leading, spacing: 12) {
       Form {
         Section {
@@ -328,6 +331,7 @@ struct DetailsSettingsPane: View {
         }
       }
       .formStyle(.grouped)
+      .fixedSize(horizontal: false, vertical: true)
 
       Picker("Details", selection: pane) {
         ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
@@ -396,7 +400,12 @@ struct DetailsSettingsPane: View {
         }
       }
       .formStyle(.grouped)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .layoutPriority(1)
     }
+    // Bound the column to the NavigationStack / sheet height so the content Form
+    // is proposed a finite height and scrolls instead of overflowing the window.
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
