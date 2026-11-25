@@ -178,22 +178,58 @@ def marketing_version
 end
 
 # In-app What's New for this marketing version (Russian — Sasha's TestFlight).
+# Hybrid: isolated files under WhatsNew/entries/ (newest first) prepend the
+# frozen legacy whats-new.json for the same marketing version.
 def whats_new_notes
+  version = marketing_version
+  bullets = whats_new_fragment_bullets(version) + whats_new_legacy_bullets(version)
+  bullets.map { |line| "• #{line}" }.join("\n")
+end
+
+def whats_new_legacy_bullets(version)
   path = File.expand_path("../KinoPubAppleClient/Resources/whats-new.json", __dir__)
-  return "" unless File.exist?(path)
+  return [] unless File.exist?(path)
 
   payload = JSON.parse(File.read(path))
   entries = Array(payload["entries"])
-  version = marketing_version
   entry = entries.find { |item| item["version"].to_s == version } || entries.first
-  return "" if entry.nil?
+  return [] if entry.nil?
 
   bullets = Array(entry["ru"])
   bullets = Array(entry["en"]) if bullets.empty?
-  bullets.map { |line| line.to_s.strip }.reject(&:empty?).map { |line| "• #{line}" }.join("\n")
+  bullets.map { |line| line.to_s.strip }.reject(&:empty?)
 rescue JSON::ParserError => e
   UI.important("whats-new.json did not parse (#{e.message})")
-  ""
+  []
+end
+
+def whats_new_fragment_bullets(version)
+  dir = File.expand_path("../KinoPubAppleClient/Resources/WhatsNew/entries", __dir__)
+  return [] unless Dir.exist?(dir)
+
+  fragments = Dir.glob(File.join(dir, "*.json")).filter_map do |path|
+    begin
+      payload = JSON.parse(File.read(path))
+      next unless payload["version"].to_s == version
+
+      {
+        "id" => payload["id"].to_s.empty? ? File.basename(path, ".json") : payload["id"].to_s,
+        "date" => payload["date"].to_s,
+        "ru" => Array(payload["ru"]).map { |line| line.to_s.strip }.reject(&:empty?),
+        "en" => Array(payload["en"]).map { |line| line.to_s.strip }.reject(&:empty?)
+      }
+    rescue JSON::ParserError => e
+      UI.important("WhatsNew entry #{File.basename(path)} did not parse (#{e.message})")
+      nil
+    end
+  end
+
+  fragments.sort_by! { |item| [item["date"], item["id"]] }.reverse!
+  fragments.flat_map do |item|
+    bullets = item["ru"]
+    bullets = item["en"] if bullets.empty?
+    bullets
+  end
 end
 
 def changelog_md_notes
@@ -417,7 +453,7 @@ def write_export_options!(profile_name:, mac:, extension_profiles: {})
 end
 
 # Writes the build's "What to Test" text into Info.plist as `KPReleaseNotes`. Nothing in
-# the app reads it since 2026-10-16 (What's New reads whats-new.json) — ROADMAP has the
+# the app reads it since 2026-10-16 (What's New reads the hybrid catalog) — ROADMAP has the
 # TODO to drop it. The checkout is throwaway, so the plist is edited in place rather than
 # through xcargs, which do not survive a multi-line value.
 def write_release_notes_to!(path)

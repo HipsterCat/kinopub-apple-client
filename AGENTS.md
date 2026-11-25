@@ -272,7 +272,7 @@ Deferred verification is allowed; silent "everything landed" claims are not.
 | Rows / per-item library | `KinoPubAppleClient/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
 | Network log (the only Pulse import) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
 | Routes / player / API | `KinoPubAppleClient/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |
-| In-app What's New | `KinoPubAppleClient/Resources/whats-new.json` |
+| In-app What's New | `KinoPubAppleClient/Resources/WhatsNew/entries/` (new); `Resources/whats-new.json` (legacy archive) |
 
 ## Working agreement
 
@@ -294,8 +294,10 @@ Deferred verification is allowed; silent "everything landed" claims are not.
    engineering rule or trap → this file (short) or `docs/engineering/` (long); notable shipped
    facts → `CHANGELOG.md`. Never a checklist in a `.md` file. **Keep this file short** — a new
    rule replaces or shortens an old one, history goes to `docs/engineering/`.
-8. **If a viewer can see the change**, add a ru + en bullet at the top of the current version in
-   `KinoPubAppleClient/Resources/whats-new.json` (in-app What's New and TestFlight notes).
+8. **If a viewer can see the change**, add **one new file**
+   `KinoPubAppleClient/Resources/WhatsNew/entries/YYYY-MM-DD-short-slug.json` with ru + en
+   bullets (in-app What's New and TestFlight notes). Do **not** edit the legacy
+   `Resources/whats-new.json`. See `entries/README.md` and [docs/product/whats-new.md](docs/product/whats-new.md).
 9. One reviewable slice at a time; build every platform before calling it done.
 
 ### Dependencies

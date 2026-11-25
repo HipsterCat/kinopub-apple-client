@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **What's New contributions:** new visible-change notes go in isolated files under
+  `KinoPubAppleClient/Resources/WhatsNew/entries/` (folder reference; no pbxproj
+  edit). `whats-new.json` stays as a frozen legacy archive; the loader and Fastlane
+  merge both. See `docs/product/whats-new.md`.
 - **Poster / video context menus (KP-73):** Apple TV–style sneak peek on every
   long-press surface — native poster (2:3) / wide (16:9) aspect with fit (no
   centre-crop), title + secondary line (`year · genre`, duration, or episode

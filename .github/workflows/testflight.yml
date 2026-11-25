@@ -30,7 +30,7 @@ on:
           - tvos
           - macos
       changelog:
-        description: What to Test (whats-new.json for this version if empty)
+        description: What to Test (WhatsNew entries + legacy whats-new.json if empty)
         required: false
         type: string
 

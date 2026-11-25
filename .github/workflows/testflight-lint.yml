@@ -19,6 +19,7 @@ on:
       - '.github/scripts/select-xcode-26.sh'
       - 'KinoPubAppleClient.xcodeproj/**'
       - 'KinoPubAppleClient/Resources/whats-new.json'
+      - 'KinoPubAppleClient/Resources/WhatsNew/**'
       - 'KinoPubAppleClient/Info.plist'
   pull_request:
     paths:
@@ -31,6 +32,7 @@ on:
       - '.github/scripts/select-xcode-26.sh'
       - 'KinoPubAppleClient.xcodeproj/**'
       - 'KinoPubAppleClient/Resources/whats-new.json'
+      - 'KinoPubAppleClient/Resources/WhatsNew/**'
       - 'KinoPubAppleClient/Info.plist'
   workflow_dispatch:
 
