@@ -965,11 +965,11 @@ public struct TitleMetadata: Sendable {
 
   /// Enrich kino.pub name list with TMDB cast/crew data, keeping kino.pub order.
   ///
-  /// A name is looked up as written first, then by `soundKey` — kino.pub and the metadata
-  /// worker spell the same Korean or Chinese actor in different Russian transliterations
-  /// («То Гён-су» / «До Кён Су», «Ли Гван-су» / «Ли Кван Су»). An unmatched name had no
-  /// episode count and the cast rail dropped it as a guest. Each metadata person answers
-  /// one kino.pub name at most.
+  /// Lookup order for each credit: exact `normalize` → `soundKey` → closed-pool
+  /// `PersonNameMatch` (Levenshtein + token prefix + bigrams after rough latinize).
+  /// That last step is what links «Рей Николсон» ↔ «Реймонд Николсон» and EN↔RU
+  /// pairs like Lola Bond ↔ Лола Бонд inside one title's cast (~20). Each metadata
+  /// person answers one kino.pub name at most. Alias dictionaries are a later stage.
   public static func enrich(
     names: [String],
     roleDepartment: String?,
@@ -978,19 +978,45 @@ public struct TitleMetadata: Sendable {
     let pool = metadata.cast + metadata.crew
     var byName: [String: Int] = [:]
     var bySound: [String: Int] = [:]
+    var spellingsByIndex: [[String]] = Array(repeating: [], count: pool.count)
     for (index, member) in pool.enumerated() {
       for spelling in [member.name, member.localizedName].compactMap({ $0 }) {
         if byName[normalize(spelling)] == nil { byName[normalize(spelling)] = index }
         let sound = soundKey(spelling)
         if !sound.isEmpty, bySound[sound] == nil { bySound[sound] = index }
+        spellingsByIndex[index].append(spelling)
       }
     }
     var taken = Set<Int>()
     func lookup(_ name: String) -> CastMember? {
-      let candidates = [byName[normalize(name)], bySound[soundKey(name)]].compactMap { $0 }
-      guard let index = candidates.first(where: { !taken.contains($0) }) else { return nil }
-      taken.insert(index)
-      return pool[index]
+      let exact = [byName[normalize(name)], bySound[soundKey(name)]].compactMap { $0 }
+      if let index = exact.first(where: { !taken.contains($0) }) {
+        taken.insert(index)
+        return pool[index]
+      }
+      // Closed-pool fuzzy: score the query against every unused member's spellings.
+      var best: (index: Int, score: Double)?
+      var second: Double = 0
+      for (index, spellings) in spellingsByIndex.enumerated() where !taken.contains(index) {
+        let memberScore = spellings.map { PersonNameMatch.score(name, $0) }.max() ?? 0
+        if let current = best {
+          if memberScore > current.score {
+            second = current.score
+            best = (index, memberScore)
+          } else if memberScore > second {
+            second = memberScore
+          }
+        } else {
+          best = (index, memberScore)
+        }
+      }
+      guard let hit = best,
+            hit.score >= PersonNameMatch.acceptScore,
+            hit.score - second >= PersonNameMatch.acceptMargin else {
+        return nil
+      }
+      taken.insert(hit.index)
+      return pool[hit.index]
     }
     return names.map { name in
       if let hit = lookup(name) {

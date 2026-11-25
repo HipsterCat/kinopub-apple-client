@@ -122,6 +122,55 @@ final class TitleMetadataMergeTests: XCTestCase {
     XCTAssertNotEqual(TitleMetadata.soundKey("Майкл С. Холл"), TitleMetadata.soundKey("Майкл К. Холл"))
   }
 
+  /// Closed-pool fuzzy: diminutives, EN↔RU, hyphen glue — not an alias dictionary.
+  func testEnrichFuzzyMatchesDiminutiveAndTranslitInClosedPool() {
+    var meta = TitleMetadata()
+    meta.cast = [
+      CastMember(name: "Raymond Nicholson", localizedName: "Реймонд Николсон", tmdbPersonId: 10),
+      CastMember(name: "Lola Bond", localizedName: "Лола Бонд", tmdbPersonId: 11),
+      CastMember(name: "Owen Wilson", localizedName: "Оуэн Уилсон", tmdbPersonId: 12),
+      CastMember(name: "Luke Wilson", localizedName: "Люк Уилсон", tmdbPersonId: 13),
+      CastMember(name: "Michael C. Hall", localizedName: "Майкл С. Холл", tmdbPersonId: 14),
+      CastMember(name: "Michael K. Hall", localizedName: "Майкл К. Холл", tmdbPersonId: 15),
+      CastMember(name: "Ку Гё-Хван", tmdbPersonId: 16),
+      CastMember(name: "Brad Pitt", localizedName: "Брэд Питт", tmdbPersonId: 17),
+    ]
+    let enriched = TitleMetadata.enrich(
+      names: [
+        "Рей Николсон",
+        "Лола Бонд",
+        "Ку ГёХван",
+        "Оуэн Уилсон",
+        "Майкл С. Холл",
+        "Уилсон",
+      ],
+      roleDepartment: "Acting",
+      from: meta
+    )
+    XCTAssertEqual(enriched.map(\.tmdbPersonId), [10, 11, 16, 12, 14, nil])
+  }
+
+  func testPersonNameMatchRayRaymondAndRejectsAmbiguousSurname() {
+    let pool = [
+      "Brad Pitt", "Edward Norton", "Raymond Nicholson", "Owen Wilson", "Luke Wilson",
+      "Lola Bond", "Michael C. Hall", "Michael K. Hall", "Gu Gyo-hwan", "Tom Holland",
+    ]
+    let ray = PersonNameMatch.bestIndex(query: "Ray Nicholson", in: pool)
+    XCTAssertEqual(ray?.index, 2)
+    XCTAssertGreaterThanOrEqual(ray?.score ?? 0, PersonNameMatch.acceptScore)
+
+    let lola = PersonNameMatch.bestIndex(query: "Лола Бонд", in: pool)
+    XCTAssertEqual(lola?.index, 5)
+
+    // Surname-only against two Wilsons — margin fails.
+    XCTAssertNil(PersonNameMatch.bestIndex(query: "Уилсон", in: pool))
+
+    // Different middle initial must not win the other Hall.
+    let hallPool = ["Michael K. Hall", "Michael C. Hall"]
+    let hall = PersonNameMatch.bestIndex(query: "Майкл С. Холл", in: hallPool)
+    XCTAssertEqual(hall?.index, 1)
+  }
+
   func testMergePrefersExistingLogo() {
     var base = TitleMetadata()
     base.artwork.titleLogo = URL(string: "https://example.com/a.png")
