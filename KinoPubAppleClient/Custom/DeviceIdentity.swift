@@ -148,11 +148,9 @@ enum DeviceIdentity {
   /// kino.pub's own docs put the OS in `software` (`'software': 'iOS/8.3'`), so the app
   /// build rides along behind it rather than pushing it into `hardware`.
   private static var softwareLine: String {
-    // `INFOPLIST_KEY_CFBundleDisplayName` carries the shipping name ("Kinopub Soda"), so the
+    // `INFOPLIST_KEY_CFBundleDisplayName` carries the shipping name ("Piratic"), so the
     // literal is only a last resort — keep it in step with the build setting.
-    let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-      ?? "Soda"
+    let name = Bundle.main.appDisplayName
     let version = Bundle.main.appVersionLong
     let build = Bundle.main.appBuild
     let app: String

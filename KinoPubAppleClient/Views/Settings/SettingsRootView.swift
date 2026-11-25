@@ -351,7 +351,7 @@ struct SettingsRootView: View {
     let name = model.userData.profile.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if !name.isEmpty { return name }
     let username = model.userData.username.trimmingCharacters(in: .whitespacesAndNewlines)
-    return username.isEmpty ? "KinoPub" : username
+    return username.isEmpty ? Bundle.main.appDisplayName : username
   }
 
   private var profileSubtitle: String {

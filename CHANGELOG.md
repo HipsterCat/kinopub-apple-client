@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **App display name:** home screen and About title is **Piratic**
+  (`CFBundleDisplayName`). Swift module / `PRODUCT_NAME` stays `KinoPub` for now.
 - **What's New contributions:** new visible-change notes go in isolated files under
   `KinoPubAppleClient/Resources/WhatsNew/entries/` (folder reference; no pbxproj
   edit). `whats-new.json` stays as a frozen legacy archive; the loader and Fastlane

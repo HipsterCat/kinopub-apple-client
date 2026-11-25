@@ -46,7 +46,7 @@ BUNDLE_ID = "com.soda.kinopub"
 TOPSHELF_TARGET = "KinoPubTopShelf"
 TOPSHELF_BUNDLE_ID = "com.soda.kinopub.topshelf"
 TEAM_ID = "Z2PQ733PSP"
-APP_NAME = "Kinopub Soda"
+APP_NAME = "Piratic"
 
 # xcodebuild destination / TestFlight platform / sigh platform / artifact name
 PLATFORMS = {

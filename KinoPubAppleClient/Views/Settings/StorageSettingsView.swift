@@ -215,9 +215,7 @@ final class StorageSettingsModel: ObservableObject {
   var appLine: String {
     let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
-    let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-      ?? "KinoPub"
+    let name = Bundle.main.appDisplayName
     return "\(name) \(version) (\(build))"
   }
 

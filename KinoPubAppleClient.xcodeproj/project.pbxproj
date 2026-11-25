@@ -4422,7 +4422,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "KinoPubAppleClient/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Kinopub Soda";
+				INFOPLIST_KEY_CFBundleDisplayName = Piratic;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Streams the app's network log to the Pulse app on your Mac. Only used while you turn it on in Settings › Advanced › Diagnostics.";
@@ -4475,7 +4475,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "KinoPubAppleClient/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Kinopub Soda";
+				INFOPLIST_KEY_CFBundleDisplayName = Piratic;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Streams the app's network log to the Pulse app on your Mac. Only used while you turn it on in Settings › Advanced › Diagnostics.";

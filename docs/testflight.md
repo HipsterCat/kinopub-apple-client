@@ -100,7 +100,7 @@ Testers who are App Store Connect Users on this app get the build without a name
 
 1. Developer Portal: App ID `com.soda.kinopub` (team `Z2PQ733PSP`) with iOS, tvOS and
    macOS enabled. A local Xcode run with Automatic signing creates it.
-2. App Store Connect → Apps → (+): iOS app named **Kinopub Soda**, bundle id
+2. App Store Connect → Apps → (+): iOS app named **Piratic**, bundle id
    `com.soda.kinopub`. Then add Apple TV and Mac on the same record so one TestFlight
    link covers every device (universal purchase).
 3. Top Shelf (tvOS): App Group `group.com.soda.kinopub` enabled on `com.soda.kinopub` and on
