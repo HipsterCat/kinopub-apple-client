@@ -174,27 +174,29 @@ final class DownloadsCenter: ObservableObject {
   /// Starts downloading `file` of a playable: offline HLS where the platform has it (all
   /// dubs and subtitles stay switchable), the mp4 otherwise or when HLS refuses. Waits its
   /// turn when Simultaneous Downloads is off and something is already downloading.
+  /// Sidecar SRTs are fetched while online and rewritten onto `meta` before the transfer.
   func start(meta: DownloadMeta, file: FileInfo) {
     guard FeatureFlags.downloadsEnabled else { return }
     let waits = !simultaneous && isAnyActive
+    Task { @MainActor in
+      let ready = await SubtitleSidecarStore.localize(meta)
 #if os(iOS)
-    if let hls = URL(string: file.url.hls4), !file.url.hls4.isEmpty {
-      Task { @MainActor in
-        let result = await hlsManager.startDownload(meta: meta, hlsURL: hls, startPaused: waits)
+      if let hls = URL(string: file.url.hls4), !file.url.hls4.isEmpty {
+        let result = await hlsManager.startDownload(meta: ready, hlsURL: hls, startPaused: waits)
         switch result {
         case .started:
-          if waits { enqueue(HLSDownloadKey.make(for: meta)) }
+          if waits { enqueue(HLSDownloadKey.make(for: ready)) }
         case .alreadyDownloading, .alreadyDownloaded:
           return
         case .failed(let reason):
-          Logger.app.error("[DOWNLOADS] HLS refused \(meta.notificationTitle): \(reason); trying the file")
-          startFile(meta: meta, file: file, waits: waits)
+          Logger.app.error("[DOWNLOADS] HLS refused \(ready.notificationTitle): \(reason); trying the file")
+          startFile(meta: ready, file: file, waits: waits)
         }
+        return
       }
-      return
-    }
 #endif
-    startFile(meta: meta, file: file, waits: waits)
+      startFile(meta: ready, file: file, waits: waits)
+    }
   }
 
   private func startFile(meta: DownloadMeta, file: FileInfo, waits: Bool) {

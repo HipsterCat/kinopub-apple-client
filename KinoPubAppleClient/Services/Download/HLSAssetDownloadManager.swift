@@ -551,12 +551,22 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, @preconc
     let progress = Float(min(1.0, ctx.selectionFractions.values.reduce(0, +) / denominator))
 
     let now = Date()
-    // ETA from the progress rate (cheap, no disk access).
+    // ETA from the progress rate (EMA + damp upward jumps — same idea as the mp4 path).
     if let last = ctx.lastProgressTime {
       let dt = now.timeIntervalSince(last)
       if dt >= 1.0, progress > ctx.lastProgress {
         let rate = Double(progress - ctx.lastProgress) / dt   // fraction / sec
-        if rate > 0 { ctx.remaining = Double(1 - progress) / rate }
+        if rate > 0 {
+          let raw = Double(1 - progress) / rate
+          if let previous = ctx.remaining, previous > 0 {
+            var next = previous * 0.6 + raw * 0.4
+            if next > previous * 2, progress > 0.2 { next = previous * 1.25 }
+            if progress >= 0.5 { next = min(next, previous) }
+            ctx.remaining = max(0, next)
+          } else {
+            ctx.remaining = raw
+          }
+        }
         ctx.lastProgress = progress
         ctx.lastProgressTime = now
       }
@@ -570,7 +580,10 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, @preconc
       let bytes = HLSDownloadsStore.directorySize(at: location)
       if let lastTime = ctx.lastBytesTime {
         let dt = now.timeIntervalSince(lastTime)
-        if dt > 0 { ctx.speed = max(0, Double(bytes - ctx.lastBytes) / dt) }
+        if dt > 0 {
+          let instant = max(0, Double(bytes - ctx.lastBytes) / dt)
+          ctx.speed = ctx.speed > 0 ? (ctx.speed * 0.7 + instant * 0.3) : instant
+        }
       }
       ctx.lastBytes = bytes
       ctx.lastBytesTime = now
@@ -734,13 +747,13 @@ public final class HLSAssetDownloadManager: ObservableObject {
 #endif
 
 #if os(iOS)
-/// **What a download keeps of a stream's tracks: the viewer's languages, not all of them.**
-/// kino.pub masters carry a dozen subtitle languages and several dubs; downloading every
-/// one costs space and requests (429s) for tracks nobody will pick (Sasha, 2026-11-16).
+/// **What a download keeps of a stream's tracks.**
 ///
 /// - Audio: every dub in an audio language, and in a subtitle language too — whoever
 ///   reads English subtitles may well want the English original. Nothing matches → all.
-/// - Subtitles: the subtitle languages, plus forced tracks for the dubs kept.
+///   (Narrowing audio still avoids 429s from grabbing every dub — Sasha, 2026-11-16.)
+/// - Subtitles: **all** legible options. Offline playback must keep every language the
+///   master lists (EN/RU included), not only the viewer's preferred list (KP-91).
 /// The stream's default selection is always added on top by the caller.
 struct DownloadTrackFilter {
   let audioLanguages: Set<String>
@@ -762,12 +775,10 @@ struct DownloadTrackFilter {
     return kept.isEmpty ? options : kept
   }
 
+  /// Every subtitle rendition on the master — offline playback must keep EN/RU (and the
+  /// rest) even when the viewer's preferred list is narrower (Sasha, KP-91).
   func subtitles(_ options: [AVMediaSelectionOption]) -> [AVMediaSelectionOption] {
-    options.filter { option in
-      let language = Self.base(option.renditionLanguageCode)
-      if option.isForcedRendition { return audioLanguages.contains(language) || subtitleLanguages.contains(language) }
-      return subtitleLanguages.contains(language)
-    }
+    options
   }
 
   /// "ru-RU", "ru" and "rus" read as one language; Norwegian "nb"/"no" too.

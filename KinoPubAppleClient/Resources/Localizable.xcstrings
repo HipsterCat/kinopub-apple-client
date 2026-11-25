@@ -14413,6 +14413,23 @@
         }
       }
     },
+    "No skip timings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No skip timings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет меток пропуска"
+          }
+        }
+      }
+    },
     "No resuts" : {
       "extractionState" : "stale",
       "localizations" : {

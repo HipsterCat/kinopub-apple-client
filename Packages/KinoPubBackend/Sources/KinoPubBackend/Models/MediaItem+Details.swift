@@ -149,8 +149,13 @@ public extension MediaItem {
     return finished ? "MediaItem_StatusEnded" : "MediaItem_StatusOngoing"
   }
 
-  /// Top advertised quality from the item, else distinct file qualities.
+  /// Top quality from file heights when the ladder is present, else the catalog
+  /// `quality` Int, else distinct quality strings. Height wins so a `"2160p"` row
+  /// with `h == 1080` does not claim 4K in the Video section.
   var qualityDisplay: String? {
+    if let best = detailFiles.map(\.downloadRank).max(), best > 0 {
+      return "\(best)p"
+    }
     if quality > 0 { return "\(quality)p" }
     var seen = Set<String>()
     var unique: [String] = []
@@ -162,6 +167,7 @@ public extension MediaItem {
   }
 
   /// One line per distinct video file: `1080p · h264 · 1920×1080`.
+  /// Uses pixel height for the quality chip so a mislabeled `"2160p"` row does not lie.
   var videoTechLines: [String] {
     var seen = Set<String>()
     var lines: [String] = []
@@ -169,7 +175,8 @@ public extension MediaItem {
       let key = "\(file.qualityID)-\(file.codec)-\(file.w)x\(file.h)"
       guard seen.insert(key).inserted else { continue }
       var parts: [String] = []
-      if !file.quality.isEmpty { parts.append(file.quality) }
+      let label = file.honestQualityLabel
+      if !label.isEmpty { parts.append(label) }
       if !file.codec.isEmpty { parts.append(file.codec) }
       if file.w > 0, file.h > 0 { parts.append("\(file.w)×\(file.h)") }
       guard !parts.isEmpty else { continue }

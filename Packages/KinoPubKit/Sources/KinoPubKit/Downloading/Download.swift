@@ -36,17 +36,16 @@ public final class Download<Meta: Codable & Equatable & Sendable>: ObservableObj
   @Published public private(set) var bytesWritten: Int64 = 0
   public private(set) var totalBytes: Int64 = 0
 
-  /// Current transfer rate in bytes/sec (smoothed over ~0.5s samples).
+  /// Current transfer rate in bytes/sec (EMA over ~0.5s samples).
   @Published public private(set) var speed: Double = 0
 
   private var lastSampleTime: Date?
   private var lastSampleBytes: Int64 = 0
+  /// Last published ETA; used to damp jumps (10m ↔ 1h) without lagging a real finish.
+  private var smoothedRemaining: TimeInterval?
 
-  /// Estimated time remaining, or nil when it can't be computed yet.
-  public var remainingTime: TimeInterval? {
-    guard speed > 0, totalBytes > bytesWritten else { return nil }
-    return Double(totalBytes - bytesWritten) / speed
-  }
+  /// Estimated time remaining from size ÷ smoothed speed. Nil until speed is known.
+  public var remainingTime: TimeInterval? { smoothedRemaining }
 
   /// Public metadata
   public let metadata: Meta
@@ -91,6 +90,7 @@ public final class Download<Meta: Codable & Equatable & Sendable>: ObservableObj
     guard state != .paused else { return }
     state = .paused
     speed = 0
+    smoothedRemaining = nil
     let pausing = task
     task = nil
     // The session calls back on its delegate queue.
@@ -144,6 +144,7 @@ public final class Download<Meta: Codable & Equatable & Sendable>: ObservableObj
     if let resumeData { self.resumeData = resumeData }
     state = .paused
     speed = 0
+    smoothedRemaining = nil
     onStateChange?(self)
   }
 
@@ -154,15 +155,32 @@ public final class Download<Meta: Codable & Equatable & Sendable>: ObservableObj
     self.progress = progress
   }
 
-  /// Updates byte counters and recomputes the transfer rate from ~0.5s samples.
+  /// Updates byte counters and recomputes a smoothed transfer rate / ETA from ~0.5s samples.
   internal func updateTransfer(bytesWritten: Int64, totalBytes: Int64) {
     let now = Date()
     if let last = lastSampleTime {
       let dt = now.timeIntervalSince(last)
       if dt >= 0.5 {
-        speed = max(0, Double(bytesWritten - lastSampleBytes) / dt)
+        let instant = max(0, Double(bytesWritten - lastSampleBytes) / dt)
+        // EMA: recent samples matter, but a single slow chunk must not spike ETA to an hour.
+        speed = speed > 0 ? (speed * 0.7 + instant * 0.3) : instant
         lastSampleTime = now
         lastSampleBytes = bytesWritten
+        if speed > 0, totalBytes > bytesWritten {
+          let raw = Double(totalBytes - bytesWritten) / speed
+          if let previous = smoothedRemaining, previous > 0 {
+            // Pull toward the size-based estimate; never jump more than 2× upward late on.
+            var next = previous * 0.6 + raw * 0.4
+            if next > previous * 2, progress > 0.2 { next = previous * 1.25 }
+            // Once past halfway, ETA should only shrink (finishes "fast" after a high estimate).
+            if progress >= 0.5 { next = min(next, previous) }
+            smoothedRemaining = max(0, next)
+          } else {
+            smoothedRemaining = raw
+          }
+        } else if totalBytes > 0, bytesWritten >= totalBytes {
+          smoothedRemaining = 0
+        }
       }
     } else {
       lastSampleTime = now

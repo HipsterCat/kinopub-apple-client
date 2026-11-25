@@ -1032,7 +1032,7 @@ struct SeasonsRailView: View {
     let files = episode.files.dedupedByQuality
     var lines: [String] = []
     var seen = Set<String>()
-    let maxH = files.map(\.h).max() ?? 0
+    let maxH = files.map(\.downloadRank).max() ?? 0
     if maxH >= 2160 { lines.append("4K") }
     else if maxH >= 720 { lines.append("HD") }
     else if maxH > 0 { lines.append("SD") }
@@ -1043,7 +1043,8 @@ struct SeasonsRailView: View {
     if mentionsHDR { lines.append("HDR") }
     for file in files {
       var parts: [String] = []
-      if !file.quality.isEmpty { parts.append(file.quality) }
+      let label = file.honestQualityLabel
+      if !label.isEmpty { parts.append(label) }
       if file.w > 0, file.h > 0 { parts.append("\(file.w)×\(file.h)") }
       if !file.codec.isEmpty { parts.append(file.codec.uppercased()) }
       let line = parts.joined(separator: " · ")

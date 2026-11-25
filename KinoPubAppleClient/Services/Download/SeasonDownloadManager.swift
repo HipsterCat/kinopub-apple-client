@@ -11,6 +11,7 @@ import Foundation
 import KinoPubBackend
 import KinoPubMedia
 import KinoPubKit
+import KinoPubMetadata
 import OSLog
 import KinoPubLogging
 
@@ -42,15 +43,16 @@ final class SeasonDownloadManager: ObservableObject {
     self.notifications = notifications
   }
 
-  /// Distinct quality labels available across a season's episodes, best (highest resolution) first.
+  /// Distinct quality labels available across a season's episodes, best (highest height) first.
   /// A `nolinks=1` payload still lists the ladder, so this reads without resolving links.
   static func availableQualities(in season: Season) -> [String] {
     var seen = Set<String>()
     var result: [(label: String, resolution: Int)] = []
     for episode in season.episodes {
-      for file in episode.files where !seen.contains(file.quality) {
-        seen.insert(file.quality)
-        result.append((file.quality, file.resolution))
+      for file in episode.files {
+        let label = file.honestQualityLabel
+        guard !label.isEmpty, seen.insert(label).inserted else { continue }
+        result.append((label, file.downloadRank))
       }
     }
     return result.sorted { $0.resolution > $1.resolution }.map { $0.label }
@@ -66,7 +68,8 @@ final class SeasonDownloadManager: ObservableObject {
                       seriesTitle: String,
                       season: Season,
                       quality: String?,
-                      using service: VideoContentService) async -> Int {
+                      using service: VideoContentService,
+                      title: MediaItem? = nil) async -> Int {
     guard let center else { return 0 }
     var keys = Set<String>()
     for listed in season.episodes {
@@ -75,8 +78,15 @@ final class SeasonDownloadManager: ObservableObject {
         Logger.app.error("[SEASON DL] no links for S\(season.number)E\(episode.number) of \(mediaId)")
         continue
       }
-      let meta = downloadMeta(mediaId: mediaId, seriesTitle: seriesTitle, season: season,
-                              episode: episode, quality: file.quality)
+      let label = file.honestQualityLabel(cappedTo: StreamQuality.current.maxHeight)
+      var meta = downloadMeta(mediaId: mediaId, seriesTitle: seriesTitle, season: season,
+                              episode: episode, quality: label)
+      if let title {
+        let (segments, resolved) = await Self.fetchSkipSegments(
+          title: title, season: season, episode: episode)
+        meta.skipSegments = segments
+        meta.skipSegmentsResolved = resolved
+      }
       center.start(meta: meta, file: file)
       keys.insert(HLSDownloadKey.make(for: meta))
     }
@@ -120,10 +130,14 @@ final class SeasonDownloadManager: ObservableObject {
     SeasonText(number).formatted(.long)
   }
 
-  /// Picks the file matching `quality`; otherwise the highest-resolution file available.
+  /// Picks the file matching `quality` (honest label or API string); otherwise the tallest file.
   private func pickFile(from files: [FileInfo], quality: String?) -> FileInfo? {
-    if let quality, let exact = files.first(where: { $0.quality == quality }) { return exact }
-    return files.max(by: { $0.resolution < $1.resolution })
+    if let quality {
+      if let exact = files.first(where: { $0.honestQualityLabel == quality || $0.quality == quality }) {
+        return exact
+      }
+    }
+    return files.max(by: { $0.downloadRank < $1.downloadRank })
   }
 
   /// The same shape the title page's own Download gives an episode (`DownloadMeta.make`):
@@ -138,7 +152,24 @@ final class SeasonDownloadManager: ObservableObject {
                         localizedTitle: seriesTitle,
                         imageUrl: episode.thumbnail,
                         metadata: WatchingMetadata(id: mediaId, video: episode.number, season: season.number),
+                        subtitles: episode.subtitles,
                         quality: quality,
                         episode: name)
+  }
+
+  /// Skip timings while online — stored on the episode's download for offline play.
+  private static func fetchSkipSegments(title: MediaItem, season: Season,
+                                        episode: Episode) async -> (SkipSegments?, Bool) {
+    guard SkipSegmentsPreview.isAvailable(for: title) else { return (nil, false) }
+    let playing = episode.stamped(season: season.number, mediaId: title.id,
+                                  seriesTitle: title.localizedTitle)
+    guard let enrichment = PlaybackMediaContext.enrichment(
+      playing: playing, title: title, isTrailer: false
+    ) else { return (nil, true) }
+    let segments = await PlaybackMediaContext.skipSegments(
+      for: enrichment,
+      durationSeconds: Double(episode.duration),
+      service: AppContext.shared.metadataService)
+    return (segments, true)
   }
 }

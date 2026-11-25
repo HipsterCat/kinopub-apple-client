@@ -129,6 +129,18 @@ final class MediaLinksTests: XCTestCase {
     XCTAssertEqual(try JSONDecoder().decode(FileInfo.self, from: data), original)
   }
 
+  /// A quality *string* of 2160p with h=1080 must not rank or label as 4K (KP-91).
+  func testHonestQualityPrefersPixelHeightOverQualityString() {
+    let lying = FileInfo(codec: "h264", w: 1920, h: 1080, quality: "2160p", qualityID: 4,
+                         url: URLInfo(http: "a", hls: "", hls4: "b", hls2: ""))
+    let tall = FileInfo(codec: "h264", w: 3840, h: 2160, quality: "1080p", qualityID: 3,
+                        url: URLInfo(http: "a", hls: "", hls4: "b", hls2: ""))
+    XCTAssertEqual(lying.honestQualityLabel, "1080p")
+    XCTAssertEqual(lying.downloadRank, 1080)
+    XCTAssertEqual(lying.honestQualityLabel(cappedTo: 720), "720p")
+    XCTAssertEqual([lying, tall].max(by: { $0.downloadRank < $1.downloadRank })?.h, 2160)
+  }
+
   func testMissingSubtitlesDecodeAsEmpty() throws {
     let json = Data(#"{"files": []}"#.utf8)
     let links = try JSONDecoder().decode(MediaLinks.self, from: json)

@@ -67,8 +67,29 @@ public struct FileInfo: Codable, Hashable, Sendable {
 }
 
 public extension FileInfo {
+  /// Parsed from the quality *string* (`"2160p"` → 2160). Prefer `downloadRank` /
+  /// `honestQualityLabel` when choosing or labelling a download — the string can
+  /// advertise 2160p while `h` is 1080.
   var resolution: Int {
     Int(quality.dropLast()) ?? 0
+  }
+
+  /// Rank for picking the best downloadable file: pixel height wins over the quality label.
+  var downloadRank: Int { h > 0 ? h : resolution }
+
+  /// Honest quality chip for Downloads: height in pixels, else the API quality string.
+  var honestQualityLabel: String {
+    if h > 0 { return "\(h)p" }
+    if !quality.isEmpty { return quality }
+    return ""
+  }
+
+  /// Same as `honestQualityLabel`, optionally capped (HLS downloads that follow Stream Quality).
+  func honestQualityLabel(cappedTo maxHeight: Int?) -> String {
+    let height = downloadRank
+    guard height > 0 else { return quality }
+    let capped = maxHeight.map { min(height, $0) } ?? height
+    return "\(capped)p"
   }
 
   /// False when this file came from a `nolinks=1` payload — the rung of the ladder is

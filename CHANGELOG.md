@@ -4,6 +4,13 @@
   `KinoPubAppleClient/Resources/WhatsNew/entries/` (folder reference; no pbxproj
   edit). `whats-new.json` stays as a frozen legacy archive; the loader and Fastlane
   merge both. See `docs/product/whats-new.md`.
+- **Downloads UX (KP-91):** quality labels use pixel height (and Stream Quality
+  cap for HLS), not a possibly-inflated `FileInfo.quality` string; every available
+  subtitle is fetched while online (HLS legible options + mp4 sidecars); ETA is
+  EMA-smoothed; Cancel/Delete swipe is red and Pause/Resume orange (readable in
+  light mode); intro/credits skip timings are stored with the download for
+  offline play and surfaced when missing; the Downloaded list groups by series
+  with seasons as sections.
 - **Poster / video context menus (KP-73):** Apple TV–style sneak peek on every
   long-press surface — native poster (2:3) / wide (16:9) aspect with fit (no
   centre-crop), title + secondary line (`year · genre`, duration, or episode

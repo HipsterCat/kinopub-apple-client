@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Загрузки: честное качество по высоте кадра (не «2160p» при 1080), все субтитры качаются вместе с файлом, стабильнее ETA, красный/жёлтый свайп, метки пропуска Intro/Credits сохраняются офлайн, список сгруппирован по сериалам и сезонам."
+  ],
+  "en": [
+    "Downloads: honest quality from frame height (no 2160p when the file is 1080), all available subtitles fetched with the file, smoother ETA, red/yellow swipe actions, intro/credits skip timings saved for offline, list grouped by series and season."
+  ]
+}
