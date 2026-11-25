@@ -316,8 +316,8 @@ struct CastAndCrew: Hashable {
 
   func entry(for member: CastMember, role: MediaPerson.Role) -> Entry {
     let photo = member.photo ?? ActorImageProvider.photoURL(for: member.name)
-    let person = MediaPerson(name: member.name, role: role, photoURL: photo,
-                             tmdbPersonId: member.tmdbPersonId)
+    let person = MediaPerson.from(member, role: role, photoURL: photo,
+                                  sourceItemID: item.id)
     let roleLine = member.character?.trimmingCharacters(in: .whitespacesAndNewlines)
     let cleaned = (roleLine?.isEmpty == false) ? roleLine : nil
     let episodes: String?

@@ -480,11 +480,13 @@ public final class TMDBSource: MetadataSource, Sendable {
   }
 
   private func fetchPerson(id: Int) async throws -> TMDBPersonDetails {
-    let key = "tmdb/person/\(id)"
+    // `person-credits-v1:` — combined_credits + also_known_as joined append_to_response.
+    let key = "tmdb/person-credits-v1/\(id)/\(configuration.language)"
     let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
       do {
         let url = try makeURL(path: "/3/person/\(id)", query: [
           URLQueryItem(name: "language", value: configuration.language),
+          URLQueryItem(name: "append_to_response", value: "combined_credits"),
         ])
         let data = try await fetch(url)
         _ = try client.decode(TMDBPersonDetails.self, from: data)
@@ -502,14 +504,60 @@ public final class TMDBSource: MetadataSource, Sendable {
   // MARK: - Mapping
 
   private func mapPerson(_ details: TMDBPersonDetails) -> PersonMetadata {
-    PersonMetadata(
+    let aliases = (details.alsoKnownAs ?? [])
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    let credits = mapPersonCredits(details.combinedCredits)
+    return PersonMetadata(
       biography: details.biography.flatMap { $0.isEmpty ? nil : $0 },
       birthday: Self.parseDate(details.birthday),
       placeOfBirth: details.placeOfBirth.flatMap { $0.isEmpty ? nil : $0 },
       photo: imageURL(path: details.profilePath, size: .profileW342),
       knownForDepartment: details.knownForDepartment,
+      name: details.name.flatMap { $0.isEmpty ? nil : $0 },
+      alsoKnownAs: aliases,
+      credits: credits,
       attribution: [.tmdb]
     )
+  }
+
+  /// Cast first (acting filmography), then crew rows not already listed as cast.
+  /// Sorted newest / most popular — a person page reads as a timeline with known-for weight.
+  private func mapPersonCredits(_ combined: TMDBPersonCombinedCredits?) -> [PersonCredit] {
+    guard let combined else { return [] }
+    var seen = Set<String>()
+    var rows: [PersonCredit] = []
+    func append(_ credit: TMDBPersonCredit, asCast: Bool) {
+      guard let tmdbId = credit.id, tmdbId > 0,
+            let title = credit.displayTitle else { return }
+      let mediaType = credit.mediaType ?? (credit.firstAirDate != nil ? "tv" : "movie")
+      let key = "\(mediaType):\(tmdbId)"
+      guard seen.insert(key).inserted else { return }
+      rows.append(PersonCredit(
+        tmdbId: tmdbId,
+        mediaType: mediaType,
+        title: title,
+        originalTitle: credit.originalDisplayTitle,
+        character: asCast ? credit.character : nil,
+        job: asCast ? nil : credit.job,
+        releaseDate: Self.parseDate(credit.airOrReleaseDate),
+        posterURL: imageURL(path: credit.posterPath, size: .posterW342),
+        voteAverage: (credit.voteAverage ?? 0) > 0 ? credit.voteAverage : nil,
+        popularity: credit.popularity
+      ))
+    }
+    for credit in combined.cast ?? [] { append(credit, asCast: true) }
+    for credit in combined.crew ?? [] { append(credit, asCast: false) }
+    rows.sort { lhs, rhs in
+      switch (lhs.releaseDate, rhs.releaseDate) {
+      case let (l?, r?) where l != r: return l > r
+      case (_?, nil): return true
+      case (nil, _?): return false
+      default:
+        return (lhs.popularity ?? 0) > (rhs.popularity ?? 0)
+      }
+    }
+    return rows
   }
 
   private func mapDetails(_ details: TMDBTitleDetails, type: TMDBMediaType, tmdbId: Int) -> TitleMetadata {

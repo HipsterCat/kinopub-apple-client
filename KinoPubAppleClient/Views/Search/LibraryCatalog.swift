@@ -90,6 +90,10 @@ class LibraryCatalog: ObservableObject {
   }
   /// Titles only, cast only, directors only — `nil` searches all three.
   @Published public private(set) var searchField: SearchItemsRequest.Field?
+  /// Titles that matched only via `field=cast` / `field=director` — mined for people
+  /// chips, never shown as title hits (a «Madison» director must not pretend the film
+  /// title matched). Cleared on every non-search load.
+  @Published public private(set) var creditSearchItems: [MediaItem] = []
   /// Shorter text is not a search: the listing stays the catalog and the field only
   /// offers completions. tvOS search waits for 3 characters; elsewhere any text counts.
   let minimumQueryLength: Int
@@ -281,14 +285,34 @@ class LibraryCatalog: ObservableObject {
                                                     field: .director, page: page, perPage: Self.pageSize)
           async let cast = itemsService.search(query: query, filter: searchFilter, sort: searchSort,
                                                field: .cast, page: page, perPage: Self.pageSize)
-          // Titles first, then directors, then cast; `handle` drops the repeats.
-          data = try await .merging([titles, directors, cast])
+          let titlePage = try await titles
+          let directorPage = try await directors
+          let castPage = try await cast
+          // Title grid = title-field hits only. Cast/director hits feed people chips via
+          // `creditSearchItems` so substring noise in credits is not painted as a title match.
+          let titleIDs = Set(titlePage.items.map(\.id))
+          let creditOnly = (directorPage.items + castPage.items).filter { !titleIDs.contains($0.id) }
+          if isFirstPage || silent {
+            creditSearchItems = creditOnly
+          } else {
+            var seen = Set(creditSearchItems.map(\.id))
+            creditSearchItems.append(contentsOf: creditOnly.filter { seen.insert($0.id).inserted })
+          }
+          data = titlePage
         } else {
+          creditSearchItems = []
           data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: searchSort,
                                                field: searchField, page: page, perPage: Self.pageSize)
         }
       } else {
-        data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
+        creditSearchItems = []
+        // A person page may carry several Kinopub spellings (kino.pub credit + English +
+        // TMDB also_known_as). One name per request — merge page 1 of each.
+        if let person = filter.person, person.queryNames.count > 1, page == 1 {
+          data = try await fetchPersonFilmography(person: person, filter: filter)
+        } else {
+          data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
+        }
       }
       guard generation == loadGeneration, !Task.isCancelled else { return }
       handle(data, isFirstPage: isFirstPage, silent: silent)
@@ -322,6 +346,44 @@ class LibraryCatalog: ObservableObject {
   func retryPagination() {
     paginationFailed = false
     Task { await load() }
+  }
+
+  /// Ensure a title the viewer navigated from is in the filmography list (first).
+  func ensureSeedItem(_ item: MediaItem) {
+    guard !items.contains(where: { $0.id == item.id }) else { return }
+    items.insert(item, at: 0)
+  }
+
+  /// One `/v1/items` request per spelling — commas match nothing on `cast` / `director`.
+  /// Newest-year sort is applied by the server on each page; we keep first-seen order
+  /// across spellings so a kino.pub credit spelling's hits lead.
+  private func fetchPersonFilmography(person: MediaPerson,
+                                      filter: LibraryFilter) async throws -> PaginatedData<MediaItem> {
+    var seen = Set<Int>()
+    var merged: [MediaItem] = []
+    var pagination: Pagination?
+    // Cap alternate spellings — each is a full listing request.
+    for name in person.queryNames.prefix(4) {
+      var attempt = filter
+      attempt.person = MediaPerson(name: name,
+                                   role: person.role,
+                                   photoURL: person.photoURL,
+                                   tmdbPersonId: person.tmdbPersonId,
+                                   catalogNames: [name],
+                                   sourceItemID: person.sourceItemID)
+      let page = try await itemsService.fetchItems(filter: attempt, page: 1, perPage: Self.pageSize)
+      if pagination == nil { pagination = page.pagination }
+      for item in page.items where seen.insert(item.id).inserted {
+        merged.append(item)
+      }
+      // A non-empty first spelling is enough for paging; further names only fill gaps.
+      if !merged.isEmpty, name == person.preferredCatalogName { break }
+    }
+    let pages = max(pagination?.total ?? 1, 1)
+    return PaginatedData(
+      items: merged,
+      pagination: Pagination(total: pages, current: 1, perpage: Self.pageSize)
+    )
   }
 
   /// Pickers are chrome: if they fail the listing still works, so this never raises.

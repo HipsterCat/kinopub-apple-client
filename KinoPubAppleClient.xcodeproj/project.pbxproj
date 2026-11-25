@@ -75,6 +75,10 @@
 			isa = PBXBuildFile;
 			fileRef = BC4C6E8425A27BC43D73D3F6 /* MediaCardContextMenus.swift */;
 		};
+		8146BFF3FF5E2BDE1F76115C /* MediaPerson+CastMember.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 64D5350F769D9CFA87008579 /* MediaPerson+CastMember.swift */;
+		};
 		C4B1EE01DDC17472A11F0E95 /* MediaCardMenuCoordinator.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = CEDF0EF0A06AA9E86ED20294 /* MediaCardMenuCoordinator.swift */;
@@ -842,6 +846,10 @@
 			isa = PBXBuildFile;
 			fileRef = C02D77BA2031D10457EB00F5 /* PersonItemsView.swift */;
 		};
+		A71F66BE58C51810283ADA36 /* PersonFilmography.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 6425B3D8E34E95128B7BD1C0 /* PersonFilmography.swift */;
+		};
 		C412135DED792EDF390C3AD8 /* CatalogView.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = CFD4AE5B4EE9A0E65A11D539 /* CatalogView.swift */;
@@ -1325,6 +1333,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = MediaCardContextMenus.swift;
+			sourceTree = "<group>";
+		};
+		64D5350F769D9CFA87008579 /* MediaPerson+CastMember.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = "MediaPerson+CastMember.swift";
 			sourceTree = "<group>";
 		};
 		CEDF0EF0A06AA9E86ED20294 /* MediaCardMenuCoordinator.swift */ = {
@@ -2516,6 +2530,12 @@
 			path = PersonItemsView.swift;
 			sourceTree = "<group>";
 		};
+		6425B3D8E34E95128B7BD1C0 /* PersonFilmography.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = PersonFilmography.swift;
+			sourceTree = "<group>";
+		};
 		CFD4AE5B4EE9A0E65A11D539 /* CatalogView.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -3060,6 +3080,7 @@
 				C972066063BBDB7FFD3870DC /* APIClientError+Description.swift */,
 				C856576BBDDBD438334A7F6B /* String+Localization.swift */,
 				BC4C6E8425A27BC43D73D3F6 /* MediaCardContextMenus.swift */,
+				64D5350F769D9CFA87008579 /* MediaPerson+CastMember.swift */,
 				CEDF0EF0A06AA9E86ED20294 /* MediaCardMenuCoordinator.swift */,
 				A99C7F75B51319C8B91618F8 /* MediaCardMenuAlerts.swift */,
 				CB4DF619A7B4317B46CFDD9E /* WindowSettings.swift */,
@@ -3638,6 +3659,7 @@
 				EAFF2A1C3F5289E0024FBEF4 /* LibraryFilterSheet.swift */,
 				CECB29DEEE7FC49725289C62 /* LibraryCatalog.swift */,
 				C02D77BA2031D10457EB00F5 /* PersonItemsView.swift */,
+				6425B3D8E34E95128B7BD1C0 /* PersonFilmography.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -4019,6 +4041,7 @@
 				CAC371E97315CCC1E21821DE /* APIClientError+Description.swift in Sources */,
 				C52478B65011810218CB4E03 /* String+Localization.swift in Sources */,
 				CAC96B9630C056046902D3E9 /* MediaCardContextMenus.swift in Sources */,
+				8146BFF3FF5E2BDE1F76115C /* MediaPerson+CastMember.swift in Sources */,
 				C4B1EE01DDC17472A11F0E95 /* MediaCardMenuCoordinator.swift in Sources */,
 				C9C05FAAE2B531DA8D10EAF8 /* MediaCardMenuAlerts.swift in Sources */,
 				DD5281FAFC7E17467BF85D9F /* WindowSettings.swift in Sources */,
@@ -4206,6 +4229,7 @@
 				C7B7A701766B16439FA89404 /* LibraryFilterSheet.swift in Sources */,
 				CE55122D219E16C77A9C823A /* LibraryCatalog.swift in Sources */,
 				C0F7575B52EF91D9907EBA16 /* PersonItemsView.swift in Sources */,
+				A71F66BE58C51810283ADA36 /* PersonFilmography.swift in Sources */,
 				C412135DED792EDF390C3AD8 /* CatalogView.swift in Sources */,
 				C93F12958AF82C59C14FAB2C /* ShortcutItemsView.swift in Sources */,
 				C59B17F2AEF1C4DAD2BB09D3 /* WhatsNewSheet.swift in Sources */,

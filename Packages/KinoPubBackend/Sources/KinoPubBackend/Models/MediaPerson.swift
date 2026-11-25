@@ -11,6 +11,11 @@ import Foundation
 ///
 /// Optional TMDB fields ride along from the cast rail so the person page can show a
 /// photo and fetch a bio without a second name lookup. Equality stays name+role.
+///
+/// **Catalog queries must not rely on display localization alone.** TMDB / title-card
+/// people often carry a Russian display name while Kinopub credits use another
+/// transliteration or the English form. `catalogNames` are the spellings tried for
+/// `cast=` / `director=`; `name` is what the UI shows.
 public struct MediaPerson: Hashable, Identifiable, Sendable {
 
   public enum Role: String, Hashable, Sendable {
@@ -34,18 +39,74 @@ public struct MediaPerson: Hashable, Identifiable, Sendable {
     }
   }
 
+  /// Display name (may be a localized TMDB spelling).
   public let name: String
   public let role: Role
   public let photoURL: URL?
   public let tmdbPersonId: Int?
+  /// Spellings to try for `/v1/items` `cast=` / `director=`. First is preferred.
+  /// Always includes at least `name` after init normalization.
+  public let catalogNames: [String]
+  /// Kinopub item id of the title the viewer opened this person from — seed into
+  /// filmography when `cast=` spelling misses that credit.
+  public let sourceItemID: Int?
 
   public var id: String { "\(role.rawValue):\(name)" }
 
-  public init(name: String, role: Role, photoURL: URL? = nil, tmdbPersonId: Int? = nil) {
+  /// Deduped query spellings for the catalog, `name` last if nothing else.
+  public var queryNames: [String] {
+    var seen = Set<String>()
+    var out: [String] = []
+    for raw in catalogNames + [name] {
+      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+      out.append(trimmed)
+    }
+    return out
+  }
+
+  /// The spelling `/v1/items` should try first.
+  public var preferredCatalogName: String { queryNames.first ?? name }
+
+  public init(name: String,
+              role: Role,
+              photoURL: URL? = nil,
+              tmdbPersonId: Int? = nil,
+              catalogNames: [String] = [],
+              sourceItemID: Int? = nil) {
     self.name = name
     self.role = role
     self.photoURL = photoURL
     self.tmdbPersonId = tmdbPersonId
+    self.sourceItemID = sourceItemID
+    var seen = Set<String>()
+    var names: [String] = []
+    for raw in catalogNames + [name] {
+      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+      names.append(trimmed)
+    }
+    self.catalogNames = names
+  }
+
+  /// Copy with an extra Kinopub query spelling (TMDB `also_known_as`, English, …).
+  public func appendingCatalogNames(_ extras: [String]) -> MediaPerson {
+    MediaPerson(name: name,
+                role: role,
+                photoURL: photoURL,
+                tmdbPersonId: tmdbPersonId,
+                catalogNames: catalogNames + extras,
+                sourceItemID: sourceItemID)
+  }
+
+  /// Copy that remembers the title this person was opened from.
+  public func withSourceItemID(_ id: Int?) -> MediaPerson {
+    MediaPerson(name: name,
+                role: role,
+                photoURL: photoURL,
+                tmdbPersonId: tmdbPersonId,
+                catalogNames: catalogNames,
+                sourceItemID: id)
   }
 
   /// 🔴 **One name per request.** `/v1/items` matches `cast` / `director` against the

@@ -1121,10 +1121,8 @@ struct MediaItemCastSection: View {
   private var people: [(person: MediaPerson, member: CastMember)] {
     CastRanking.rail(names: mediaItem.castMembers, metadata: externalMetadata,
                      isEpisodic: mediaItem.isEpisodicType).map {
-      (MediaPerson(name: $0.name,
-                   role: .actor,
-                   photoURL: photoURL(for: $0),
-                   tmdbPersonId: $0.tmdbPersonId), $0)
+      (MediaPerson.from($0, role: .actor, photoURL: photoURL(for: $0),
+                        sourceItemID: mediaItem.id), $0)
     }
   }
 
