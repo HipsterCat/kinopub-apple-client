@@ -70,7 +70,8 @@ class PlayerManager: ObservableObject {
   private var cueObserverToken: Any?
   private(set) var playItem: any PlayableItem
   private(set) var watchMode: WatchMode
-  private var downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
+  // Readable from PlayerManager extensions in other files (e.g. PlaybackSkip).
+  private(set) var downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
   private var rateObservation: NSKeyValueObservation?
   private var actionsService: UserActionsService
   /// Only for resolving missing stream links — see `resolveStreamLinksIfNeeded`.
