@@ -375,6 +375,21 @@ extension PlayerManager {
     let fallbackSeconds = Double((playItem as? Episode)?.duration ?? 0)
     let current = item.duration.seconds
     let duration = current.isFinite && current > 0 ? current : fallbackSeconds
+    // Prefer skip timings stored with the download (fetched while online). Offline play
+    // must not depend on SkipDB / TheIntroDB answering again (KP-91).
+    if let stored = offlineStoredSkipSegments(), !stored.isEmpty {
+      skipSegments = stored
+      skipDurationSeconds = duration
+      addSkipTimeObserver()
+#if os(tvOS)
+      if pendingNextEpisode != nil,
+         PlaybackSkip.closingCreditsStart(in: stored, durationSeconds: duration) != nil {
+        installNextEpisodeProposal(on: item)
+      }
+#endif
+      Logger.app.info("Skip times: offline store")
+      return
+    }
     let service = AppContext.shared.metadataService
     let contentService = self.contentService
     skipSegmentsTask = Task { [weak self] in
@@ -408,6 +423,29 @@ extension PlayerManager {
 #endif
       }
     }
+  }
+
+  /// Skip timings saved on a downloaded `DownloadMeta` (HLS or mp4).
+  private func offlineStoredSkipSegments() -> SkipSegments? {
+    if let meta = playItem as? DownloadMeta {
+      return meta.skipSegments
+    }
+    let contentIds: Set<Int> = [playItem.id, playItem.metadata.id]
+    let video = playItem.metadata.video
+    let season = playItem.metadata.season
+    for contentId in contentIds {
+      if let hls = AppContext.shared.hlsDownloadsStore.asset(
+        forId: contentId, video: video, season: season
+      )?.meta.skipSegments {
+        return hls
+      }
+    }
+    let files = downloadedFilesDatabase.readData() ?? []
+    return files.first(where: {
+      contentIds.contains($0.metadata.id)
+        && $0.metadata.metadata.video == video
+        && $0.metadata.metadata.season == season
+    })?.metadata.skipSegments
   }
 
   /// Everything about the previous stream's skips goes: an episode played in place must

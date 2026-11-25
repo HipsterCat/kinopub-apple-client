@@ -1477,10 +1477,46 @@ class MediaItemModel: ObservableObject {
   }
   
   /// Hands one playable to `DownloadsCenter` (HLS where the platform has it, else mp4).
+  /// Quality is labelled from pixel height (and Stream Quality cap for HLS), not a
+  /// possibly-inflated `FileInfo.quality` string. Skip timings are fetched while online.
   func startDownload(item: DownloadableMediaItem, file: FileInfo) {
     guard FeatureFlags.downloadsEnabled else { return }
-    let meta = DownloadMeta.make(from: item, quality: file.quality)
-    AppContext.shared.downloadsCenter.start(meta: meta, file: file)
+    let quality = file.honestQualityLabel(cappedTo: StreamQuality.current.maxHeight)
+    let center = AppContext.shared.downloadsCenter
+    let service = AppContext.shared.metadataService
+    Task { @MainActor in
+      var meta = DownloadMeta.make(from: item, quality: quality.isEmpty ? file.quality : quality)
+      let (segments, resolved) = await Self.fetchSkipSegmentsForDownload(
+        item: item, service: service)
+      meta.skipSegments = segments
+      meta.skipSegmentsResolved = resolved
+      center.start(meta: meta, file: file)
+    }
+  }
+
+  /// SkipDB / TheIntroDB while the download is enqueued — stored on the meta for offline play.
+  private static func fetchSkipSegmentsForDownload(
+    item: DownloadableMediaItem,
+    service: MetadataService
+  ) async -> (SkipSegments?, Bool) {
+    guard SkipSegmentsPreview.isAvailable(for: item.mediaItem) else { return (nil, false) }
+    var playing: any PlayableItem = item.mediaItem
+    var duration = item.mediaItem.mediaEntity.runtime ?? 0
+    if let season = item.watchingMetadata.season,
+       let video = item.watchingMetadata.video,
+       let ep = item.mediaItem.seasons?
+        .first(where: { $0.number == season })?
+        .episodes.first(where: { $0.number == video }) {
+      playing = ep.stamped(season: season, mediaId: item.mediaItem.id,
+                           seriesTitle: item.mediaItem.localizedTitle)
+      duration = Double(ep.duration)
+    }
+    guard let enrichment = PlaybackMediaContext.enrichment(
+      playing: playing, title: item.mediaItem, isTrailer: false
+    ) else { return (nil, true) }
+    let segments = await PlaybackMediaContext.skipSegments(
+      for: enrichment, durationSeconds: duration, service: service)
+    return (segments, true)
   }
 
   /// Downloads every episode of a season (links resolved first). Non-TV only.
@@ -1488,13 +1524,15 @@ class MediaItemModel: ObservableObject {
 #if !os(tvOS)
     guard FeatureFlags.downloadsEnabled else { return }
     let service = itemsService
+    let title = mediaItem
     Task { @MainActor in
       await AppContext.shared.seasonDownloadManager.downloadSeason(
         mediaId: mediaId,
         seriesTitle: seriesTitle,
         season: season,
         quality: quality,
-        using: service
+        using: service,
+        title: title
       )
     }
 #endif
@@ -1695,7 +1733,7 @@ class MediaItemModel: ObservableObject {
   }
 
   private static func preferredDownloadFile(in files: [FileInfo]) -> FileInfo? {
-    files.max(by: { $0.resolution < $1.resolution })
+    files.max(by: { $0.downloadRank < $1.downloadRank })
   }
 
 }

@@ -178,6 +178,10 @@
 			isa = PBXBuildFile;
 			fileRef = CE32DAC41EF87541F4494FD2 /* DownloadsCenter.swift */;
 		};
+		A1B2C3D4E5F60718293A4B5C /* SubtitleSidecarStore.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = B2C3D4E5F60718293A4B5C6D /* SubtitleSidecarStore.swift */;
+		};
 		C7DAAEF25C9C4FE813C0F05C /* Providers.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = BDA27EDEB0822584643A572B /* Providers.swift */;
@@ -1505,6 +1509,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = DownloadsCenter.swift;
+			sourceTree = "<group>";
+		};
+		B2C3D4E5F60718293A4B5C6D /* SubtitleSidecarStore.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = SubtitleSidecarStore.swift;
 			sourceTree = "<group>";
 		};
 		BDA27EDEB0822584643A572B /* Providers.swift */ = {
@@ -3159,6 +3169,7 @@
 				C2EC3AA2446C58A67FE632C1 /* HLSDownloadsStore.swift */,
 				C561D076FD8F5ED926DA36EB /* SeasonDownloadManager.swift */,
 				CE32DAC41EF87541F4494FD2 /* DownloadsCenter.swift */,
+				B2C3D4E5F60718293A4B5C6D /* SubtitleSidecarStore.swift */,
 				BDA27EDEB0822584643A572B /* Providers.swift */,
 			);
 			path = Download;
@@ -4073,6 +4084,7 @@
 				C2774F50ECD88937C1E84AC6 /* HLSDownloadsStore.swift in Sources */,
 				C97844272B599558564C3C2F /* SeasonDownloadManager.swift in Sources */,
 				CCD0A4D4BB529C36FA797562 /* DownloadsCenter.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* SubtitleSidecarStore.swift in Sources */,
 				C7DAAEF25C9C4FE813C0F05C /* Providers.swift in Sources */,
 				AB278AB3B10ECB109EC9020B /* KeychainStorage.swift in Sources */,
 				CA75434E771FBB030F7AD136 /* KeychainStorageImpl.swift in Sources */,

@@ -8,6 +8,8 @@
 //  engines, through `DownloadsCenter`. It used to read the mp4 manager only, so on an
 //  iPhone (where films download as HLS) nothing ever appeared here.
 //
+//  Finished titles are grouped by series; seasons are sections inside (KP-91).
+//
 
 import SwiftUI
 import KinoPubBackend
@@ -54,9 +56,21 @@ struct DownloadsView: View {
           ForEach(center.activities) { activity in
             DownloadActivityRow(activity: activity, center: center, showsArtwork: true)
 #if !os(tvOS)
-              .swipeActions(edge: .trailing) {
-                Button(role: .destructive) { center.cancel(activity) } label: {
+              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button { center.cancel(activity) } label: {
                   Label("Cancel Download", systemImage: "xmark")
+                }
+                .tint(.red)
+                if activity.isActive {
+                  Button { center.pause(activity) } label: {
+                    Label("Pause Download", systemImage: "pause")
+                  }
+                  .tint(.orange)
+                } else if activity.phase != .interrupted {
+                  Button { center.resume(activity) } label: {
+                    Label("Resume Download", systemImage: "arrow.down")
+                  }
+                  .tint(.orange)
                 }
               }
 #endif
@@ -64,9 +78,9 @@ struct DownloadsView: View {
           }
         }
       }
-      if !center.downloaded.isEmpty {
-        Section("Downloaded") {
-          ForEach(center.downloaded) { title in
+      ForEach(DownloadLibraryGrouping.sections(from: center.downloaded)) { section in
+        Section(section.title) {
+          ForEach(section.items) { title in
             PlayerLink(route: DownloadsRoutes.player(title.meta, token: UUID()), item: title.meta, mode: .media) {
               DownloadedTitleRow(title: title)
             }
@@ -74,10 +88,11 @@ struct DownloadsView: View {
             .buttonStyle(.plain)
 #endif
 #if !os(tvOS)
-            .swipeActions(edge: .trailing) {
-              Button(role: .destructive) { center.delete(title) } label: {
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+              Button { center.delete(title) } label: {
                 Label("Delete Download", systemImage: "trash")
               }
+              .tint(.red)
             }
 #endif
             .contextMenu {
@@ -109,15 +124,81 @@ struct DownloadsView: View {
   }
 }
 
-// MARK: - Rows
+// MARK: - Grouping
 
-/// What a download is: the title, and the episode and quality when there are any.
-private func downloadHeadline(_ meta: DownloadMeta) -> String {
-  meta.localizedTitle
+/// Series → seasons as sections; films stay one-off under a shared «Downloaded» header
+/// when they are the only kind, or under their own title when mixed with series.
+enum DownloadLibraryGrouping {
+  struct Section: Identifiable {
+    let id: String
+    let title: String
+    let items: [DownloadedTitle]
+  }
+
+  static func sections(from titles: [DownloadedTitle]) -> [Section] {
+    guard !titles.isEmpty else { return [] }
+    var films: [DownloadedTitle] = []
+    var series: [Int: (title: String, bySeason: [Int: [DownloadedTitle]])] = [:]
+
+    for title in titles {
+      let season = title.meta.metadata.season
+      let episode = title.meta.episode
+      if season != nil || (episode?.isEmpty == false) {
+        var entry = series[title.meta.id] ?? (title.meta.localizedTitle, [:])
+        entry.title = title.meta.localizedTitle
+        let key = season ?? 0
+        entry.bySeason[key, default: []].append(title)
+        series[title.meta.id] = entry
+      } else {
+        films.append(title)
+      }
+    }
+
+    var result: [Section] = []
+    let seriesIDs = series.keys.sorted {
+      series[$0]!.title.localizedCaseInsensitiveCompare(series[$1]!.title) == .orderedAscending
+    }
+    for id in seriesIDs {
+      guard let entry = series[id] else { continue }
+      let seasons = entry.bySeason.keys.sorted()
+      for season in seasons {
+        guard let items = entry.bySeason[season], !items.isEmpty else { continue }
+        let sorted = items.sorted {
+          ($0.meta.metadata.video ?? 0, $0.date) < ($1.meta.metadata.video ?? 0, $1.date)
+        }
+        let heading: String
+        if season > 0 {
+          heading = "\(entry.title) · \(SeasonText(season).formatted(.long))"
+        } else {
+          heading = entry.title
+        }
+        result.append(Section(id: "series-\(id)-\(season)", title: heading, items: sorted))
+      }
+    }
+    if !films.isEmpty {
+      let heading = series.isEmpty ? "Downloaded".localized : "Movies".localized
+      result.append(Section(id: "films", title: heading,
+                            items: films.sorted { $0.date > $1.date }))
+    }
+    return result
+  }
 }
 
-private func downloadDetail(_ meta: DownloadMeta) -> String? {
-  let parts = [meta.episode, meta.quality].compactMap { $0 }.filter { !$0.isEmpty }
+// MARK: - Rows
+
+/// Row title: episode marker inside a series section, else the title itself.
+private func downloadHeadline(_ meta: DownloadMeta) -> String {
+  if let episode = meta.episode, !episode.isEmpty { return episode }
+  return meta.localizedTitle
+}
+
+private func downloadDetail(_ meta: DownloadMeta, includeSeriesTitle: Bool = false) -> String? {
+  var parts: [String] = []
+  if includeSeriesTitle, meta.episode != nil { parts.append(meta.localizedTitle) }
+  if let quality = meta.quality, !quality.isEmpty { parts.append(quality) }
+  if meta.showsMissingSkipTimings {
+    parts.append("No skip timings".localized)
+  }
   return parts.isEmpty ? nil : parts.joined(separator: " · ")
 }
 
@@ -167,7 +248,8 @@ struct DownloadActivityRow: View {
 
   private var status: String {
     var parts: [String] = []
-    if let detail = downloadDetail(activity.meta) { parts.append(detail) }
+    // In-flight list is flat — keep the series title next to S/E · quality.
+    if let detail = downloadDetail(activity.meta, includeSeriesTitle: true) { parts.append(detail) }
     switch activity.phase {
     case .downloading:
       parts.append(activity.progress.formatted(.percent.precision(.fractionLength(0))))
@@ -306,7 +388,8 @@ struct DownloadedTitleRow: View {
 
   private var detail: String {
     var parts: [String] = []
-    if let detail = downloadDetail(title.meta) { parts.append(detail) }
+    // Series title lives in the section header; row detail is quality / skip / size.
+    if let detail = downloadDetail(title.meta, includeSeriesTitle: false) { parts.append(detail) }
     if let size, size > 0 { parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
     return parts.joined(separator: " · ")
   }

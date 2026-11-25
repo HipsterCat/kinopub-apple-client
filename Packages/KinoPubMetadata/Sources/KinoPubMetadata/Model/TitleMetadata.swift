@@ -163,12 +163,12 @@ public struct Award: Sendable, Hashable {
 /// the "previously on", the end credits, the next-episode preview. Times are in the
 /// stream's own milliseconds, already fitted to its runtime where the source can do that
 /// (SkipDB's `duration`, TheIntroDB's `duration_ms`).
-public struct SkipSegments: Sendable, Hashable {
-  public enum Kind: String, Sendable, Hashable, CaseIterable {
+public struct SkipSegments: Sendable, Hashable, Codable {
+  public enum Kind: String, Sendable, Hashable, CaseIterable, Codable {
     case intro, recap, credits, preview
   }
 
-  public struct Segment: Sendable, Hashable {
+  public struct Segment: Sendable, Hashable, Codable {
     public let startMs: Int
     /// Nil: to the end of the stream.
     public let endMs: Int?

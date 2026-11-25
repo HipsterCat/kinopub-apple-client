@@ -222,6 +222,24 @@ final class DownloadManagerTests: XCTestCase {
 
     XCTAssertNil(downloadManager.activeDownloads[url])
   }
+
+  /// ETA is size-based and EMA-smoothed — a single slow sample must not leap to an hour.
+  func testTransferETAIsSmoothedAgainstSpikes() async {
+    let download = registerDownload()
+    download.updateTransfer(bytesWritten: 1_000_000, totalBytes: 100_000_000)
+    try? await Task.sleep(nanoseconds: 600_000_000)
+    download.updateTransfer(bytesWritten: 2_000_000, totalBytes: 100_000_000)
+    let first = download.remainingTime
+    XCTAssertNotNil(first)
+    try? await Task.sleep(nanoseconds: 600_000_000)
+    // Tiny advance → instant speed collapses; smoothed ETA should stay finite and not explode.
+    download.updateTransfer(bytesWritten: 2_000_100, totalBytes: 100_000_000)
+    let second = download.remainingTime
+    XCTAssertNotNil(second)
+    if let first, let second {
+      XCTAssertLessThan(second, first * 3, "ETA should not jump more than ~3× on a slow chunk")
+    }
+  }
 }
 
 // MARK: - Mock Classes
