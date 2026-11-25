@@ -25,7 +25,7 @@ struct AboutView: View {
             .font(.title)
             .foregroundStyle(.secondary)
 
-          Text(Bundle.main.displayName)
+          Text(Bundle.main.appDisplayName)
             .font(.title3.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
@@ -54,13 +54,5 @@ struct AboutView: View {
       }
     }
     .platformNavigationTitle("About")
-  }
-}
-
-private extension Bundle {
-  var displayName: String {
-    object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-      ?? object(forInfoDictionaryKey: "CFBundleName") as? String
-      ?? "Kinopub Soda"
   }
 }

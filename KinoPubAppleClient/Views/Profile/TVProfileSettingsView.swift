@@ -884,7 +884,7 @@ private struct SettingsAppInfoPanel: View {
         )
 
       VStack(spacing: 8) {
-        Text("KinoPub")
+        Text(verbatim: Bundle.main.appDisplayName)
           .font(.title3.weight(.bold))
         Text(SettingsAppInfoPanel.versionLine)
           .font(.caption)

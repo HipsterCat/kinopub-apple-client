@@ -1450,7 +1450,7 @@ final class TVSettingsCatalog {
   /// they are What's New's.
   private func appPreview() -> UIViewController {
     let text = NSMutableAttributedString(
-      string: "KinoPub".localized + "\n",
+      string: Bundle.main.appDisplayName + "\n",
       attributes: [.font: UIFont.preferredFont(forTextStyle: .title3).withWeight(.bold)]
     )
     let versionLine = String(format: "Version %@ • Build %@".localized,

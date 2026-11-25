@@ -344,7 +344,7 @@ private struct WindowMenuListing: NSViewRepresentable {
       // The library window's title lives in its toolbar, so the window's own is empty —
       // and a window with no title has no line in the list. The app's name stands in.
       let title = window.title.isEmpty
-        ? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Kinopub")
+        ? Bundle.main.appDisplayName
         : window.title
       NSApp.changeWindowsItem(window, title: title, filename: false)
     }
