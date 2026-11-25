@@ -5,6 +5,7 @@ public enum TMDBImageSize: String, Sendable {
   case profileW342 = "w342"
   case logoW500 = "w500"
   case stillW300 = "w300"
+  case posterW440 = "w440"
   case posterW780 = "w780"
   case backdropOriginal = "original"
 }

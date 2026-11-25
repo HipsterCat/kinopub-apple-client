@@ -541,7 +541,7 @@ public final class TMDBSource: MetadataSource, Sendable {
         character: asCast ? credit.character : nil,
         job: asCast ? nil : credit.job,
         releaseDate: Self.parseDate(credit.airOrReleaseDate),
-        posterURL: imageURL(path: credit.posterPath, size: .posterW780),
+        posterURL: imageURL(path: credit.posterPath, size: .posterW440),
         voteAverage: (credit.voteAverage ?? 0) > 0 ? credit.voteAverage : nil,
         popularity: credit.popularity
       ))
