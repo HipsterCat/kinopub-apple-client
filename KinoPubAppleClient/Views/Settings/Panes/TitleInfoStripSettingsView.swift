@@ -10,7 +10,7 @@ import SwiftUI
 #if !os(tvOS)
 struct TitleInfoStripSettingsView: View {
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
-  private var showAgeRatingBadge = false
+  private var showAgeRatingBadge = true
   @AppStorage(MediaItemDisplayPreferences.showForeignAgeRatingKey)
   private var showForeignAgeRating = true
   @AppStorage(MediaItemDisplayPreferences.convertAgeRatingKey)
@@ -30,18 +30,18 @@ struct TitleInfoStripSettingsView: View {
         Toggle("Age rating badge", isOn: $showAgeRatingBadge)
           .disabled(!metadataFetching)
       } footer: {
-        Text("Certification chip on the title’s upper info strip. Always listed in Facts.")
+        Text("Certification chip(s) on the title’s upper info strip and matching info modal. Always listed in Facts.")
       }
 
       Section {
-        Toggle("Show foreign ratings when missing", isOn: $showForeignAgeRating)
-          .disabled(!metadataFetching || !showAgeRatingBadge)
         Toggle("Convert to local age", isOn: $convertAgeRating)
+          .disabled(!metadataFetching || !showAgeRatingBadge)
+        Toggle("Show foreign rating", isOn: $showForeignAgeRating)
           .disabled(!metadataFetching || !showAgeRatingBadge)
       } header: {
         Text("Age rating")
       } footer: {
-        Text("Foreign codes (PG-13, TV-MA) can stay as-is, convert to 12+ / 18+, or hide when there is no local age.")
+        Text("Convert turns R / PG-13 into 16+ / 12+. Show foreign keeps the MPA or TV mark. Both on → both chips (16+ and R). Foreign only → R. Convert only → 16+.")
       }
 
       Section {

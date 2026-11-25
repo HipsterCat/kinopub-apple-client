@@ -5052,12 +5052,9 @@ struct MediaItemSynopsisSummary {
   var metadata: TitleMetadata = TitleMetadata()
 }
 
-/// The synopsis popup: what the hero leaves out, not what it already says. One line
-/// with every piece that identifies the title — kind, every genre, the years, how much
-/// of it there is, the certification and the capability chips — then the full text,
-/// then what one picks a title by and cannot see on the page without digging: every
-/// audio language with its dubs, the subtitles, the video, who made it and where.
-/// No row repeats the facts line (a «Год: 2006» row told nobody anything).
+/// The synopsis popup: full plot first, then the same metadata strip as the title page
+/// (genres, age chips, quality marks — Sasha, 2026-11-25), then audio / subtitles /
+/// video / information. No row repeats the strip (a «Год: 2006» row told nobody anything).
 struct MediaItemSynopsisPopupContent: View {
   let plot: String
   let summary: MediaItemSynopsisSummary
@@ -5067,12 +5064,12 @@ struct MediaItemSynopsisPopupContent: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
-      factsLine
-
       Text(plot)
         .font(InfoPopupMetrics.bodyFont)
         .foregroundStyle(Color.KinoPub.text)
         .fixedSize(horizontal: false, vertical: true)
+
+      stripLine
 
       if !audioGroups.isEmpty {
         InfoPopupSection(Text("Audio")) {
@@ -5112,58 +5109,31 @@ struct MediaItemSynopsisPopupContent: View {
     }
   }
 
-  // MARK: Facts line
+  // MARK: Strip (mirrors the title page)
 
-  /// «Сериал · Документальный · Расследование · 2006– · 20 сезонов (704 серии) · 16+»
-  /// and the chips — 4K, HDR, the sound, CC.
-  private var factsLine: some View {
-    let badges = MediaCapabilityBadges.from(item: item)
-    return HStack(alignment: .firstTextBaseline, spacing: 14) {
-      Text(verbatim: factParts.joined(separator: " · "))
-        .font(InfoPopupMetrics.captionFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
-        .fixedSize(horizontal: false, vertical: true)
-      if !badges.isEmpty {
-        MediaCapabilityBadgesView(badges: badges, mode: .detail)
+  /// Same blocks and chips as the hero facts / playback strip: kind · years · genres ·
+  /// country, then age (16+ and R when prefs say so) and quality (4K…) inline mid-line.
+  @ViewBuilder
+  private var stripLine: some View {
+    let blocks = TitleInfoStripFacts.textBlocks(mediaItem: item, metadata: metadata)
+    let ratings = MediaItemDisplayPreferences.ageRatingsForInfoStrip(metadata.ageRating)
+    let quality = TitleInfoStripFacts.qualityBadgeAssets(mediaItem: item)
+    if !blocks.isEmpty || !ratings.isEmpty || !quality.isEmpty {
+      AboutFlowLayout(spacing: 8, lineSpacing: 6) {
+        ForEach(blocks, id: \.self) { block in
+          Text(verbatim: block)
+            .lineLimit(1)
+        }
+        if !ratings.isEmpty {
+          TitleInfoStripAgeBadges(ratings: ratings)
+        }
+        if !quality.isEmpty {
+          MediaBadgeImages(quality)
+        }
       }
+      .font(InfoPopupMetrics.captionFont)
+      .foregroundStyle(Color.KinoPub.subtitle)
     }
-  }
-
-  private var factParts: [String] {
-    var parts: [String] = [item.contentTypeTitleKey.localized]
-    parts.append(contentsOf: item.genreNames)
-    if let years = yearsText { parts.append(years) }
-    if let volume = volumeText { parts.append(volume) }
-    if let rating = metadata.ageRating, !rating.isEmpty { parts.append(rating) }
-    return parts
-  }
-
-  /// A film: its year. A series: «2006–» while it runs, «2006–2020» once it ended.
-  private var yearsText: String? {
-    let calendar = Calendar.current
-    let first = metadata.firstAirDate.map { calendar.component(.year, from: $0) }
-      ?? (item.year > 0 ? item.year : nil)
-    guard let first else { return nil }
-    guard item.isSeries else { return String(first) }
-    guard SeriesFacts.isFinished(item, metadata) else { return "\(first)–" }
-    if let last = metadata.lastAirDate.map({ calendar.component(.year, from: $0) }), last != first {
-      return "\(first)–\(last)"
-    }
-    return String(first)
-  }
-
-  /// A film: its runtime. A series: what kino.pub has, «20 сезонов (704 серии)».
-  private var volumeText: String? {
-    guard item.isSeries else {
-      return item.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).text(for: .detailRuntime) }
-    }
-    guard let seasons = item.seasons, !seasons.isEmpty else { return nil }
-    let episodes = seasons.reduce(0) { $0 + $1.episodes.count }
-    var text = "\(seasons.count) \(SeriesFacts.unit(seasons.count, .season))"
-    if episodes > 0 {
-      text += " (\(episodes) \(SeriesFacts.unit(episodes, .episode)))"
-    }
-    return text
   }
 
   // MARK: Sections
