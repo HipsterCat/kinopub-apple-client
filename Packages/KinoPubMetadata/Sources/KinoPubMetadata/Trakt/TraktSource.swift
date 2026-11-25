@@ -27,8 +27,13 @@ public final class TraktSource: MetadataSource, Sendable {
   private let access: TraktAccessProviding
   private let client: MetadataHTTPClient
   private let cache: MetadataCache
-  /// The app's language first among the comments.
-  private let language: String
+  /// Fallback when `selectedLanguage` is unset (tests / first launch).
+  private let languageFallback: String
+
+  /// The app's language first among the comments — follows in-app language changes.
+  private var language: String {
+    UserDefaults.standard.string(forKey: "selectedLanguage") ?? languageFallback
+  }
 
   private static let summaryTTL: TimeInterval = 60 * 60 * 24 * 30
   private static let ratingsTTL: TimeInterval = 60 * 60 * 24
@@ -43,7 +48,7 @@ public final class TraktSource: MetadataSource, Sendable {
               client: MetadataHTTPClient = MetadataHTTPClient(),
               cache: MetadataCache = MetadataCache()) {
     self.access = access
-    self.language = language
+    self.languageFallback = language
     self.client = client
     self.cache = cache
   }

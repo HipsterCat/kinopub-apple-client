@@ -58,14 +58,6 @@ private struct TVProfileSettingsHost: View {
       Button("Logout", role: .destructive) { model.logout() }
       Button("Cancel", role: .cancel) { }
     }
-    .alert(isPresented: $model.shouldShowExitAlert) {
-      Alert(
-        title: Text("Restarting the app"),
-        message: Text("The app will restart to apply the language change."),
-        primaryButton: .default(Text("OK")) { exit(0) },
-        secondaryButton: .cancel()
-      )
-    }
   }
 
   /// Apple's own Settings machinery when this tvOS has it (`TVSettingKit.swift`); the

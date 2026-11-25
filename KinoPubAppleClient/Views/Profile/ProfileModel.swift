@@ -21,8 +21,7 @@ class ProfileModel {
     /// The shared profile (`UserProfileStore`): the cached copy until a fresh one lands.
     public var userData: UserData { UserProfileStore.shared.user ?? .placeholder }
     var selectedLanguage: String
-    var shouldShowExitAlert: Bool = false
-    
+
     // LT is not shipping yet — no translations exist for it, so offering it here would
     // just fall back to English everywhere.
     let availableLanguages = ["en": "English", "ru": "Русский"]
@@ -33,7 +32,7 @@ class ProfileModel {
         self.userService = userService
         self.errorHandler = errorHandler
         self.authState = authState
-        self.selectedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") ?? (Locale.current.language.languageCode?.identifier ?? "en")
+        self.selectedLanguage = AppLanguage.resolvedStoredCode()
     }
     /// Refreshes the profile only when the cached copy is stale (`UserProfileStore`).
     /// A failure is not shown: the screen keeps the copy it has, and nothing retries
@@ -49,10 +48,10 @@ class ProfileModel {
         authState.logout()
     }
     
+    /// Soft-remounts the shell under a blocking loader (`AppLanguage.apply`).
     func changeLanguage(to language: String) {
-        UserDefaults.standard.setValue([language], forKey: "AppleLanguages")
-        UserDefaults.standard.synchronize()
-        shouldShowExitAlert = true
+        selectedLanguage = language
+        Task { await AppLanguage.shared.apply(language) }
     }
 }
 

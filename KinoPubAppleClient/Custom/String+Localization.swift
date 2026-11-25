@@ -8,7 +8,12 @@
 import Foundation
 
 extension String {
+  /// Looks up this key in the app's interface language (`selectedLanguage`), not the
+  /// process/`Locale.current` pin that only refreshes after a cold launch.
   var localized: String {
-    NSLocalizedString(self, comment: "")
+    String(
+      localized: String.LocalizationValue(self),
+      locale: AppLanguage.lookupLocale
+    )
   }
 }

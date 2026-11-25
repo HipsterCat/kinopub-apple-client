@@ -126,11 +126,19 @@ public enum MediaActionCopy {
   }
 
   public static func localized(_ key: String) -> String {
-    NSLocalizedString(key, comment: "")
+    String(localized: String.LocalizationValue(key), locale: interfaceLocale)
   }
 
   private static func localizedFormat(_ key: String, fallback: String) -> String {
-    let value = NSLocalizedString(key, comment: "")
+    let value = String(localized: String.LocalizationValue(key), locale: interfaceLocale)
     return value == key ? fallback : value
+  }
+
+  /// In-app `selectedLanguage` — Foundation's process locale stays pinned until relaunch.
+  private static var interfaceLocale: Locale {
+    let code = UserDefaults.standard.string(forKey: "selectedLanguage")
+      ?? Locale.current.language.languageCode?.identifier
+      ?? "en"
+    return Locale(identifier: code.hasPrefix("ru") ? "ru_RU" : "en_US")
   }
 }

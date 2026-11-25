@@ -25,9 +25,14 @@ public final class WikidataSource: MetadataSource, Sendable {
   ]
 
   private let access: WikidataAccessProviding
-  private let language: String
+  private let languageFallback: String
   private let client: MetadataHTTPClient
   private let cache: MetadataCache
+
+  /// Follows in-app `selectedLanguage` after a soft remount.
+  private var language: String {
+    UserDefaults.standard.string(forKey: "selectedLanguage") ?? languageFallback
+  }
 
   private static let ttl: TimeInterval = 60 * 60 * 24 * 7
 
@@ -36,7 +41,7 @@ public final class WikidataSource: MetadataSource, Sendable {
               client: MetadataHTTPClient = MetadataHTTPClient(),
               cache: MetadataCache = MetadataCache()) {
     self.access = access
-    self.language = language
+    self.languageFallback = language
     self.client = client
     self.cache = cache
   }

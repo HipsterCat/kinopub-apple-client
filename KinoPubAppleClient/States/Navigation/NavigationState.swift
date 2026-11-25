@@ -109,6 +109,31 @@ final class NavigationState {
 
   var canReturnFromSearch: Bool { searchReturnTab != nil }
 
+  /// Drops every pushed route before an interface-language remount. Keeps the
+  /// selected tab (usually Settings) so the viewer lands back on the language row.
+  func clearStacksForLanguageRemount() {
+    mainRoutes = []
+    searchRoutes = []
+    catalogRoutes = []
+    moviesRoutes = []
+    seriesRoutes = []
+    collectionsRoutes = []
+    tvRoutes = []
+    libraryRoutes = []
+    watchlistRoutes = []
+    recentlyWatchedRoutes = []
+    bookmarksRoutes = []
+    downloadsRoutes = []
+    continueWatchingRoutes = []
+    genresRoutes = []
+    pendingSearch = nil
+    pendingCatalogFilter = nil
+    searchReturnTab = nil
+#if os(macOS)
+    macSearchFieldText = ""
+#endif
+  }
+
   /// Switch to Search with a filter already selected (and the stack at root).
   func openSearch(filter: LibraryFilter, title: String) {
     if selectedTab != .search {
