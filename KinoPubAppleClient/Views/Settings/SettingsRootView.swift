@@ -107,7 +107,6 @@ struct SettingsRootView: View {
     }
     .settingsAlerts(
       showLogoutAlert: $showLogoutAlert,
-      shouldShowExitAlert: $model.shouldShowExitAlert,
       logout: { model.logout() }
     )
   }
@@ -216,7 +215,6 @@ struct SettingsRootView: View {
     .navigationSplitViewStyle(.balanced)
     .settingsAlerts(
       showLogoutAlert: $showLogoutAlert,
-      shouldShowExitAlert: $model.shouldShowExitAlert,
       logout: { model.logout() }
     )
   }
@@ -252,7 +250,6 @@ struct SettingsRootView: View {
     }
     .settingsAlerts(
       showLogoutAlert: $showLogoutAlert,
-      shouldShowExitAlert: $model.shouldShowExitAlert,
       logout: { model.logout() }
     )
   }
@@ -572,21 +569,12 @@ private extension View {
 
   func settingsAlerts(
     showLogoutAlert: Binding<Bool>,
-    shouldShowExitAlert: Binding<Bool>,
     logout: @escaping () -> Void
   ) -> some View {
     self
       .alert("Are you sure?", isPresented: showLogoutAlert) {
         Button("Logout", role: .destructive, action: logout)
         Button("Cancel", role: .cancel) { }
-      }
-      .alert(isPresented: shouldShowExitAlert) {
-        Alert(
-          title: Text("Restarting the app"),
-          message: Text("The app will restart to apply the language change."),
-          primaryButton: .default(Text("OK")) { exit(0) },
-          secondaryButton: .cancel()
-        )
       }
   }
 }

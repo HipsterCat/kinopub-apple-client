@@ -1448,6 +1448,23 @@
     "Applies on next launch" : {
 
     },
+    "Needs apply" : {
+      "comment" : "Feature flags section: shell switches that remount on Apply",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs apply"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужно применить"
+          }
+        }
+      }
+    },
     "Applies when next opened" : {
 
     },
@@ -18072,6 +18089,22 @@
         }
       }
     },
+    "Shell switches rebuild the tabs and pages. Apply remounts the interface without quitting." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell switches rebuild the tabs and pages. Apply remounts the interface without quitting."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переключатели оболочки пересобирают вкладки и страницы. «Применить» делает remount без выхода из приложения."
+          }
+        }
+      }
+    },
     "Shuffle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18818,6 +18851,22 @@
     },
     "Stored on this device only. A build ships with the defaults." : {
 
+    },
+    "Stored on this device only. A build ships with the defaults. Shell switches need Apply — the interface rebuilds without quitting." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stored on this device only. A build ships with the defaults. Shell switches need Apply — the interface rebuilds without quitting."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только на этом устройстве. В сборке — значения по умолчанию. Переключатели оболочки нужно Применить — интерфейс пересоберётся без выхода."
+          }
+        }
+      }
     },
     "Stream quality" : {
       "extractionState" : "manual",

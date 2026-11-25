@@ -21,9 +21,11 @@ public enum MediaLanguage: String, Hashable, Codable, Sendable, CaseIterable {
     self = code?.lowercased().hasPrefix("ru") == true ? .ru : .en
   }
 
-  /// The language the app is running in.
+  /// The language the app is running in (in-app `selectedLanguage` when set).
   public static var current: MediaLanguage {
-    MediaLanguage(code: Bundle.main.preferredLocalizations.first)
+    let code = UserDefaults.standard.string(forKey: "selectedLanguage")
+      ?? Bundle.main.preferredLocalizations.first
+    return MediaLanguage(code: code)
   }
 
   var locale: Locale {

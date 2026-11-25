@@ -7,30 +7,17 @@
 //
 
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
-
-extension FeatureFlag {
-  /// A launch-time switch only takes hold on the next launch, and on tvOS there is no
-  /// quick way to get one — so the list offers to quit. Not an App Store pattern; this
-  /// build does not go there.
-  @MainActor
-  static func quitToApply() {
-#if os(macOS)
-    NSApplication.shared.terminate(nil)
-#else
-    exit(0)
-#endif
-  }
-}
 
 #if !os(tvOS)
 struct FeatureFlagsView: View {
-  /// Mirrors what is stored, so the switches and the "quit to apply" row redraw.
+  /// Mirrors what is stored, so the switches and the Apply row redraw.
   @State private var values = Self.storedValues()
 
   private let flags = FeatureFlag.allCases.filter(\.isRelevantHere)
+
+  private var hasPendingApply: Bool {
+    flags.contains { $0.appliesAtLaunch && values[$0] != $0.isEnabled }
+  }
 
   var body: some View {
     Form {
@@ -38,15 +25,20 @@ struct FeatureFlagsView: View {
       flagSection(appliesAtLaunch: false)
 
       Section {
-        if flags.contains(where: { $0.appliesAtLaunch && values[$0] != $0.isEnabled }) {
-          Button("Quit to apply") { FeatureFlag.quitToApply() }
+        if hasPendingApply {
+          Button("Apply") {
+            Task {
+              await FeatureFlag.applyPendingAsync()
+              values = Self.storedValues()
+            }
+          }
         }
         Button("Reset to defaults", role: .destructive) {
           FeatureFlag.resetAll()
           values = Self.storedValues()
         }
       } footer: {
-        Text("Stored on this device only. A build ships with the defaults.")
+        Text("Stored on this device only. A build ships with the defaults. Shell switches need Apply — the interface rebuilds without quitting.")
       }
     }
     .formStyle(.grouped)
@@ -66,7 +58,7 @@ struct FeatureFlagsView: View {
         }
       }
     } header: {
-      Text(appliesAtLaunch ? "Applies on next launch" : "Applies when next opened")
+      Text(appliesAtLaunch ? "Needs apply" : "Applies when next opened")
     }
   }
 

@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Настройки › Язык и эксперименты: смена языка и shell-флаги больше не закрывают приложение — «Применить» / смена языка показывают короткий блокирующий индикатор и пересобирают интерфейс на месте."
+  ],
+  "en": [
+    "Settings › Language and Experiments: changing the language or shell feature flags no longer quits the app — Apply / language switch shows a short blocking spinner and rebuilds the interface in place."
+  ]
+}

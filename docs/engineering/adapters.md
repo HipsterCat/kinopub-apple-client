@@ -104,3 +104,12 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   synchronously and is tested with no asset. The player awaits the names right after each
   `loadMediaSelectionGroup`; the rules keep their shape. `displayName` is never a substitute —
   it reads «Russian» for every Russian dub.
+
+- **`AppLanguage` / `ShellRemount`** (`Services/Configuration/`) — Foundation pins
+  `Bundle.main.preferredLocalizations` / `Locale.current` for the process; writing
+  `AppleLanguages` alone does not refresh them. The app owns the interface locale:
+  SwiftUI `\.locale`, `String.localized` via `String(localized:locale:)`,
+  `selectedLanguage` for artwork / metadata. `ShellRemount` is the shared blocking
+  loader + root remount used by language change and launch-time feature flags
+  (`FeatureFlag.applyPending`). Re-probe if a future SDK exposes a public
+  process-locale refresh.

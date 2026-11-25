@@ -25,6 +25,7 @@ struct KinoPubAppleClientApp: App {
   
   @State var navigationState = NavigationState()
   @State private var errorHandler = ErrorHandler()
+  @State private var appLanguage = AppLanguage.shared
   @StateObject var networkMonitor = NetworkMonitor()
   @StateObject var authState = AuthState(authService: AppContext.shared.authService,
                                          accessTokenService: AppContext.shared.accessTokenService,
@@ -47,6 +48,8 @@ struct KinoPubAppleClientApp: App {
     MainActor.assumeIsolated {
       FeatureFlag.applyAtLaunch()
       Artwork.startRememberingDisplayScale()
+      // Align AppleLanguages with selectedLanguage before any string lookup.
+      _ = AppLanguage.shared
     }
     // First thing: the proxy only records requests made after it is installed, and the
     // launch traffic is the whole reason it exists.
@@ -91,6 +94,8 @@ struct KinoPubAppleClientApp: App {
 #endif
         .kinopubLaunchColorScheme()
         .kinopubAppearancePreference()
+        .kinopubAppLanguage(appLanguage)
+        .onAppear { ShellRemount.shared.navigation = navigationState }
 #if os(tvOS)
         // Top Shelf items open here (`TopShelfLink`).
         .onOpenURL { url in

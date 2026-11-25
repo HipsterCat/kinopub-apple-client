@@ -67,6 +67,14 @@
 			isa = PBXBuildFile;
 			fileRef = C972066063BBDB7FFD3870DC /* APIClientError+Description.swift */;
 		};
+		778EA051E7DB4D62B2CDD9EB /* ShellRemount.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = EEC719E1AC7F454DB1EFC450 /* ShellRemount.swift */;
+		};
+		F8658439192A4A2EAD1490E5 /* AppLanguage.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = B3D124B61C9849BEB3124BBF /* AppLanguage.swift */;
+		};
 		C52478B65011810218CB4E03 /* String+Localization.swift in Sources */ = {
 			isa = PBXBuildFile;
 			fileRef = C856576BBDDBD438334A7F6B /* String+Localization.swift */;
@@ -1329,6 +1337,18 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = "APIClientError+Description.swift";
+			sourceTree = "<group>";
+		};
+		EEC719E1AC7F454DB1EFC450 /* ShellRemount.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = ShellRemount.swift;
+			sourceTree = "<group>";
+		};
+		B3D124B61C9849BEB3124BBF /* AppLanguage.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = AppLanguage.swift;
 			sourceTree = "<group>";
 		};
 		C856576BBDDBD438334A7F6B /* String+Localization.swift */ = {
@@ -3148,6 +3168,8 @@
 			children = (
 				CB6FDCC1FD9D133CFF422C4C /* Configuration.swift */,
 				CA939F6FE115C570F22F397B /* BundleConfiguration.swift */,
+				EEC719E1AC7F454DB1EFC450 /* ShellRemount.swift */,
+				B3D124B61C9849BEB3124BBF /* AppLanguage.swift */,
 				C21245D8A1D5FC9A29DA9B95 /* FeatureFlags.swift */,
 				F169D9FB825CD517F9372E7B /* WorkerImageAdminTokenStore.swift */,
 			);
@@ -4062,6 +4084,8 @@
 				FCF441908F729D012466A4E0 /* View+PlatformNavigationTitle.swift in Sources */,
 				F8F510487CEE15794717A97E /* Bundle+Data.swift in Sources */,
 				CAC371E97315CCC1E21821DE /* APIClientError+Description.swift in Sources */,
+				778EA051E7DB4D62B2CDD9EB /* ShellRemount.swift in Sources */,
+				F8658439192A4A2EAD1490E5 /* AppLanguage.swift in Sources */,
 				C52478B65011810218CB4E03 /* String+Localization.swift in Sources */,
 				CAC96B9630C056046902D3E9 /* MediaCardContextMenus.swift in Sources */,
 				8146BFF3FF5E2BDE1F76115C /* MediaPerson+CastMember.swift in Sources */,

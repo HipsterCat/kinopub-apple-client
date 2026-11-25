@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Synchronization
 import KinoPubUI
 
 /// Single source of truth for user-facing surfaces that are compiled but not yet
@@ -377,9 +378,9 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  /// Switches that decide how the app shell is built — tabs, pages, card chrome — are read
-  /// once per launch, so a flip never leaves half the app built one way and half the other.
-  /// The rest are read whenever the thing they gate is next opened.
+  /// Switches that decide how the app shell is built — tabs, pages, card chrome — are pinned
+  /// until Apply (or cold launch) remounts the shell, so a flip never leaves half the app
+  /// built one way and half the other. The rest are read whenever their surface next opens.
   var appliesAtLaunch: Bool {
     switch self {
     case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
@@ -393,7 +394,9 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   // MARK: - Value
 
   var isEnabled: Bool {
-    appliesAtLaunch ? (Self.launchValues[self] ?? defaultValue) : storedValue
+    appliesAtLaunch
+      ? (Self.launchValues.withLock { $0[self] } ?? defaultValue)
+      : storedValue
   }
 
   /// What the switch says now — for a launch-time flag, what the *next* launch will use.
@@ -405,10 +408,14 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     UserDefaults.standard.object(forKey: defaultsKey) != nil
   }
 
-  /// A launch-time flag changed since this launch read it.
-  var isPendingRelaunch: Bool {
+  /// A launch-time flag changed since the shell last pinned it (`applyAtLaunch` /
+  /// `applyPending`).
+  var isPendingApply: Bool {
     appliesAtLaunch && storedValue != isEnabled
   }
+
+  /// Old name — same as `isPendingApply`.
+  var isPendingRelaunch: Bool { isPendingApply }
 
   /// Storing the default removes the override, so a changed default in a later build
   /// reaches a device that only ever matched it.
@@ -438,20 +445,47 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 
   var defaultsKey: String { "featureFlag.\(rawValue)" }
 
-  private static let launchValues: [FeatureFlag: Bool] = Dictionary(
-    uniqueKeysWithValues: allCases.filter(\.appliesAtLaunch).map { ($0, $0.storedValue) }
-  )
+  /// Pinned shell values. Refreshed at launch and when the viewer taps Apply.
+  /// Behind a Mutex: `isEnabled` is read from many actors; writes stay on MainActor
+  /// via `refreshLaunchPins` (same pattern as `ContentStore` / tile artwork caches).
+  private static let launchValues = Mutex<[FeatureFlag: Bool]>([:])
 
   /// Called first thing at launch: pins the launch-time values, and hands the one that
   /// lives inside a package to it.
   @MainActor
   static func applyAtLaunch() {
     migrateTitleCardSwitch()
-    _ = launchValues
+    refreshLaunchPins()
+  }
+
+  /// Re-read stored launch-time flags and push package-side pins. Call before a
+  /// shell remount so the new tree builds against the toggles the viewer just set.
+  @MainActor
+  static func refreshLaunchPins() {
+    let pins = Dictionary(
+      uniqueKeysWithValues: allCases.filter(\.appliesAtLaunch).map { ($0, $0.storedValue) }
+    )
+    launchValues.withLock { $0 = pins }
     RatingFeature.combinedEnabled = FeatureFlag.combinedRating.isEnabled
 #if os(tvOS)
     TVSearchChrome.keepsGridKeyboardVisible = FeatureFlag.gridKeyboardAlwaysVisible.isEnabled
 #endif
+  }
+
+  /// Soft-remounts the shell under a blocking loader so pending launch-time flags
+  /// take hold without quitting. No-op when nothing is pending.
+  @MainActor
+  static func applyPending() {
+    guard allCases.contains(where: \.isPendingApply) else { return }
+    Task { await applyPendingAsync() }
+  }
+
+  @MainActor
+  static func applyPendingAsync() async {
+    guard allCases.contains(where: \.isPendingApply) else { return }
+    await ShellRemount.shared.run {
+      refreshLaunchPins()
+    }
   }
 }
 

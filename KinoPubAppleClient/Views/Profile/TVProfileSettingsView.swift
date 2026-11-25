@@ -1451,12 +1451,17 @@ private struct TVFeatureFlagsPage: View {
 
   var body: some View {
     SettingsSplitLayout(title: "Feature flags", pageSymbol: "flag", tipKey: tip) {
-      SettingsSection("Applies on next launch") { rows(appliesAtLaunch: true) }
+      SettingsSection("Needs apply") { rows(appliesAtLaunch: true) }
       SettingsSection("Applies when next opened") { rows(appliesAtLaunch: false) }
       SettingsSection("Defaults") {
         if flags.contains(where: { $0.appliesAtLaunch && values[$0] != $0.isEnabled }) {
-          Button { FeatureFlag.quitToApply() } label: {
-            SettingsPillLabel(title: "Quit to apply")
+          Button {
+            Task {
+              await FeatureFlag.applyPendingAsync()
+              values = Dictionary(uniqueKeysWithValues: FeatureFlag.allCases.map { ($0, $0.storedValue) })
+            }
+          } label: {
+            SettingsPillLabel(title: "Apply")
           }
           .buttonStyle(SettingsPillButtonStyle())
           .focused($focused, equals: .quit)
@@ -1496,7 +1501,7 @@ private struct TVFeatureFlagsPage: View {
       let changed = values[flag] == flag.defaultValue ? "" : " Ships \(flag.defaultValue ? "on" : "off")."
       return LocalizedStringKey(flag.summary + changed)
     case .quit?:
-      return "Launch-time switches take hold on the next launch. This quits the app."
+      return "Shell switches rebuild the tabs and pages. Apply remounts the interface without quitting."
     default:
       return "Stored on this device only. A build ships with the defaults."
     }

@@ -187,9 +187,13 @@ public struct TitleImageRoute: Sendable, Hashable {
   }
 
   /// The app's own localization (the per-app language setting included), not the
-  /// device's first language.
+  /// device's first language. Reads `selectedLanguage` so a soft remount does not
+  /// wait on `Bundle.main.preferredLocalizations` (still process-pinned).
   public static var appLanguage: String? {
-    guard let first = Bundle.main.preferredLocalizations.first else { return nil }
-    return Locale(identifier: first).language.languageCode?.identifier == "ru" ? nil : "en"
+    let raw = UserDefaults.standard.string(forKey: "selectedLanguage")
+      ?? Bundle.main.preferredLocalizations.first
+    guard let raw else { return nil }
+    let code = Locale(identifier: raw).language.languageCode?.identifier ?? raw
+    return code == "ru" ? nil : "en"
   }
 }

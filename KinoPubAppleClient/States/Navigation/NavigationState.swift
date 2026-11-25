@@ -109,6 +109,31 @@ final class NavigationState {
 
   var canReturnFromSearch: Bool { searchReturnTab != nil }
 
+  /// Drops every pushed route before a shell remount (language or launch-time
+  /// feature flags). Keeps the selected tab so Settings stays under the loader.
+  func clearStacksForShellRemount() {
+    mainRoutes = []
+    searchRoutes = []
+    catalogRoutes = []
+    moviesRoutes = []
+    seriesRoutes = []
+    collectionsRoutes = []
+    tvRoutes = []
+    libraryRoutes = []
+    watchlistRoutes = []
+    recentlyWatchedRoutes = []
+    bookmarksRoutes = []
+    downloadsRoutes = []
+    continueWatchingRoutes = []
+    genresRoutes = []
+    pendingSearch = nil
+    pendingCatalogFilter = nil
+    searchReturnTab = nil
+#if os(macOS)
+    macSearchFieldText = ""
+#endif
+  }
+
   /// Switch to Search with a filter already selected (and the stack at root).
   func openSearch(filter: LibraryFilter, title: String) {
     if selectedTab != .search {
