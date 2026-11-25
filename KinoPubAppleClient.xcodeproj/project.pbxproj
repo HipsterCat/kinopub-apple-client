@@ -410,9 +410,9 @@
 			isa = PBXBuildFile;
 			fileRef = 1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */;
 		};
-		B2C3D4E5F60718293A4B5C6D /* TitleInfoStripSettingsView.swift in Sources */ = {
+		ED890AD31A61054FA95C30CD /* TitleInfoStripSettingsView.swift in Sources */ = {
 			isa = PBXBuildFile;
-			fileRef = A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */;
+			fileRef = 4C0C743EF37E9CFD1DB9044F /* TitleInfoStripSettingsView.swift */;
 		};
 		D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */ = {
 			isa = PBXBuildFile;
@@ -1889,7 +1889,7 @@
 			path = DetailsEnrichmentPreferences.swift;
 			sourceTree = "<group>";
 		};
-		A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */ = {
+		4C0C743EF37E9CFD1DB9044F /* TitleInfoStripSettingsView.swift */ = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = TitleInfoStripSettingsView.swift;
@@ -3436,7 +3436,7 @@
 				DA79558A1AB7C9D51E59C848 /* AdvancedSettingsPane.swift */,
 				F2753EF87A4C1E0E17D4E08E /* WorkerImageAdminTokenEntryView.swift */,
 				CDA9952A21443E59651A168F /* PlaceholderSettingsPanes.swift */,
-				A1B2C3D4E5F60718293A4B5C /* TitleInfoStripSettingsView.swift */,
+				4C0C743EF37E9CFD1DB9044F /* TitleInfoStripSettingsView.swift */,
 				E376EF083B26F33E8B5422E9 /* DetailsEnrichmentItemView.swift */,
 				FBC45B7F4BD8A0FC87EDE68A /* DevicesSettingsPane.swift */,
 			);
@@ -4175,7 +4175,7 @@
 				C9C1748FA49070EC119C1FDA /* AppearancePreference.swift in Sources */,
 				3F15FCB7D5B6F14704806A35 /* AppIconBadgePreferences.swift in Sources */,
 				36E9876B86969455D5EF919F /* DetailsEnrichmentPreferences.swift in Sources */,
-				B2C3D4E5F60718293A4B5C6D /* TitleInfoStripSettingsView.swift in Sources */,
+				ED890AD31A61054FA95C30CD /* TitleInfoStripSettingsView.swift in Sources */,
 				D4509EFF342AEA61A251A1FE /* DetailsEnrichmentItemView.swift in Sources */,
 				C415449FFA3974094F66839C /* SettingsSearch.swift in Sources */,
 				CA980414CBFB666B647A7289 /* SettingsIconView.swift in Sources */,
