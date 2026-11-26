@@ -25,9 +25,9 @@ struct PlayerView: View {
   /// follows to the next episode instead of holding the finished one.
   @ObservedObject private var playbackSession = PlaybackSession.shared
 #endif
-#if os(tvOS) || os(iOS)
+  // All platforms: dismiss / next-episode restore onto the library stack. On macOS
+  // this is the window that pressed Play (KP-105), injected by `PlayerWindowContent`.
   @Environment(NavigationState.self) private var navigationState
-#endif
   @Environment(\.dismiss) private var dismiss
   @Environment(ErrorHandler.self) private var errorHandler
   @State private var showsFailureAlert = false
