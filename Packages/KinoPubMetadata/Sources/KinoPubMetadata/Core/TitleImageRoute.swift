@@ -143,7 +143,7 @@ public struct TitleImageRoute: Sendable, Hashable {
     if let language {
       query.append(URLQueryItem(name: "lang", value: language))
     }
-    let takesSource = kind == .thumbnail || (kind == .poster && season == nil)
+    let takesSource = kind == .thumbnail || ((kind == .poster || kind == .cover) && season == nil)
     if takesSource, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
       query.append(URLQueryItem(name: "src", value: kinopubThumb))
     }
@@ -184,6 +184,13 @@ public struct TitleImageRoute: Sendable, Hashable {
                      kinopubPoster: String?) -> URL? {
     url(.poster, kinopubID: kinopubID, imdb: imdb, width: width,
         kinopubThumb: kinopubPoster, kinopoisk: kinopoisk)
+  }
+
+  /// A wide title card, drawn at `width` pixels: with `kinopubWide` the worker walks the
+  /// cover in the language → textless backdrop → kino.pub's wide, WebP through wsrv.nl
+  /// (Sasha, 2026-11-26). Without it, a plain ``cover(kinopubID:imdb:width:)``.
+  public func wideCard(kinopubID: Int, imdb: Int?, width: Int?, kinopubWide: String?) -> URL? {
+    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width, kinopubThumb: kinopubWide)
   }
 
   /// Title logo, drawn at `width` pixels.

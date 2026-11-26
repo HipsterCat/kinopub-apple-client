@@ -71,6 +71,7 @@ public enum CoverArtwork {
   private struct Worker: Sendable {
     let route: TitleImageRoute
     let pixelWidth: Int
+    let widePixelWidth: Int
   }
 
   /// Read from cell configuration on any thread; written once at launch.
@@ -79,8 +80,30 @@ public enum CoverArtwork {
   /// Turns the worker's poster route on for every ``MediaCard/coverURL``. `pixelWidth` is
   /// the one width every poster asks for, so the grid, the banner, the peek and Top Shelf
   /// share one URL (and one cache entry) per title. A route with no base URL turns it off.
-  public static func configureWorker(_ route: TitleImageRoute, pixelWidth: Int) {
-    worker.withLock { $0 = route.isConfigured ? Worker(route: route, pixelWidth: pixelWidth) : nil }
+  /// `widePixelWidth` is the same for wide title cards (Continue Watching, History).
+  public static func configureWorker(_ route: TitleImageRoute, pixelWidth: Int,
+                                     widePixelWidth: Int = 0) {
+    worker.withLock {
+      $0 = route.isConfigured
+        ? Worker(route: route, pixelWidth: pixelWidth,
+                 widePixelWidth: widePixelWidth > 0 ? widePixelWidth : pixelWidth)
+        : nil
+    }
+  }
+
+  /// The worker's URL for a wide card that shows the title's kino.pub wide cover: cover in
+  /// the cover language → textless backdrop → that kino.pub wide (Sasha, 2026-11-26).
+  /// Nil for episode stills and anything that is not a kino.pub `/item/wide/` file.
+  static func workerWideURL(for card: MediaCard) -> String? {
+    guard let landscape = card.landscapeImageURL, landscape.contains("/item/wide/"),
+          let worker = worker.withLock({ $0 }), card.itemID > 0 else { return nil }
+    let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
+    return route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, width: worker.widePixelWidth,
+                          kinopubWide: landscape)?.absoluteString
+  }
+
+  private static var coverLanguageCode: String {
+    CoverArtworkPreferences.language == .english ? "en" : "ru"
   }
 
   /// The worker's poster URL for a kino.pub vertical cover, in the cover language. Nil
@@ -88,8 +111,7 @@ public enum CoverArtwork {
   static func workerPosterURL(for card: MediaCard) -> String? {
     guard let worker = worker.withLock({ $0 }), card.itemID > 0,
           tier(ofKinopubPoster: card.posterURL) != nil else { return nil }
-    let language = CoverArtworkPreferences.language == .english ? "en" : "ru"
-    let route = TitleImageRoute(baseURL: worker.route.baseURL, language: language)
+    let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
     return route.poster(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
                         width: worker.pixelWidth, kinopubPoster: card.posterURL)?.absoluteString
   }
@@ -129,6 +151,12 @@ public extension MediaCard {
     CoverArtwork.workerPosterURL(for: self) ?? directCoverURL
   }
 
+  /// What a wide card draws first: the worker's cover › backdrop › wide chain for a
+  /// title's wide cover, else `landscapeImageURL` as it is (an episode still).
+  var landscapeArtworkURL: String? {
+    CoverArtwork.workerWideURL(for: self) ?? landscapeImageURL
+  }
+
   /// The cover without the worker — the ladder's rung for a worker outage.
   var directCoverURL: String {
     CoverArtwork.resolve(url: posterURL, kinopoiskID: kinopoiskID)
@@ -146,7 +174,7 @@ public extension MediaCard {
   /// A wide card: unique still → kino.pub thumb on 404 (KP-23) → series backdrop.
   var artworkLadder: [URL] {
     isLandscape
-      ? Self.ladder([landscapeImageURL ?? posterURL, fallbackLandscapeURL, backdropURL])
+      ? Self.ladder([landscapeArtworkURL ?? posterURL, landscapeImageURL, fallbackLandscapeURL, backdropURL])
       : coverLadder
   }
 

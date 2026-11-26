@@ -170,3 +170,36 @@ final class WorkerPosterRouteTests: XCTestCase {
     XCTAssertEqual(card.coverURL, wide)
   }
 }
+
+final class WorkerWideCardTests: XCTestCase {
+  private let medium = "https://m.staticpop.net/poster/item/medium/1.jpg"
+  private let wide = "https://m.staticpop.net/poster/item/wide/1.jpg"
+
+  override func setUp() {
+    CoverArtwork.configureWorker(TitleImageRoute(baseURL: URL(string: "https://worker.test")),
+                                 pixelWidth: 780, widePixelWidth: 1280)
+  }
+
+  override func tearDown() {
+    CoverArtwork.configureWorker(TitleImageRoute(baseURL: nil), pixelWidth: 0)
+  }
+
+  /// Sasha 2026-11-26: a wide title card is cover by language › backdrop › kino.pub wide.
+  func testATitleWideCardAsksTheWorkerCoverWithTheWideAsSource() throws {
+    let card = MediaCard(id: 1, posterURL: medium, title: "T", backdropURL: wide,
+                         landscapeImageURL: wide)
+    let ladder = card.artworkLadder.map(\.absoluteString)
+    XCTAssertEqual(Array(ladder.dropFirst()), [wide])
+    let worker = try XCTUnwrap(URLComponents(string: ladder[0]))
+    XCTAssertEqual(worker.path, "/img/cover/by/kinopub/1")
+    let query = Dictionary(uniqueKeysWithValues: (worker.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+    XCTAssertEqual(query["w"], "1280")
+    XCTAssertEqual(query["src"], wide)
+  }
+
+  func testAnEpisodeStillStaysAsItIs() {
+    let still = "https://example.com/still.jpg"
+    let card = MediaCard(id: 1, posterURL: medium, title: "T", landscapeImageURL: still)
+    XCTAssertEqual(card.landscapeArtworkURL, still)
+  }
+}

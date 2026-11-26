@@ -1939,7 +1939,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
     switch section.items[indexPath.item] {
     case .card(let card):
       let string = section.kind == .still
-        ? (card.landscapeImageURL ?? card.backdropURL ?? card.posterURL)
+        ? (card.landscapeArtworkURL ?? card.backdropURL ?? card.posterURL)
         : card.coverURL
       return URL(string: string)
     case .person(let person):

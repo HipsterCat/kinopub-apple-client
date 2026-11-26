@@ -43,6 +43,12 @@ enum ArtworkPixelWidth {
     TitleImageRoute.bucketedWidth(.poster, pixels: screen / 5)
   }
 
+  /// One `w` for every wide title card (Continue Watching, Library, History): never wider
+  /// than a third of the screen's long side — 1280 on Apple TV 4K, 780 on a 1080p TV.
+  static var wideCard: Int {
+    TitleImageRoute.bucketedWidth(.cover, pixels: screen / 3)
+  }
+
   private static var rawBackdrop: Int {
 #if os(macOS)
     macBackdrop

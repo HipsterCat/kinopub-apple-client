@@ -1064,3 +1064,40 @@ test("without a manual tmdb id, resolve still finds by imdb", async () => {
     globalThis.fetch = original;
   }
 });
+
+const KINOPUB_WIDE_SRC = "https://m.staticpop.net/poster/item/wide/82852.jpg";
+
+test("wide card cover with src: language cover, then textless backdrop, then kino.pub wide", async () => {
+  const src = `src=${encodeURIComponent(KINOPUB_WIDE_SRC)}`;
+  const textless = { source: "tmdb", url: "https://image.tmdb.org/t/p/original/textless.jpg", lang: null, width: 3840, height: 2160 };
+  const withBackdrop = kvEnv({ "title:kinopub:82852": { artwork: { backdrop: [textless] } } });
+  const toBackdrop = await handleImage(imageRequest("cover", { query: `w=780&${src}` }), withBackdrop, ctxSpy());
+  assert.equal(toBackdrop.status, 302);
+  assert.match(toBackdrop.headers.get("location"), /\/img\/cover\/by\/kinopub\/82852\/und\/cover\.jpg\?w=780&src=/);
+
+  const bare = kvEnv({ "title:kinopub:82852": { artwork: {} } });
+  const toWide = await handleImage(imageRequest("cover", { query: `w=780&${src}` }), bare, ctxSpy());
+  assert.equal(toWide.status, 302);
+  assert.match(toWide.headers.get("location"), /\/ru\/cover\.jpg\?w=780&src=/);
+
+  const strict = await handleImage(imageRequest("cover", { query: "w=780" }), withBackdrop, ctxSpy());
+  assert.equal(strict.status, 404);
+
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const stamped = await handleImage(
+      new Request(`https://example.test/img/cover/by/kinopub/82852/und/cover.jpg?w=780&${src}`),
+      withBackdrop, ctxSpy(),
+    );
+    assert.equal(stamped.status, 200);
+    assert.equal(stamped.headers.get("content-language"), "und");
+    assert.ok(fetched[0].startsWith("https://wsrv.nl/") && fetched[0].includes("textless"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});

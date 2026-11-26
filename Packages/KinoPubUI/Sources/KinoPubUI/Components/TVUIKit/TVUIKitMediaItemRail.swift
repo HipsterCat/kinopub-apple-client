@@ -278,7 +278,10 @@ public extension TVUIKitMediaItem {
     // Tile art is the landscape still when the card has one, else the poster.
     // Never the focus backdrop alone — that made debug menus say `/poster/…` while
     // the tile painted `/wide/…` (Sasha, 2026-11-14).
-    let art = card.landscapeImageURL ?? card.posterURL
+    // A title's wide cover goes through the worker (cover › backdrop › wide, Sasha
+    // 2026-11-26); the kino.pub file stays as the 404 rung.
+    let art = card.landscapeArtworkURL ?? card.posterURL
+    let directWide = card.landscapeArtworkURL == card.landscapeImageURL ? nil : card.landscapeImageURL
     let status = Self.status(for: card)
     let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
     // Playable landscape tiles (Continue, History, DV, episode rails that use `init(card:)`)
@@ -299,7 +302,7 @@ public extension TVUIKitMediaItem {
               badgeText: Self.badgeText(for: card),
               focusGlyph: focusGlyph,
               backdropImageURL: card.backdropURL.flatMap(URL.init(string:)),
-              fallbackImageURL: card.fallbackLandscapeURL.flatMap(URL.init(string:)))
+              fallbackImageURL: (card.fallbackLandscapeURL ?? directWide).flatMap(URL.init(string:)))
   }
 
   /// A fraction only means something pinned to one episode or one movie. A

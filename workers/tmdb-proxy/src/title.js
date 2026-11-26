@@ -354,8 +354,9 @@ async function handleImageQuery(request, url, env, ctx, route) {
     s: readIndex(url, "s"),
     e: readIndex(url, "e"),
     format: readFormatQuery(url),
-    // Title poster only: kino.pub's own file, one rung of the fallback chain.
-    src: route.kind === "poster" && readIndex(url, "s") == null ? readKinopubThumbSrc(url) : null,
+    // Title poster / cover only: kino.pub's own file, the last rung of the chain.
+    src: (route.kind === "poster" || route.kind === "cover") && readIndex(url, "s") == null
+      ? readKinopubThumbSrc(url) : null,
   };
   if (imageRequest.kind === "thumbnail" && (imageRequest.s == null || imageRequest.e == null)) {
     return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
@@ -378,7 +379,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
   if (!asset && (!stored || stored.pending === true || fresh)) {
     const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
     waitedMs = Date.now() - started;
-    const posterFallback = waited.timedOut && imageRequest.kind === "poster" && imageRequest.src;
+    const posterFallback = waited.timedOut && imageRequest.src;
     if (waited.timedOut && !posterFallback) {
       noteImage(env, ctx, "timeout", imageRequest, waitedMs);
       return imageNotFound("timed out", vary, { timeout: true });
@@ -436,6 +437,11 @@ async function handleImageQuery(request, url, env, ctx, route) {
   // on a picture.
   if (!asset && imageRequest.kind === "poster" && imageRequest.s == null) {
     asset = posterChain(stored, hints, imageRequest.lang || "ru", imageRequest.src)[0] || null;
+  }
+  // Wide title card (`src=` = kino.pub's wide): cover in the language → textless
+  // backdrop → kino.pub's wide. Without `src` a cover stays strict.
+  if (!asset && imageRequest.kind === "cover" && imageRequest.src) {
+    asset = coverChain(stored, imageRequest.lang || "ru", imageRequest.src)[0] || null;
   }
 
   if (!asset) {
@@ -1220,8 +1226,13 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   };
   const hints = readHints(url);
   const format = readOutputFormat(url, stamp.kind);
-  if (stamp.kind === "poster" && imageRequest.s == null) {
-    const chain = posterChain(stored, hints, imageRequest.lang, readKinopubThumbSrc(url));
+  const chainSrc = readKinopubThumbSrc(url);
+  const chainKind = stamp.kind === "poster" && imageRequest.s == null ? "poster"
+    : stamp.kind === "cover" && chainSrc ? "cover" : null;
+  if (chainKind) {
+    const chain = chainKind === "poster"
+      ? posterChain(stored, hints, imageRequest.lang, chainSrc)
+      : coverChain(stored, lang, chainSrc);
     for (const candidate of chain) {
       const served = await fetchAsset(env, candidate, stamp.kind, imageRequest.w, format);
       if (!served) continue;
@@ -1305,6 +1316,25 @@ function posterChain(document, hints, lang, kinopubSrc) {
     .map(normalizeAsset)
     .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url) && (a.lang ?? null) !== lang);
   push(bestAsset(others, "poster", lang));
+  return chain;
+}
+
+/**
+ * Wide title card chain (Sasha 2026-11-26): pin / TMDB cover in the language →
+ * textless backdrop → kino.pub's wide (`src`). Only when the client sends `src`.
+ */
+function coverChain(document, lang, kinopubSrc) {
+  const chain = [];
+  const push = (asset) => {
+    if (asset?.url && !chain.some((item) => item.url === asset.url)) chain.push(asset);
+  };
+  if (lang) {
+    push(pinnedAssetForLang(document, "cover", lang));
+    push(bestAsset(coverCandidates(document, lang), "cover", lang, { strict: true }));
+  }
+  push(pinnedAsset(document, "backdrop"));
+  if (document) push(bestAsset(textlessBackdrops(document), "backdrop", null));
+  if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang: lang || null, width: null, height: null });
   return chain;
 }
 
