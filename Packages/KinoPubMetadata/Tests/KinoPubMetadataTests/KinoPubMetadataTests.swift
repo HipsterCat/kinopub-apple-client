@@ -264,6 +264,14 @@ final class TMDBImageURLTests: XCTestCase {
     XCTAssertEqual(url?.absoluteString, "https://image.tmdb.org/t/p/w500/abc.png")
   }
 
+  func testBuildsPosterFaceCropURL() {
+    let url = TMDBImageURL.url(path: "/abc.jpg", size: .posterW440)
+    XCTAssertEqual(
+      url?.absoluteString,
+      "https://image.tmdb.org/t/p/w440_and_h660_face/abc.jpg"
+    )
+  }
+
   func testBuildsProxiedURL() {
     let proxy = URL(string: "https://kinopub-tmdb-proxy.example.workers.dev")!
     let url = TMDBImageURL.url(path: "/abc.png", size: .profileW185, proxyBase: proxy)
