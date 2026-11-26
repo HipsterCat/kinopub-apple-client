@@ -58,6 +58,7 @@ struct TabsNavigationView: View {
   @FocusState private var detailFocused: Bool
   @State private var heroStep: HeroStepRequest?
   @State private var pageScroll: PageScrollRequest?
+  @Environment(\.openWindow) private var openWindow
 #endif
   @State private var sidebarSyncedAt: Date?
   @Environment(\.scenePhase) private var scenePhase
@@ -458,8 +459,30 @@ struct TabsNavigationView: View {
         // Every page under the same window toolbar, as the TV app's: with nothing in it a
         // page had none, and switching between pages moved everything up and down by the
         // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
-        // Settings lives in the app menu / ⌘, / the account at the foot of the sidebar —
-        // not a gear in this trailing cluster (Sasha, 2026-11-26).
+        //
+        // Settings gear at the trailing end on every page except Search (Search already
+        // has a crowded trailing cluster; sidebar account / ⌘, still open Settings —
+        // Sasha, 2026-11-26 / KP-112).
+        .toolbar {
+          if navigationState.selectedTab != .search {
+            ToolbarSpacer(.flexible)
+            ToolbarItem(placement: .primaryAction) {
+              Button {
+                // The app's Settings is a `Window`, not a `Settings` scene: `openSettings`
+                // failed with «No Settings scene is defined» (Sasha, 2026-11-08). The same
+                // window ⌘, and the app menu open.
+                openWindow(id: SettingsWindow.id)
+              } label: {
+                Image(systemName: "gear")
+              }
+              .accessibilityLabel(Text("Settings".localized))
+              .help(Text("Settings".localized))
+            }
+            // A page's own items (sort, filters) come after it: a capsule of their own,
+            // not one group with Settings.
+            ToolbarSpacer(.fixed)
+          }
+        }
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
         // page never held the keyboard and the arrows did not reach it.
