@@ -89,7 +89,7 @@ public struct PersonMetadata: Sendable, Hashable {
     if biography == nil || biography?.isEmpty == true { biography = other.biography }
     if birthday == nil { birthday = other.birthday }
     if placeOfBirth == nil || placeOfBirth?.isEmpty == true { placeOfBirth = other.placeOfBirth }
-    if photo == nil { photo = other.photo }
+    photo = PersonPhoto.picking(existing: photo, candidate: other.photo)
     if knownForDepartment == nil { knownForDepartment = other.knownForDepartment }
     if name == nil || name?.isEmpty == true { name = other.name }
     if alsoKnownAs.isEmpty { alsoKnownAs = other.alsoKnownAs }
