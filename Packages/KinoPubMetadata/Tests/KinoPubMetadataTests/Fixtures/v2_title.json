@@ -61,7 +61,8 @@
     { "kind": "poster", "lang": "ru", "url": "https://kinopoiskapiunofficial.tech/images/posters/kp/4789626.jpg", "source": "kinopoisk", "width": null, "person_id": null, "season": null, "episode": null },
     { "kind": "poster", "lang": "ru", "url": "https://image.tmdb.org/t/p/original/season-1.jpg", "source": "tmdb", "width": null, "person_id": null, "season": 1, "episode": null },
     { "kind": "still", "lang": null, "url": "https://image.tmdb.org/t/p/original/still.jpg", "source": "tmdb", "width": null, "person_id": null, "season": 1, "episode": 6 },
-    { "kind": "photo", "lang": null, "url": "https://image.tmdb.org/t/p/original/face.jpg", "source": "tmdb", "width": null, "person_id": 78402, "season": null, "episode": null }
+    { "kind": "photo", "lang": null, "url": "https://image.tmdb.org/t/p/original/face.jpg", "source": "tmdb", "width": null, "person_id": 78402, "season": null, "episode": null },
+    { "kind": "photo", "lang": null, "url": "https://image.tmdb.org/t/p/original/sugiyama.jpg", "source": "tmdb", "width": 421, "person_id": 82056, "season": null, "episode": null }
   ],
   "networks": [
     { "tmdb_id": 98, "name": "TV Tokyo", "logo_url": "https://image.tmdb.org/t/p/original/net.png", "origin_country": "JP" }

@@ -172,7 +172,8 @@ public final class TitleCardSource: MetadataSource, Sendable {
     var cast: [CastMember] = []
     for section in ["star", "regular"] {
       for person in card.billing?[section] ?? [] {
-        if let member = mapPerson(person, department: "Acting", order: cast.count, proxyBase: proxyBase) {
+        if let member = mapPerson(person, department: "Acting", order: cast.count,
+                                  images: images, proxyBase: proxyBase) {
           cast.append(member)
         }
       }
@@ -183,7 +184,8 @@ public final class TitleCardSource: MetadataSource, Sendable {
     for section in ["director", "writer"] {
       for person in card.billing?[section] ?? [] {
         let department = section == "director" ? "Directing" : "Writing"
-        if let member = mapPerson(person, department: department, order: crew.count, proxyBase: proxyBase) {
+        if let member = mapPerson(person, department: department, order: crew.count,
+                                  images: images, proxyBase: proxyBase) {
           crew.append(member)
         }
       }
@@ -274,7 +276,7 @@ public final class TitleCardSource: MetadataSource, Sendable {
   }
 
   private static func mapPerson(_ person: TitleCardPerson, department: String, order: Int,
-                                proxyBase: URL?) -> CastMember? {
+                                images: [TitleCardImage], proxyBase: URL?) -> CastMember? {
     let ru = nonEmpty(person.nameRu)
     let en = nonEmpty(person.nameEn)
     guard let name = ru ?? en else { return nil }
@@ -282,12 +284,33 @@ public final class TitleCardSource: MetadataSource, Sendable {
       name: name,
       localizedName: ru == nil ? nil : en,
       character: nonEmpty(person.character) ?? nonEmpty(person.job),
-      photo: TMDBImageURL.proxied(person.profileUrl, proxyBase: proxyBase),
+      photo: personPhoto(person, images: images, proxyBase: proxyBase),
       department: department,
       tmdbPersonId: person.personId,
       episodeCount: person.episodeCount,
       order: order
     )
+  }
+
+  /// Billing `profile_url` first; when it is missing or a tiny Kinopoisk file, take
+  /// the widest `images[]` face for that `person_id` (TMDB before Kinopoisk).
+  private static func personPhoto(_ person: TitleCardPerson, images: [TitleCardImage],
+                                  proxyBase: URL?) -> URL? {
+    let billed = TMDBImageURL.proxied(person.profileUrl, proxyBase: proxyBase)
+    guard PersonPhoto.needsUpgrade(billed), let personId = person.personId else {
+      return billed
+    }
+    let faces = images.filter { $0.kind == "photo" && $0.personId == personId }
+    guard !faces.isEmpty else { return billed }
+    let rank = ["tmdb": 0, "tvoe": 1, "card": 2, "kinopoisk": 3]
+    let best = faces.max { lhs, rhs in
+      let left = rank[lhs.source ?? ""] ?? 9
+      let right = rank[rhs.source ?? ""] ?? 9
+      if left != right { return left > right }
+      return (lhs.width ?? 0) < (rhs.width ?? 0)
+    }
+    let fromImages = TMDBImageURL.proxied(best?.url, proxyBase: proxyBase)
+    return PersonPhoto.picking(existing: billed, candidate: fromImages)
   }
 
   /// Same language first. A wider file wins inside that language; `tvoe`, then

@@ -834,6 +834,7 @@ public struct TitleMetadata: Sendable {
     if cast.isEmpty { cast = other.cast }
     else { cast = Self.mergeCast(base: cast, overlay: other.cast) }
     if crew.isEmpty { crew = other.crew }
+    else { crew = Self.mergeCast(base: crew, overlay: other.crew) }
     if artwork.titleLogo == nil { artwork.titleLogo = other.artwork.titleLogo }
     if artwork.poster == nil { artwork.poster = other.artwork.poster }
     if artwork.backdrop == nil { artwork.backdrop = other.artwork.backdrop }
@@ -946,19 +947,69 @@ public struct TitleMetadata: Sendable {
                           neutral: reviews.count - positive - negative)
   }
 
-  /// Prefer existing name order; fill photo/character from overlay by normalized name.
+  /// Prefer existing name order; fill character / ids / episode counts from the overlay.
+  ///
+  /// Name match mirrors `enrich`: exact `normalize` → `soundKey` → closed-pool
+  /// `PersonNameMatch`, so «Селена Ли» can take Selena Li's TMDB face. Photos use
+  /// `PersonPhoto.picking`: a strong Kinopoisk headshot wins; a missing or clearly
+  /// tiny Kinopoisk file (`iphone120_…`, ≤200px) yields to TMDB.
   public static func mergeCast(base: [CastMember], overlay: [CastMember]) -> [CastMember] {
-    let byName = Dictionary(overlay.map { (Self.normalize($0.name), $0) },
-                            uniquingKeysWith: { first, _ in first })
+    guard !overlay.isEmpty else { return base }
+    var byName: [String: Int] = [:]
+    var bySound: [String: Int] = [:]
+    var spellingsByIndex: [[String]] = Array(repeating: [], count: overlay.count)
+    for (index, member) in overlay.enumerated() {
+      for spelling in [member.name, member.localizedName].compactMap({ $0 }) {
+        if byName[normalize(spelling)] == nil { byName[normalize(spelling)] = index }
+        let sound = soundKey(spelling)
+        if !sound.isEmpty, bySound[sound] == nil { bySound[sound] = index }
+        spellingsByIndex[index].append(spelling)
+      }
+    }
+    var taken = Set<Int>()
+    func lookup(_ member: CastMember) -> CastMember? {
+      let queries = [member.name, member.localizedName].compactMap { $0 }
+      for query in queries {
+        let exact = [byName[normalize(query)], bySound[soundKey(query)]].compactMap { $0 }
+        if let index = exact.first(where: { !taken.contains($0) }) {
+          taken.insert(index)
+          return overlay[index]
+        }
+      }
+      var best: (index: Int, score: Double)?
+      var second: Double = 0
+      for (index, spellings) in spellingsByIndex.enumerated() where !taken.contains(index) {
+        let score = queries.flatMap { query in spellings.map { PersonNameMatch.score(query, $0) } }
+          .max() ?? 0
+        if let current = best {
+          if score > current.score {
+            second = current.score
+            best = (index, score)
+          } else if score > second {
+            second = score
+          }
+        } else {
+          best = (index, score)
+        }
+      }
+      guard let hit = best,
+            hit.score >= PersonNameMatch.acceptScore,
+            hit.score - second >= PersonNameMatch.acceptMargin else {
+        return nil
+      }
+      taken.insert(hit.index)
+      return overlay[hit.index]
+    }
     return base.map { member in
-      guard let hit = byName[Self.normalize(member.name)] else { return member }
+      guard let hit = lookup(member) else { return member }
       var merged = member
       if merged.character == nil || merged.character?.isEmpty == true {
         merged.character = hit.character
       }
-      if merged.photo == nil { merged.photo = hit.photo }
+      merged.photo = PersonPhoto.picking(existing: merged.photo, candidate: hit.photo)
       if merged.tmdbPersonId == nil { merged.tmdbPersonId = hit.tmdbPersonId }
       if merged.episodeCount == nil { merged.episodeCount = hit.episodeCount }
+      if merged.localizedName == nil { merged.localizedName = hit.localizedName }
       return merged
     }
   }
@@ -1024,7 +1075,7 @@ public struct TitleMetadata: Sendable {
           name: name,
           localizedName: hit.localizedName,
           character: hit.character,
-          photo: hit.photo,
+          photo: bestPhoto(for: hit, in: pool),
           department: roleDepartment ?? hit.department,
           tmdbPersonId: hit.tmdbPersonId,
           episodeCount: hit.episodeCount,
@@ -1033,6 +1084,36 @@ public struct TitleMetadata: Sendable {
       }
       return CastMember(name: name, department: roleDepartment)
     }
+  }
+
+  /// Face for a matched credit: the hit's own URL, upgraded from another pool row
+  /// with the same TMDB id or a closed-pool name match when the hit is missing or
+  /// a tiny Kinopoisk file.
+  private static func bestPhoto(for hit: CastMember, in pool: [CastMember]) -> URL? {
+    var best = hit.photo
+    guard PersonPhoto.needsUpgrade(best) else { return best }
+    if let id = hit.tmdbPersonId {
+      for member in pool where member.tmdbPersonId == id {
+        best = PersonPhoto.picking(existing: best, candidate: member.photo)
+        if !PersonPhoto.needsUpgrade(best) { return best }
+      }
+    }
+    let hitSpellings = [hit.name, hit.localizedName].compactMap { $0 }
+    var ranked: [(score: Double, photo: URL)] = []
+    for member in pool {
+      guard let photo = member.photo, !PersonPhoto.needsUpgrade(photo) else { continue }
+      let other = [member.name, member.localizedName].compactMap { $0 }
+      let score = hitSpellings.flatMap { query in other.map { PersonNameMatch.score(query, $0) } }
+        .max() ?? 0
+      if score >= PersonNameMatch.acceptScore {
+        ranked.append((score, photo))
+      }
+    }
+    ranked.sort { $0.score > $1.score }
+    guard let top = ranked.first else { return best }
+    let second = ranked.dropFirst().first?.score ?? 0
+    guard top.score - second >= PersonNameMatch.acceptMargin else { return best }
+    return PersonPhoto.picking(existing: best, candidate: top.photo)
   }
 
   /// The same name in another transliteration, as one key: letters only, `ё` as `е`, soft and

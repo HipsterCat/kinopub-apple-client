@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Страница тайтла: если у актёра нет фото на Кинопоиске или оно совсем маленькое, подставляется портрет с TMDB — вместо инициалов."
+  ],
+  "en": [
+    "Title page: when Kinopoisk has no cast photo — or only a tiny one — the rail uses the TMDB portrait instead of initials."
+  ]
+}

@@ -171,6 +171,76 @@ final class TitleMetadataMergeTests: XCTestCase {
     XCTAssertEqual(hall?.index, 1)
   }
 
+  func testPersonPhotoMarksTinyKinopoiskAsUpgrade() {
+    let tiny = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone120_123.jpg")
+    let ok = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone360_123.jpg")
+    let tmdb = URL(string: "https://image.tmdb.org/t/p/w185/abc.jpg")
+    let smallFolder = URL(string: "https://kinopoiskapiunofficial.tech/images/actor_posters/kp_small/9.jpg")
+    XCTAssertTrue(PersonPhoto.needsUpgrade(nil))
+    XCTAssertTrue(PersonPhoto.needsUpgrade(tiny))
+    XCTAssertTrue(PersonPhoto.needsUpgrade(smallFolder))
+    XCTAssertFalse(PersonPhoto.needsUpgrade(ok))
+    XCTAssertFalse(PersonPhoto.needsUpgrade(tmdb))
+    XCTAssertEqual(PersonPhoto.inferredWidth(in: tiny!.absoluteString), 120)
+    XCTAssertEqual(PersonPhoto.inferredWidth(in: ok!.absoluteString), 360)
+  }
+
+  func testPersonPhotoPrefersStrongKinopoiskThenTMDBOverTiny() {
+    let tinyKP = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone120_1.jpg")
+    let strongKP = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone360_1.jpg")
+    let tmdb = URL(string: "https://image.tmdb.org/t/p/w185/a.jpg")
+    XCTAssertEqual(PersonPhoto.picking(existing: tinyKP, candidate: tmdb), tmdb)
+    XCTAssertEqual(PersonPhoto.picking(existing: tmdb, candidate: tinyKP), tmdb)
+    XCTAssertEqual(PersonPhoto.picking(existing: tmdb, candidate: strongKP), strongKP)
+    XCTAssertEqual(PersonPhoto.picking(existing: strongKP, candidate: tmdb), strongKP)
+    XCTAssertEqual(PersonPhoto.picking(existing: nil, candidate: tmdb), tmdb)
+  }
+
+  /// TMDB-first merge: a tiny Kinopoisk headshot on the RU spelling upgrades to TMDB.
+  func testMergeCastUpgradesTinyKinopoiskPhotoFromFuzzyTMDBMatch() {
+    let tinyKP = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone120_99.jpg")!
+    let tmdb = URL(string: "https://image.tmdb.org/t/p/w185/ni.jpg")!
+    let base = [
+      CastMember(name: "Ni Dahong", photo: tmdb, tmdbPersonId: 42),
+      CastMember(name: "Selena Li", photo: tmdb, tmdbPersonId: 7),
+    ]
+    let overlay = [
+      CastMember(name: "Ни Дахун", photo: tinyKP),
+      CastMember(name: "Селена Ли"),
+    ]
+    let merged = TitleMetadata.mergeCast(base: overlay, overlay: base)
+    XCTAssertEqual(merged.map(\.name), ["Ни Дахун", "Селена Ли"])
+    XCTAssertEqual(merged[0].photo, tmdb)
+    XCTAssertEqual(merged[0].tmdbPersonId, 42)
+    XCTAssertEqual(merged[1].photo, tmdb)
+    XCTAssertEqual(merged[1].tmdbPersonId, 7)
+  }
+
+  /// A large Kinopoisk face must not be replaced by TMDB when merging the other way.
+  func testMergeCastKeepsStrongKinopoiskPhoto() {
+    let strongKP = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone360_1.jpg")!
+    let tmdb = URL(string: "https://image.tmdb.org/t/p/w185/a.jpg")!
+    let merged = TitleMetadata.mergeCast(
+      base: [CastMember(name: "Морган Фриман", photo: strongKP)],
+      overlay: [CastMember(name: "Morgan Freeman", photo: tmdb, tmdbPersonId: 6750)]
+    )
+    XCTAssertEqual(merged[0].photo, strongKP)
+    XCTAssertEqual(merged[0].tmdbPersonId, 6750)
+  }
+
+  func testEnrichUpgradesTinyPhotoFromPoolTwin() {
+    let tinyKP = URL(string: "https://st.kp.yandex.net/images/actor_iphone/iphone120_5.jpg")!
+    let tmdb = URL(string: "https://image.tmdb.org/t/p/w185/selena.jpg")!
+    var meta = TitleMetadata()
+    meta.cast = [
+      CastMember(name: "Селена Ли", photo: tinyKP, tmdbPersonId: 7),
+      CastMember(name: "Selena Li", localizedName: "Селена Ли", photo: tmdb, tmdbPersonId: 7),
+    ]
+    let enriched = TitleMetadata.enrich(names: ["Селена Ли"], roleDepartment: "Acting", from: meta)
+    XCTAssertEqual(enriched[0].photo, tmdb)
+    XCTAssertEqual(enriched[0].tmdbPersonId, 7)
+  }
+
   func testMergePrefersExistingLogo() {
     var base = TitleMetadata()
     base.artwork.titleLogo = URL(string: "https://example.com/a.png")
@@ -365,6 +435,15 @@ final class TitleCardMappingTests: XCTestCase {
     XCTAssertEqual(meta.cast.map(\.name), ["Масакадзу Морита", "Нориаки Сугияма"])
     XCTAssertEqual(meta.cast.first?.character, "Ichigo Kurosaki (voice)")
     XCTAssertEqual(meta.cast.first?.episodeCount, 416)
+    XCTAssertEqual(
+      meta.cast.first?.photo?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/t/p/original/face.jpg"
+    )
+    // Billing had no profile_url; images[] supplies the TMDB face.
+    XCTAssertEqual(
+      meta.cast[1].photo?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/t/p/original/sugiyama.jpg"
+    )
     XCTAssertEqual(meta.crew.map(\.name), ["Нориюки Абэ"])
     XCTAssertEqual(meta.crew.first?.character, "Director")
     XCTAssertEqual(meta.titleLogoLanguage, "ru")
