@@ -20,6 +20,21 @@ is a list of things abandoned years ago. A sideways scroll with no end defeats t
 **prd** — On tvOS the row is five 16:9 stills across (HIG 5-column). The title stays under the
 tile at rest, not only on focus.
 
+## Interaction
+
+**prd** — The landscape still (screenshot) opens the **player**, not the title page — Home,
+Continue Watching, and Recently Watched, on Mac / iPad / iPhone / tvOS. The play chrome is
+there for that reason.
+
+**prd** — Split hit targets on pointer and touch: still / top → play; title area under the
+still → title / episode info. Title hover opacity ~0.8; a truncated title shows the full
+string as the hover tooltip.
+
+**prd** — The subscribed unwatched count chip on a landscape still hides when the count is 1
+(that episode is about to play) and hides on hover / focus. Hovering the digit itself may
+expand «2» → «2 серии». Continue Watching never adds a second «N серий» subtitle line under
+the title — that line is for Following posters.
+
 ## Order
 
 **prd** — Buckets first, in this order: played in the last week · on the watchlist with new episodes

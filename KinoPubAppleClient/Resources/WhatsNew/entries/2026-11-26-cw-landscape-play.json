@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Продолжить просмотр и Недавно просмотренные: нажатие на кадр открывает плеер; название под кадром — страницу тайтла.",
+    "Счётчик новых серий на широкой карточке скрывается при одной серии и при наведении или фокусе."
+  ],
+  "en": [
+    "Continue Watching and Recently Watched: tap the still to play; the title under it opens the title page.",
+    "The new-episode count on a landscape card hides when there is only one left and while you hover or focus."
+  ]
+}

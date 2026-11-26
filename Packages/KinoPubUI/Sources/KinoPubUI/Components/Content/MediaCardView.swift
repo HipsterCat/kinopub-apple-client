@@ -129,7 +129,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let genres: [Genre]
   /// The first production country, as the source names it.
   public let country: String?
-  /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
+  /// Single-click / Select on the still. Continue Watching and Recently Watched
+  /// landscape use `.play`; the title under the still opens detail separately.
   public let primaryAction: MediaCardPrimaryAction
   /// A lock and these words on top of a landscape still: an episode that has aired and is
   /// not on kino.pub («Нет на Кинопабе»). Not encoded — the rail builds it every time.
@@ -700,6 +701,8 @@ public struct MediaCardView: View {
 
   private let card: MediaCard
   private let caption: MediaCardCaption
+  /// When false, only the caption is drawn — sibling still owns Play (CW / History split).
+  private let showsArtwork: Bool
   private let playChromeStyle: LandscapePlayChromeStyle
   /// When true, play chrome stays visible (previews / VariantGallery).
   private let forcePlayChrome: Bool
@@ -709,11 +712,13 @@ public struct MediaCardView: View {
 
   public init(card: MediaCard,
               caption: MediaCardCaption = .always,
+              showsArtwork: Bool = true,
               playChromeStyle: LandscapePlayChromeStyle = .glass,
               forcePlayChrome: Bool = false,
               playGlyph: LandscapePlayGlyph = .play) {
     self.card = card
     self.caption = caption
+    self.showsArtwork = showsArtwork
     self.playChromeStyle = playChromeStyle
     self.forcePlayChrome = forcePlayChrome
     self.playGlyph = playGlyph
@@ -722,6 +727,8 @@ public struct MediaCardView: View {
   @Environment(\.isFocused) private var cardFocused
 #if !os(tvOS)
   @State private var isHovered = false
+  /// Pointer over the unwatched count chip — expands «2» → «2 серии» without hiding it.
+  @State private var badgeHovered = false
 #endif
 
   /// A watched card's artwork sits dimmed, and on macOS hovering it restores it to full.
@@ -1014,7 +1021,9 @@ public struct MediaCardView: View {
 
   public var body: some View {
       VStack(alignment: .center, spacing: Metrics.cardCaptionSpacing) {
-      artwork
+      if showsArtwork {
+        artwork
+      }
 
       if caption != .none {
         captionBlock
@@ -1213,18 +1222,53 @@ public struct MediaCardView: View {
   }
 
   private var showsUnwatchedOnArtwork: Bool {
-    editorialPlacement == .onArtwork && unwatchedEpisodeCount != nil
+    guard editorialPlacement == .onArtwork,
+          let count = unwatchedEpisodeCount else { return false }
+    // Landscape (CW / History): one left means that episode is about to play — no chip.
+    // On Mac hover / tvOS focus the play affordance owns the still; hide unless the
+    // pointer is on the chip itself (optional expand «2» → «2 серии»). iPhone has no
+    // persistent hover — `isPointerActive` is always true there, so do not use it.
+    if card.isLandscape {
+      guard count > 1 else { return false }
+#if os(tvOS)
+      if cardFocused { return false }
+#else
+      // Pointer platforms (Mac, iPad + trackpad): hide while the still is hovered.
+      // Pure touch leaves `isHovered` false, so the chip stays.
+      if isHovered && !badgeHovered { return false }
+#endif
+    }
+    return true
   }
 
   private var showsUnwatchedUnderTitle: Bool {
-    editorialPlacement == .inCaption && unwatchedEpisodeCount != nil
+    // Landscape play cards: count is the still chip only — never a second «N серий»
+    // line under Continue Watching (Sasha, 2026-11-26).
+    guard !card.isLandscape else { return false }
+    return editorialPlacement == .inCaption && unwatchedEpisodeCount != nil
+  }
+
+  /// Digit at rest; full «2 серии» while the pointer rests on the chip.
+  private var unwatchedArtworkBadgeText: String {
+    guard let count = unwatchedEpisodeCount else { return "" }
+#if !os(tvOS)
+    if card.isLandscape, badgeHovered,
+       let expanded = EpisodesLeftText(count)?.formatted() {
+      return expanded
+    }
+#endif
+    return "\(count)"
   }
 
   /// Capability chips + optional unwatched count + bookmark (bookmark is rightmost).
   private var artworkTopTrailing: some View {
     HStack(alignment: .top, spacing: 6) {
-      if showsUnwatchedOnArtwork, let count = unwatchedEpisodeCount {
-        editorialBadge("\(count)")
+      if showsUnwatchedOnArtwork {
+        editorialBadge(unwatchedArtworkBadgeText)
+#if !os(tvOS)
+          .onHover { badgeHovered = $0 }
+          .animation(.easeOut(duration: 0.2), value: badgeHovered)
+#endif
       }
       if capabilityPlacement == .onArtwork, !capabilityChips.isEmpty {
         capabilityBadgesRow
@@ -1662,6 +1706,10 @@ public struct MediaCardView: View {
           style: .title
         )
         .frame(minWidth: 0)
+#if !os(tvOS)
+        // Truncation ellipsis: the full title on hover (macOS / pointer iPad).
+        .help(card.title)
+#endif
 
         if capabilityPlacement == .inCaption, !capabilityChips.isEmpty {
           capabilityBadgesRow
