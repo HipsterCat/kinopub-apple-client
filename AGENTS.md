@@ -56,7 +56,7 @@ semantic component is fine; two components for one idea on one platform is a def
 | Measuring scroll / hitch / artwork | [docs/engineering/performance.md](docs/engineering/performance.md) |
 | TestFlight pipeline | [docs/testflight.md](docs/testflight.md) |
 | Community fork | [docs/community-fork.md](docs/community-fork.md) |
-| Shipped facts (append short Unreleased bullets only) | [CHANGELOG.md](CHANGELOG.md) — dated history is [docs/archive/changelog-history.md](docs/archive/changelog-history.md); do **not** open it for routine work |
+| Viewer-facing release notes | `KinoPubAppleClient/Resources/WhatsNew/entries/` (new bullets) — never recreate `CHANGELOG.md` |
 | Research and history — evidence, never law | [docs/research/](docs/research/README.md), [docs/archive/](docs/archive/) |
 
 ## Authority
@@ -64,10 +64,10 @@ semantic component is fine; two components for one idea on one platform is a def
 1. Sasha's explicit decision in the conversation.
 2. [CURRENT.md](CURRENT.md) on scope; this file on how things are built.
 3. [docs/product/](docs/product/) — accepted behavior.
-4. `docs/research/`, `docs/archive/`, and the slim [CHANGELOG.md](CHANGELOG.md) Unreleased
-   section — evidence. **Never automatic requirements.** Do not open
-   `docs/archive/changelog-history.md` or `Resources/whats-new.json` unless you are chasing a
-   specific past fact; never paste their contents into AGENTS, skills, or What's New entries.
+4. `docs/research/` and `docs/archive/` — evidence. **Never automatic requirements.** Do not open
+   `docs/archive/changelog-history.md` unless you need one specific past fact; never paste archive
+   history into AGENTS, skills, or What's New entries. There is no `CHANGELOG.md` — do not recreate
+   it.
 
 If sources conflict, stop only the disputed part and ask. Do not invent blockers, do not close open
 design questions with "Apple defaults", and do not rewrite docs to rationalize an implementation.
@@ -295,15 +295,14 @@ Deferred verification is allowed; silent "everything landed" claims are not.
 7. **Record what you learned where it belongs:** planned work, parked defects, open questions and
    research findings → an Asana subtask of the feature's task (mark it done with the commit); a
    decided product rule → `docs/product/`; an external source → `docs/providers/`; a durable
-   engineering rule or trap → this file (short) or `docs/engineering/` (long); notable shipped
-   facts → one short bullet under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) (append only —
-   do not re-read or paste the archive). Never a checklist in a `.md` file. **Keep this file
-   short** — a new rule replaces or shortens an old one; never dump changelog or What's New
-   history here.
+   engineering rule or trap → this file (short) or `docs/engineering/` (long). Never a checklist
+   in a `.md` file. **Keep this file short** — a new rule replaces or shortens an old one; never
+   dump What's New history here. There is no `CHANGELOG.md`.
 8. **If a viewer can see the change**, add **one new file**
    `KinoPubAppleClient/Resources/WhatsNew/entries/YYYY-MM-DD-short-slug.json` with ru + en
-   bullets (in-app What's New and TestFlight notes). Do **not** edit or open the legacy
-   `Resources/whats-new.json`. See `entries/README.md` and [docs/product/whats-new.md](docs/product/whats-new.md).
+   bullets (in-app What's New and TestFlight notes). That is the only release-notes surface —
+   do **not** edit the legacy `Resources/whats-new.json`, and do **not** maintain a CHANGELOG.
+   See `entries/README.md` and [docs/product/whats-new.md](docs/product/whats-new.md).
 9. One reviewable slice at a time; build every platform before calling it done.
 
 ### Dependencies

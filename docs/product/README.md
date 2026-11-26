@@ -13,8 +13,8 @@ which kinds of title get which treatment, what a label says, what is deliberatel
 logical rule, and the reason it is that way.
 
 **What does not belong here:** how it is implemented (that is a doc comment on the type), what is
-still being built (Asana, [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)), a shipped implementation fact
-([CHANGELOG.md](../../CHANGELOG.md)), the story of an attempt ([docs/archive/](../archive/)), or an
+still being built (Asana, [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)), viewer-facing release notes
+([whats-new.md](whats-new.md)), the story of an attempt ([docs/archive/](../archive/)), or an
 external source's fields ([docs/providers/](../providers/)).
 
 If a rule fits in one line inside an existing file here, it is a line — not a new file.

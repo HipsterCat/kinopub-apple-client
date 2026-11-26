@@ -34,8 +34,8 @@ none fits. If you cannot reach Asana, say so in your reply and list the items th
 | Skeletons | [Skeletons](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224198) |
 
 **Decided behavior** stays in [docs/product/](docs/product/), durable engineering rules in
-[AGENTS.md](AGENTS.md), what is active in [CURRENT.md](CURRENT.md), shipped facts in
-[CHANGELOG.md](CHANGELOG.md).
+[AGENTS.md](AGENTS.md), what is active in [CURRENT.md](CURRENT.md), viewer-facing notes in
+[docs/product/whats-new.md](docs/product/whats-new.md). There is no `CHANGELOG.md`.
 
 The old staged roadmap (stages 1–8, with every ticked box) is in git history: `git show
 08e1090e:ROADMAP.md`. Every open box in it was checked against the code on 2026-10-18 and moved to

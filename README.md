@@ -57,7 +57,7 @@ open KinoPubAppleClient.xcodeproj
 | [AGENTS.md](AGENTS.md) | The whole agent context — defaults, banned patterns, traps |
 | [ROADMAP.md](ROADMAP.md) | Retired — maps each feature to its Asana task |
 | [CURRENT.md](CURRENT.md) | What is active now |
-| [CHANGELOG.md](CHANGELOG.md) | Notable shipped changes |
+| [docs/product/whats-new.md](docs/product/whats-new.md) | In-app What's New (entries/ + frozen legacy archive) |
 | [docs/testflight.md](docs/testflight.md) | Internal TestFlight secrets, triggers, first upload |
 | [docs/providers/](docs/providers/) | External source capability sheets |
 | [docs/community-fork.md](docs/community-fork.md) | Community remote strategy |

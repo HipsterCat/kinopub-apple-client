@@ -9,8 +9,8 @@
 //  - `Resources/WhatsNew/entries/<id>.json` — one new contribution per file; PRs only
 //    add a file under entries/. The directory listing is the index.
 //  Loader merges both; fragments sort by date (then id) and prepend onto their version.
-//  CHANGELOG.md stays the implementation log. TestFlight "What to Test" reads the same
-//  sources (Fastlane).
+//  There is no CHANGELOG.md — this catalog is the only release-notes surface.
+//  TestFlight "What to Test" reads the same sources (Fastlane).
 //
 
 import Foundation

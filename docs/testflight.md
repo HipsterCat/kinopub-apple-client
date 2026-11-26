@@ -35,7 +35,7 @@ collide.
 **What to Test** is the Russian What's New catalog for the current marketing version:
 isolated files under `KinoPubAppleClient/Resources/WhatsNew/entries/` (newest first),
 then the frozen legacy `whats-new.json`. A manual run can override it in the workflow
-input. Local Fastlane falls back to `CHANGELOG.md` then `git log`.
+input. Local Fastlane falls back to `git log` when What's New is empty (no CHANGELOG.md).
 
 If required secrets are missing the workflow **skips with a notice** and stays green.
 It does not fail the run.
