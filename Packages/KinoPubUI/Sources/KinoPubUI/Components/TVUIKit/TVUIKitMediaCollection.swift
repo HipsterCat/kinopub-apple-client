@@ -499,7 +499,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSourcePrefetchin
   /// and prefetching the other one warms the wrong entry.
   private func artworkURL(for card: MediaCard) -> URL? {
     let string = isLandscape
-      ? (card.landscapeImageURL ?? card.backdropURL ?? card.posterURL)
+      ? (card.landscapeArtworkURL ?? card.backdropURL ?? card.posterURL)
       : card.coverURL
     return URL(string: string)
   }

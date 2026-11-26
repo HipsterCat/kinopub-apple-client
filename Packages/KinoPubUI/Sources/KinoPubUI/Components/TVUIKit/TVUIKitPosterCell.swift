@@ -30,6 +30,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
+  /// Rungs after `currentURL` (`MediaCard.artworkLadder`): tried in order when it fails.
+  private var fallbackURLs: [URL] = []
   private var tileWidth: CGFloat = 260
   /// The box the artwork is decoded into — see `TVUIKitRemoteImage.load(url:size:)`.
   private var posterSize = CGSize(width: 260, height: 394)
@@ -169,7 +171,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     if let notice = card.unavailableNotice {
       accessibilityLabel = "\(card.title). \(notice)"
     }
-    loadImage(from: URL(string: card.coverURL))
+    loadImage(from: card.coverLadder)
   }
 
   /// Size the lockup from the layout item, not a SwiftUI-passed point size.
@@ -191,7 +193,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     posterSize = size
     posterView.contentSize = size
     if reloadIfChanged, let url = currentURL {
-      loadImage(from: url)
+      loadImage(from: [url] + fallbackURLs)
     }
   }
 
@@ -231,10 +233,14 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     return blur
   }
 
-  private func loadImage(from url: URL?) {
+  /// `ladder` is the worker's poster, then the direct covers: the next one only when the
+  /// one before fails, the placeholder under the wait (one picture per tile).
+  private func loadImage(from ladder: [URL]) {
     imageTask?.cancel()
     imageTask = nil
+    let url = ladder.first
     currentURL = url
+    fallbackURLs = Array(ladder.dropFirst())
     guard let url else {
       posterView.image = nil
       placeholderPanel.isHidden = false
@@ -264,8 +270,13 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     placeholderPanel.isHidden = false
     ArtworkLog.requested(url, by: "poster")
     let size = posterSize
+    let rungs = [url] + fallbackURLs
     imageTask = Task { [weak self] in
-      let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: .fit)
+      var image: UIImage?
+      for rung in rungs {
+        image = await TVUIKitRemoteImage.load(url: rung, size: size, mode: .fit)
+        if image != nil || Task.isCancelled { break }
+      }
       await MainActor.run {
         guard let self, self.currentURL == url else { return }
         let usable = image.flatMap { Self.isPortraitPoster($0) ? $0 : nil }
@@ -291,6 +302,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
+    fallbackURLs = []
     posterView.image = nil
     posterView.alpha = 1
     placeholderPanel.isHidden = false

@@ -122,7 +122,7 @@ public extension MediaCard {
       if let pointer = pointerArtwork(images: images, points: points, scale: scale) {
         return pointer.primary
       }
-      if let landscape = landscapeImageURL, !landscape.isEmpty {
+      if let landscape = landscapeArtworkURL, !landscape.isEmpty {
         return URL(string: landscape)
       }
       if surface == .episodeRail, let cover = coverURL.isEmpty ? nil : coverURL {
@@ -134,7 +134,7 @@ public extension MediaCard {
       if let backdrop = backdropURL, !backdrop.isEmpty {
         return URL(string: backdrop)
       }
-      if let landscape = landscapeImageURL, !landscape.isEmpty {
+      if let landscape = landscapeArtworkURL, !landscape.isEmpty {
         return URL(string: landscape)
       }
       return coverURL.isEmpty ? nil : URL(string: coverURL)

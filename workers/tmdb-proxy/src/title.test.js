@@ -385,16 +385,97 @@ test("Russian poster without a Kinopoisk id uses the TMDB ru file", async () => 
   assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg");
 });
 
-test("Russian poster does not fall back to an English one", async () => {
+test("Russian poster with nothing Russian falls back to an English one", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }] },
     },
   });
   const response = await handleImage(imageRequest("poster", { query: "lang=ru" }), env, ctxSpy());
-  assert.equal(response.status, 404);
-  assert.equal(response.headers.get("location"), null);
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg");
   assert.equal(response.headers.get("vary"), "Accept-Language");
+});
+
+const KINOPUB_POSTER = "https://m.staticpop.net/poster/item/big/82852.jpg";
+
+test("Russian poster: kino.pub src is the last rung in the language", async () => {
+  const src = `src=${encodeURIComponent(KINOPUB_POSTER)}`;
+  const withRu = kvEnv({
+    "title:kinopub:82852": {
+      ids: { kinopoisk: { value: "326" } },
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" }] },
+    },
+  });
+  const first = await handleImage(imageRequest("poster", { query: `w=600&${src}` }), withRu, ctxSpy());
+  assert.equal(first.status, 302);
+  // The 302 carries src so the stamped proxy can walk the same chain.
+  assert.match(first.headers.get("location"), /\/ru\/poster\.jpg\?w=600&src=/);
+
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const noRu = kvEnv({
+      "title:kinopub:82852": {
+        artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }] },
+      },
+    });
+    const stamped = await handleImage(
+      new Request(`https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600&${src}`),
+      noRu, ctxSpy(),
+    );
+    assert.equal(stamped.status, 200);
+    assert.equal(fetched.length, 1);
+    assert.ok(fetched[0].includes(encodeURIComponent(KINOPUB_POSTER)), fetched[0]);
+    assert.ok(fetched[0].startsWith("https://wsrv.nl/"));
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("stamped poster walks past a dead Kinopoisk file to kino.pub", async () => {
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    const url = String(target);
+    fetched.push(url);
+    if (url.includes("kinopoiskapiunofficial")) return new Response("down", { status: 502 });
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const env = kvEnv({ "title:kinopub:82852": { ids: { kinopoisk: { value: "326" } }, artwork: {} } });
+    const src = encodeURIComponent(KINOPUB_POSTER);
+    const response = await handleImage(
+      new Request(`https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600&src=${src}`),
+      env, ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-language"), "ru");
+    // Kinopoisk through weserv, then Kinopoisk direct, then kino.pub.
+    assert.equal(fetched.length, 3);
+    assert.ok(fetched[2].includes("staticpop"), fetched[2]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("lang=en on the query wins over a missing Accept-Language", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        poster: [
+          { source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" },
+          { source: "tmdb", url: TMDB_POSTER_EN, lang: "en" },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("poster", { query: "lang=en" }), env, ctxSpy());
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg");
 });
 
 test("English poster uses the TMDB en file and not the Kinopoisk one", async () => {
@@ -981,5 +1062,75 @@ test("without a manual tmdb id, resolve still finds by imdb", async () => {
     assert.ok(calls.some((url) => url.includes("/3/find/tt4573370")));
   } finally {
     globalThis.fetch = original;
+  }
+});
+
+const KINOPUB_WIDE_SRC = "https://m.staticpop.net/poster/item/wide/82852.jpg";
+
+test("wide card cover with src: language cover, then textless backdrop, then kino.pub wide", async () => {
+  const src = `src=${encodeURIComponent(KINOPUB_WIDE_SRC)}`;
+  const textless = { source: "tmdb", url: "https://image.tmdb.org/t/p/original/textless.jpg", lang: null, width: 3840, height: 2160 };
+  const withBackdrop = kvEnv({ "title:kinopub:82852": { artwork: { backdrop: [textless] } } });
+  const toBackdrop = await handleImage(imageRequest("cover", { query: `w=780&${src}` }), withBackdrop, ctxSpy());
+  assert.equal(toBackdrop.status, 302);
+  assert.match(toBackdrop.headers.get("location"), /\/img\/cover\/by\/kinopub\/82852\/und\/cover\.jpg\?w=780&src=/);
+
+  const bare = kvEnv({ "title:kinopub:82852": { artwork: {} } });
+  const toWide = await handleImage(imageRequest("cover", { query: `w=780&${src}` }), bare, ctxSpy());
+  assert.equal(toWide.status, 302);
+  assert.match(toWide.headers.get("location"), /\/ru\/cover\.jpg\?w=780&src=/);
+
+  const strict = await handleImage(imageRequest("cover", { query: "w=780" }), withBackdrop, ctxSpy());
+  assert.equal(strict.status, 404);
+
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const stamped = await handleImage(
+      new Request(`https://example.test/img/cover/by/kinopub/82852/und/cover.jpg?w=780&${src}`),
+      withBackdrop, ctxSpy(),
+    );
+    assert.equal(stamped.status, 200);
+    assert.equal(stamped.headers.get("content-language"), "und");
+    assert.ok(fetched[0].startsWith("https://wsrv.nl/") && fetched[0].includes("textless"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("stamped Russian poster: TMDB, then tvoe, then Kinopoisk", async () => {
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const env = kvEnv({
+      "title:kinopub:82852": {
+        ids: { kinopoisk: { value: "326" } },
+        artwork: { poster: [
+          { source: "tvoe", url: TVOE_POSTER, lang: "ru" },
+          { source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" },
+        ] },
+      },
+    });
+    await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), env, ctxSpy());
+    assert.ok(fetched[0].includes("poster-ru.jpg"), fetched[0]);
+    const noTmdb = kvEnv({
+      "title:kinopub:82852": {
+        ids: { kinopoisk: { value: "326" } },
+        artwork: { poster: [{ source: "tvoe", url: TVOE_POSTER, lang: "ru" }] },
+      },
+    });
+    fetched.length = 0;
+    await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), noTmdb, ctxSpy());
+    assert.ok(fetched[0].includes("static.cdn.tvoe.live"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
   }
 });
