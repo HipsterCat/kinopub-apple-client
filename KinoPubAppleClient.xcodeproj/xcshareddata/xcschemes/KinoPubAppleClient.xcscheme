@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "CC88E1E02A6586E600E9387F"
-               BuildableName = "KinoPub.app"
+               BuildableName = "Piratic.app"
                BlueprintName = "KinoPubAppleClient"
                ReferencedContainer = "container:KinoPubAppleClient.xcodeproj">
             </BuildableReference>
@@ -94,7 +94,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CC88E1E02A6586E600E9387F"
-            BuildableName = "KinoPub.app"
+            BuildableName = "Piratic.app"
             BlueprintName = "KinoPubAppleClient"
             ReferencedContainer = "container:KinoPubAppleClient.xcodeproj">
          </BuildableReference>
@@ -111,7 +111,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CC88E1E02A6586E600E9387F"
-            BuildableName = "KinoPub.app"
+            BuildableName = "Piratic.app"
             BlueprintName = "KinoPubAppleClient"
             ReferencedContainer = "container:KinoPubAppleClient.xcodeproj">
          </BuildableReference>
