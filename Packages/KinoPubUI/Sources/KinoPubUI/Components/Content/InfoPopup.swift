@@ -210,8 +210,6 @@ public struct InfoPopupView<Content: View>: View {
         panelBody
       }
       .scrollBounceBehavior(.basedOnSize)
-      // The soft edge left the bullets legible under the title and subtitle.
-      .scrollEdgeEffectStyle(.hard, for: .top)
       .navigationTitle(title)
       .modifier(OptionalNavigationSubtitle(subtitle: subtitle))
       .navigationBarTitleDisplayMode(.inline)
