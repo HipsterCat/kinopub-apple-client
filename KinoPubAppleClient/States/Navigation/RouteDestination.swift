@@ -47,7 +47,7 @@ struct RouteDestination: View {
     switch route {
     case .details(let item):
       detailsView(for: item.id, knownItem: item)
-    case .detailsById(let id):
+    case .detailsById(let id), .detailsFromBanner(let id):
       detailsView(for: id)
     case .history:
       HistoryView()
@@ -234,6 +234,9 @@ extension Route {
       return "media-\(item.id)"
     case .detailsById(let id):
       return "media-\(id)"
+    case .detailsFromBanner:
+      // Banner opens intentionally skip zoom — see `Route.detailsFromBanner`.
+      return nil
     case .person(let person):
       return "person-\(person.id)"
     case .ratingsAndReviews(let payload):
@@ -267,7 +270,7 @@ final class MediaItemModelCache {
     Set(routes.compactMap { route -> Int? in
       switch route {
       case .details(let item): item.id
-      case .detailsById(let id): id
+      case .detailsById(let id), .detailsFromBanner(let id): id
       default: nil
       }
     })

@@ -16,6 +16,11 @@ enum Route: Hashable {
   case details(MediaItem)
   /// Watching endpoints / cards often carry only an id and artwork.
   case detailsById(Int)
+  /// Same title page as `detailsById`, without `.navigationTransition(.zoom)`.
+  /// Home banner taps have no matched source of their own; zooming from a shelf
+  /// poster behind the banner produced `CVPixelBufferCreate … -6680` (250×375 RGBA)
+  /// on iPhone Duo (Sasha, 2026-11-26).
+  case detailsFromBanner(Int)
   case history
   case bookmark(Bookmark)
   case seasons([Season])
@@ -62,7 +67,7 @@ enum Route: Hashable {
   var detailsItemID: Int? {
     switch self {
     case .details(let item): item.id
-    case .detailsById(let id): id
+    case .detailsById(let id), .detailsFromBanner(let id): id
     default: nil
     }
   }
@@ -73,6 +78,10 @@ enum Route: Hashable {
       hasher.combine(0)
       hasher.combine(item)
     case .detailsById(let id):
+      hasher.combine(1)
+      hasher.combine(id)
+    case .detailsFromBanner(let id):
+      // Same destination identity as `detailsById` — zoom is presentation only.
       hasher.combine(1)
       hasher.combine(id)
     case .history:
@@ -135,7 +144,10 @@ enum Route: Hashable {
     switch (lhs, rhs) {
     case (.details(let a), .details(let b)):
       return a == b
-    case (.detailsById(let a), .detailsById(let b)):
+    case (.detailsById(let a), .detailsById(let b)),
+         (.detailsFromBanner(let a), .detailsFromBanner(let b)),
+         (.detailsById(let a), .detailsFromBanner(let b)),
+         (.detailsFromBanner(let a), .detailsById(let b)):
       return a == b
     case (.history, .history):
       return true
@@ -535,7 +547,8 @@ extension Route {
   var backdrop: RouteBackdrop {
     switch self {
     case .details(let item): .picture(Self.backdropKey(itemID: item.id))
-    case .detailsById(let id): .picture(Self.backdropKey(itemID: id))
+    case .detailsById(let id), .detailsFromBanner(let id):
+      .picture(Self.backdropKey(itemID: id))
     // A title's own sub-page stays on the title's picture.
     case .ratingsAndReviews(let block): .picture(Self.backdropKey(itemID: block.item.id))
     case .castAndCrew(let block): .picture(Self.backdropKey(itemID: block.item.id))

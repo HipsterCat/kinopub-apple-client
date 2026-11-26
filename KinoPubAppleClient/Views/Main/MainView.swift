@@ -146,8 +146,10 @@ struct MainView: View {
         }
         guard let card = item.card, card.id > 0 else { return }
         // The hero's Details opens the title, whatever a card's own Select would do.
+        // No zoom: the banner has no matched source; a shelf poster behind it would
+        // be the zoom origin and crashed on iPhone Duo (CVPixelBuffer -6680).
         if section.id == Self.heroSectionID {
-          navigationState.push(Route.detailsById(card.itemID))
+          navigationState.push(Route.detailsFromBanner(card.itemID))
           return
         }
         if card.primaryAction == .play {
@@ -477,7 +479,8 @@ struct MainView: View {
         cardMenu.play(card) { navigationState.push($0) }
       },
       onHeroDetails: { card in
-        navigationState.push(Route.detailsById(card.itemID))
+        // Plain push — see `Route.detailsFromBanner` (Duo zoom crash from shelf poster).
+        navigationState.push(Route.detailsFromBanner(card.itemID))
       },
       heroBookmarkEntries: { card in
         menuEntries(for: card, surface: .banner, isContinueWatching: false)
