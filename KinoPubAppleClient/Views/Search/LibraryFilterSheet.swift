@@ -39,8 +39,8 @@ struct LibraryFilterSheet<Catalog: FilterBarDriver>: View {
         .navigationTitle("Filter_And_Sort")
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-#endif
         .toolbar { sheetToolbar(isRoot: true) }
+#endif
         .safeAreaInset(edge: .bottom) {
           if draft.hasActiveFilters {
             clearBar
@@ -52,6 +52,16 @@ struct LibraryFilterSheet<Catalog: FilterBarDriver>: View {
         }
     }
 #if os(macOS)
+    // Text Close / Done in a sheet-owned bottom bar — SF Symbol toolbar slots on
+    // macOS looked like broken dialog buttons (Sasha, 2026-11-26).
+    .sheetCloseAndSave(
+      close: {
+        Button { dismiss() } label: { SheetCloseLabel() }
+      },
+      save: {
+        Button { applyAndDismiss() } label: { SheetConfirmLabel("Done") }
+      }
+    )
     .frame(minWidth: 420, idealWidth: 460, minHeight: 560)
 #endif
   }
@@ -170,9 +180,8 @@ struct LibraryFilterSheet<Catalog: FilterBarDriver>: View {
           path.removeLast()
         }
       } label: {
-        Image(systemName: "xmark")
+        SheetCloseLabel(isRoot ? "Close" : "Back")
       }
-      .accessibilityLabel(Text("Close"))
     }
     ToolbarItem(placement: .confirmationAction) {
       Button {
@@ -182,10 +191,9 @@ struct LibraryFilterSheet<Catalog: FilterBarDriver>: View {
           path.removeLast()
         }
       } label: {
-        Image(systemName: "checkmark")
+        SheetConfirmLabel("Done")
       }
       .fontWeight(.semibold)
-      .accessibilityLabel(Text("Done"))
     }
   }
 

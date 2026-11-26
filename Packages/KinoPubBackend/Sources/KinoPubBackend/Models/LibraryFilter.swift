@@ -342,7 +342,8 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var hasActiveFilters: Bool { activeFilterCount > 0 }
 
   /// How many filter groups are narrowing the list — the badge on «Filters».
-  /// Sort direction alone does not count.
+  /// Sort direction alone does not count. Quality is one group: the 4K preset
+  /// sets both `want4K` and `minimumQuality == .uhd4K`, which must not count twice.
   public var activeFilterCount: Int {
     var count = 0
     if contentType != nil || !contentTypes.isEmpty || !kinds.isEmpty { count += 1 }
@@ -352,10 +353,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     if period != nil { count += 1 }
     if finishedOnly { count += 1 }
     if kinopoiskMin != nil || kinopoiskMax != nil || imdbMin != nil || imdbMax != nil { count += 1 }
-    if minimumQuality != nil { count += 1 }
-    if wantHD { count += 1 }
-    if want4K { count += 1 }
-    if withoutHD { count += 1 }
+    if minimumQuality != nil || wantHD || want4K || withoutHD { count += 1 }
     if wantAC3 { count += 1 }
     if withoutAdverts { count += 1 }
     return count

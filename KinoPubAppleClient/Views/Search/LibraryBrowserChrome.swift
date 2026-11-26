@@ -2,9 +2,9 @@
 //  LibraryBrowserChrome.swift
 //  KinoPubAppleClient
 //
-//  Catalog / listing chrome: Files-style view Menu (grid/list + sort), a clean
-//  Filters toolbar button, and Notes-style count copy for `.navigationSubtitle`
-//  under the title (Catalog and category screens — not the Search tab root).
+//  Catalog / listing chrome: layout Menu (grid/list), Filters button, separate
+//  Sort menu (arrows, trailing), and Notes-style count for `.navigationSubtitle`
+//  under the title (Catalog and category screens — not the empty Search root).
 //  Sort also lives in the Filter & Sort sheet (field + direction).
 //
 
@@ -44,63 +44,23 @@ enum LibraryBrowserSubtitle {
   }
 }
 
-/// Trailing toolbar Menu: layout (grid / list) + sort field + direction.
-/// Icon is the current layout — no segmented control, no nested glass chrome.
-struct LibraryViewOptionsMenu<Catalog: FilterBarDriver>: View {
-  @ObservedObject var catalog: Catalog
-  var includesSort = true
+/// Trailing toolbar Menu: posters / list only. Sort is a separate control.
+struct LibraryViewOptionsMenu: View {
   @AppStorage(MediaGridLayout.storageKey) private var layoutRaw = MediaGridLayout.posters.rawValue
 
   private var currentLayout: MediaGridLayout { MediaGridLayout.resolved(from: layoutRaw) }
 
   var body: some View {
     Menu {
-      Section {
-        Picker(selection: layoutBinding) {
-          ForEach(MediaGridLayout.allCases) { layout in
-            Label(LocalizedStringKey(layout.titleKey), systemImage: layout.systemImage)
-              .tag(layout.rawValue)
-          }
-        } label: {
-          Text("View Options")
+      Picker(selection: layoutBinding) {
+        ForEach(MediaGridLayout.allCases) { layout in
+          Label(LocalizedStringKey(layout.titleKey), systemImage: layout.systemImage)
+            .tag(layout.rawValue)
         }
-        .pickerStyle(.inline)
+      } label: {
+        Text("View Options")
       }
-
-      if includesSort {
-        Section {
-          Picker(selection: sortBinding) {
-            ForEach(MediaSortOrder.allCases) { order in
-              Text(LocalizedStringKey(order.titleKey)).tag(order)
-            }
-          } label: {
-            Text("Sort_By")
-          }
-          .pickerStyle(.inline)
-
-          Button {
-            catalog.update { $0.sortDescending = true }
-          } label: {
-            if catalog.filter.sortDescending {
-              Label(LocalizedStringKey(catalog.filter.sort.descendingTitleKey),
-                    systemImage: "checkmark")
-            } else {
-              Text(LocalizedStringKey(catalog.filter.sort.descendingTitleKey))
-            }
-          }
-
-          Button {
-            catalog.update { $0.sortDescending = false }
-          } label: {
-            if !catalog.filter.sortDescending {
-              Label(LocalizedStringKey(catalog.filter.sort.ascendingTitleKey),
-                    systemImage: "checkmark")
-            } else {
-              Text(LocalizedStringKey(catalog.filter.sort.ascendingTitleKey))
-            }
-          }
-        }
-      }
+      .pickerStyle(.inline)
     } label: {
       Label(LocalizedStringKey(currentLayout.titleKey), systemImage: currentLayout.systemImage)
         .labelStyle(.iconOnly)
@@ -114,6 +74,59 @@ struct LibraryViewOptionsMenu<Catalog: FilterBarDriver>: View {
       get: { MediaGridLayout.resolved(from: layoutRaw).rawValue },
       set: { layoutRaw = $0 }
     )
+  }
+}
+
+/// Sort as its own trailing toolbar Menu — `arrow.up.arrow.down`, far right.
+/// No nested `.glass` / `.bordered` (toolbar Liquid Glass is the system’s).
+struct LibrarySortMenu<Catalog: FilterBarDriver>: View {
+  @ObservedObject var catalog: Catalog
+  var showsTitle = true
+
+  var body: some View {
+    Menu {
+      Picker(selection: sortBinding) {
+        ForEach(MediaSortOrder.allCases) { order in
+          Text(LocalizedStringKey(order.titleKey)).tag(order)
+        }
+      } label: {
+        Text("Sort_By")
+      }
+      .pickerStyle(.inline)
+
+      Button {
+        catalog.update { $0.sortDescending = true }
+      } label: {
+        if catalog.filter.sortDescending {
+          Label(LocalizedStringKey(catalog.filter.sort.descendingTitleKey),
+                systemImage: "checkmark")
+        } else {
+          Text(LocalizedStringKey(catalog.filter.sort.descendingTitleKey))
+        }
+      }
+
+      Button {
+        catalog.update { $0.sortDescending = false }
+      } label: {
+        if !catalog.filter.sortDescending {
+          Label(LocalizedStringKey(catalog.filter.sort.ascendingTitleKey),
+                systemImage: "checkmark")
+        } else {
+          Text(LocalizedStringKey(catalog.filter.sort.ascendingTitleKey))
+        }
+      }
+    } label: {
+      if showsTitle {
+        Label(LocalizedStringKey(catalog.filter.sort.titleKey),
+              systemImage: "arrow.up.arrow.down")
+          .labelStyle(.titleAndIcon)
+          .lineLimit(1)
+      } else {
+        Label("Sort_By", systemImage: "arrow.up.arrow.down")
+          .labelStyle(.iconOnly)
+      }
+    }
+    .help(Text("Sort_By"))
   }
 
   private var sortBinding: Binding<MediaSortOrder> {
@@ -164,8 +177,9 @@ enum LibrarySearchScope: String, CaseIterable, Identifiable, Hashable {
   }
 }
 
-/// Native toolbar Filters control — filled symbol + system badge when active.
-/// No nested capsule, no `.glass` / `.bordered` (toolbar Liquid Glass is the system’s).
+/// Native toolbar Filters control.
+/// Idle: plain three-line glyph. Active: filled circle + system badge.
+/// No nested capsule, no `.glass` / `.bordered`.
 struct LibraryFiltersButton: View {
   let activeCount: Int
   let action: () -> Void
@@ -174,7 +188,7 @@ struct LibraryFiltersButton: View {
   private var symbol: String {
     activeCount > 0
       ? "line.3.horizontal.decrease.circle.fill"
-      : "line.3.horizontal.decrease.circle"
+      : "line.3.horizontal.decrease"
   }
 
   var body: some View {

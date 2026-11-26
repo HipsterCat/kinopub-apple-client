@@ -63,6 +63,7 @@ struct PersonItemsView: View {
     .platformNavigationTitle(resolvedPerson.name)
 #endif
 #if !os(tvOS)
+    .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
     .toolbar { LibraryFiltersToolbar(catalog: catalog, showingFilters: $showingFilters) }
     .catalogGridChrome()
     .sheet(isPresented: $showingFilters) {

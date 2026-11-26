@@ -471,9 +471,8 @@ struct LibraryFilterGlassStyle: ViewModifier {
 #endif
 
 #if !os(tvOS)
-/// The listing pages' toolbar: one Files-style view Menu (grid/list + sort),
-/// plus a clean Filters button when the page can filter. Attach before
-/// `.catalogGridChrome()`.
+/// The listing pages' toolbar: layout Menu, Filters, then Sort (arrows) farthest
+/// trailing — Mac-style. Attach before `.catalogGridChrome()`.
 struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
   @ObservedObject var catalog: Catalog
   var chrome: LibraryFiltersBarChrome = .full
@@ -482,7 +481,7 @@ struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
 
   var body: some ToolbarContent {
     ToolbarItem(placement: .primaryAction) {
-      LibraryViewOptionsMenu(catalog: catalog, includesSort: chrome != .layoutOnly)
+      LibraryViewOptionsMenu()
     }
     if chrome == .full {
       ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -492,6 +491,12 @@ struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
           action: { showingFilters = true },
           showsTitle: showsLabels
         )
+      }
+    }
+    if chrome != .layoutOnly {
+      ToolbarSpacer(.fixed, placement: .primaryAction)
+      ToolbarItem(placement: .primaryAction) {
+        LibrarySortMenu(catalog: catalog, showsTitle: showsLabels)
       }
     }
   }

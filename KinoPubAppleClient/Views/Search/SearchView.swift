@@ -567,8 +567,9 @@ struct SearchView: View {
       .platformNavigationTitle(navigationTitleText)
 #endif
 #if !os(tvOS)
-      // No «Всего N» under Search — native Search tabs leave the title alone (KP-53).
-      // Catalog / category screens still use `LibraryBrowserSubtitle` where a count helps.
+      // Notes-style count under the title (Всего / Найдено) — restored on Mac + iPad
+      // (Sasha, 2026-11-26). Search scopes stay under the centered field.
+      .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
       .toolbar {
         LibraryFiltersToolbar(catalog: catalog,
                               chrome: .full,
