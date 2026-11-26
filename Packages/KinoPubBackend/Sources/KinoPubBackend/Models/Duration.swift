@@ -10,6 +10,11 @@ import Foundation
 public struct Duration: Codable, Hashable, Sendable {
   public let average: Double
   public let total: TimeInterval
+
+  public init(average: Double, total: TimeInterval) {
+    self.average = average
+    self.total = total
+  }
 }
 
 public extension Duration {

@@ -14,7 +14,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>piratic</string>
-				<string>piratic</string>
 			</array>
 		</dict>
 	</array>

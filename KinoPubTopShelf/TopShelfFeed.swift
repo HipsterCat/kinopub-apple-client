@@ -66,14 +66,14 @@ struct TopShelfFeed: Codable, Equatable, Sendable {
   }
 }
 
-/// `kinopub://` — the links a Top Shelf item carries into the app.
+/// `piratic://` — the links a Top Shelf item carries into the app.
 enum TopShelfLink: Equatable, Sendable {
   /// The title's detail page.
   case title(Int)
   /// Resume what the Continue Watching card offers; the detail page when it is gone.
   case play(Int)
 
-  static let scheme = "kinopub"
+  static let scheme = "piratic"
 
   var url: URL {
     switch self {
