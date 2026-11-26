@@ -276,16 +276,20 @@ public struct InfoPopupView<Content: View>: View {
       .frame(maxWidth: .infinity)
       .padding(.horizontal, 48)
       .padding(.top, 4)
-      // Outside a toolbar `Button(role: .close)` draws its title («Закрыть»), not the
-      // xmark, so the glyph is given; `.bordered` + circle as the title page's round
-      // Mac buttons (`.glass` took the app's primary tint and filled solid).
+      // The Notes sheet's glass xmark. Outside a toolbar `Button(role: .close)` draws its
+      // title («Закрыть») instead of the glyph, and `.buttonStyle(.glass)` takes the
+      // app-wide `.tint(.primary)` as a solid fill, so the glass is the plain
+      // interactive effect on a circle and the glyph is given.
       Button(role: .close, action: close) {
         Label("Close", systemImage: "xmark")
           .labelStyle(.iconOnly)
+          .font(.title3.weight(.medium))
+          .foregroundStyle(.primary)
+          .padding(9)
+          .contentShape(Circle())
       }
-      .buttonStyle(.bordered)
-      .buttonBorderShape(.circle)
-      .controlSize(.large)
+      .buttonStyle(.plain)
+      .glassEffect(.regular.interactive(), in: Circle())
       .keyboardShortcut(.cancelAction)
     }
     .padding(.horizontal, 14)
