@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1C0DE12A1C0DE12A1C0DE12 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DE11A1C0DE11A1C0DE11 /* AppIcon.icon */; platformFilters = (ios, macos, ); };
+		A1C0DE12A1C0DE12A1C0DE12 /* piratic.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1C0DE11A1C0DE11A1C0DE11 /* piratic.icon */; platformFilters = (ios, macos, ); };
 		359DD2A38E0D04476107D7C7 /* RecentPlaybacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B873CB019BF4013103069436 /* RecentPlaybacks.swift */; };
 		36E9876B86969455D5EF919F /* DetailsEnrichmentPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */; };
 		3A6805CCB72B490A8726A8B2 /* TitleInfoStripFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2EBA0303824E6086535510 /* TitleInfoStripFacts.swift */; };
@@ -341,7 +341,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A1C0DE11A1C0DE11A1C0DE11 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		A1C0DE11A1C0DE11A1C0DE11 /* piratic.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = piratic.icon; sourceTree = "<group>"; };
 		117A0A41DE9112721135C3B5 /* MacPlayerWindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlayerWindowChrome.swift; sourceTree = "<group>"; };
 		17FCCB323F2576391511C447 /* MediaCardContextMenuWatchedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCardContextMenuWatchedTests.swift; sourceTree = "<group>"; };
 		1EDB51765D6FC30709AED0C4 /* DetailsEnrichmentPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsEnrichmentPreferences.swift; sourceTree = "<group>"; };
@@ -1428,7 +1428,7 @@
 			isa = PBXGroup;
 			children = (
 				CC23E461CC1B64381860E16B /* KinoPubAppleClient.entitlements */,
-				A1C0DE11A1C0DE11A1C0DE11 /* AppIcon.icon */,
+				A1C0DE11A1C0DE11A1C0DE11 /* piratic.icon */,
 				E0E27618A2D2A8FEBDD49F35 /* Assets.xcassets */,
 				ADAAD396863FF3B1CBC5D31F /* Launch Screen.storyboard */,
 				C56C499462BBFDE31A946813 /* Localizable.xcstrings */,
@@ -1671,7 +1671,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1C0DE12A1C0DE12A1C0DE12 /* AppIcon.icon in Resources */,
+				A1C0DE12A1C0DE12A1C0DE12 /* piratic.icon in Resources */,
 				CAAD58540D135892E75BD7E6 /* Assets.xcassets in Resources */,
 				FEA50411EDE4A205449B753D /* Launch Screen.storyboard in Resources */,
 				BC756C9FA5C365E31DD4F875 /* Localizable.xcstrings in Resources */,
@@ -2236,7 +2236,9 @@
 		CC88E1F12A6586E700E9387F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = piratic;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]" = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "KinoPubAppleClient/Resources/KinoPubAppleClient-Debug.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=appletvos*]" = "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements";
@@ -2289,7 +2291,9 @@
 		CC88E1F22A6586E700E9387F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = piratic;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]" = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = KinoPubAppleClient/Resources/KinoPubAppleClient.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=appletvos*]" = "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements";
