@@ -5,9 +5,6 @@ public enum TMDBImageSize: String, Sendable {
   case profileW342 = "w342"
   case logoW500 = "w500"
   case stillW300 = "w300"
-  /// Media CDN face crop — plain `/t/p/w440/` 404s; use `w440_and_h660_face`
-  /// (e.g. `https://media.themoviedb.org/t/p/w440_and_h660_face/….jpg`).
-  case posterW440 = "w440_and_h660_face"
   case posterW780 = "w780"
   case backdropOriginal = "original"
 }
@@ -29,6 +26,14 @@ public enum TMDBImageURL {
       return URL(string: "\(base)/t/p/\(suffix)")
     }
     return URL(string: "\(cdnBase)\(suffix)")
+  }
+
+  /// External / unavailable filmography poster: `images.weserv.nl` wraps TMDB
+  /// **original** (any width via `w=`). Matched Kinopub titles use the worker
+  /// poster-by-id route instead — do not invent bare size tokens here.
+  public static func weservPoster(path: String?, width: Int = 454) -> URL? {
+    guard let source = url(path: path, size: .backdropOriginal) else { return nil }
+    return WeservImageURL.wrapping(source, width: width)
   }
 
   /// A card already carries absolute image URLs. `image.tmdb.org` goes through the

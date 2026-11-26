@@ -525,6 +525,56 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               kinopoiskID: kinopoiskID)
   }
 
+  /// Prefer the worker's `/img/poster/by/kinopub/{id}` over the listing's
+  /// staticpop URL (person filmography matched titles — Sasha, 2026-11-26).
+  public func withPosterURL(_ posterURL: String) -> MediaCard {
+    var card = MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
+              itemID: itemID,
+              video: video,
+              season: season,
+              seasonCount: seasonCount,
+              episodeCount: episodeCount,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              viewerState: viewerState,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              yearEnd: yearEnd,
+              unwatchedEpisodes: unwatchedEpisodes,
+              durationSeconds: durationSeconds,
+              genres: genres,
+              country: country,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
+    card.continuePeekHint = continuePeekHint
+    card.fallbackLandscapeURL = fallbackLandscapeURL
+    card.unavailableNotice = unavailableNotice
+    return card
+  }
+
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(Int.self, forKey: .id)

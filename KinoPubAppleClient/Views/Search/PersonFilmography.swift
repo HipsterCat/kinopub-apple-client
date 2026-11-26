@@ -106,12 +106,19 @@ enum PersonFilmography {
     return year > Calendar.current.component(.year, from: now)
   }
 
+  /// Poster pixel width for filmography tiles (weserv `w=` / worker preference).
+  static let posterPixelWidth = 454
+
   /// One chronological grid: Kinopub titles and TMDB-only cards interleaved by year.
   /// No second «Not on Kinopub» rail (Sasha, 2026-11-26).
+  ///
+  /// Matched Kinopub titles prefer `/img/poster/by/kinopub/{id}` (language on the
+  /// route) wrapped by `images.weserv.nl` — not bare TMDB size tokens.
   static func mergedTimeline(kinopubItems: [MediaItem],
                              externalCards: [MediaCard],
-                             descending: Bool) -> [MediaCard] {
-    let kinopub = kinopubItems.map { MediaCard($0) }
+                             descending: Bool,
+                             images: TitleImageRoute = TitleImageRoute(baseURL: nil)) -> [MediaCard] {
+    let kinopub = kinopubItems.map { kinopubCard($0, images: images) }
     return (kinopub + externalCards).sorted { a, b in
       let ya = a.year ?? 0
       let yb = b.year ?? 0
@@ -124,6 +131,22 @@ enum PersonFilmography {
       if aKinopub != bKinopub { return aKinopub && !bKinopub }
       return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
     }
+  }
+
+  /// Worker poster-by-id (with route language) → `images.weserv.nl`; falls back to
+  /// the listing's staticpop URL when the worker is not configured.
+  static func kinopubCard(_ item: MediaItem, images: TitleImageRoute) -> MediaCard {
+    let base = MediaCard(item)
+    guard images.isConfigured,
+          let worker = images.url(
+            .poster,
+            kinopubID: item.id,
+            imdb: item.imdb,
+            width: nil
+          )
+    else { return base }
+    let wrapped = WeservImageURL.wrapping(worker, width: posterPixelWidth)
+    return base.withPosterURL(wrapped.absoluteString)
   }
 
   private static func normalize(_ title: String) -> String {
