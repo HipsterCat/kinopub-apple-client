@@ -154,7 +154,7 @@ final class WorkerPosterRouteTests: XCTestCase {
     XCTAssertEqual(query["w"], "780")
     XCTAssertEqual(query["lang"], "ru")
     XCTAssertEqual(query["kinopoisk"], "16497")
-    XCTAssertEqual(query["src"], medium)
+    XCTAssertNil(query["src"])
     XCTAssertEqual(card.coverURL, ladder[0])
   }
 
@@ -185,7 +185,7 @@ final class WorkerWideCardTests: XCTestCase {
   }
 
   /// Sasha 2026-11-26: a wide title card is cover by language › backdrop › kino.pub wide.
-  func testATitleWideCardAsksTheWorkerCoverWithTheWideAsSource() throws {
+  func testATitleWideCardAsksTheWorkerWideCardChain() throws {
     let card = MediaCard(id: 1, posterURL: medium, title: "T", backdropURL: wide,
                          landscapeImageURL: wide)
     let ladder = card.artworkLadder.map(\.absoluteString)
@@ -194,7 +194,8 @@ final class WorkerWideCardTests: XCTestCase {
     XCTAssertEqual(worker.path, "/img/cover/by/kinopub/1")
     let query = Dictionary(uniqueKeysWithValues: (worker.queryItems ?? []).map { ($0.name, $0.value ?? "") })
     XCTAssertEqual(query["w"], "1280")
-    XCTAssertEqual(query["src"], wide)
+    XCTAssertEqual(query["wide"], "1")
+    XCTAssertEqual(query["kinopoisk"], nil)
   }
 
   func testAnEpisodeStillStaysAsItIs() {

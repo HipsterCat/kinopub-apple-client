@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { ARTWORK_RECHECK_MS, ARTWORK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
+import { RECHECK_MISSING_MS, RECHECK_NEW_MS, RECHECK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -385,7 +385,7 @@ test("Russian poster without a Kinopoisk id uses the TMDB ru file", async () => 
   assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg");
 });
 
-test("Russian poster with nothing Russian falls back to an English one", async () => {
+test("Russian poster with nothing Russian and kino.pub down falls back to an English one", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }] },
@@ -393,8 +393,25 @@ test("Russian poster with nothing Russian falls back to an English one", async (
   });
   const response = await handleImage(imageRequest("poster", { query: "lang=ru" }), env, ctxSpy());
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg");
+  // kino.pub's file (derived from the id) is the Russian rung.
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg");
   assert.equal(response.headers.get("vary"), "Accept-Language");
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    const url = String(target);
+    fetched.push(url);
+    if (url.includes("staticpop")) return new Response("down", { status: 502 });
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const stamped = await handleImage(new Request(response.headers.get("location")), env, ctxSpy());
+    assert.equal(stamped.status, 200);
+    assert.equal(stamped.headers.get("content-language"), "en");
+    assert.ok(fetched.at(-1).includes("poster-en.jpg"), fetched.at(-1));
+  } finally {
+    globalThis.fetch = restore;
+  }
 });
 
 const KINOPUB_POSTER = "https://m.staticpop.net/poster/item/big/82852.jpg";
@@ -490,11 +507,11 @@ test("English poster uses the TMDB en file and not the Kinopoisk one", async () 
   assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg?w=400");
 });
 
-test("poster with no better file 404s instead of echoing kino.pub, and still resolves", async () => {
+test("poster with no other file ends on kino.pub's own, derived from the id", async () => {
   const ctx = ctxSpy();
   const response = await handleImage(imageRequest("poster", { query: "w=100" }), kvEnv(), ctx);
-  assert.equal(response.status, 404);
-  assert.equal(response.headers.get("location"), null);
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=100");
   assert.equal(ctx.pending.length, 0);
 });
 
@@ -506,7 +523,7 @@ test("a Kinopoisk hint on a cold poster answers the Russian file", async () => {
   );
   assert.equal(
     response.headers.get("location"),
-    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?kinopoisk=326",
   );
 });
 
@@ -518,7 +535,7 @@ test("poster w under 360 uses the small Kinopoisk file", async () => {
   );
   assert.equal(
     response.headers.get("location"),
-    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=300",
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=300&kinopoisk=326",
   );
 });
 
@@ -873,21 +890,6 @@ test("the stamped logo URL asks weserv for the PNG twin of an SVG path", async (
   }
 });
 
-test("an empty logo locale is rechecked on a later request, after six hours", () => {
-  const recent = { pending: false, built_at: new Date().toISOString(), artwork: { logo: [] } };
-  const old = { pending: false, built_at: "2020-01-01T00:00:00.000Z", artwork: { logo: [] } };
-  const englishOnly = {
-    pending: false,
-    built_at: "2020-01-01T00:00:00.000Z",
-    artwork: { logo: [{ url: "https://example.test/a.png", lang: "en" }] },
-  };
-  assert.equal(logoRecheckDue(recent, "ru"), false);
-  assert.equal(logoRecheckDue(old, "ru"), true);
-  assert.equal(logoRecheckDue(englishOnly, "en"), false);
-  assert.equal(logoRecheckDue(englishOnly, "ru"), true);
-  assert.equal(logoRecheckDue(null, "ru"), false);
-});
-
 test("RuPaul S1E1 still is loaded from the season, not left as an empty episode list", async () => {
   const documents = {
     "title:kinopub:58162": {
@@ -1135,29 +1137,39 @@ test("stamped Russian poster: TMDB, then tvoe, then Kinopoisk", async () => {
   }
 });
 
-test("a missing Russian cover or poster is rechecked after a day, every document after a week", () => {
+test("recheck: new titles daily, older ones weekly when a language is missing, monthly anyway", () => {
   const now = Date.parse("2026-11-26T12:00:00Z");
   const at = (ms) => new Date(now - ms).toISOString();
-  const enOnly = (built) => ({
+  const doc = (built, released) => ({
     built_at: built,
+    released_at: released,
     artwork: {
       poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }],
+      logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en" }],
       backdrop: [{ source: "tmdb", url: TMDB_TITLED, lang: "en", width: 1920, height: 1080 }],
     },
   });
-  assert.equal(artworkRecheckDue(enOnly(at(60_000)), "cover", "ru", now), false);
-  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "cover", "ru", now), true);
-  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "poster", "ru", now), true);
-  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "poster", "en", now), false);
-  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_STALE_MS)), "poster", "en", now), true);
-  assert.equal(artworkRecheckDue({ ...enOnly(at(ARTWORK_STALE_MS)), pending: true }, "poster", "en", now), false);
+  const fresh = at(3 * RECHECK_NEW_MS);
+  const old = "2020-01-01";
+  // New title: everything after a day.
+  assert.equal(artworkRecheckDue(doc(at(60_000), fresh), "poster", "en", now), false);
+  assert.equal(artworkRecheckDue(doc(at(RECHECK_NEW_MS), fresh), "poster", "en", now), true);
+  // Old title, language missing: after a week, for logo, poster and cover alike.
+  for (const kind of ["logo", "poster", "cover"]) {
+    assert.equal(artworkRecheckDue(doc(at(RECHECK_NEW_MS), old), kind, "ru", now), false, kind);
+    assert.equal(artworkRecheckDue(doc(at(RECHECK_MISSING_MS), old), kind, "ru", now), true, kind);
+  }
+  // Old title, language present: only after a month.
+  assert.equal(artworkRecheckDue(doc(at(RECHECK_MISSING_MS), old), "logo", "en", now), false);
+  assert.equal(artworkRecheckDue(doc(at(RECHECK_STALE_MS), old), "logo", "en", now), true);
+  assert.equal(artworkRecheckDue({ ...doc(at(RECHECK_STALE_MS), old), pending: true }, "logo", "en", now), false);
 });
 
 test("a due recheck with a fallback on hand serves it and refreshes behind the response", async () => {
   const ctx = ctxSpy();
   const env = kvEnv({
     "title:kinopub:82853": {
-      built_at: new Date(Date.now() - ARTWORK_STALE_MS - 1000).toISOString(),
+      built_at: new Date(Date.now() - RECHECK_STALE_MS - 1000).toISOString(),
       artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" }] },
     },
   });
@@ -1210,6 +1222,27 @@ test("the stamped poster keeps the Kinopoisk hint so its rung comes before kino.
   try {
     await handleImage(new Request(location), env, ctxSpy());
     assert.ok(fetched[0].includes("kinopoiskapiunofficial.tech"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("wide=1 asks the wide-card chain with kino.pub's wide derived from the id", async () => {
+  const bare = kvEnv({ "title:kinopub:82852": { built_at: new Date().toISOString(), artwork: {} } });
+  const response = await handleImage(imageRequest("cover", { query: "w=780&lang=ru&wide=1" }), bare, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://example.test/img/cover/by/kinopub/82852/ru/cover.jpg?w=780&wide=1");
+  const strict = await handleImage(imageRequest("cover", { query: "w=780&lang=ru" }), bare, ctxSpy());
+  assert.equal(strict.status, 404);
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    await handleImage(new Request(response.headers.get("location")), bare, ctxSpy());
+    assert.ok(fetched[0].includes(encodeURIComponent("https://m.staticpop.net/poster/item/wide/82852.jpg")), fetched[0]);
   } finally {
     globalThis.fetch = restore;
   }
