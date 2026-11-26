@@ -91,7 +91,8 @@ enum PersonFilmography {
       // Future / unreleased (Avatar 5 · 2031): art often doesn't exist anywhere — a
       // «Not on Kinopub» chip would imply Kinopub alone is missing it (Sasha, 2026-11-26).
       if !isUnreleased(credit) {
-        card.unavailableNotice = String(localized: "Not on Kinopub")
+        // Same chip copy as the episode rail (`MediaItem_NotOnKinoPubChip` → «Нет на Кинопабе»).
+        card.unavailableNotice = "MediaItem_NotOnKinoPubChip".localized
       }
       out.append(card)
     }

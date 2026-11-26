@@ -31,7 +31,7 @@ final class PersonFilmographyTests: XCTestCase {
                                                 role: .actor, window: window)
     // 2024 matched; 2022 in window unmatched → unavailable; 2010 outside window → withheld.
     XCTAssertEqual(cards.map(\.title), ["Missing 2022"])
-    XCTAssertEqual(cards.first?.unavailableNotice, String(localized: "Not on Kinopub"))
+    XCTAssertEqual(cards.first?.unavailableNotice, "MediaItem_NotOnKinoPubChip".localized)
   }
 
   func testCompleteListingEmitsOutsideWindow() {
@@ -89,7 +89,7 @@ final class PersonFilmographyTests: XCTestCase {
     let missing = cards.first { $0.title == "Missing Now" }
     XCTAssertNotNil(avatar)
     XCTAssertNil(avatar?.unavailableNotice)
-    XCTAssertEqual(missing?.unavailableNotice, String(localized: "Not on Kinopub"))
+    XCTAssertEqual(missing?.unavailableNotice, "MediaItem_NotOnKinoPubChip".localized)
   }
 
   private func date(_ year: Int) -> Date {

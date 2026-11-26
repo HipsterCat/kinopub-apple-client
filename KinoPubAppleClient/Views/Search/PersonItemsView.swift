@@ -328,7 +328,7 @@ struct PersonItemsView: View {
 
   private var externalCreditsSection: some View {
     VStack(alignment: .leading, spacing: 8) {
-      SectionHeader("Not on Kinopub", count: "\(externalCards.count)")
+      SectionHeader("MediaItem_NotOnKinoPubChip".localized, count: "\(externalCards.count)")
         .padding(.horizontal, gridInset)
         .padding(.top, Self.verticalPadding)
       ScrollView(.horizontal, showsIndicators: false) {
