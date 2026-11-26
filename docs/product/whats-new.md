@@ -20,9 +20,9 @@ Version) in the leading corner; **Continue** («Продолжить») at the b
 outside also dismisses. The title sits in a material toolbar that fades in on scroll;
 the version line stays under it, top-aligned with the notes. Presentation is a large /
 page sheet on iOS and iPadOS (`presentationDetents([.large])` +
-`presentationSizing(.page)`), and a content-sized dimmed page-hosted panel on Mac
-(`InfoPopupHost`) that does not stretch a single bullet to full window height and does
-not let the page scroll behind it.
+`presentationSizing(.page)`), and a dimmed page-hosted panel on Mac (`InfoPopupHost`)
+that hugs short notes, scrolls long ones inside a height cap with a visible scrollbar,
+and does not let the page scroll behind it.
 
 **prd** — Detail info popups (synopsis, audio/video facts, …) use the same close control
 and the same large / page presentation on phone / pad.

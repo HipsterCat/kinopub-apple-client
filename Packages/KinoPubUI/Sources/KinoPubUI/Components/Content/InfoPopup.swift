@@ -117,7 +117,8 @@ private struct TVHeroSheetChrome: ViewModifier {
 /// `confirmTitle` adds a real button under the content: on tvOS What's New's «Готово»
 /// (entry focus; without it Menu alone dismisses); on iPhone / iPad / Mac
 /// «Продолжить» / Continue at the bottom, with the same leading cross as detail info.
-/// Short content hugs the panel on Mac; on phone / pad the large sheet stays top-aligned.
+/// Short content hugs the panel on Mac (`ViewThatFits`); long content scrolls inside a
+/// 560pt cap with a visible scrollbar. Phone / pad keep the large sheet top-aligned.
 public struct InfoPopupView<Content: View>: View {
   let title: Text
   let subtitle: Text?
@@ -198,24 +199,21 @@ public struct InfoPopupView<Content: View>: View {
 
 #if !os(tvOS)
   private var phonePadMacPanel: some View {
+#if os(macOS)
+    // Hug short notes; when the body is taller than the cap, ViewThatFits picks the
+    // scrolling panel. `.fixedSize` + ScrollView was wrong: the scroll view grew to
+    // its ideal height, the maxHeight clipped it, and nothing ever scrolled (Sasha,
+    // 2026-11-26 — no chrome fade, no scrollbar).
+    ViewThatFits(in: .vertical) {
+      macColumn(scrolling: false)
+      macColumn(scrolling: true)
+    }
+    .frame(maxHeight: 560)
+#else
     VStack(spacing: 0) {
       toolbarHeader
       ScrollView(.vertical) {
-        VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
-          if let subtitle {
-            subtitle
-              .font(.subheadline)
-              .foregroundStyle(Color.KinoPub.subtitle)
-              .multilineTextAlignment(.center)
-              .frame(maxWidth: .infinity)
-              .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
-          }
-          content()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, InfoPopupMetrics.padding)
-        .padding(.top, InfoPopupMetrics.padding * 0.35)
-        .padding(.bottom, InfoPopupMetrics.padding)
+        panelBody
       }
       .scrollBounceBehavior(.basedOnSize)
       .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
@@ -225,14 +223,52 @@ public struct InfoPopupView<Content: View>: View {
         continueButton(confirmTitle)
       }
     }
-    .frame(maxWidth: InfoPopupMetrics.maxWidth)
-#if os(macOS)
-    // Hug short notes; cap long ones — do not stretch one bullet to a full window.
-    .fixedSize(horizontal: false, vertical: true)
-    .frame(maxHeight: 560)
-#else
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 #endif
+  }
+
+#if os(macOS)
+  /// Shared Mac column: natural height when `scrolling` is false, capped ScrollView
+  /// with a visible scrollbar when true.
+  private func macColumn(scrolling: Bool) -> some View {
+    VStack(spacing: 0) {
+      toolbarHeader
+      if scrolling {
+        ScrollView(.vertical) {
+          panelBody
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.visible)
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
+          isScrolled = scrolled
+        }
+      } else {
+        panelBody
+      }
+      if let confirmTitle {
+        continueButton(confirmTitle)
+      }
+    }
+    .frame(maxWidth: InfoPopupMetrics.maxWidth)
+  }
+#endif
+
+  private var panelBody: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      if let subtitle {
+        subtitle
+          .font(.subheadline)
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity)
+          .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+      }
+      content()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.horizontal, InfoPopupMetrics.padding)
+    .padding(.top, InfoPopupMetrics.padding * 0.35)
+    .padding(.bottom, InfoPopupMetrics.padding)
   }
 
   /// Centred title with the version-settings cross; material bar fades in as you scroll
@@ -788,24 +824,26 @@ private struct InfoPopupHostOverlay: ViewModifier {
   }
 
   /// A click outside the panel closes it and still goes where it was aimed; Escape closes
-  /// it and goes nowhere. When the page is dimmed, scroll wheels are swallowed so the
-  /// sheet behind cannot move.
+  /// it and goes nowhere. When the page is dimmed, scroll wheels *outside* the panel are
+  /// swallowed so the page behind cannot move — events over the panel must reach the
+  /// ScrollView (swallowing all wheels made What's New unscrollable; Sasha, 2026-11-26).
   private func startMonitoring() {
     stopMonitoring()
     let host = host
     monitor = NSEvent.addLocalMonitorForEvents(
       matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]
     ) { event in
+      let height = event.window?.contentView?.bounds.height ?? 0
+      let point = CGPoint(x: event.locationInWindow.x, y: height - event.locationInWindow.y)
       if event.type == .scrollWheel {
-        return host.dimsBackground ? nil : event
+        if host.dimsBackground, !host.panelFrame.contains(point) { return nil }
+        return event
       }
       if event.type == .keyDown {
         guard event.keyCode == 53 else { return event }
         host.dismiss()
         return nil
       }
-      let height = event.window?.contentView?.bounds.height ?? 0
-      let point = CGPoint(x: event.locationInWindow.x, y: height - event.locationInWindow.y)
       if !host.panelFrame.contains(point) { host.dismiss() }
       return event
     }
