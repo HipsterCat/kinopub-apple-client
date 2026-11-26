@@ -108,8 +108,17 @@ public final class TMDBSource: MetadataSource, Sendable {
 
   public func personMetadata(id: Int) async throws -> PersonMetadata? {
     guard isConfigured else { throw MetadataError.notConfigured }
-    let details = try await fetchPerson(id: id)
-    return mapPerson(details)
+    let details = try await fetchPerson(id: id, language: configuration.language)
+    // Second pass in English when the app language is not English — join on credit
+    // id so titles/names demote Hangul/CJK when a RU or EN form exists
+    // (`docs/providers/tmdb.md`, Sasha person page 2026-11-26).
+    let english: TMDBPersonDetails?
+    if configuration.language.lowercased().hasPrefix("en") {
+      english = details
+    } else {
+      english = try? await fetchPerson(id: id, language: "en-US")
+    }
+    return mapPerson(details, english: english)
   }
 
   // MARK: - Resolve
@@ -479,13 +488,13 @@ public final class TMDBSource: MetadataSource, Sendable {
     }
   }
 
-  private func fetchPerson(id: Int) async throws -> TMDBPersonDetails {
+  private func fetchPerson(id: Int, language: String) async throws -> TMDBPersonDetails {
     // `person-credits-v1:` — combined_credits + also_known_as joined append_to_response.
-    let key = "tmdb/person-credits-v1/\(id)/\(configuration.language)"
+    let key = "tmdb/person-credits-v1/\(id)/\(language)"
     let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
       do {
         let url = try makeURL(path: "/3/person/\(id)", query: [
-          URLQueryItem(name: "language", value: configuration.language),
+          URLQueryItem(name: "language", value: language),
           URLQueryItem(name: "append_to_response", value: "combined_credits"),
         ])
         let data = try await fetch(url)
@@ -503,18 +512,22 @@ public final class TMDBSource: MetadataSource, Sendable {
 
   // MARK: - Mapping
 
-  private func mapPerson(_ details: TMDBPersonDetails) -> PersonMetadata {
+  private func mapPerson(_ details: TMDBPersonDetails,
+                         english: TMDBPersonDetails? = nil) -> PersonMetadata {
     let aliases = (details.alsoKnownAs ?? [])
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
-    let credits = mapPersonCredits(details.combinedCredits)
+    let credits = mapPersonCredits(details.combinedCredits, english: english?.combinedCredits)
+    let nameCandidates = [details.name, english?.name].compactMap { $0 } + aliases
     return PersonMetadata(
-      biography: details.biography.flatMap { $0.isEmpty ? nil : $0 },
-      birthday: Self.parseDate(details.birthday),
-      placeOfBirth: details.placeOfBirth.flatMap { $0.isEmpty ? nil : $0 },
-      photo: imageURL(path: details.profilePath, size: .profileW342),
-      knownForDepartment: details.knownForDepartment,
-      name: details.name.flatMap { $0.isEmpty ? nil : $0 },
+      biography: details.biography.flatMap { $0.isEmpty ? nil : $0 }
+        ?? english?.biography.flatMap { $0.isEmpty ? nil : $0 },
+      birthday: Self.parseDate(details.birthday) ?? Self.parseDate(english?.birthday),
+      placeOfBirth: details.placeOfBirth.flatMap { $0.isEmpty ? nil : $0 }
+        ?? english?.placeOfBirth.flatMap { $0.isEmpty ? nil : $0 },
+      photo: imageURL(path: details.profilePath ?? english?.profilePath, size: .profileW342),
+      knownForDepartment: details.knownForDepartment ?? english?.knownForDepartment,
+      name: LocalePreferredText.preferRuEn(nameCandidates),
       alsoKnownAs: aliases,
       credits: credits,
       attribution: [.tmdb]
@@ -523,16 +536,28 @@ public final class TMDBSource: MetadataSource, Sendable {
 
   /// Cast first (acting filmography), then crew rows not already listed as cast.
   /// Sorted newest / most popular — a person page reads as a timeline with known-for weight.
-  private func mapPersonCredits(_ combined: TMDBPersonCombinedCredits?) -> [PersonCredit] {
+  private func mapPersonCredits(_ combined: TMDBPersonCombinedCredits?,
+                                english: TMDBPersonCombinedCredits? = nil) -> [PersonCredit] {
     guard let combined else { return [] }
+    var englishTitles: [String: String] = [:]
+    for credit in (english?.cast ?? []) + (english?.crew ?? []) {
+      guard let tmdbId = credit.id, tmdbId > 0,
+            let title = credit.displayTitle else { continue }
+      let mediaType = credit.mediaType ?? (credit.firstAirDate != nil ? "tv" : "movie")
+      englishTitles["\(mediaType):\(tmdbId)"] = title
+    }
     var seen = Set<String>()
     var rows: [PersonCredit] = []
     func append(_ credit: TMDBPersonCredit, asCast: Bool) {
-      guard let tmdbId = credit.id, tmdbId > 0,
-            let title = credit.displayTitle else { return }
+      guard let tmdbId = credit.id, tmdbId > 0 else { return }
       let mediaType = credit.mediaType ?? (credit.firstAirDate != nil ? "tv" : "movie")
       let key = "\(mediaType):\(tmdbId)"
       guard seen.insert(key).inserted else { return }
+      guard let title = LocalePreferredText.preferTitle(
+        localized: credit.displayTitle,
+        english: englishTitles[key],
+        original: credit.originalDisplayTitle
+      ) else { return }
       rows.append(PersonCredit(
         tmdbId: tmdbId,
         mediaType: mediaType,
@@ -541,7 +566,7 @@ public final class TMDBSource: MetadataSource, Sendable {
         character: asCast ? credit.character : nil,
         job: asCast ? nil : credit.job,
         releaseDate: Self.parseDate(credit.airOrReleaseDate),
-        posterURL: imageURL(path: credit.posterPath, size: .posterW440),
+        posterURL: imageURL(path: credit.posterPath, size: .posterW500),
         voteAverage: (credit.voteAverage ?? 0) > 0 ? credit.voteAverage : nil,
         popularity: credit.popularity
       ))

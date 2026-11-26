@@ -174,7 +174,7 @@ public struct MediaScoreLogo: View {
       image
         .resizable()
         .aspectRatio(contentMode: .fit)
-        .frame(height: height)
+        .frame(height: opticalHeight)
         .fixedSize(horizontal: true, vertical: false)
     }
   }
@@ -182,6 +182,13 @@ public struct MediaScoreLogo: View {
   /// The 32 pt line PNGs carry some air around the drawing; a bare vector mark at that
   /// height looks a size larger.
   nonisolated private static let lineMarkHeight: CGFloat = 26
+
+  /// TMDB's colour / template SVGs fill their canvas; IMDb and Kinopoisk sit in padded
+  /// art of the same nominal height. Shrink TMDB so a TMDB-only caption matches the
+  /// IMDb/KP row and does not jump the layout (Sasha, 2026-11-26).
+  nonisolated private var opticalHeight: CGFloat {
+    source.opticalHeight(for: height, style: style)
+  }
 
   private var assetName: String {
     switch style {
@@ -200,6 +207,20 @@ public struct MediaScoreLogo: View {
       if source == .kinopub, colorScheme == .dark { return "kinopub_big_white" }
       return source.cardAssetName
     case .line: return source.lineAssetName
+    }
+  }
+}
+
+public extension MediaScoreLogo.Source {
+  /// Optical draw height for a requested frame — TMDB colour/template marks fill their
+  /// canvas while IMDb/KP keep padding, so TMDB needs a smaller frame to match
+  /// (Sasha, 2026-11-26).
+  func opticalHeight(for requested: CGFloat, style: MediaScoreLogo.Style) -> CGFloat {
+    switch (self, style) {
+    case (.tmdb, .color), (.tmdb, .card), (.tmdb, .template):
+      return (requested * 0.85).rounded()
+    default:
+      return requested
     }
   }
 }

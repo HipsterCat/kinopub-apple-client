@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Серии, которых нет на Кинопабе: снова полный кадр со значком «Нет на Кинопабе», без затемнения всей миниатюры.",
+    "Фильмография: один хронологический грид — «Нет на Кинопабе» в той же ленте (без отдельной секции); только по уже загруженным страницам; у будущих тайтлов бейджа нет; логотип TMDB того же размера, что IMDb и Кинопоиск."
+  ],
+  "en": [
+    "Episodes not on Kinopub: full-opacity stills again with the lock chip — no washed-out thumbnail.",
+    "Filmography: one chronological grid — «Not on Kinopub» in the same timeline (no second rail); only within the loaded Kinopub window; future titles keep no badge; TMDB logo matches IMDb/Kinopoisk size."
+  ]
+}

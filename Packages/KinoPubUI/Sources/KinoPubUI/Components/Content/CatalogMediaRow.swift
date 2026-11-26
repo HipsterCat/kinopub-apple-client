@@ -12,6 +12,9 @@ import KinoPubBackend
 /// A full-width list row for a media title: small poster, title, secondary meta.
 public struct CatalogMediaRow: View {
   public let card: MediaCard
+  /// Invalidate when Appearance › Covers changes — same key `MediaCardView` reads so
+  /// list rows follow the poster grid's Russian / English cover pick.
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
 
   public init(card: MediaCard) {
     self.card = card
@@ -22,8 +25,9 @@ public struct CatalogMediaRow: View {
   }
 
   public var body: some View {
+    let _ = coverLanguage
     HStack(alignment: .center, spacing: Metrics.spacing) {
-      CachedRemoteImage(url: URL(string: card.posterURL), contentMode: .fill)
+      poster
         .frame(width: Metrics.posterWidth, height: Metrics.posterHeight)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.posterCorner, style: .continuous))
 
@@ -45,6 +49,29 @@ public struct CatalogMediaRow: View {
     }
     .padding(.vertical, Metrics.verticalPadding)
     .contentShape(Rectangle())
+  }
+
+  /// Same ladder as the poster grid (`coverURL` → kino.pub): list used to read raw
+  /// `posterURL` only, so Russian covers vanished on poster→list and never recovered.
+  @ViewBuilder
+  private var poster: some View {
+    let ladder = card.artworkLadder
+    if let first = ladder.first {
+      CachedRemoteImage(
+        url: first,
+        contentMode: .fill,
+        placeholder: { Color.clear },
+        failure: {
+          if ladder.count > 1 {
+            CachedRemoteImage(url: ladder[1], contentMode: .fill)
+          } else {
+            Color.clear
+          }
+        }
+      )
+    } else {
+      Color.clear
+    }
   }
 
   /// "Series · 2024 Drama" — same facts the poster caption already carries.
