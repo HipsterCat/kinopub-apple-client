@@ -112,10 +112,12 @@ public struct TitleImageRoute: Sendable, Hashable {
   ///   - season: with `.poster`, that season's poster; with `.thumbnail`, required.
   ///   - episode: with `.thumbnail`, the episode whose still is asked for.
   ///   - kinopubThumb: with `.thumbnail`, optional `https://…staticpop.net/…` URL the
-  ///     worker may seed and resize via wsrv.nl when TMDB has no still yet.
+  ///     worker may seed and resize via wsrv.nl when TMDB has no still yet. With a title
+  ///     `.poster` (no season), kino.pub's own poster: one rung of the worker's chain.
+  ///   - kinopoisk: Kinopoisk id, so a cold title still has its Kinopoisk poster rung.
   public func url(_ kind: Kind, kinopubID: Int, imdb: Int?, width: Int?,
                   season: Int? = nil, episode: Int? = nil,
-                  kinopubThumb: String? = nil) -> URL? {
+                  kinopubThumb: String? = nil, kinopoisk: Int? = nil) -> URL? {
     guard let baseURL, kinopubID > 0 else { return nil }
     var components = URLComponents(
       url: baseURL.appendingPathComponent("img/\(kind.rawValue)/by/kinopub/\(kinopubID)"),
@@ -135,10 +137,14 @@ public struct TitleImageRoute: Sendable, Hashable {
     if let imdb, imdb > 0 {
       query.append(URLQueryItem(name: "imdb", value: TMDBIDFormatter.imdbString(from: imdb)))
     }
+    if let kinopoisk, kinopoisk > 0 {
+      query.append(URLQueryItem(name: "kinopoisk", value: String(kinopoisk)))
+    }
     if let language {
       query.append(URLQueryItem(name: "lang", value: language))
     }
-    if kind == .thumbnail, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
+    let takesSource = kind == .thumbnail || (kind == .poster && season == nil)
+    if takesSource, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
       query.append(URLQueryItem(name: "src", value: kinopubThumb))
     }
     components?.queryItems = query.isEmpty ? nil : query
@@ -168,6 +174,16 @@ public struct TitleImageRoute: Sendable, Hashable {
   public static func isStaticpopThumb(_ raw: String) -> Bool {
     guard let host = URL(string: raw)?.host?.lowercased() else { return false }
     return host == "staticpop.net" || host.hasSuffix(".staticpop.net")
+  }
+
+  /// Title poster, drawn at `width` pixels: the worker's chain is TMDB in the asked
+  /// language, then kino.pub's own file (`kinopubPoster`), then Kinopoisk, then another
+  /// language; WebP through wsrv.nl. Every vertical cover in the app comes from here, so
+  /// kino.pub's CDN being down no longer blanks the grid (Sasha, 2026-11-26).
+  public func poster(kinopubID: Int, imdb: Int?, kinopoisk: Int?, width: Int?,
+                     kinopubPoster: String?) -> URL? {
+    url(.poster, kinopubID: kinopubID, imdb: imdb, width: width,
+        kinopubThumb: kinopubPoster, kinopoisk: kinopoisk)
   }
 
   /// Title logo, drawn at `width` pixels.

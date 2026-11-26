@@ -12,8 +12,10 @@
  * a textless wide frame, never a titled banner and never a poster. Cover is the
  * opposite of backdrop: a language-tagged wide TMDB backdrop (`images.backdrops`
  * with `iso_639_1`), never a poster. `s` / `e` pick a season poster or an
- * episode thumbnail. Logos / posters / backdrops / covers never redirect at a
- * kino.pub CDN (the app already has those). Episode thumbnails may: a staticpop
+ * episode thumbnail. Logos / backdrops / covers never redirect at a kino.pub
+ * CDN. A title poster may, as one rung of its chain (TMDB → kino.pub `src=` →
+ * Kinopoisk → another language), because the app now asks the worker for
+ * every poster instead of kino.pub's CDN. Episode thumbnails may: a staticpop
  * still is resized through wsrv.nl so the client does not pull a raw 1280×720
  * JPEG into a 300–600 px rail slot. Optional `src=` (staticpop host only) seeds
  * a thumb the document never stored.
@@ -313,7 +315,9 @@ const SOURCE_ORDER = {
   logo: ["tvoe", "tmdb"],
   backdrop: ["tvoe", "tmdb"],
   cover: ["tmdb"],
-  poster: ["tvoe", "tmdb", "kinopoisk"],
+  // kinopub sits between TMDB and Kinopoisk (Sasha, 2026-11-26) but only
+  // ever arrives as the client's `src=`; see posterChain.
+  poster: ["tvoe", "tmdb", "kinopub", "kinopoisk"],
   // kinopub last: real stills beat a catalogue thumb, but a catalogue thumb
   // beats a 404 that forces the client to download a giant staticpop JPEG.
   thumbnail: ["tvoe", "tmdb", "kinopub"],
@@ -344,10 +348,14 @@ async function handleImageQuery(request, url, env, ctx, route) {
     // Backdrop is a wide textless frame. The header cannot turn it into a
     // titled banner, a wide poster, or a portrait. Cover keeps the language:
     // it is the titled / lang-tagged TMDB backdrop.
-    lang: route.kind === "backdrop" ? null : preferredLang(request),
+    // `?lang=` wins over the header: Top Shelf and other system loaders fetch
+    // the URL without our Accept-Language.
+    lang: route.kind === "backdrop" ? null : (readLangQuery(url) || preferredLang(request)),
     s: readIndex(url, "s"),
     e: readIndex(url, "e"),
     format: readFormatQuery(url),
+    // Title poster only: kino.pub's own file, one rung of the fallback chain.
+    src: route.kind === "poster" && readIndex(url, "s") == null ? readKinopubThumbSrc(url) : null,
   };
   if (imageRequest.kind === "thumbnail" && (imageRequest.s == null || imageRequest.e == null)) {
     return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
@@ -370,7 +378,8 @@ async function handleImageQuery(request, url, env, ctx, route) {
   if (!asset && (!stored || stored.pending === true || fresh)) {
     const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
     waitedMs = Date.now() - started;
-    if (waited.timedOut) {
+    const posterFallback = waited.timedOut && imageRequest.kind === "poster" && imageRequest.src;
+    if (waited.timedOut && !posterFallback) {
       noteImage(env, ctx, "timeout", imageRequest, waitedMs);
       return imageNotFound("timed out", vary, { timeout: true });
     }
@@ -419,6 +428,14 @@ async function handleImageQuery(request, url, env, ctx, route) {
         stored = seeded;
       }
     }
+  }
+
+  // Title poster, nothing in the asked language from TMDB / tvoe / Kinopoisk:
+  // kino.pub's own file (client `src=`), then a poster in another language.
+  // The stamped proxy walks the same chain, so a dead kino.pub CDN still ends
+  // on a picture.
+  if (!asset && imageRequest.kind === "poster" && imageRequest.s == null) {
+    asset = posterChain(stored, hints, imageRequest.lang || "ru", imageRequest.src)[0] || null;
   }
 
   if (!asset) {
@@ -1163,6 +1180,7 @@ function stampedURL(url, imageRequest, asset, rev) {
   // Optional override; stamped proxy defaults to WebP via weserv when omitted.
   if (imageRequest.format) params.set("format", imageRequest.format);
   if (rev) params.set("v", String(rev));
+  if (imageRequest.src) params.set("src", imageRequest.src);
   const qs = params.toString();
   return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
 }
@@ -1201,13 +1219,24 @@ async function proxyStamped(request, url, env, ctx, stamp) {
     e: readIndex(url, "e"),
   };
   const hints = readHints(url);
+  const format = readOutputFormat(url, stamp.kind);
+  if (stamp.kind === "poster" && imageRequest.s == null) {
+    const chain = posterChain(stored, hints, imageRequest.lang, readKinopubThumbSrc(url));
+    for (const candidate of chain) {
+      const served = await fetchAsset(env, candidate, stamp.kind, imageRequest.w, format);
+      if (!served) continue;
+      const response = imageResponse(served, stamp.kind, format, langTag(candidate.lang));
+      if (cache && cacheKey && ctx?.waitUntil) ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      return response;
+    }
+    return imageNotFound(missHint({ ...imageRequest, lang }));
+  }
   let asset = (stamp.kind === "thumbnail" || imageRequest.s != null)
     ? selectQueryAsset(stored, imageRequest, hints)
     : assetInLang(stored, stamp.kind, lang, hints);
   if (asset && langTag(asset.lang) !== stamp.lang) asset = null;
   if (!asset) return imageNotFound(missHint({ ...imageRequest, lang }));
 
-  const format = readOutputFormat(url, stamp.kind);
   const legacy = resizeAsset(asset, stamp.kind, imageRequest.w);
   let fetched = null;
   let via = "legacy";
@@ -1254,6 +1283,76 @@ async function proxyStamped(request, url, env, ctx, stamp) {
     ctx.waitUntil(cache.put(cacheKey, response.clone()));
   }
   return response;
+}
+
+/**
+ * Title poster fallback chain for one language: pin → tvoe / TMDB → kino.pub
+ * (`src`) → Kinopoisk → a poster in another language. Sasha 2026-11-26: TMDB
+ * first, then kino.pub, then Kinopoisk; kino.pub's CDN going down must not
+ * leave a tile blank.
+ */
+function posterChain(document, hints, lang, kinopubSrc) {
+  const chain = [];
+  const push = (asset) => {
+    if (asset?.url && !chain.some((item) => item.url === asset.url)) chain.push(asset);
+  };
+  push(pinnedAssetForLang(document, "poster", lang));
+  const inLang = posterCandidates(document, hints, lang);
+  push(bestAsset(inLang.filter((a) => a.source !== "kinopoisk"), "poster", lang, { strict: true }));
+  if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang, width: null, height: null });
+  push(bestAsset(inLang.filter((a) => a.source === "kinopoisk"), "poster", lang, { strict: true }));
+  const others = (document?.artwork?.poster || [])
+    .map(normalizeAsset)
+    .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url) && (a.lang ?? null) !== lang);
+  push(bestAsset(others, "poster", lang));
+  return chain;
+}
+
+const POSTER_FETCH_TIMEOUT_MS = 6000;
+
+/** One asset's bytes, WebP through wsrv.nl first, the source's own resizer next. */
+async function fetchAsset(env, asset, kind, w, format) {
+  const attempt = async (target) => {
+    if (!target) return null;
+    try {
+      const response = await fetch(target, timeoutSignal(POSTER_FETCH_TIMEOUT_MS));
+      return response.ok ? { response, via: target.startsWith("https://wsrv.nl/") ? "weserv" : "legacy" } : null;
+    } catch {
+      return null;
+    }
+  };
+  if (weservEnabled(env)) {
+    const origin = durableOrigin(asset);
+    const served = origin ? await attempt(weservURL(origin, w, format)) : null;
+    if (served) return served;
+  }
+  // A kino.pub file weserv could not reach is down for us too.
+  if (asset.source === "kinopub" && weservEnabled(env)) return null;
+  return attempt(asset.source === "kinopub" ? safeHttpURL(asset.url) : resizeAsset(asset, kind, w));
+}
+
+function timeoutSignal(ms) {
+  try {
+    return typeof AbortSignal?.timeout === "function" ? { signal: AbortSignal.timeout(ms) } : {};
+  } catch {
+    return {};
+  }
+}
+
+function imageResponse({ response, via }, kind, format, language) {
+  const headers = new Headers();
+  headers.set("Content-Type", response.headers.get("content-type") || defaultContentType(kind, format, via));
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Content-Language", language);
+  headers.set("X-KinoPub-Image-Via", via);
+  return new Response(response.body, { status: 200, headers });
+}
+
+/** `?lang=ru|en` on the query route. Anything else defers to Accept-Language. */
+function readLangQuery(url) {
+  const raw = (url.searchParams.get("lang") || "").trim().toLowerCase().split("-")[0];
+  return raw === "ru" || raw === "en" ? raw : null;
 }
 
 /** Cloudflare `caches.default`, or null under node --test. */

@@ -35,6 +35,14 @@ enum ArtworkPixelWidth {
     TitleImageRoute.bucketedWidth(.logo, pixels: rawLogo)
   }
 
+  /// One poster `w` for every vertical cover (grid, banner, peek, Top Shelf) so a title
+  /// is one URL and one cache entry. A poster is never wider than a fifth of the screen's
+  /// long side (tvOS grid, Mac grid, the iPhone peek), snapped onto the worker buckets:
+  /// 780 on Apple TV 4K and iPhone, 454 on a 1080p TV, 1280 on a 5K Mac.
+  static var poster: Int {
+    TitleImageRoute.bucketedWidth(.poster, pixels: screen / 5)
+  }
+
   private static var rawBackdrop: Int {
 #if os(macOS)
     macBackdrop

@@ -3,6 +3,7 @@ import SwiftUI
 import KinoPubBackend
 import KinoPubKit
 import KinoPubMetadata
+import KinoPubUI
 
 // MARK: - Env key
 
@@ -161,6 +162,9 @@ struct AppContext: AppContextProtocol {
     let metadataConfig = MetadataConfiguration(
       proxyBaseURL: configuration.tmdbProxyBaseURL.flatMap(URL.init(string:))
     )
+    // Every vertical cover goes through the worker's poster route, not kino.pub's CDN.
+    CoverArtwork.configureWorker(TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
+                                 pixelWidth: ArtworkPixelWidth.poster)
     let kinopoiskKeyProvider = IntegrationKeyProvider.kinopoisk
     let metadataService = MetadataService(sources: [
       TMDBSource(configuration: metadataConfig, directAccess: IntegrationKeyProvider.tmdb),
