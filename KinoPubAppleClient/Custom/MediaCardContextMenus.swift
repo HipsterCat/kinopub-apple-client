@@ -286,22 +286,7 @@ enum MediaCardContextMenus {
 
   /// URL of the artwork the surface actually paints (shelf lockup vs banner backdrop).
   static func artworkURL(for card: MediaCard, surface: MediaCardContextSurface) -> String? {
-    let raw: String
-    switch surface {
-    case .shelf, .episodeRail:
-      if let landscape = card.landscapeImageURL, !landscape.isEmpty {
-        raw = landscape
-      } else {
-        raw = card.coverURL
-      }
-    case .banner:
-      if let backdrop = card.backdropURL, !backdrop.isEmpty {
-        raw = backdrop
-      } else {
-        raw = card.coverURL
-      }
-    }
-    return raw.isEmpty ? nil : raw
+    card.sneakPeekArtworkURL(surface: surface)?.absoluteString
   }
 
   /// Builds entries for a card using the shared coordinator + navigation hooks.

@@ -9,10 +9,24 @@ import XCTest
 @testable import KinoPub
 @testable import KinoPubBackend
 import KinoPubMedia
+import KinoPubMetadata
 import KinoPubUI
 
 @MainActor
 final class MediaCardContextMenuWatchedTests: XCTestCase {
+  private var savedCoverLanguage: Any?
+
+  override func setUp() {
+    savedCoverLanguage = UserDefaults.standard.object(forKey: CoverArtworkPreferences.languageKey)
+  }
+
+  override func tearDown() {
+    if let savedCoverLanguage {
+      UserDefaults.standard.set(savedCoverLanguage, forKey: CoverArtworkPreferences.languageKey)
+    } else {
+      UserDefaults.standard.removeObject(forKey: CoverArtworkPreferences.languageKey)
+    }
+  }
 
   private func seriesCard(watched: Bool = false) -> MediaCard {
     MediaCard(
@@ -21,6 +35,7 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
       title: "Альтруисты",
       landscapeImageURL: "https://example.com/wide.jpg",
       overlayLabel: "S1, E3",
+      hoverStillURL: "https://m.staticpop.net/poster/episode/thumb/42.jpg",
       itemID: 42,
       video: 3,
       season: 1,
@@ -37,12 +52,30 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
   private func posterCard() -> MediaCard {
     MediaCard(
       id: 7,
-      posterURL: "https://example.com/poster.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/7.jpg",
       title: "Декстер: Воскрешение",
       isSeries: true,
       year: 2025,
       genres: [Genre(id: "drama", domain: .video,
-                     name: LocalizedName(en: "Drama", ru: "Драма"))]
+                     name: LocalizedName(en: "Drama", ru: "Драма"))],
+      kinopoiskID: 322
+    )
+  }
+
+  private func filmCard() -> MediaCard {
+    MediaCard(
+      id: 9,
+      posterURL: "https://example.com/film.jpg",
+      title: "Фильм",
+      landscapeImageURL: "https://example.com/film-wide.jpg",
+      itemID: 9,
+      video: 1,
+      isSeries: false,
+      year: 2023,
+      durationSeconds: 7200,
+      genres: [Genre(id: "thriller", domain: .video,
+                     name: LocalizedName(en: "Thriller", ru: "Триллер"))],
+      kinopoiskID: 100
     )
   }
 
@@ -107,21 +140,67 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     XCTAssertFalse(ids.contains(MediaCardContextMenus.watchedMenuID))
   }
 
-  func testPreviewSpecUsesLandscapeForWideCard() {
+  func testPreviewSpecUsesLandscapeForWideCardWithoutEpisodeLine() {
     let spec = MediaCardContextPreviewSpec.from(card: seriesCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .landscape)
     XCTAssertEqual(spec.url?.absoluteString, "https://example.com/wide.jpg")
     XCTAssertEqual(spec.title, "Альтруисты")
+    // Title-level CW peek: genre / year · genre — never «S1, E3» / «Ep. 1».
     XCTAssertTrue(
-      spec.subtitle == "S1, E3 · 50м" || spec.subtitle == "S1, E3 · 50m",
+      spec.subtitle == "2024 · Драма" || spec.subtitle == "2024 · Drama",
       "unexpected subtitle \(spec.subtitle ?? "nil")"
     )
   }
 
+  func testFilmContinueWatchingPeekHasNoEpisodeLine() {
+    let spec = MediaCardContextPreviewSpec.from(card: filmCard(), surface: .shelf)
+    XCTAssertEqual(spec.aspect, .landscape)
+    let subtitle = spec.subtitle ?? ""
+    XCTAssertFalse(subtitle.contains("Ep"), "film peek must not say Ep: \(subtitle)")
+    XCTAssertFalse(subtitle.contains("серия"), "film peek must not say серия: \(subtitle)")
+    XCTAssertTrue(
+      subtitle == "2023 · Триллер" || subtitle == "2023 · Thriller",
+      "unexpected subtitle \(subtitle)"
+    )
+  }
+
+  func testContinuePeekHintBeatsGenre() {
+    var card = seriesCard()
+    card.continuePeekHint = "В закладках"
+    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf)
+    XCTAssertEqual(spec.subtitle, "В закладках")
+  }
+
+  func testPreviewSpecUsesCoverURLForPortraitWhenRussian() {
+    CoverArtworkPreferences.set(.russian)
+    defer { CoverArtworkPreferences.set(.english) }
+    let card = posterCard()
+    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf)
+    XCTAssertEqual(spec.aspect, .poster)
+    XCTAssertEqual(
+      spec.url?.absoluteString,
+      CoverArtwork.kinopoiskURL(id: 322, tier: .regular)
+    )
+  }
+
+  func testSeriesPeekPrefersWorkerEpisodeStill() {
+    let worker = URL(string: "https://proxy.example/img")!
+    let images = TitleImageRoute(baseURL: worker, language: nil)
+    let card = seriesCard()
+    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf, images: images)
+    let expected = images.episodeStill(
+      kinopubID: 42, imdb: nil, season: 1, episode: 3,
+      pixelWidth: TitleImageRoute.episodeStillPixelWidth(points: 340, scale: 2),
+      kinopubThumb: card.hoverStillURL
+    )
+    XCTAssertEqual(spec.url, expected)
+  }
+
   func testPreviewSpecUsesPosterAspectAndYearGenre() {
+    CoverArtworkPreferences.set(.english)
     let spec = MediaCardContextPreviewSpec.from(card: posterCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .poster)
-    XCTAssertEqual(spec.url?.absoluteString, "https://example.com/poster.jpg")
+    XCTAssertEqual(spec.url?.absoluteString, "https://m.staticpop.net/poster/item/big/7.jpg")
     XCTAssertEqual(spec.title, "Декстер: Воскрешение")
     // Language follows the process locale; accept either localisation of Drama.
     XCTAssertTrue(
@@ -144,5 +223,18 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     let wide = spec.artDisplaySize(forImageSize: CGSize(width: 600, height: 700))
     XCTAssertEqual(wide.width, 280, accuracy: 0.5)
     XCTAssertLessThan(wide.height, 420)
+  }
+
+  func testContinuePeekHintForReasons() {
+    XCTAssertEqual(
+      HomeCatalog.continuePeekHint(for: .bookmarked(Date())),
+      String(localized: "Bookmarked")
+    )
+    XCTAssertEqual(
+      HomeCatalog.continuePeekHint(for: .unfinished),
+      String(localized: "Left Unfinished")
+    )
+    XCTAssertNil(HomeCatalog.continuePeekHint(for: .watched(Date())))
+    XCTAssertNil(HomeCatalog.continuePeekHint(for: .released(Date())))
   }
 }

@@ -13,6 +13,7 @@
 
 import SwiftUI
 import UIKit
+import KinoPubMetadata
 
 public enum TVUIKitCollectionAxis {
   case horizontal
@@ -36,6 +37,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   /// DEBUG `-KINOPUBFocusFirstPoster`: only Hot Movies should claim first cell.
   public let prefersInitialFocus: Bool
+  @Environment(\.titleImageRoute) private var titleImageRoute
 
   public init(cards: [MediaCard],
               axis: TVUIKitCollectionAxis,
@@ -70,7 +72,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              onSelect: onSelect,
              onNearEnd: onNearEnd,
              contextMenuProvider: contextMenuProvider,
-             prefersInitialFocus: prefersInitialFocus)
+             prefersInitialFocus: prefersInitialFocus,
+             titleImageRoute: titleImageRoute)
     return vc
   }
 
@@ -84,7 +87,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              onSelect: onSelect,
              onNearEnd: onNearEnd,
              contextMenuProvider: contextMenuProvider,
-             prefersInitialFocus: prefersInitialFocus)
+             prefersInitialFocus: prefersInitialFocus,
+             titleImageRoute: titleImageRoute)
   }
 }
 
@@ -105,6 +109,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var coverObserver: NSObjectProtocol?
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  private var titleImageRoute = TitleImageRoute(baseURL: nil)
   private var prefersInitialFocus = false
   /// DEBUG: first poster is actually focused (not merely requested).
   private var didClaimInitialFocus = false
@@ -207,7 +212,9 @@ public final class TVUIKitMediaCollectionController: UIViewController {
              onSelect: @escaping (MediaCard) -> Void,
              onNearEnd: ((MediaCard) -> Void)?,
              contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?,
-             prefersInitialFocus: Bool = false) {
+             prefersInitialFocus: Bool = false,
+             titleImageRoute: TitleImageRoute = TitleImageRoute(baseURL: nil)) {
+    self.titleImageRoute = titleImageRoute
     let width = max(containerWidth, 1)
     let landscape = cards.first?.isLandscape == true
     let metrics = TVUIKitPosterMetrics.shelfMetrics(
@@ -641,9 +648,12 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
       return nil
     }
     PosterContextMenuLog.log("mediaCollection menu → UIContextMenuConfiguration")
+    // Landscape shelves are Continue Watching / History — title-level peeks use
+    // `.shelf` (genre / reason), not `.episodeRail` (episode line).
     let preview = MediaCardContextPreviewSpec.from(
       card: card,
-      surface: isLandscape ? .episodeRail : .shelf
+      surface: .shelf,
+      images: titleImageRoute
     )
     return TVUIKitContextMenuBuilder.configuration(
       identifier: indexPath as NSIndexPath,

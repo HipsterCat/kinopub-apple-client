@@ -129,7 +129,7 @@ public final class TVMediaCardContextPreviewController: UIViewController {
 
   private func loadArtwork() {
     Artwork.prefetch([spec.url])
-    let decodeBox = spec.artSize
+    let decodeBox = spec.decodeSize
     if let cached = TVUIKitRemoteImage.cached(url: spec.url, size: decodeBox, mode: .fit) {
       apply(image: cached)
       return

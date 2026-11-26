@@ -398,7 +398,8 @@ public struct MediaRowsView: View {
           .modifier(MediaCardContextMenuModifier(
             isEnabled: contextMenuProvider != nil,
             entriesProvider: { contextMenuProvider?(card, .banner) ?? [] },
-            previewSpecProvider: { .from(card: card, surface: .banner) }
+            previewCard: card,
+            previewSurface: .banner
           ))
         }
       }
@@ -576,12 +577,17 @@ public struct MediaCardContextMenuModifier: ViewModifier {
   private let isEnabled: Bool
   private let entriesProvider: () -> [MediaCardContextEntry]
   private let previewSpecProvider: (() -> MediaCardContextPreviewSpec?)?
+  private let previewCard: MediaCard?
+  private let previewSurface: MediaCardContextSurface
+  @Environment(\.titleImageRoute) private var titleImageRoute
 
   public init(entries: [MediaCardContextEntry],
               previewSpec: MediaCardContextPreviewSpec? = nil) {
     self.isEnabled = !entries.isEmpty
     self.entriesProvider = { entries }
     self.previewSpecProvider = previewSpec.map { spec in { spec } }
+    self.previewCard = nil
+    self.previewSurface = .shelf
   }
 
   public init(isEnabled: Bool,
@@ -590,17 +596,31 @@ public struct MediaCardContextMenuModifier: ViewModifier {
     self.isEnabled = isEnabled
     self.entriesProvider = entriesProvider
     self.previewSpecProvider = previewSpecProvider
+    self.previewCard = nil
+    self.previewSurface = .shelf
+  }
+
+  /// Builds the peek from the card + `titleImageRoute` so episode stills match hover.
+  public init(isEnabled: Bool,
+              entriesProvider: @escaping () -> [MediaCardContextEntry],
+              previewCard: MediaCard,
+              previewSurface: MediaCardContextSurface) {
+    self.isEnabled = isEnabled
+    self.entriesProvider = entriesProvider
+    self.previewSpecProvider = nil
+    self.previewCard = previewCard
+    self.previewSurface = previewSurface
   }
 
   @ViewBuilder
   public func body(content: Content) -> some View {
     if isEnabled {
 #if os(iOS) || os(macOS)
-      if let previewSpecProvider {
+      if previewCard != nil || previewSpecProvider != nil {
         content.contextMenu {
           menuBody
         } preview: {
-          if let spec = previewSpecProvider() {
+          if let spec = resolvedPreviewSpec {
             MediaCardContextPreview(spec: spec)
           }
         }
@@ -613,6 +633,13 @@ public struct MediaCardContextMenuModifier: ViewModifier {
     } else {
       content
     }
+  }
+
+  private var resolvedPreviewSpec: MediaCardContextPreviewSpec? {
+    if let previewCard {
+      return .from(card: previewCard, surface: previewSurface, images: titleImageRoute)
+    }
+    return previewSpecProvider?()
   }
 
   @ViewBuilder

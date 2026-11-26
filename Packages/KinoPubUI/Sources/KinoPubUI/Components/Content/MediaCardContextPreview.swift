@@ -4,13 +4,14 @@
 //
 //  Apple TV–style sneak peek for poster / video long-press: native art aspect
 //  (poster 2:3, wide 16:9), plate hugs the loaded bitmap (no letterbox gutters),
-//  and a metadata footer (title + year · genre / duration / episode line).
+//  and a metadata footer (title + year · genre / reason / duration).
 //  SwiftUI surfaces use `MediaCardContextPreview`; tvOS UIKit menus use
 //  `TVMediaCardContextPreviewController`.
 //
 
 import SwiftUI
 import KinoPubMedia
+import KinoPubMetadata
 #if os(macOS)
 import AppKit
 #elseif canImport(UIKit)
@@ -22,7 +23,7 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
   public let url: URL?
   public let aspect: CardAspect
   public let title: String
-  /// Secondary line under the title — `2026 · Drama`, `1h 55m`, `S2, E5 · 42 min`, …
+  /// Secondary line under the title — `2026 · Drama`, `В закладках`, `1h 55m`, …
   public let subtitle: String?
 
   public init(url: URL?, aspect: CardAspect, title: String, subtitle: String? = nil) {
@@ -42,6 +43,11 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
     case .landscape: return CGSize(width: 340, height: 191)
     case .square: return CGSize(width: 280, height: 280)
     }
+  }
+
+  /// Decode at 2× the display box so KP / worker masters stay sharp in the peek.
+  public var decodeSize: CGSize {
+    CGSize(width: artSize.width * 2, height: artSize.height * 2)
   }
 
   /// Full peek including the metadata footer (preferredContentSize for UIKit).
@@ -68,7 +74,10 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
     return CGSize(width: width, height: height)
   }
 
-  public static func from(card: MediaCard, surface: MediaCardContextSurface) -> MediaCardContextPreviewSpec {
+  public static func from(card: MediaCard,
+                          surface: MediaCardContextSurface,
+                          images: TitleImageRoute = TitleImageRoute(baseURL: nil),
+                          scale: CGFloat = 2) -> MediaCardContextPreviewSpec {
     let aspect: CardAspect
     switch surface {
     case .banner, .episodeRail:
@@ -77,36 +86,9 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
       aspect = card.isLandscape ? .landscape : .poster
     }
 
-    let raw: String
-    switch surface {
-    case .shelf:
-      if aspect == .landscape,
-         let landscape = card.landscapeImageURL, !landscape.isEmpty {
-        raw = landscape
-      } else if !card.posterURL.isEmpty {
-        // Portrait peek always uses the poster — never a wide still cropped into 2:3.
-        raw = card.posterURL
-      } else {
-        raw = card.coverURL
-      }
-    case .episodeRail:
-      if let landscape = card.landscapeImageURL, !landscape.isEmpty {
-        raw = landscape
-      } else {
-        raw = card.coverURL
-      }
-    case .banner:
-      if let backdrop = card.backdropURL, !backdrop.isEmpty {
-        raw = backdrop
-      } else if let landscape = card.landscapeImageURL, !landscape.isEmpty {
-        raw = landscape
-      } else {
-        raw = card.coverURL
-      }
-    }
-
+    let url = card.sneakPeekArtworkURL(surface: surface, images: images, scale: scale)
     return MediaCardContextPreviewSpec(
-      url: URL(string: raw),
+      url: url,
       aspect: aspect,
       title: card.title,
       subtitle: card.sneakPeekSubtitle(surface: surface)
@@ -115,11 +97,56 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
 }
 
 public extension MediaCard {
+  /// Artwork URL for the long-press peek — same language ladder as the cell for
+  /// posters (`coverURL`), and the same still as macOS hover for series/episodes.
+  func sneakPeekArtworkURL(surface: MediaCardContextSurface,
+                           images: TitleImageRoute = TitleImageRoute(baseURL: nil),
+                           scale: CGFloat = 2) -> URL? {
+    let points: CGFloat
+    switch surface {
+    case .shelf where !isLandscape:
+      points = 280
+    case .banner:
+      points = 340
+    default:
+      points = 340
+    }
+
+    switch surface {
+    case .shelf where !isLandscape:
+      // Same vertical cover the cell paints — Russian KP when Covers = Russian.
+      let raw = !coverURL.isEmpty ? coverURL : posterURL
+      return raw.isEmpty ? nil : URL(string: raw)
+
+    case .shelf, .episodeRail:
+      if let pointer = pointerArtwork(images: images, points: points, scale: scale) {
+        return pointer.primary
+      }
+      if let landscape = landscapeImageURL, !landscape.isEmpty {
+        return URL(string: landscape)
+      }
+      if surface == .episodeRail, let cover = coverURL.isEmpty ? nil : coverURL {
+        return URL(string: cover)
+      }
+      return nil
+
+    case .banner:
+      if let backdrop = backdropURL, !backdrop.isEmpty {
+        return URL(string: backdrop)
+      }
+      if let landscape = landscapeImageURL, !landscape.isEmpty {
+        return URL(string: landscape)
+      }
+      return coverURL.isEmpty ? nil : URL(string: coverURL)
+    }
+  }
+
   /// Secondary line for the context-menu sneak peek — more than the cell caption.
   func sneakPeekSubtitle(surface: MediaCardContextSurface,
                          language: MediaLanguage = .current) -> String? {
     switch surface {
     case .episodeRail:
+      // True episode tiles (season rail): keep the episode line.
       return episodePeekSubtitle() ?? durationLabel
     case .banner:
       return catalogPeekSubtitle(language: language) ?? durationLabel
@@ -149,30 +176,27 @@ public extension MediaCard {
     }
   }
 
-  /// Continue Watching / wide still: episode meta, offered name, duration, else genre.
+  /// Continue Watching / wide still: reason («В закладках», «Недосмотрено»), version
+  /// name, or genre — never «Ep. 1» / «1 серия» on a title-level landscape card.
   private func landscapePeekSubtitle(language: MediaLanguage) -> String? {
-    if let overlay = overlayLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !overlay.isEmpty {
-      if let durationLabel, !overlay.contains(durationLabel) {
-        return "\(overlay) · \(durationLabel)"
-      }
-      return overlay
+    if let hint = continuePeekHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !hint.isEmpty {
+      return hint
     }
     if let offered = offeredName?.trimmingCharacters(in: .whitespacesAndNewlines),
        !offered.isEmpty,
        offered.caseInsensitiveCompare(title) != .orderedSame {
-      if let durationLabel { return "\(offered) · \(durationLabel)" }
       return offered
     }
-    if let episode = episodePeekSubtitle() { return episode }
-    if let genre = usefulGenre(language: language) ?? primaryGenre(language: language) {
-      return genre
+    if let catalog = catalogPeekSubtitle(language: language) {
+      return catalog
     }
     return durationLabel
   }
 
+  /// Episode reference for a real episode tile only — never for films (`video` is often 1).
   private func episodePeekSubtitle() -> String? {
-    guard let video else { return nil }
+    guard isSeries, let video else { return nil }
     let label = EpisodeText(season: season, number: video, seasonCount: seasonCount)
       .listItem()
     if let durationLabel { return "\(label) · \(durationLabel)" }
@@ -256,7 +280,7 @@ public struct MediaCardContextPreview: View {
       loadFailed = true
       return
     }
-    let decodeBox = spec.artSize
+    let decodeBox = spec.decodeSize
     // Do not name Nuke's `PlatformImage` here — only ArtworkPipeline imports Nuke.
     if let cached = Artwork.cachedImage(for: url, size: decodeBox, mode: .fit) {
       artFrame = spec.artDisplaySize(forImageSize: cached.size)

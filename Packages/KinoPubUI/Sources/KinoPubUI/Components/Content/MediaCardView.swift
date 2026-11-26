@@ -137,6 +137,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
   /// own thumbnail. Not encoded; the rail sets it every time.
   public var fallbackLandscapeURL: String? = nil
+  /// Continue Watching sneak-peek secondary line when genre is not the right answer —
+  /// «В закладках» / «Недосмотрено». Not encoded; set when the card is drawn.
+  public var continuePeekHint: String? = nil
   /// When true, Select opens a curated collection rather than a media title — Home /
   /// Collections grids use this so collection ids are not mistaken for item ids.
   public let opensCollection: Bool
@@ -430,7 +433,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
                                    video: Int?,
                                    overlayLabel: String?,
                                    durationSeconds: Int? = nil) -> MediaCard {
-    MediaCard(id: id,
+    var card = MediaCard(id: id,
               posterURL: posterURL,
               title: title,
               subtitle: subtitle,
@@ -471,6 +474,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               captionStats: captionStats,
               imdbID: imdbID,
               kinopoiskID: kinopoiskID)
+    card.continuePeekHint = continuePeekHint
+    card.fallbackLandscapeURL = fallbackLandscapeURL
+    card.unavailableNotice = unavailableNotice
+    return card
   }
 
   public func withBackdropURL(_ backdropURL: String?) -> MediaCard {
@@ -1383,33 +1390,11 @@ public struct MediaCardView: View {
     }
   }
 
-  /// What the pointer brings up over the title's cover, by the title page's own rule
-  /// (Sasha, 2026-11-24: the same episode was a different picture here and inside):
-  /// an episode is the worker's episode still, as the season rail draws it; a film is the
-  /// title's backdrop, as the hero draws it. kino.pub's own frame (`hoverStillURL`) is the
-  /// fallback, and the whole picture when the worker is not configured. A title in several
-  /// videos keeps its video's own frame, as the title page's version rail does.
+  /// What the pointer brings up over the title's cover — same rule as the sneak peek
+  /// (`MediaCard.pointerArtwork`). Needs a kino.pub thumb before anything swaps in.
   private func hoverArtwork(points: CGFloat) -> (primary: URL, fallback: URL?)? {
-    let kinopub = card.hoverStillURL.flatMap { $0.isEmpty ? nil : URL(string: $0) }
-    guard let kinopub else { return nil }
-    let itemID = card.itemID
-    if titleImageRoute.isConfigured, itemID > 0 {
-      if card.isSeries, let season = card.season, let episode = card.video,
-         let still = titleImageRoute.episodeStill(kinopubID: itemID, imdb: card.imdbID,
-                                                  season: season, episode: episode,
-                                                  pixelWidth: TitleImageRoute
-                                                    .episodeStillPixelWidth(points: Double(points),
-                                                                            scale: Double(hoverScale)),
-                                                  kinopubThumb: card.hoverStillURL) {
-        return (still, kinopub)
-      }
-      if !card.isSeries, card.offeredName == nil,
-         let backdrop = titleImageRoute.backdrop(kinopubID: itemID, imdb: card.imdbID,
-                                                 width: Int((points * hoverScale).rounded(.up))) {
-        return (backdrop, kinopub)
-      }
-    }
-    return (kinopub, nil)
+    guard card.hoverStillURL?.isEmpty == false else { return nil }
+    return card.pointerArtwork(images: titleImageRoute, points: points, scale: hoverScale)
   }
 
   /// Request pixels per point — the scale the pipeline decodes at.

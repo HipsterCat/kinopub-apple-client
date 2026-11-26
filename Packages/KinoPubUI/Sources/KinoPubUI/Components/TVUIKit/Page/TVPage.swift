@@ -139,6 +139,7 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
   let contentID: String?
   @Binding var belowTop: Bool
   let bridge: TVPageMenuBackBridge
+  @Environment(\.titleImageRoute) private var titleImageRoute
 
   func makeUIViewController(context: Context) -> TVPageCollectionViewController {
     let controller = TVPageCollectionViewController(sideInset: sideInset,
@@ -162,6 +163,7 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
     controller.onChipSelection = onChipSelection
     controller.onNearEnd = onNearEnd
     controller.contextMenuProvider = contextMenuProvider
+    controller.titleImageRoute = titleImageRoute
     controller.onPlay = onPlay
     controller.heroBookmarkEntries = heroBookmarkEntries
     controller.onRetry = onRetry

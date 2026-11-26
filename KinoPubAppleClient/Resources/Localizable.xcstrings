@@ -8696,6 +8696,24 @@
         }
       }
     },
+    "Left Unfinished" : {
+      "comment" : "Continue Watching sneak-peek reason when a title is unfinished with no fresh play date.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left unfinished"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недосмотрено"
+          }
+        }
+      }
+    },
     "Library_Unwatched" : {
       "comment" : "Following header segment: series that still have episodes left.",
       "extractionState" : "manual",

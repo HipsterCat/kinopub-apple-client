@@ -161,6 +161,7 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
   let onRetry: (() -> Void)?
   @Binding var belowTop: Bool
   let bridge: TVPageMenuBackBridge
+  @Environment(\.titleImageRoute) private var titleImageRoute
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -218,6 +219,7 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
 
   private func bindMenuBack(_ results: TVPageCollectionViewController) {
     results.returnsToTopOnMenu = true
+    results.titleImageRoute = titleImageRoute
     results.onBelowTopRowChange = { below in
       belowTop = below
     }
