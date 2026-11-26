@@ -872,7 +872,7 @@ private struct SettingsAppInfoPanel: View {
 
   var body: some View {
     VStack(spacing: Metrics.previewSpacing) {
-      Image("kinopub_icon")
+      Image("piratic_icon")
         .resizable()
         .scaledToFit()
         .frame(width: Metrics.appLogoSize, height: Metrics.appLogoSize)

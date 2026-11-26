@@ -102,6 +102,6 @@ final class MyAnimeListSourceTests: XCTestCase {
                    .myAnimeList(URL(string: "piratic://myanimelist?code=1")!))
     XCTAssertEqual(PiraticOAuthRedirect(url: URL(string: "piratic://shikimori?code=1")!),
                    .shikimori(URL(string: "piratic://shikimori?code=1")!))
-    XCTAssertNil(PiraticOAuthRedirect(url: URL(string: "kinopub://item/1")!))
+    XCTAssertNil(PiraticOAuthRedirect(url: URL(string: "piratic://item/1")!))
   }
 }

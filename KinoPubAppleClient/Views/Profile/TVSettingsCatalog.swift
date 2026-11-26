@@ -1469,7 +1469,7 @@ final class TVSettingsCatalog {
     plate.backgroundColor = .black
     plate.layer.cornerRadius = 44
     plate.layer.cornerCurve = .continuous
-    let mark = UIImageView(image: UIImage(named: "kinopub_icon"))
+    let mark = UIImageView(image: UIImage(named: "piratic_icon"))
     mark.contentMode = .scaleAspectFit
     mark.translatesAutoresizingMaskIntoConstraints = false
     plate.addSubview(mark)

@@ -53,7 +53,7 @@ struct AuthView: View {
           ringRanOut: { model.checkExpiration() }
         )
       ) {
-        DeviceCodeSignInLogo(image: Image("kinopub_icon"))
+        DeviceCodeSignInLogo(image: Image("piratic_icon"))
       }
     }
     .hudToast($model.hudToast)
