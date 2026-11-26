@@ -1563,13 +1563,10 @@ public struct MediaCardView: View {
 
       // Year / genre yield to the unwatched line when that placement is on — tvOS
       // Following does the same (`TVPageCells.posterSubtitle`).
+      // Always one line: year is fixed, genre (and country) truncate — a long
+      // «Документальный» must not wrap under the year onto a second line.
       if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty {
-        Text(captionMetaParts.joined(separator: " · "))
-          .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
-          .lineLimit(2)
-          .multilineTextAlignment(.center)
-          .frame(maxWidth: .infinity, alignment: .center)
+        captionMetaLine
       }
 
       captionFiller
@@ -1581,6 +1578,41 @@ public struct MediaCardView: View {
     .fixedSize(horizontal: false, vertical: true)
     .opacity(caption == .always || cardFocused ? 1 : 0)
     .animation(.easeOut(duration: 0.12), value: cardFocused)
+  }
+
+  /// Year · genre · country under a cover — one line. Year keeps its full width;
+  /// the genre (or concert tour) and country compress with a trailing ellipsis.
+  @ViewBuilder
+  private var captionMetaLine: some View {
+    let year = showYear ? card.yearLabel : nil
+    let detail = showGenre ? card.catalogDetail(omittingGenreIDs: omittedGenreIDs) : nil
+    let country: String? = {
+      guard showCountry, let value = card.country, !value.isEmpty else { return nil }
+      return value
+    }()
+    HStack(spacing: 4) {
+      if let year {
+        Text(year)
+          .fixedSize(horizontal: true, vertical: false)
+      }
+      if let detail {
+        Text(detail)
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+      if let country {
+        if year != nil || detail != nil {
+          Text("·")
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        Text(country)
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+    }
+    .font(TypeScale.cardMeta)
+    .foregroundStyle(Color.KinoPub.subtitle)
+    .frame(maxWidth: .infinity, alignment: .center)
   }
 
   /// Blank lines padding the caption out to a constant number, so every card in a row

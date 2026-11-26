@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Под обложкой в сетке год и жанр всегда в одну строку: длинный жанр обрезается, год не пропадает."
+  ],
+  "en": [
+    "Under a cover in the grid, year and genre stay on one line — a long genre truncates; the year stays."
+  ]
+}
