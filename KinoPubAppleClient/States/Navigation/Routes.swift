@@ -287,15 +287,14 @@ struct CastAndCrew: Hashable {
   let item: MediaItem
   let cast: [CastMember]
   let crew: [CastMember]
-  var tab: CastAndCrewTab = .featured
+  var tab: CastAndCrewTab = .all
 
   /// One row on the page — person identity for navigation plus the lines under the name.
   struct Entry: Hashable, Identifiable {
+    let id: String
     let person: MediaPerson
     let roleLine: String?
     let episodeLine: String?
-
-    var id: String { person.id }
 
     func matches(_ needle: String) -> Bool {
       let q = needle.lowercased()
@@ -305,16 +304,28 @@ struct CastAndCrew: Hashable {
     }
   }
 
+  /// A titled block on the page — starring / other cast, or one TMDB crew department.
+  struct Section: Hashable, Identifiable {
+    let id: String
+    let title: String
+    let rows: [Entry]
+
+    var titleWithCount: String {
+      guard !rows.isEmpty else { return title }
+      return "\(title) (\(rows.count.formatted(.number.grouping(.automatic))))"
+    }
+  }
+
   /// kino.pub's billed names plus everyone TMDB listed, then the crew.
   static func make(item: MediaItem, metadata: TitleMetadata,
-                   tab: CastAndCrewTab = .featured) -> CastAndCrew {
+                   tab: CastAndCrewTab = .all) -> CastAndCrew {
     let listed = TitleMetadata.enrich(names: item.castMembers, roleDepartment: "Acting",
                                       from: metadata)
     let cast = listed + CastRanking.unlisted(metadata.cast, besides: listed)
     return CastAndCrew(item: item, cast: cast, crew: metadata.crew, tab: tab)
   }
 
-  func entry(for member: CastMember, role: MediaPerson.Role) -> Entry {
+  func entry(for member: CastMember, role: MediaPerson.Role, index: Int) -> Entry {
     let photo = member.photo ?? ActorImageProvider.photoURL(for: member.name)
     let person = MediaPerson.from(member, role: role, photoURL: photo,
                                   sourceItemID: item.id)
@@ -326,74 +337,119 @@ struct CastAndCrew: Hashable {
     } else {
       episodes = nil
     }
-    return Entry(person: person, roleLine: cleaned, episodeLine: episodes)
-  }
-
-  /// Regular vs guest floor — same rule as `CastRanking.ranked`.
-  var regularEpisodeFloor: Int {
-    let most = cast.compactMap(\.episodeCount).max() ?? 0
-    guard item.isEpisodicType, most > 0 else { return 0 }
-    return most > 1 ? max(2, Int((Double(most) * 0.2).rounded(.up))) : 1
+    // Never `MediaPerson.id` (`director:name`) alone — one person can hold several
+    // credits; index makes every row unique for `ForEach`.
+    let personKey = member.tmdbPersonId.map(String.init) ?? member.name
+    let id = [
+      role.rawValue,
+      personKey,
+      member.department ?? "",
+      cleaned ?? "",
+      String(index)
+    ].joined(separator: "|")
+    return Entry(id: id, person: person, roleLine: cleaned, episodeLine: episodes)
   }
 
   /// The same people the title page's rail shows (`CastRanking.ranked`): `make` puts
   /// kino.pub's names first.
-  private var featuredCast: [CastMember] {
+  private var starringCast: [CastMember] {
     let listedCount = min(item.castMembers.count, cast.count)
     return CastRanking.ranked(listed: Array(cast.prefix(listedCount)),
                               others: Array(cast.dropFirst(listedCount)),
                               isEpisodic: item.isEpisodicType)
   }
 
-  var featuredPeople: [Entry] {
-    let leads = featuredCast
-    var rows = leads.map { entry(for: $0, role: .actor) }
-    let keyCrew = crew.filter { member in
-      let department = (member.department ?? "").lowercased()
-      let job = (member.character ?? "").lowercased()
-      if department.contains("direct") { return true }
-      return ["creator", "director", "writer", "screenplay", "novel"].contains {
-        job == $0 || job.contains($0)
-      }
-    }.prefix(5)
-    rows.append(contentsOf: keyCrew.map { entry(for: $0, role: .director) })
-    var seen = Set<String>()
-    return rows.filter { seen.insert($0.id).inserted }
+  private var starringIDs: Set<String> {
+    var ids = Set(starringCast.compactMap(\.tmdbPersonId).map(String.init))
+    ids.formUnion(starringCast.map { TitleMetadata.normalize($0.name) })
+    return ids
   }
 
-  var regularPeople: [Entry] {
-    let floor = regularEpisodeFloor
-    if floor > 0 {
-      return cast.filter { ($0.episodeCount ?? 0) >= floor }.map { entry(for: $0, role: .actor) }
+  private func isStarring(_ member: CastMember) -> Bool {
+    if let id = member.tmdbPersonId, starringIDs.contains(String(id)) { return true }
+    return starringIDs.contains(TitleMetadata.normalize(member.name))
+  }
+
+  var starringPeople: [Entry] {
+    starringCast.enumerated().map { entry(for: $0.element, role: .actor, index: $0.offset) }
+  }
+
+  var otherCastPeople: [Entry] {
+    cast.enumerated().compactMap { index, member in
+      guard !isStarring(member) else { return nil }
+      return entry(for: member, role: .actor, index: index)
     }
-    // Films: everyone past the featured billing still belongs under Regular.
-    let featuredNames = Set(featuredCast.map { TitleMetadata.normalize($0.name) })
-    return cast.filter { !featuredNames.contains(TitleMetadata.normalize($0.name)) }
-      .map { entry(for: $0, role: .actor) }
   }
 
-  var guestPeople: [Entry] {
-    let floor = regularEpisodeFloor
-    guard floor > 0 else { return [] }
-    return cast.filter { ($0.episodeCount ?? 0) < floor }.map { entry(for: $0, role: .actor) }
-  }
+  var castPeople: [Entry] { starringPeople + otherCastPeople }
 
   var crewPeople: [Entry] {
-    crew.map { entry(for: $0, role: .director) }
+    crew.enumerated().map { entry(for: $0.element, role: .director, index: $0.offset) }
+  }
+
+  var allPeople: [Entry] { castPeople + crewPeople }
+
+  /// Cast blocks: «В главных ролях» then «Другие участники». Empty ones omitted.
+  func castSections(matching query: String = "") -> [Section] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    func filtered(_ rows: [Entry]) -> [Entry] {
+      guard !needle.isEmpty else { return rows }
+      return rows.filter { $0.matches(needle) }
+    }
+    var sections: [Section] = []
+    let starring = filtered(starringPeople)
+    if !starring.isEmpty {
+      sections.append(Section(id: "cast.starring",
+                              title: "MediaItem_CastSectionStarring".localized,
+                              rows: starring))
+    }
+    let others = filtered(otherCastPeople)
+    if !others.isEmpty {
+      sections.append(Section(id: "cast.other",
+                              title: "MediaItem_CastSectionOther".localized,
+                              rows: others))
+    }
+    return sections
+  }
+
+  /// Crew blocks by TMDB department — Sasha's labels (Art → Writing order); «Ещё» catches
+  /// Crew / Lighting / Visual Effects / blank / anything else.
+  func crewSections(matching query: String = "") -> [Section] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    var buckets: [CrewDepartment: [Entry]] = [:]
+    for (index, member) in crew.enumerated() {
+      let row = entry(for: member, role: .director, index: index)
+      if !needle.isEmpty, !row.matches(needle) { continue }
+      buckets[CrewDepartment.classify(member), default: []].append(row)
+    }
+    return CrewDepartment.allCases.compactMap { department in
+      guard let rows = buckets[department], !rows.isEmpty else { return nil }
+      return Section(id: "crew.\(department.rawValue)",
+                     title: department.title,
+                     rows: rows)
+    }
+  }
+
+  func sections(for tab: CastAndCrewTab, matching query: String = "") -> [Section] {
+    switch tab {
+    case .all: castSections(matching: query) + crewSections(matching: query)
+    case .cast: castSections(matching: query)
+    case .crew: crewSections(matching: query)
+    }
   }
 }
 
+/// Top-level Cast & Crew tabs — All / Cast / Crew. Subsections live inside the page.
 enum CastAndCrewTab: String, CaseIterable, Hashable, Identifiable {
-  case featured, regular, guest, crew
+  case all, cast, crew
 
   var id: String { rawValue }
 
   func title(count: Int) -> String {
     let label: String
     switch self {
-    case .featured: label = "MediaItem_CastTabFeatured".localized
-    case .regular: label = "MediaItem_CastTabRegular".localized
-    case .guest: label = "MediaItem_CastTabGuest".localized
+    case .all: label = "All".localized
+    case .cast: label = "MediaItem_CastTabCast".localized
     case .crew: label = "MediaItem_CastTabCrew".localized
     }
     guard count > 0 else { return label }
@@ -402,10 +458,53 @@ enum CastAndCrewTab: String, CaseIterable, Hashable, Identifiable {
 
   func people(in payload: CastAndCrew) -> [CastAndCrew.Entry] {
     switch self {
-    case .featured: payload.featuredPeople
-    case .regular: payload.regularPeople
-    case .guest: payload.guestPeople
+    case .all: payload.allPeople
+    case .cast: payload.castPeople
     case .crew: payload.crewPeople
+    }
+  }
+}
+
+/// TMDB crew departments as section headers under «Съёмочный состав».
+/// Order matches Sasha's list (Art → … → Writing); unknown departments fold into `.other`.
+enum CrewDepartment: String, CaseIterable, Hashable {
+  case art
+  case camera
+  case costume
+  case other
+  case directing
+  case editing
+  case production
+  case sound
+  case writing
+
+  var title: String {
+    switch self {
+    case .art: "MediaItem_CrewDeptArt".localized
+    case .camera: "MediaItem_CrewDeptCamera".localized
+    case .costume: "MediaItem_CrewDeptCostume".localized
+    case .other: "MediaItem_CrewDeptOther".localized
+    case .directing: "MediaItem_CrewDeptDirecting".localized
+    case .editing: "MediaItem_CrewDeptEditing".localized
+    case .production: "MediaItem_CrewDeptProduction".localized
+    case .sound: "MediaItem_CrewDeptSound".localized
+    case .writing: "MediaItem_CrewDeptWriting".localized
+    }
+  }
+
+  static func classify(_ member: CastMember) -> CrewDepartment {
+    let raw = (member.department ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    switch raw.lowercased() {
+    case "art": return .art
+    case "camera": return .camera
+    case "costume & make-up", "costume and make-up", "costume": return .costume
+    case "directing": return .directing
+    case "editing": return .editing
+    case "production": return .production
+    case "sound": return .sound
+    case "writing": return .writing
+    case "crew": return .other
+    default: return .other
     }
   }
 }

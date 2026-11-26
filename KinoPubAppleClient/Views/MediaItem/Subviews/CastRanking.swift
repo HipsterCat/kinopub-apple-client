@@ -2,8 +2,8 @@
 //  CastRanking.swift
 //  KinoPubAppleClient
 //
-//  Who is worth a card on the cast rail / Featured tab — shared by the SwiftUI rail
-//  and the tvOS page sections.
+//  Who is worth a card on the cast rail / «В главных ролях» — shared by the SwiftUI
+//  rail and the tvOS page sections.
 //
 
 import Foundation

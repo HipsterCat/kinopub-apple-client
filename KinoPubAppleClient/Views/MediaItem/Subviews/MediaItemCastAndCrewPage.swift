@@ -3,8 +3,12 @@
 //  KinoPubAppleClient
 //
 //  Full cast & crew for a title — what the cast rail's header opens on iOS / iPadOS /
-//  macOS. Search + Featured / Regular / Guest / Crew, round avatars, no generic
-//  «Актёр» labels. Nothing here fetches: the company travelled in the route.
+//  macOS. Local filter + All / Cast / Crew, round avatars, no generic «Актёр» labels.
+//  Nothing here fetches: the company travelled in the route.
+//
+//  macOS must not use `.searchable` — the split view already owns that field for app
+//  Search (`macSidebarSearch`), and a nested one steals the prompt («Поиск по составу»)
+//  while still routing typing into catalog Search.
 //
 
 import SwiftUI
@@ -30,11 +34,13 @@ struct MediaItemCastAndCrewPage: View {
     CastAndCrewTab.allCases.filter { !$0.people(in: payload).isEmpty }
   }
 
-  private var rows: [CastAndCrew.Entry] {
-    let base = tab.people(in: payload)
-    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !needle.isEmpty else { return base }
-    return base.filter { $0.matches(needle) }
+  private var sections: [CastAndCrew.Section] {
+    payload.sections(for: tab, matching: query)
+  }
+
+  private var rowInsets: EdgeInsets {
+    EdgeInsets(top: 6, leading: MediaItemLayout.horizontalInset,
+               bottom: 6, trailing: MediaItemLayout.horizontalInset)
   }
 
   var body: some View {
@@ -57,19 +63,39 @@ struct MediaItemCastAndCrewPage: View {
         }
       }
 
+#if os(macOS)
       Section {
-        ForEach(rows) { entry in
-          NavigationLink(value: linkProvider.person(for: entry.person)) {
-            CastAndCrewRow(entry: entry)
+        macFilterField
+          .listRowInsets(EdgeInsets(top: 4, leading: MediaItemLayout.horizontalInset,
+                                    bottom: 4, trailing: MediaItemLayout.horizontalInset))
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
+      }
+#endif
+
+      ForEach(sections) { section in
+        Section {
+          ForEach(section.rows) { entry in
+            NavigationLink(value: linkProvider.person(for: entry.person)) {
+              CastAndCrewRow(entry: entry)
+            }
+            .listRowInsets(rowInsets)
           }
+        } header: {
+          Text(section.titleWithCount)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MediaItemLayout.horizontalInset)
+            .textCase(nil)
         }
       }
     }
     .listStyle(.plain)
 #if os(iOS)
     .listSectionSpacing(12)
-#endif
+    // iOS: page-local filter. The Search tab owns its own `.searchable`; this one
+    // stays on the cast sheet and does not open catalog Search.
     .searchable(text: $query, prompt: Text("MediaItem_CastAndCrewSearch"))
+#endif
     .platformNavigationTitle(payload.item.localizedTitle)
 #if os(iOS) || os(macOS)
     .navigationSubtitle("MediaItem_CastSection".localized)
@@ -81,6 +107,22 @@ struct MediaItemCastAndCrewPage: View {
       }
     }
   }
+
+#if os(macOS)
+  /// Explicit field — never `.searchable` on macOS (sidebar Search steals it).
+  private var macFilterField: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "magnifyingglass")
+        .foregroundStyle(.secondary)
+      TextField("MediaItem_CastAndCrewSearch".localized, text: $query)
+        .textFieldStyle(.plain)
+        .labelsHidden()
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+  }
+#endif
 }
 
 private struct CastAndCrewRow: View {
@@ -125,10 +167,16 @@ private struct CastAndCrewRow: View {
                              CastMember(name: "Jason Sudeikis", character: "Ted Lasso",
                                         episodeCount: 34, order: 0),
                              CastMember(name: "Hannah Waddingham", character: "Rebecca Welton",
-                                        episodeCount: 34, order: 1)
+                                        episodeCount: 34, order: 1),
+                             CastMember(name: "Extra Player", character: "Bar Patron",
+                                        episodeCount: 2, order: 40)
                            ],
                            crew: [
                              CastMember(name: "Bill Lawrence", character: "Creator",
+                                        department: "Writing"),
+                             CastMember(name: "Han Yan", character: "Director",
+                                        department: "Directing"),
+                             CastMember(name: "Han Yan", character: "Writer",
                                         department: "Writing")
                            ]),
       linkProvider: AppRoutesLinkProvider()
