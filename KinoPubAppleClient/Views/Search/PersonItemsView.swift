@@ -118,7 +118,8 @@ struct PersonItemsView: View {
     return PersonFilmography.mergedTimeline(
       kinopubItems: catalog.items,
       externalCards: externalCards,
-      descending: descending
+      descending: descending,
+      images: metadataService.images
     )
   }
 

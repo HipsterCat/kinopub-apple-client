@@ -264,12 +264,19 @@ final class TMDBImageURLTests: XCTestCase {
     XCTAssertEqual(url?.absoluteString, "https://image.tmdb.org/t/p/w500/abc.png")
   }
 
-  func testBuildsPosterFaceCropURL() {
-    let url = TMDBImageURL.url(path: "/abc.jpg", size: .posterW440)
-    XCTAssertEqual(
-      url?.absoluteString,
-      "https://image.tmdb.org/t/p/w440_and_h660_face/abc.jpg"
-    )
+  func testBuildsPosterURL() {
+    let url = TMDBImageURL.url(path: "/abc.jpg", size: .posterW780)
+    XCTAssertEqual(url?.absoluteString, "https://image.tmdb.org/t/p/w780/abc.jpg")
+  }
+
+  func testWeservPosterWrapsOriginal() {
+    let url = TMDBImageURL.weservPoster(path: "/abc.jpg", width: 454)
+    XCTAssertEqual(url?.host, "images.weserv.nl")
+    let items = URLComponents(url: url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    XCTAssertEqual(items.first(where: { $0.name == "url" })?.value,
+                   "https://image.tmdb.org/t/p/original/abc.jpg")
+    XCTAssertEqual(items.first(where: { $0.name == "w" })?.value, "454")
+    XCTAssertEqual(items.first(where: { $0.name == "output" })?.value, "webp")
   }
 
   func testBuildsProxiedURL() {

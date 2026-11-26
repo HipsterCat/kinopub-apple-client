@@ -112,6 +112,23 @@ final class PersonFilmographyTests: XCTestCase {
     XCTAssertEqual(timeline.map(\.title), ["New", "Missing New", "Missing Mid", "Old"])
   }
 
+  func testMatchedKinopubPosterUsesWorkerViaWeserv() {
+    let worker = URL(string: "https://kinopub-tmdb-proxy.example.workers.dev")!
+    let images = TitleImageRoute(baseURL: worker, language: "en")
+    let item = sampleItem(title: "Film / Film", year: 2024, id: 7, imdb: 42)
+    let card = PersonFilmography.kinopubCard(item, images: images)
+    let url = URL(string: card.posterURL)
+    XCTAssertEqual(url?.host, "images.weserv.nl")
+    let items = URLComponents(url: url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    let source = items.first(where: { $0.name == "url" })?.value
+    XCTAssertEqual(
+      source,
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/poster/by/kinopub/7?imdb=tt0000042&lang=en"
+    )
+    XCTAssertEqual(items.first(where: { $0.name == "w" })?.value, "454")
+    XCTAssertEqual(items.first(where: { $0.name == "output" })?.value, "webp")
+  }
+
   private func date(_ year: Int) -> Date {
     var c = DateComponents()
     c.year = year
@@ -120,9 +137,9 @@ final class PersonFilmographyTests: XCTestCase {
     return Calendar(identifier: .gregorian).date(from: c)!
   }
 
-  private func sampleItem(title: String, year: Int) -> MediaItem {
+  private func sampleItem(title: String, year: Int, id: Int? = nil, imdb: Int? = nil) -> MediaItem {
     MediaItem(
-      id: abs(title.hashValue) % 1_000_000 + 1,
+      id: id ?? abs(title.hashValue) % 1_000_000 + 1,
       type: "movie",
       subtype: "",
       title: title,
@@ -136,7 +153,7 @@ final class PersonFilmographyTests: XCTestCase {
       langs: 0,
       quality: 0,
       plot: "",
-      imdb: nil,
+      imdb: imdb,
       imdbRating: nil,
       imdbVotes: nil,
       kinopoisk: nil,
