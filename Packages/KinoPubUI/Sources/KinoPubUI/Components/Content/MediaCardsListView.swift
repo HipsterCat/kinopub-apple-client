@@ -12,6 +12,8 @@ public struct MediaCardsListView: View {
   public var cards: [MediaCard]
   public var onLoadMoreContent: (MediaCard) -> Void
   public var navigationLinkProvider: (MediaCard) -> any Hashable
+  /// When set, play-primary landscape cards open the player from the still.
+  public var onPlay: ((MediaCard) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   /// Loading / failed / complete for the page after the last one shown.
   private let pagination: PaginationState
@@ -50,6 +52,7 @@ public struct MediaCardsListView: View {
   public init(cards: [MediaCard],
               onLoadMoreContent: @escaping (MediaCard) -> Void,
               navigationLinkProvider: @escaping (MediaCard) -> any Hashable,
+              onPlay: ((MediaCard) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               sections: [MediaCardSection] = [],
               pagination: PaginationState = .idle,
@@ -57,6 +60,7 @@ public struct MediaCardsListView: View {
     self.cards = cards
     self.onLoadMoreContent = onLoadMoreContent
     self.navigationLinkProvider = navigationLinkProvider
+    self.onPlay = onPlay
     self.contextMenuProvider = contextMenuProvider
     self.sections = sections
     self.pagination = pagination
@@ -84,7 +88,11 @@ public struct MediaCardsListView: View {
         containerWidth: containerWidth,
         typeSize: dynamicTypeSize,
         onSelect: { card in
-          mediaNavigation?(navigationLinkProvider(card))
+          if card.primaryAction == .play, let onPlay {
+            onPlay(card)
+          } else {
+            mediaNavigation?(navigationLinkProvider(card))
+          }
         },
         onNearEnd: { card in
           onLoadMoreContent(card)
@@ -106,26 +114,53 @@ public struct MediaCardsListView: View {
   private func grid(of cards: [MediaCard]) -> some View {
     LazyVGrid(columns: gridColumns, spacing: metrics.gutter) {
       ForEach(cards) { card in
-        NavigationLink(value: navigationLinkProvider(card)) {
-          MediaCardView(card: card, caption: Self.cardCaption)
-            .onAppear { onLoadMoreContent(card) }
-        }
-        // Same source id as Home shelves (`media-{id}`) so a stack with
-        // `RouteStack(…, zoom: true)` can morph into the title page on iPhone/iPad.
-        .mediaZoomSource(id: "media-\(card.id)")
+        cardCell(card)
+          .onAppear { onLoadMoreContent(card) }
+          // Same source id as Home shelves (`media-{id}`) so a stack with
+          // `RouteStack(…, zoom: true)` can morph into the title page on iPhone/iPad.
+          .mediaZoomSource(id: "media-\(card.id)")
 #if os(tvOS)
-        .buttonStyle(.borderless)
-        .focused($focusedItemID, equals: card.id)
-#else
-        .buttonStyle(MediaCardButtonStyle())
+          .focused($focusedItemID, equals: card.id)
 #endif
-        .modifier(MediaCardContextMenuModifier(
-          isEnabled: contextMenuProvider != nil,
-          entriesProvider: { contextMenuProvider?(card) ?? [] },
-          previewCard: card,
-          previewSurface: .shelf
-        ))
+          .modifier(MediaCardContextMenuModifier(
+            isEnabled: contextMenuProvider != nil,
+            entriesProvider: { contextMenuProvider?(card) ?? [] },
+            previewCard: card,
+            previewSurface: .shelf
+          ))
       }
+    }
+  }
+
+  @ViewBuilder
+  private func cardCell(_ card: MediaCard) -> some View {
+    if card.primaryAction == .play, card.isLandscape, let onPlay {
+      MediaCardPlaySplitLink(
+        card: card,
+        caption: Self.cardCaption,
+        detail: navigationLinkProvider(card),
+        onPlay: { onPlay(card) }
+      )
+    } else if card.primaryAction == .play, let onPlay {
+      Button {
+        onPlay(card)
+      } label: {
+        MediaCardView(card: card, caption: Self.cardCaption)
+      }
+#if os(tvOS)
+      .buttonStyle(.borderless)
+#else
+      .buttonStyle(MediaCardButtonStyle())
+#endif
+    } else {
+      NavigationLink(value: navigationLinkProvider(card)) {
+        MediaCardView(card: card, caption: Self.cardCaption)
+      }
+#if os(tvOS)
+      .buttonStyle(.borderless)
+#else
+      .buttonStyle(MediaCardButtonStyle())
+#endif
     }
   }
 

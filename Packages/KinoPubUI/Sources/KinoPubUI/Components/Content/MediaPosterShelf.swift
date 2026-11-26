@@ -304,9 +304,6 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
           cardLink(card)
             .mediaZoomSource(id: "media-\(card.id)")
             .frame(width: metrics.cardWidth(in: layoutWidth))
-#if !os(tvOS)
-            .buttonStyle(MediaCardButtonStyle())
-#endif
             .modifier(MediaPosterShelfFocusModifier(
               focusedCard: allowsFocus ? focusedCard : nil,
               key: focusKey?(card)
@@ -361,16 +358,34 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 
   @ViewBuilder
   private func cardLink(_ card: MediaCard) -> some View {
-    if card.primaryAction == .play, let onPlay {
+    // Landscape play cards: still → player, title under it → detail (Sasha, 2026-11-26).
+    if card.primaryAction == .play, card.isLandscape, let onPlay, caption != .none {
+      MediaCardPlaySplitLink(
+        card: card,
+        caption: caption,
+        detail: navigationLinkProvider(card),
+        onPlay: { onPlay(card) }
+      )
+    } else if card.primaryAction == .play, let onPlay {
       Button {
         onPlay(card)
       } label: {
         MediaCardView(card: card, caption: caption)
       }
+#if os(tvOS)
+      .buttonStyle(.borderless)
+#else
+      .buttonStyle(MediaCardButtonStyle())
+#endif
     } else {
       NavigationLink(value: navigationLinkProvider(card)) {
         MediaCardView(card: card, caption: caption)
       }
+#if os(tvOS)
+      .buttonStyle(.borderless)
+#else
+      .buttonStyle(MediaCardButtonStyle())
+#endif
     }
   }
 

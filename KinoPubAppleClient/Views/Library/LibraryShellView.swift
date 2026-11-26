@@ -454,6 +454,9 @@ struct LibraryShellView: View {
         cards: catalog.cards,
         onLoadMoreContent: { card in catalog.loadMoreContent(after: card) },
         navigationLinkProvider: { card in Route.detailsById(card.itemID) },
+        onPlay: { card in
+          cardMenu.play(card) { navigationState.push($0) }
+        },
         contextMenuProvider: { card in
           MediaCardContextMenus.entries(
             for: card,

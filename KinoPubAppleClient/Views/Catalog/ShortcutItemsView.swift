@@ -312,7 +312,10 @@ struct ContinueWatchingListView: View {
         cards: cards,
         onLoadMoreContent: { _ in },
         navigationLinkProvider: { card in
-          Route.detailsById(card.id)
+          Route.detailsById(card.itemID)
+        },
+        onPlay: { card in
+          cardMenu.play(card) { navigationState.push($0) }
         },
         contextMenuProvider: { card in
           MediaCardContextMenus.entries(

@@ -256,6 +256,9 @@ struct HistoryView: View {
           cards: displayCards,
           onLoadMoreContent: { loadMoreContent(after: $0) },
           navigationLinkProvider: { card in MainRoutes.detailsById(card.itemID) },
+          onPlay: { card in
+            cardMenu.play(card) { navigationState.push($0) }
+          },
           contextMenuProvider: { card in
             MediaCardContextMenus.entries(
               for: card,
