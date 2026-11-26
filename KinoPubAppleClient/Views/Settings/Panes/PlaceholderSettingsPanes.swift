@@ -318,94 +318,87 @@ struct DetailsSettingsPane: View {
   }
 
   var body: some View {
-    // Trackpad-style: segmented control full width of the column, outside the Form
-    // blocks. A bare VStack of two Forms sized to ideal height and clipped the
-    // Settings detail / iPhone sheet with no scroll (Sasha, 2026-11-25). Hug the
-    // metadata Form; the content Form fills the rest and scrolls (keeps NavigationLink).
-    VStack(alignment: .leading, spacing: 12) {
-      Form {
+    // One Form = one scroll view. The segmented control is a clear row inside it
+    // (Trackpad-style, full width between sections). Two Forms in a VStack split the
+    // page into two scroll areas; sizing them to fit grew the content-sized Settings
+    // window past the screen (c155187e, reverted).
+    Form {
+      Section {
+        Toggle("Metadata Fetching", isOn: $metadataFetching)
+      } footer: {
+        Text("Off stops outside metadata on title pages. kino.pub data still loads.")
+      }
+
+      Section {
+        Picker("Details", selection: pane) {
+          ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
+            Text(LocalizedStringKey(value.titleKey)).tag(value)
+          }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .disabled(!metadataFetching)
+        .frame(maxWidth: .infinity)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+      }
+
+      if pane.wrappedValue == .items {
         Section {
-          Toggle("Metadata Fetching", isOn: $metadataFetching)
-        } footer: {
-          Text("Off stops outside metadata on title pages. kino.pub data still loads.")
+          ForEach(DetailsEnrichmentItem.imageItems) { item in
+            DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
+          }
+        } header: {
+          Text("Images")
         }
-      }
-      .formStyle(.grouped)
-      .fixedSize(horizontal: false, vertical: true)
 
-      Picker("Details", selection: pane) {
-        ForEach(DetailsEnrichmentPreferences.Pane.allCases) { value in
-          Text(LocalizedStringKey(value.titleKey)).tag(value)
-        }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .disabled(!metadataFetching)
-      .padding(.horizontal, 20)
-
-      Form {
-        if pane.wrappedValue == .items {
-          Section {
-            ForEach(DetailsEnrichmentItem.imageItems) { item in
-              DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
-            }
-          } header: {
-            Text("Images")
+        Section {
+          ForEach(DetailsEnrichmentItem.infoItems) { item in
+            DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
           }
 
-          Section {
-            ForEach(DetailsEnrichmentItem.infoItems) { item in
-              DetailsEnrichmentItemRow(item: item, masterEnabled: metadataFetching)
+          NavigationLink(value: SettingsDetailRoute.titleInfoStrip) {
+            HStack(spacing: 10) {
+              SettingsLeadingIcon(systemImage: "checkmark.seal.fill")
+              Text("Age rating badge")
+              Spacer(minLength: 8)
+              Text(showAgeRatingBadge ? "On" : "Off")
+                .foregroundStyle(.secondary)
             }
-
-            NavigationLink(value: SettingsDetailRoute.titleInfoStrip) {
+          }
+          .disabled(!metadataFetching)
+        } header: {
+          Text("Info")
+        }
+      } else {
+        Section {
+          ForEach(DetailsEnrichmentSource.rows) { integration in
+            NavigationLink(value: SettingsDetailRoute.integration(integration)) {
               HStack(spacing: 10) {
-                SettingsLeadingIcon(systemImage: "checkmark.seal.fill")
-                Text("Age rating badge")
+                IntegrationIconView(integration: integration)
+                  .frame(width: SettingsLeadingIcon.width, alignment: .center)
+                Text(verbatim: integration.name)
                 Spacer(minLength: 8)
-                Text(showAgeRatingBadge ? "On" : "Off")
-                  .foregroundStyle(.secondary)
               }
             }
             .disabled(!metadataFetching)
-          } header: {
-            Text("Info")
           }
-        } else {
-          Section {
-            ForEach(DetailsEnrichmentSource.rows) { integration in
-              NavigationLink(value: SettingsDetailRoute.integration(integration)) {
-                HStack(spacing: 10) {
-                  IntegrationIconView(integration: integration)
-                    .frame(width: SettingsLeadingIcon.width, alignment: .center)
-                  Text(verbatim: integration.name)
-                  Spacer(minLength: 8)
-                }
-              }
-              .disabled(!metadataFetching)
-            }
-          } footer: {
-            Text("Opens the same pages as Integrations — keys, proxy, data and playback.")
-          }
-        }
-
-        Section {
-          Toggle("Hide descriptions", isOn: $hideDescriptions)
-          Toggle("Hide titles", isOn: $hideTitles)
-          Toggle("Blur previews", isOn: $blurPreviews)
-        } header: {
-          Text("Spoilers")
         } footer: {
-          Text("Facts, stills and titles that can spoil — including when rewatching.")
+          Text("Opens the same pages as Integrations — keys, proxy, data and playback.")
         }
       }
-      .formStyle(.grouped)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .layoutPriority(1)
+
+      Section {
+        Toggle("Hide descriptions", isOn: $hideDescriptions)
+        Toggle("Hide titles", isOn: $hideTitles)
+        Toggle("Blur previews", isOn: $blurPreviews)
+      } header: {
+        Text("Spoilers")
+      } footer: {
+        Text("Facts, stills and titles that can spoil — including when rewatching.")
+      }
     }
-    // Bound the column to the NavigationStack / sheet height so the content Form
-    // is proposed a finite height and scrolls instead of overflowing the window.
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .formStyle(.grouped)
   }
 }
 
