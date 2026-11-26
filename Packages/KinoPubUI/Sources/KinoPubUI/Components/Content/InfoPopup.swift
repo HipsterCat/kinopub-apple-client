@@ -55,7 +55,7 @@ public enum InfoPopupMetrics {
   public static let bodyFont: Font = .body
   public static let captionFont: Font = .footnote
   public static let sectionFont: Font = .title2.weight(.semibold)
-  public static let contentSpacing: CGFloat = 18
+  public static let contentSpacing: CGFloat = 12
   public static let scrimOpacity: Double = 0.5
 #else
   public static let maxWidth: CGFloat = 640

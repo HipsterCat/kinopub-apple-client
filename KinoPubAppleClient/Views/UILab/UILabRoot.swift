@@ -230,7 +230,7 @@ private struct UILabSplitShell: View {
       .listStyle(.sidebar)
       .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
       .toolbar(removing: .sidebarToggle)
-      .navigationTitle("KinoPub Lab")
+      .navigationTitle("Piratic Lab")
     } detail: {
       NavigationStack {
         detail
