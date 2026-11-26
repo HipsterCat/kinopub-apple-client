@@ -14,9 +14,10 @@ import KinoPubMetadata
 /// the poster grid: photo, name, role, and room for a biography, then sort and the
 /// type pull-down. Elsewhere the same filters sit over the shared list.
 ///
-/// TMDB `combined_credits` fill titles Kinopub does not carry (dimmed «Not on Kinopub»).
-/// Catalog queries use `MediaPerson.catalogNames` / `also_known_as`, not display
-/// localization alone — see `internal/actor-filmography-search.md`.
+/// TMDB `combined_credits` fill titles Kinopub does not carry («Not on Kinopub»).
+/// Matched against the **loaded** Kinopub window only — no page prefetch, no false
+/// unavailable for titles that may still appear later. Catalog queries use
+/// `MediaPerson.catalogNames` / `also_known_as`, not display localization alone.
 struct PersonItemsView: View {
 
   private let person: MediaPerson
@@ -90,6 +91,12 @@ struct PersonItemsView: View {
       await enrichPersonMetadata()
     }
     .task { await cardMenu.refreshFolders() }
+    // Rebuild the TMDB unavailable set whenever the loaded Kinopub window moves —
+    // page append, refresh, or filter/sort — never against a stale first page alone.
+    .onChange(of: catalog.items.map(\.id)) { _, _ in rebuildExternalCards() }
+    .onChange(of: catalog.hasMorePages) { _, _ in rebuildExternalCards() }
+    .onChange(of: catalog.isLoading) { _, _ in rebuildExternalCards() }
+    .onChange(of: catalog.isLoadingMore) { _, _ in rebuildExternalCards() }
     .mediaCardNewFolderAlert(cardMenu)
   }
 
@@ -325,10 +332,11 @@ struct PersonItemsView: View {
         .padding(.horizontal, gridInset)
         .padding(.top, Self.verticalPadding)
       ScrollView(.horizontal, showsIndicators: false) {
-        LazyHStack(spacing: 12) {
+        // Top-align: a shorter caption (no rating line) must not float the card upward.
+        LazyHStack(alignment: .top, spacing: 12) {
           ForEach(externalCards) { card in
             MediaCardView(card: card, caption: .always)
-              .frame(width: 120)
+              .frame(width: 120, alignment: .top)
           }
         }
         .padding(.horizontal, gridInset)
@@ -393,11 +401,27 @@ struct PersonItemsView: View {
     rebuildExternalCards()
   }
 
+  /// Kinopub listing has nowhere further to go — safe to treat remaining TMDB credits
+  /// outside the year window as unavailable too.
+  private var kinopubListingComplete: Bool {
+    !catalog.isLoading && !catalog.isLoadingMore && !catalog.hasMorePages
+  }
+
   private func rebuildExternalCards() {
+    let complete = kinopubListingComplete
+    let window: PersonFilmography.MatchWindow
+    if catalog.filter.sort == .year {
+      window = .yearSorted(items: catalog.items,
+                           complete: complete,
+                           descending: catalog.filter.sortDescending)
+    } else {
+      window = .completeOnly(complete)
+    }
     externalCards = PersonFilmography.externalCards(
       credits: personMetadata.credits,
       kinopubItems: catalog.items,
-      role: resolvedPerson.role
+      role: resolvedPerson.role,
+      window: window
     )
   }
 

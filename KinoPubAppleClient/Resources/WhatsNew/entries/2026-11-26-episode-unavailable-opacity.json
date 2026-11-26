@@ -2,9 +2,11 @@
   "version": "1.0",
   "date": "2026-11-26",
   "ru": [
-    "Серии, которых нет на Кинопабе: снова полный кадр со значком «Нет на Кинопабе», без затемнения всей миниатюры."
+    "Серии, которых нет на Кинопабе: снова полный кадр со значком «Нет на Кинопабе», без затемнения всей миниатюры.",
+    "Фильмография: «Нет на Кинопабе» только по уже загруженным страницам Кинопаба; постеры TMDB снова грузятся; у будущих тайтлов (Avatar 5 и т.п.) бейджа нет."
   ],
   "en": [
-    "Episodes not on Kinopub: full-opacity stills again with the lock chip — no washed-out thumbnail."
+    "Episodes not on Kinopub: full-opacity stills again with the lock chip — no washed-out thumbnail.",
+    "Filmography: «Not on Kinopub» only within the loaded Kinopub page window; TMDB posters load again; future titles (Avatar 5, etc.) keep no absence badge."
   ]
 }

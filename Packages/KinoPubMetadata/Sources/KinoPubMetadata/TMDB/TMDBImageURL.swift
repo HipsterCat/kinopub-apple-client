@@ -5,7 +5,9 @@ public enum TMDBImageSize: String, Sendable {
   case profileW342 = "w342"
   case logoW500 = "w500"
   case stillW300 = "w300"
-  case posterW440 = "w440"
+  /// Standard TMDB poster rung — `w440` is not a CDN size (400); filmography used it
+  /// and every credit poster failed to load (Sasha, 2026-11-26).
+  case posterW500 = "w500"
   case posterW780 = "w780"
   case backdropOriginal = "original"
 }

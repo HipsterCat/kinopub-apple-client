@@ -131,9 +131,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let country: String?
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
-  /// Lock chip copy for content not on kino.pub («Нет на Кинопабе»). Landscape episode
-  /// stills keep full opacity (chip only); poster filmography cards dim. Not encoded —
-  /// the rail / person page builds it every time.
+  /// Lock chip for content not on kino.pub («Нет на Кинопабе»). Artwork stays full
+  /// opacity — chip only. Not encoded; the rail / person page builds it every time.
   public var unavailableNotice: String? = nil
   /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
   /// own thumbnail. Not encoded; the rail sets it every time.
@@ -728,12 +727,9 @@ public struct MediaCardView: View {
   /// A watched card's artwork sits dimmed, and on macOS hovering it restores it to full.
   /// `isHovered` only exists there — there is no pointer on tvOS or iOS — so the dim is
   /// simply constant off macOS rather than reading a state that does not compile.
-  /// Poster titles not on Kinopub (TMDB-only filmography) dim the same way. Landscape
-  /// episode stills with a lock chip stay at full opacity — a washed-out thumb reads as
-  /// broken (Sasha, 2026-10-30; restored after #151 applied the filmography dim to every
-  /// `unavailableNotice` card).
+  /// Unavailable titles (episode stills and filmography) keep full opacity — the lock
+  /// chip says so; washing the art reads as broken (Sasha, 2026-10-30 / 2026-11-26).
   private var watchedArtworkOpacity: Double {
-    if card.unavailableNotice != nil, !card.isLandscape { return 0.55 }
     guard dimsWatchedArtwork else { return 1 }
 #if os(macOS)
     return isHovered ? 1 : 0.5
@@ -916,6 +912,16 @@ public struct MediaCardView: View {
     guard ratingPlacement == .onArtwork else { return false }
     guard showsRatingChrome else { return false }
     return activeRating != nil
+  }
+
+  /// Reserve the on-poster badge footprint when a lock chip is present but this title
+  /// has no score — neighbours with badges must not shove the chip upward.
+  private var showsArtworkRatingSlot: Bool {
+    guard card.unavailableNotice != nil else { return false }
+    guard RatingFeature.combinedEnabled else { return false }
+    guard ratingPlacement == .onArtwork else { return false }
+    guard showsRatingChrome else { return false }
+    return activeRating == nil
   }
 
   private var showsPlayChrome: Bool {
@@ -1177,20 +1183,37 @@ public struct MediaCardView: View {
   private var posterOverlays: some View {
     ZStack(alignment: .topLeading) {
       Color.clear
-      if showsArtworkRatingBadge, let rating = activeRating {
-        RatingBadgeView(rating: rating)
-          .padding(3)
-          .accessibilityLabel(Text("Rating \(rating.formatted)"))
-      }
-      if let notice = card.unavailableNotice {
-        Label(notice, systemImage: "lock.fill")
-          .font(.caption2.weight(.medium))
-          .labelStyle(.titleAndIcon)
-          .foregroundStyle(.white)
-          .padding(.horizontal, 6)
-          .padding(.vertical, 3)
-          .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
-          .padding(6)
+      // Rating then lock chip — same corner stack so a missing score does not yank the
+      // chip upward when neighbours carry a badge (filmography mixed rows).
+      VStack(alignment: .leading, spacing: 4) {
+        if showsArtworkRatingBadge, let rating = activeRating {
+          RatingBadgeView(rating: rating)
+            .padding(.leading, 3)
+            .padding(.top, 3)
+            .accessibilityLabel(Text("Rating \(rating.formatted)"))
+        } else if showsArtworkRatingSlot {
+          // Invisible footprint matching a plain badge so layout stays put.
+          Text(verbatim: "0.0")
+            .font(TypeScale.ratingBadge)
+            .fontDesign(.rounded)
+            .padding(.horizontal, RatingBadgeView.horizontalPadding)
+            .padding(.vertical, RatingBadgeView.verticalPadding)
+            .hidden()
+            .padding(.leading, 3)
+            .padding(.top, 3)
+            .accessibilityHidden(true)
+        }
+        if let notice = card.unavailableNotice {
+          Label(notice, systemImage: "lock.fill")
+            .font(.caption2.weight(.medium))
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+            .padding(.leading, 6)
+            .padding(.bottom, 6)
+        }
       }
     }
     .overlay(alignment: .topTrailing) {
@@ -1613,7 +1636,7 @@ public struct MediaCardView: View {
   /// Type setting, so the reserve has to be expressed in the thing that actually scales.
   @ViewBuilder
   private var captionFiller: some View {
-    let missing = Self.reservedCaptionLines(for: card) - captionLineCount
+    let missing = reservedCaptionLines - captionLineCount
     if missing > 0 {
       ForEach(0..<missing, id: \.self) { _ in
         Text(verbatim: " ")
@@ -1641,12 +1664,18 @@ public struct MediaCardView: View {
     return lines
   }
 
-  /// The constant every card of this shape pads up to. Landscape cards carry at most a
-  /// title, a watched date and an episode line; posters carry a title plus one meta row
-  /// — reserving the worst case for posters too would leave a visible hole under most
-  /// of the catalogue, which is why the two shapes differ.
-  private static func reservedCaptionLines(for card: MediaCard) -> Int {
-    card.isLandscape ? 3 : 2
+  /// The constant every card of this shape pads up to. Landscape: title + watched +
+  /// episode. Posters: title + meta, plus a scores line when «Under title» ratings are
+  /// on — so a card without a score does not shrink beside one that has it.
+  private var reservedCaptionLines: Int {
+    if card.isLandscape { return 3 }
+    var lines = 2
+    if RatingFeature.combinedEnabled, ratingPlacement == .inCaption, showsRatingChrome {
+      lines += 1
+    } else if !RatingFeature.combinedEnabled, showsRatingChrome {
+      lines += 1
+    }
+    return lines
   }
 
   /// Title + optional quality chips hug as one group, then the group is centered.
