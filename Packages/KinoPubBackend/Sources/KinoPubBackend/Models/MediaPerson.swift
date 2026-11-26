@@ -109,6 +109,17 @@ public struct MediaPerson: Hashable, Identifiable, Sendable {
                 sourceItemID: id)
   }
 
+  /// Copy with a different display name; catalog spellings stay put (and still
+  /// include the previous `name` via init normalization).
+  public func withDisplayName(_ displayName: String) -> MediaPerson {
+    MediaPerson(name: displayName,
+                role: role,
+                photoURL: photoURL,
+                tmdbPersonId: tmdbPersonId,
+                catalogNames: catalogNames,
+                sourceItemID: sourceItemID)
+  }
+
   /// 🔴 **One name per request.** `/v1/items` matches `cast` / `director` against the
   /// credits field as written, so a comma-joined list matches nothing — verified live
   /// on 2026-08-17: `director=Фил Лорд,Кристофер Миллер` answers an empty list where

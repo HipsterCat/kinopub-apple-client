@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Страница актёра: убраны лишние фильтры, добавлено меню «…» (Кинопоиск / TMDB), список снова показывает постеры, имена и названия — сначала RU/EN."
+  ],
+  "en": [
+    "Person page: dropped unimplemented filters, added a ••• menu (Kinopoisk / TMDB), list layout keeps posters, and names/titles prefer RU/EN over original script."
+  ]
+}

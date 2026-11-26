@@ -69,14 +69,15 @@ struct PersonItemsView: View {
 #endif
 #if !os(tvOS)
     .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
-    .toolbar { LibraryFiltersToolbar(catalog: catalog, showingFilters: $showingFilters) }
-    .catalogGridChrome()
-    .sheet(isPresented: $showingFilters) {
-      LibraryFilterSheet(catalog: catalog)
-#if os(macOS)
-        .frame(minWidth: 420, minHeight: 560)
-#endif
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        personOverflowMenu
+      }
+      // Sort + layout only — Type / Genre / Country / Years are not implemented for
+      // person `cast=` / `director=` listings (Sasha, 2026-11-26).
+      LibraryFiltersToolbar(catalog: catalog, chrome: .sort, showingFilters: $showingFilters)
     }
+    .catalogGridChrome()
 #endif
 #if !os(tvOS)
     // Loading only — error/empty live *under* the filter bar, not over it.
@@ -283,7 +284,8 @@ struct PersonItemsView: View {
   /// (Kinopub + TMDB-only interleaved by year — no second rail).
   private var tvSections: [TVPageSection] {
     let header = TVPageSection.masthead(id: "person-header", personMasthead)
-    let controls = TVSearchFilters.controls(catalog: catalog, includeType: true)
+    // Sort only — Type chip is not implemented for person listings (Sasha, 2026-11-26).
+  let controls = TVSearchFilters.controls(catalog: catalog, includeType: false)
     let creditsTitle = resolvedPerson.role == .actor ? "Acting".localized : "Directing".localized
     let cards = timelineCards
     if cards.isEmpty && catalog.isLoading {
@@ -390,9 +392,7 @@ struct PersonItemsView: View {
 
   // MARK: - Credits row
 
-  /// The credits are the same `/v1/items` listing as Search narrowed to one name, so
-  /// they carry the search catalog's full filter bar — sort, type, genre, country,
-  /// years — not a sort menu alone.
+  /// Sort chips only — person listings do not implement Type / Genre / Country / Years.
   private var creditsHeader: some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(alignment: .firstTextBaseline, spacing: Self.heroSpacing) {
@@ -407,9 +407,50 @@ struct PersonItemsView: View {
       .padding(.vertical, Self.verticalPadding)
 
 #if !os(macOS)
-      LibraryFiltersBar(catalog: catalog)
+      LibraryFiltersBar(catalog: catalog, chrome: .sort)
 #endif
     }
+  }
+
+  /// Open this person on Kinopoisk / TMDB — same «…» affordance as the title page.
+  @ViewBuilder
+  private var personOverflowMenu: some View {
+    let links = personExternalLinks
+    if !links.isEmpty {
+      Menu {
+        ForEach(links, id: \.name) { link in
+          Button(String(format: "Open %@".localized, link.name)) {
+            openURL(link.url)
+          }
+        }
+      } label: {
+        Label("More", systemImage: "ellipsis")
+      }
+#if os(macOS)
+      .menuIndicator(.hidden)
+      .help("More")
+#endif
+    }
+  }
+
+  /// TMDB when we have an id; Kinopoisk via name search until `staffId` lands on
+  /// `MediaPerson` (KinopoiskSource note — deliberately deferred).
+  private var personExternalLinks: [(name: String, url: URL)] {
+    var links: [(name: String, url: URL)] = []
+    let queryName = LocalePreferredText.preferRuEn(
+      [resolvedPerson.name] + resolvedPerson.catalogNames
+    ) ?? resolvedPerson.name
+    if var components = URLComponents(string: "https://www.kinopoisk.ru/index.php") {
+      components.queryItems = [URLQueryItem(name: "kp_query", value: queryName)]
+      if let url = components.url {
+        links.append((ExternalLink.Site.kinopoisk.name, url))
+      }
+    }
+    if let id = resolvedPerson.tmdbPersonId,
+       let url = URL(string: "https://www.themoviedb.org/person/\(id)") {
+      links.append(("TMDB", url))
+    }
+    return links
   }
 #endif
 
@@ -461,6 +502,12 @@ struct PersonItemsView: View {
   /// TMDB bio + also_known_as (retry Kinopub queries) + combined_credits (external cards).
   private func enrichPersonMetadata() async {
     guard let tmdbId = resolvedPerson.tmdbPersonId else {
+      // Still demote a Hangul/CJK-only display name when catalog spellings have RU/EN.
+      if let preferred = LocalePreferredText.preferRuEn(
+        [resolvedPerson.name] + resolvedPerson.catalogNames
+      ), preferred != resolvedPerson.name {
+        resolvedPerson = resolvedPerson.withDisplayName(preferred)
+      }
       rebuildExternalCards()
       return
     }
@@ -469,7 +516,13 @@ struct PersonItemsView: View {
     personMetadata = meta
     var extras = meta.alsoKnownAs
     if let canonical = meta.name { extras.insert(canonical, at: 0) }
-    let enriched = resolvedPerson.appendingCatalogNames(extras)
+    var enriched = resolvedPerson.appendingCatalogNames(extras)
+    // Display: RU then EN — never leave Hangul/CJK first when a RU/EN form exists.
+    if let preferred = LocalePreferredText.preferRuEn(
+      [enriched.name, meta.name].compactMap { $0 } + meta.alsoKnownAs + enriched.catalogNames
+    ) {
+      enriched = enriched.withDisplayName(preferred)
+    }
     resolvedPerson = enriched
     // Empty or thin Kinopub result with new spellings — try again with also_known_as.
     let gainedNames = enriched.queryNames.contains { !beforeNames.map { $0.lowercased() }.contains($0.lowercased()) }

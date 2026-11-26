@@ -29,9 +29,10 @@ extension FilterBarDriver {
 
 extension LibraryCatalog: FilterBarDriver {}
 
-/// How much of the filter bar a page shows. `.full` is search, the library, and a
-/// person's credits — those listings accept the picks. `.sort` is a collection:
-/// the endpoint cannot filter, and a local copy of the search row is not a filter.
+/// How much of the filter bar a page shows. `.full` is search and the library —
+/// those listings accept Type / Genre / Country / Years. `.sort` is a collection
+/// or a person's credits: the person endpoint does not implement those chips
+/// (Sasha, 2026-11-26), and a collection cannot filter either.
 enum LibraryFiltersBarChrome {
   case full
   case sort
