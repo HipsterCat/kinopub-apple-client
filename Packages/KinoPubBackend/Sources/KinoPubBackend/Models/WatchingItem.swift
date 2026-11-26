@@ -74,6 +74,14 @@ public extension WatchingItem {
     (new ?? 0) > 0
   }
 
+  var isMultiVersion: Bool {
+    subtype?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "multi"
+  }
+
+  var isConcert: Bool {
+    type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "concert"
+  }
+
   /// Episodes still unwatched. Prefer `total − watched` when the payload has both —
   /// `new` is the same number when the server fills it, and is sometimes missing.
   var unwatchedCount: Int? {

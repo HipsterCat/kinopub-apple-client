@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Карточки «Продолжить» больше не показывают третью строку с годом и жанром: у сериалов — название и серия, у фильмов и концертов — версия, часть после слэша или причина («В закладках», «Недосмотрено»)."
+  ],
+  "en": [
+    "Continue Watching cards no longer add a third year/genre line: series show title and episode; films and concerts show the offered version, the show part after “/”, or the reason (“Bookmarked”, “Left unfinished”)."
+  ]
+}

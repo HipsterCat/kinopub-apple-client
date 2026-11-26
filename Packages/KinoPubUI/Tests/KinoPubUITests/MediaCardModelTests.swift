@@ -142,4 +142,48 @@ final class MediaCardModelTests: XCTestCase {
       .catalogCaption(language: .ru, omittingGenreIDs: ["documentary"]),
                    "2011", "nothing else to say")
   }
+
+  /// Landscape cards (Continue Watching / History / episodes) stay at most two lines:
+  /// title + one subtitle/date line, never appending year/genre as a third line even when
+  /// those facts are populated for the long-press sneak peek.
+  func testLandscapeCardCapsCaptionAtTwoLines() {
+    XCTAssertEqual(MediaCardView.landscapeReservedCaptionLines, 2)
+
+    let seriesCW = MediaCard(
+      id: 10,
+      posterURL: "",
+      title: "Король Талсы",
+      landscapeImageURL: "https://example.com/wide.jpg",
+      overlayLabel: "1 сезон, 8 серия",
+      isSeries: true,
+      year: 2022,
+      genres: [GenreVocabulary.genre(id: "comedy")!]
+    )
+    XCTAssertEqual(MediaCardView.landscapeSubtitleLine(for: seriesCW), "1 сезон, 8 серия")
+    XCTAssertEqual(MediaCardView.landscapeCaptionLineCount(for: seriesCW), 2)
+
+    let concertCW = MediaCard(
+      id: 11,
+      posterURL: "",
+      title: "Morgenshtern",
+      landscapeImageURL: "https://example.com/concert.jpg",
+      overlayLabel: "Dead Sea Concert",
+      isSeries: false,
+      year: 2024,
+      genres: [GenreVocabulary.genre(id: "concert")!]
+    )
+    XCTAssertEqual(MediaCardView.landscapeSubtitleLine(for: concertCW), "Dead Sea Concert")
+    XCTAssertEqual(MediaCardView.landscapeCaptionLineCount(for: concertCW), 2)
+
+    let titleOnlyLandscape = MediaCard(
+      id: 12,
+      posterURL: "",
+      title: "Версия 1",
+      landscapeImageURL: "https://example.com/version.jpg",
+      isSeries: false
+    )
+    XCTAssertNil(MediaCardView.landscapeSubtitleLine(for: titleOnlyLandscape))
+    XCTAssertEqual(MediaCardView.landscapeCaptionLineCount(for: titleOnlyLandscape), 1,
+                   "pads to reserved 2 lines via captionFiller so rail height stays even")
+  }
 }

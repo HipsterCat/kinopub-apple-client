@@ -937,23 +937,37 @@ class HomeCatalog: ObservableObject {
     return Array(plan.order.compactMap { id -> MediaCard? in
       let base: MediaCard?
       if plan.insertIDs.contains(id), let entry = entryByID[id] {
+        let localDetail: MediaItem? = (!entry.item.isEpisodicType && entry.item.playbackAction != .playAgain)
+          ? entry.item
+          : nil
         base = Self.card(for: WatchingItem(mediaItem: entry.item),
-                         detail: nil,
+                         detail: localDetail,
                          history: nil,
                          finishedEpisodes: [:],
                          local: entry,
                          isInHistory: true,
                          isInWatchlist: false,
-                         cached: nil)
+                         cached: nil,
+                         reason: .watched(Date(timeIntervalSince1970: entry.updatedAt)))
       } else {
         base = storedByID[id]
       }
       guard let base else { return nil }
       guard let mutation = plan.mutations[id] else { return base }
+      let updatedOverlay: String?
+      if let mutationOverlay = mutation.overlayLabel {
+        updatedOverlay = mutationOverlay
+      } else if !base.isSeries,
+                mutation.progress != nil,
+                base.overlayLabel == Self.continueReasonLabel(for: .bookmarked(Date())) {
+        updatedOverlay = Self.continueReasonLabel(for: .unfinished)
+      } else {
+        updatedOverlay = base.overlayLabel
+      }
       return base.withContinueWatching(progress: mutation.progress,
                                        season: mutation.season,
                                        video: mutation.video,
-                                       overlayLabel: mutation.overlayLabel)
+                                       overlayLabel: updatedOverlay)
     }.prefix(ContinueWatchingPreferences.rules.maxItems))
   }
 
@@ -1378,26 +1392,30 @@ class HomeCatalog: ObservableObject {
   ///
   /// Every series is asked for too: only its payload knows where seasons end and which
   /// episodes the server counts as watched. A guess from counts offered Invasion
-  /// «S3, E30» on a ten-episode season — `watched: 29` is the whole series' count — and
-  /// the old rule of trusting a cached card's S/E kept that guess for good. A payload is
+  /// Every series, multi-version film (`subtype: multi`) and concert is asked for, plus
+  /// non-listed titles: only the title itself knows where seasons end, what the server
+  /// counts as watched, and which version/cut or concert set is in progress. A payload is
   /// reused while its title has not moved (`versions`), so a refresh after nothing
-  /// happened costs no request. A listed film needs none: the list is the server saying
-  /// it is unfinished.
+  /// happened costs no request. Remaining slots inside `detailLimit` also fetch listed
+  /// single-video films (for sneak-peek metadata or genre-filed concerts).
   private func titleDetails(for items: [WatchingItem],
                             serverListed: Set<Int>,
                             versions: [Int: String]) async -> [Int: MediaItem] {
     var byID: [Int: MediaItem] = [:]
-    var ids: [Int] = []
+    var priorityIDs: [Int] = []
+    var secondaryIDs: [Int] = []
     for item in items {
-      let isSeries = item.isEpisodicType
-      if serverListed.contains(item.id), !isSeries { continue }
       if let hit = Self.detailCache[item.id], hit.version == versions[item.id] {
         byID[item.id] = hit.item
         continue
       }
-      ids.append(item.id)
-      if ids.count >= Self.detailLimit { break }
+      if !serverListed.contains(item.id) || item.isEpisodicType || item.isMultiVersion || item.isConcert {
+        priorityIDs.append(item.id)
+      } else {
+        secondaryIDs.append(item.id)
+      }
     }
+    let ids = Array((priorityIDs + secondaryIDs).prefix(Self.detailLimit))
     guard !ids.isEmpty else { return byID }
 
     return await withTaskGroup(of: (Int, MediaItem?).self) { group in
@@ -1506,11 +1524,17 @@ class HomeCatalog: ObservableObject {
         }
       }
     } else if let detail, detail.playbackVariants.count > 1 {
-      // A title in several videos — a concert in sets, a film's cuts: the one the detail page's
-      // first play button offers (`playChoices`), not the newest history row — that is where
-      // the viewer was, and on a finished set it offered it again. Done only when none is
-      // left to watch; the first video watched used to read as the whole title watched.
-      guard let next = detail.playChoices.first(where: { !$0.isWatched }) else { return nil }
+      // A title in several videos — a concert in sets, a film's cuts (`subtype: multi`):
+      // prefer the variant currently being watched, else the first unwatched one.
+      let choices = detail.playChoices
+      let localResumableVideo = (local?.watch.isResumable == true) ? local?.episode : nil
+      let next = localResumableVideo.flatMap { videoNumber in
+        choices.first(where: { $0.number == videoNumber && !$0.isWatched })
+      } ?? (detail.isMultiVersion
+            ? choices.first(where: { !$0.isWatched && $0.watchProgress.hasStarted })
+            : nil)
+        ?? choices.first(where: { !$0.isWatched })
+      guard let next else { return nil }
       video = next.number
       season = nil
       offeredVersion = next
@@ -1542,8 +1566,8 @@ class HomeCatalog: ObservableObject {
     // The details payload when it was fetched, else the snapshot the player cached.
     let seasonCount = (detail?.seasons ?? local?.item.seasons)?.count
     // «1 серия: Поцелуй» — the episode the card offers, named when the payload names it.
-    var overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
-                                    seasonCount: seasonCount, name: offered?.title)
+    let episodeOverlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
+                                           seasonCount: seasonCount, name: offered?.title)
     // The episodes after the one offered: `new` counts the offered one too, so «+ ещё 1»
     // showed with nothing past it (Sasha, 2026-10-30). The label itself is off for now
     // (`MediaCardView.showsMoreEpisodesCount`).
@@ -1552,15 +1576,22 @@ class HomeCatalog: ObservableObject {
     let posters = history?.item.posters ?? local?.item.posters ?? item.posters
     let presentation = MediaPresentationProfile(type: item.type, genres: detail?.genres ?? [])
     var title = presentation.cardTitle(localized: item.localizedTitle, original: item.originalTitle)
-    if let offeredVersion {
+    var concertShow: String?
+    if offeredVersion != nil {
       // Several videos: the title on one line, the one in progress under it.
       title = Self.joinedConcertTitle(title)
-      overlay = offeredVersion.name
     } else if presentation.kind == .concert, let split = Self.splitConcertTitle(title) {
       // One video: the artist, then the show — «Peter Gabriel» / «New Blood - Live…».
       title = split.artist
-      overlay = split.show
+      concertShow = split.show
     }
+    let overlay = Self.continueWatchingSubtitle(
+      isSeries: isSeries,
+      episodeLabel: episodeOverlay,
+      offeredVersionName: offeredVersion?.name,
+      concertShow: concertShow,
+      reason: reason
+    )
     // kino.pub's frame of what the card offers. Under the pointer `MediaCardView` asks the
     // worker for the title page's own picture of it and keeps this as the fallback.
     let hoverStill = offered?.thumbnail ?? offeredVersion?.thumbnail
@@ -1601,6 +1632,45 @@ class HomeCatalog: ObservableObject {
                      kinopoiskID: item.kinopoisk)
     card.continuePeekHint = Self.continuePeekHint(for: reason)
     return card
+  }
+
+  /// Line 2 of a Continue Watching card — never more than two lines on the card total.
+  /// - Series: season/episode (+ episode title when known).
+  /// - Non-series: offered version (`subtype: multi` or multi-set concert), else the
+  ///   concert's show half (after `/`), else the reason («В закладках» / «Недосмотрено»).
+  static func continueWatchingSubtitle(isSeries: Bool,
+                                       episodeLabel: String?,
+                                       offeredVersionName: String?,
+                                       concertShow: String?,
+                                       reason: ContinueWatchingOrder.Reason?) -> String? {
+    func nonEmpty(_ value: String?) -> String? {
+      let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed?.isEmpty == false ? trimmed : nil
+    }
+    if isSeries {
+      return nonEmpty(episodeLabel)
+    }
+    if let version = nonEmpty(offeredVersionName) {
+      return version
+    }
+    if let concertShow = nonEmpty(concertShow) {
+      return concertShow
+    }
+    return continueReasonLabel(for: reason)
+  }
+
+  /// Card line 2 for a non-series Continue Watching card when no version or concert show
+  /// subtitle applies: «В закладках» for bookmarks, «Недосмотрено» for unfinished or
+  /// locally started titles.
+  static func continueReasonLabel(for reason: ContinueWatchingOrder.Reason?) -> String? {
+    switch reason {
+    case .bookmarked:
+      return String(localized: "Bookmarked")
+    case .unfinished, .watched:
+      return String(localized: "Left Unfinished")
+    case .released, .none:
+      return nil
+    }
   }
 
   /// Sneak-peek secondary for Continue Watching when genre is not the right answer.

@@ -957,6 +957,7 @@ public struct MediaCardView: View {
   }
 
   private var showsCaptionScores: Bool {
+    guard !card.isLandscape else { return false }
     guard captionScores.hasDisplayableScore else { return false }
     // Labelled scores are the only rating a card has while the aggregate is off —
     // they are not the "Under title" branch of a setting that is no longer shown.
@@ -1057,7 +1058,13 @@ public struct MediaCardView: View {
   static let showsMoreEpisodesCount = false
 
   private var landscapeEpisodeLine: String? {
-    guard card.isLandscape else { return nil }
+    Self.landscapeSubtitleLine(for: card)
+  }
+
+  /// The single subtitle line under a landscape card (`title` + this line = 2 lines max).
+  /// Continue Watching / episode rails use `overlayLabel` unless History sets `watchedAt`.
+  static func landscapeSubtitleLine(for card: MediaCard) -> String? {
+    guard card.isLandscape, card.watchedAt == nil else { return nil }
     let episode = card.overlayLabel.flatMap { $0.isEmpty ? nil : $0 }
     let moreCount: Int? = {
       guard let badge = card.badge else { return nil }
@@ -1651,7 +1658,7 @@ public struct MediaCardView: View {
           .foregroundStyle(Color.Piratic.subtitle)
       }
 
-      if !card.captionStats.isEmpty {
+      if !card.isLandscape, !card.captionStats.isEmpty {
         HStack(spacing: 10) {
           ForEach(Array(card.captionStats.enumerated()), id: \.offset) { _, stat in
             HStack(spacing: 4) {
@@ -1669,9 +1676,12 @@ public struct MediaCardView: View {
 
       // Year / genre yield to the unwatched line when that placement is on — tvOS
       // Following does the same (`TVPageCells.posterSubtitle`).
+      // Landscape cards (Continue Watching / History / episodes) never show year/genre
+      // under the still — they stay at most two lines (`title` + `landscapeEpisodeLine`
+      // or `watchedAt`), even when `year` and `genres` are populated for sneak peek.
       // Always one line: year is fixed, genre (and country) truncate — a long
       // «Документальный» must not wrap under the year onto a second line.
-      if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty {
+      if !card.isLandscape, !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty {
         captionMetaLine
       }
 
@@ -1743,26 +1753,39 @@ public struct MediaCardView: View {
 
   /// How many lines this card's caption actually draws.
   private var captionLineCount: Int {
+    if card.isLandscape {
+      return Self.landscapeCaptionLineCount(for: card)
+    }
     var lines = 1 // title
     if card.watchedAt != nil { lines += 1 }
-    if !card.isLandscape,
-       showOriginalTitle || card.opensCollection,
+    if showOriginalTitle || card.opensCollection,
        let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
       lines += 1
     }
     if showsUnwatchedUnderTitle { lines += 1 }
-    if card.isLandscape, landscapeEpisodeLine != nil { lines += 1 }
     if showsCaptionScores { lines += 1 }
     if !card.captionStats.isEmpty { lines += 1 }
     if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty { lines += 1 }
     return lines
   }
 
-  /// The constant every card of this shape pads up to. Landscape: title + watched +
-  /// episode. Posters: title + meta, plus a scores line when «Under title» ratings are
-  /// on — so a card without a score does not shrink beside one that has it.
+  /// Fixed two-line caption budget for landscape cards (title + at most one subtitle/date line).
+  static let landscapeReservedCaptionLines = 2
+
+  static func landscapeCaptionLineCount(for card: MediaCard) -> Int {
+    var lines = 1 // title
+    if card.watchedAt != nil || landscapeSubtitleLine(for: card) != nil {
+      lines += 1
+    }
+    return lines
+  }
+
+  /// The constant every card of this shape pads up to. Landscape: fixed two-line slot
+  /// (title + episode/reason/version/watched date) so rail height never jumps and never
+  /// adds a third line. Posters: title + meta, plus a scores line when «Under title»
+  /// ratings are on — so a card without a score does not shrink beside one that has it.
   private var reservedCaptionLines: Int {
-    if card.isLandscape { return 3 }
+    if card.isLandscape { return Self.landscapeReservedCaptionLines }
     var lines = 2
     if RatingFeature.combinedEnabled, ratingPlacement == .inCaption, showsRatingChrome {
       lines += 1
