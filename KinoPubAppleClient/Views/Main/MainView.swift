@@ -666,6 +666,7 @@ struct MainView: View {
       onToggleWatched: onToggleWatched,
       watchedSubmenu: watchedSubmenu,
       onHide: isContinueWatching ? { catalog.hide(card) } : nil,
+      onChangeImages: cardMenu.canChangeImages ? { cardMenu.changeImages(card) } : nil,
       onOpenImageURL: { openURL($0) }
     )
   }

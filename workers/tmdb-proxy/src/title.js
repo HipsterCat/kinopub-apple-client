@@ -1325,6 +1325,14 @@ function posterChain(document, hints, lang, kinopubSrc) {
   const from = (source) => inLang.filter((a) => (source === "tmdb"
     ? a.source !== "kinopoisk" && a.source !== "tvoe" : a.source === source));
   push(bestAsset(from("tmdb"), "poster", lang, { strict: true }));
+  // A textless TMDB poster (no language) suits every language and beats a
+  // Kinopoisk or kino.pub plate (129379: TMDB had en + textless, no ru).
+  if (lang) {
+    const textless = (document?.artwork?.poster || []).map(normalizeAsset)
+      .filter((a) => a && a.lang == null && a.source !== "kinopoisk" && a.source !== "tvoe"
+        && a.source !== "kinopub" && !isKinopubHost(a.url));
+    push(bestAsset(textless, "poster", null));
+  }
   push(bestAsset(from("tvoe"), "poster", lang, { strict: true }));
   push(bestAsset(from("kinopoisk"), "poster", lang, { strict: true }));
   if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang, width: null, height: null });
@@ -1452,6 +1460,9 @@ async function fetchAsset(env, asset, kind, w, format) {
       return null;
     }
   };
+  // Kinopoisk answers a title without a poster with a grey «K» GIF, which
+  // wsrv happily converts: skip the rung instead (129379, Sasha 2026-11-26).
+  if (asset.source === "kinopoisk" && !(await kinopoiskHasPoster(durableOrigin(asset)))) return null;
   if (weservEnabled(env)) {
     const origin = durableOrigin(asset);
     const served = origin ? await attempt(weservURL(origin, w, format)) : null;
@@ -1460,6 +1471,36 @@ async function fetchAsset(env, asset, kind, w, format) {
   // A kino.pub file weserv could not reach is down for us too.
   if (asset.source === "kinopub" && weservEnabled(env)) return null;
   return attempt(asset.source === "kinopub" ? safeHttpURL(asset.url) : resizeAsset(asset, kind, w));
+}
+
+// kinopoiskapiunofficial → st.kp.yandex.net → avatars (a poster) or
+// st.kp.yandex.net/images/no-poster.gif (none). Measured 2026-11-26.
+const kinopoiskPosterKnown = new Map();
+
+/** False only when Kinopoisk's redirects end on its no-poster GIF. */
+export async function kinopoiskHasPoster(origin) {
+  if (!origin) return false;
+  const key = origin.replace(/\/kp_small\//, "/kp/");
+  if (kinopoiskPosterKnown.has(key)) return kinopoiskPosterKnown.get(key);
+  let target = origin;
+  let verdict = true;
+  try {
+    for (let hop = 0; hop < 4; hop += 1) {
+      const response = await fetch(target, { method: "HEAD", redirect: "manual", ...timeoutSignal(POSTER_FETCH_TIMEOUT_MS) });
+      const location = response.headers.get("location");
+      if (response.status < 300 || response.status >= 400 || !location) {
+        verdict = !(response.headers.get("content-type") || "").includes("image/gif");
+        break;
+      }
+      if (/no-poster/i.test(location)) { verdict = false; break; }
+      target = new URL(location, target).toString();
+    }
+  } catch {
+    return true; // Unknown: let wsrv try, as before.
+  }
+  if (kinopoiskPosterKnown.size > 2000) kinopoiskPosterKnown.clear();
+  kinopoiskPosterKnown.set(key, verdict);
+  return verdict;
 }
 
 function timeoutSignal(ms) {

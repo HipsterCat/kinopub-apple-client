@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { RECHECK_MISSING_MS, RECHECK_NEW_MS, RECHECK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, resolveAndStore } from "./title.js";
+import { RECHECK_MISSING_MS, RECHECK_NEW_MS, RECHECK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, kinopoiskHasPoster, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -472,9 +472,9 @@ test("stamped poster walks past a dead Kinopoisk file to kino.pub", async () => 
     );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-language"), "ru");
-    // Kinopoisk through weserv, then Kinopoisk direct, then kino.pub.
-    assert.equal(fetched.length, 3);
-    assert.ok(fetched[2].includes("staticpop"), fetched[2]);
+    // Kinopoisk's no-poster check, through weserv, direct, then kino.pub.
+    assert.equal(fetched.length, 4);
+    assert.ok(fetched[3].includes("staticpop"), fetched[3]);
   } finally {
     globalThis.fetch = restore;
   }
@@ -1243,6 +1243,70 @@ test("wide=1 asks the wide-card chain with kino.pub's wide derived from the id",
   try {
     await handleImage(new Request(response.headers.get("location")), bare, ctxSpy());
     assert.ok(fetched[0].includes(encodeURIComponent("https://m.staticpop.net/poster/item/wide/82852.jpg")), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("Kinopoisk's no-poster GIF is a missing rung", async () => {
+  const restore = globalThis.fetch;
+  const hops = {
+    "https://kinopoiskapiunofficial.tech/images/posters/kp/14892763.jpg": "https://st.kp.yandex.net/images/film_big/14892763.jpg",
+    "https://st.kp.yandex.net/images/film_big/14892763.jpg": "https://st.kp.yandex.net/images/no-poster.gif",
+    "https://kinopoiskapiunofficial.tech/images/posters/kp/4915923.jpg": "https://st.kp.yandex.net/images/film_big/4915923.jpg",
+    "https://st.kp.yandex.net/images/film_big/4915923.jpg": "https://avatars.mds.yandex.net/get-kinopoisk-image/1/x1000",
+  };
+  const fetched = [];
+  globalThis.fetch = async (target, init) => {
+    const url = String(target);
+    fetched.push(url);
+    assert.equal(init?.redirect, "manual");
+    if (hops[url]) return new Response(null, { status: 302, headers: { location: hops[url] } });
+    return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+  try {
+    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp/14892763.jpg"), false);
+    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp/4915923.jpg"), true);
+    const count = fetched.length;
+    // Remembered: no second walk for the same title.
+    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp_small/14892763.jpg"), false);
+    assert.equal(fetched.length, count);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("a textless TMDB poster comes before an empty Kinopoisk one in Russian", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (target) => {
+    const url = String(target);
+    fetched.push(url);
+    if (url.includes("kinopoiskapiunofficial")) {
+      return new Response(null, { status: 302, headers: { location: "https://st.kp.yandex.net/images/no-poster.gif" } });
+    }
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const env = kvEnv({
+      "title:kinopub:129379": {
+        ids: { kinopoisk: { value: "77777001" } },
+        artwork: {
+          poster: [
+            { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/en.jpg", lang: "en", width: 2000, height: 3000 },
+            { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/textless.jpg", lang: null, width: 2000, height: 3000 },
+            { source: "kinopoisk", url: "https://kinopoiskapiunofficial.tech/images/posters/kp/77777001.jpg", lang: "ru" },
+          ],
+        },
+      },
+    });
+    const response = await handleImage(
+      new Request("https://example.test/img/poster/by/kinopub/129379/ru/poster.jpg?w=300&kinopoisk=77777001"),
+      env, ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.ok(fetched[0].includes("textless.jpg"), fetched[0]);
+    assert.ok(!fetched.some((u) => u.includes("kinopoisk")), fetched.join("\n"));
   } finally {
     globalThis.fetch = restore;
   }

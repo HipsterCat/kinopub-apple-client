@@ -7,6 +7,7 @@
 
 import Foundation
 import KinoPubMetadata
+import KinoPubUI
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -38,15 +39,26 @@ enum ArtworkPixelWidth {
   /// One poster `w` for every vertical cover (grid, banner, peek, Top Shelf) so a title
   /// is one URL and one cache entry. A poster is never wider than a fifth of the screen's
   /// long side (tvOS grid, Mac grid, the iPhone peek), snapped onto the worker buckets:
-  /// 780 on Apple TV 4K and iPhone, 454 on a 1080p TV, 1280 on a 5K Mac.
+  /// 780 on Apple TV 4K and iPhone, 454 on a 1080p TV.
+  /// On a Mac the grid card is the slot (~150 pt, 2× Retina ≈ 300 px): a fifth of a
+  /// MacBook screen asked 780 for a 300 px tile (Sasha 2026-11-26).
   static var poster: Int {
+#if os(macOS)
+    TitleImageRoute.bucketedWidth(.poster, pixels: Int((MediaCardView.cardWidth * 2).rounded(.up)))
+#else
     TitleImageRoute.bucketedWidth(.poster, pixels: screen / 5)
+#endif
   }
 
   /// One `w` for every wide title card (Continue Watching, Library, History): never wider
   /// than a third of the screen's long side — 1280 on Apple TV 4K, 780 on a 1080p TV.
+  /// On a Mac it is the wide card slot × 2, like ``poster``.
   static var wideCard: Int {
+#if os(macOS)
+    TitleImageRoute.bucketedWidth(.cover, pixels: Int((MediaCardView.landscapeWidth * 2).rounded(.up)))
+#else
     TitleImageRoute.bucketedWidth(.cover, pixels: screen / 3)
+#endif
   }
 
   private static var rawBackdrop: Int {
