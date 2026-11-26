@@ -103,7 +103,7 @@ private struct ReviewPopupBody: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       Text(review.body)
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .multilineTextAlignment(.leading)
       HStack(spacing: 16) {
         if let sentiment = review.sentimentTitle {

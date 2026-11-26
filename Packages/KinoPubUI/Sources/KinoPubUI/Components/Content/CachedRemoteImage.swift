@@ -127,13 +127,13 @@ public struct RemoteImageLoadingCue: View {
 #Preview("Loading cue") {
   HStack(spacing: 16) {
     ZStack {
-      Color.KinoPub.placeholder
+      Color.Piratic.placeholder
       RemoteImageLoadingCue(delay: .milliseconds(50))
     }
     .frame(width: 200, height: 160)
 
     ZStack {
-      Color.KinoPub.placeholder
+      Color.Piratic.placeholder
       RemoteImageLoadingCue(title: "Стражи Галактики. Часть 3", delay: .milliseconds(50))
     }
     .frame(width: 200, height: 160)
@@ -149,7 +149,7 @@ public struct RemoteImageLoadingCue: View {
     contentMode: .fill,
     placeholder: {
       ZStack {
-        Color.KinoPub.placeholder
+        Color.Piratic.placeholder
         RemoteImageLoadingCue()
       }
     },

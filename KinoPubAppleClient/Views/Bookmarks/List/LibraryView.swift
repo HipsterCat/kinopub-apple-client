@@ -43,7 +43,7 @@ struct LibraryView: View {
     RouteStack(tab: .library) {
       page
         .platformNavigationTitle("Library")
-        .background(Color.KinoPub.background)
+        .background(Color.Piratic.background)
         .task {
           cardMenu.bind(errorHandler: errorHandler)
           await catalog.fetch()
@@ -128,11 +128,11 @@ struct LibraryView: View {
           .foregroundStyle(.tint)
           .frame(width: 24)
         Text(title)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         Spacer()
         if let count {
           Text(count)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
         Image(systemName: "chevron.forward")
           .font(.footnote.weight(.semibold))
@@ -195,7 +195,7 @@ struct LibraryView: View {
         ProgressView().frame(maxWidth: .infinity).padding()
       } else {
         Text("No Results")
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .frame(maxWidth: .infinity)
           .padding()
       }
@@ -252,11 +252,11 @@ struct BookmarkFoldersView: View {
               Spacer(minLength: 0)
               Text(folder.title)
                 .font(.headline)
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.Piratic.text)
                 .lineLimit(2)
               Text(folder.count)
                 .font(.subheadline)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .bottomLeading)
             .padding()
@@ -270,6 +270,6 @@ struct BookmarkFoldersView: View {
     }
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if $0 > 0 { width = $0 } }
     .platformNavigationTitle("BookmarkCollections".localized)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
   }
 }

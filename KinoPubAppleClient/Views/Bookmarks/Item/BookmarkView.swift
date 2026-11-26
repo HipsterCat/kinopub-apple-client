@@ -29,7 +29,7 @@ struct BookmarkView: View {
       listView
     }
     .platformNavigationTitle(model.bookmark.title)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .task {
       cardMenu.bind(errorHandler: errorHandler)
       await model.fetchItems()

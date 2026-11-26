@@ -46,7 +46,7 @@ public struct SectionHeader: View {
       // resolve to the same colour over an opaque background, but only the shape
       // style gets the system's vibrancy treatment when the header sits over a
       // `Material` — which is what makes it read as part of the material rather than
-      // painted on top of it. Section headers were `Color.KinoPub.text`
+      // painted on top of it. Section headers were `Color.Piratic.text`
       // (= `Color.primary`, i.e. plain white in this app's forced-dark chrome), which
       // is the weight a *title* carries, not a section label.
       title
@@ -102,6 +102,6 @@ public struct SectionHeader: View {
 
   }
   .padding()
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
   // .preferredColorScheme(.dark)
 }

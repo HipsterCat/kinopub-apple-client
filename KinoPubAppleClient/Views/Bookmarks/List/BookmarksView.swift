@@ -27,7 +27,7 @@ struct BookmarksView: View {
     RouteStack(tab: .bookmarks) {
       bookmarksRows
         .platformNavigationTitle("Bookmarks")
-        .background(Color.KinoPub.background)
+        .background(Color.Piratic.background)
         .task {
           cardMenu.bind(errorHandler: errorHandler)
           await catalog.fetchItems()

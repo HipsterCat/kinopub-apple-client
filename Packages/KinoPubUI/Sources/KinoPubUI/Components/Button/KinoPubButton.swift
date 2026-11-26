@@ -21,13 +21,13 @@ public struct KinoPubButton: View {
     internal var color: Color {
       switch self {
       case .accent:
-        return Color.KinoPub.accent
+        return Color.Piratic.accent
       case .red:
-        return Color.KinoPub.accentRed
+        return Color.Piratic.accentRed
       case .gray:
-        return Color.KinoPub.selectionBackground
+        return Color.Piratic.selectionBackground
       case .blue:
-        return Color.KinoPub.accentBlue
+        return Color.Piratic.accentBlue
       }
     }
 

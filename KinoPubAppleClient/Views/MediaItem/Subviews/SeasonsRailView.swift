@@ -2262,13 +2262,13 @@ private struct MissingSeasonsCard: View {
     VStack(spacing: 10) {
       Text(String(format: "MediaItem_SeasonsRange".localized, from, to))
         .font(TypeScale.cardTitle)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .multilineTextAlignment(.center)
 
       if let subtitle {
         Text(subtitle)
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .multilineTextAlignment(.center)
       }
     }
@@ -2311,8 +2311,8 @@ private struct UpcomingSeasonCard: View {
       CachedRemoteImage(
         url: poster,
         contentMode: .fill,
-        placeholder: { Color.KinoPub.placeholder },
-        failure: { Color.KinoPub.placeholder }
+        placeholder: { Color.Piratic.placeholder },
+        failure: { Color.Piratic.placeholder }
       )
       .frame(maxWidth: .infinity)
       .frame(height: stillHeight)
@@ -2321,7 +2321,7 @@ private struct UpcomingSeasonCard: View {
 
       Text(String(format: "MediaItem_SeasonSingle".localized, number))
         .font(TypeScale.cardTitle)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .lineLimit(1)
 
       Text(String(format: "MediaItem_PremiereOn".localized, premiereText))
@@ -2359,9 +2359,9 @@ private struct EpisodeInfoPopupContent: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       if let url = content.stillURL {
         CachedRemoteImage(url: url, contentMode: .fill) {
-          Color.KinoPub.placeholder
+          Color.Piratic.placeholder
         } failure: {
-          Color.KinoPub.placeholder
+          Color.Piratic.placeholder
         }
         .aspectRatio(CardAspect.landscape.ratio, contentMode: .fit)
         .frame(maxWidth: .infinity)
@@ -2373,13 +2373,13 @@ private struct EpisodeInfoPopupContent: View {
       if !facts.isEmpty {
         Text(facts.joined(separator: " · "))
           .font(InfoPopupMetrics.captionFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
 
       if let synopsis = content.synopsis, !synopsis.isEmpty {
         Text(synopsis)
           .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .fixedSize(horizontal: false, vertical: true)
       }
 
@@ -2387,7 +2387,7 @@ private struct EpisodeInfoPopupContent: View {
         InfoPopupSection(Text("Audio")) {
           Text(verbatim: content.audioLines.joined(separator: "\n"))
             .font(InfoPopupMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -2396,7 +2396,7 @@ private struct EpisodeInfoPopupContent: View {
         InfoPopupSection(Text("Subtitles")) {
           Text(verbatim: content.subtitleNames.joined(separator: ", "))
             .font(InfoPopupMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -2405,7 +2405,7 @@ private struct EpisodeInfoPopupContent: View {
         InfoPopupSection(Text("MediaItem_SpecVideo")) {
           Text(verbatim: content.qualityLines.joined(separator: "\n"))
             .font(InfoPopupMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -2494,7 +2494,7 @@ private struct SeasonRailCard: View {
   /// same plate (number / count / years) until artwork paints — not an empty episode.
   private var poster: some View {
     let placeholder = shape
-      .fill(Color.KinoPub.placeholder)
+      .fill(Color.Piratic.placeholder)
       .overlay(alignment: .bottomLeading) { plateContent }
     return CachedRemoteImage(
       url: info.posterURL,

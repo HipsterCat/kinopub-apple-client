@@ -91,7 +91,7 @@ public struct TVPageBannerLabView: View {
       }
       .frame(maxWidth: .infinity)
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .navigationTitle("Banner Chrome Lab")
   }
 

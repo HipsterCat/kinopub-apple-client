@@ -1077,7 +1077,7 @@ struct MediaItemHeroView: View {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
       Color.black
         .opacity(!showsPicture && showsWash ? Self.posterWashDim : 0)
-      Color.KinoPub.posterHeroPlate
+      Color.Piratic.posterHeroPlate
         .opacity(usesAdaptivePosterHero ? 1 : 0)
       if !backdropCandidates.isEmpty, size.width > 0 {
         CompactHeroPicture(urls: backdropCandidates, width: size.width, height: size.height,
@@ -1328,17 +1328,17 @@ struct MediaItemHeroView: View {
 
   private var heroPrimaryForeground: Color {
 #if os(tvOS)
-    Color.KinoPub.text
+    Color.Piratic.text
 #else
-    usesAdaptivePosterHero ? .primary : Color.KinoPub.text
+    usesAdaptivePosterHero ? .primary : Color.Piratic.text
 #endif
   }
 
   private var heroSecondaryForeground: Color {
 #if os(tvOS)
-    Color.KinoPub.subtitle
+    Color.Piratic.subtitle
 #else
-       usesAdaptivePosterHero ? Color.KinoPub.text.opacity(0.85) : Color.KinoPub.text.opacity(0.85)
+       usesAdaptivePosterHero ? Color.Piratic.text.opacity(0.85) : Color.Piratic.text.opacity(0.85)
 #endif
   }
 
@@ -1417,7 +1417,7 @@ struct MediaItemHeroView: View {
       // Poster hero: the wash, dimmed under the dark chrome; no poster at all: the plate.
       Color.black
         .opacity(!showsPicture && showsWash ? Self.posterWashDim : 0)
-      Color.KinoPub.posterHeroPlate
+      Color.Piratic.posterHeroPlate
         .opacity(usesAdaptivePosterHero ? 1 : 0)
 
       if let player = trailer.player, trailer.isReady {
@@ -1470,7 +1470,7 @@ struct MediaItemHeroView: View {
   /// The third "starring" column is gone; its lines moved under the synopsis.
   /// Phone keeps a single stacked column, with the metadata row above the buttons.
   /// Hero chrome reads as dark over a picture: plot/credits use `Color.primary` via
-  /// `Color.KinoPub.text`, and tvOS does not pin `preferredColorScheme` — light
+  /// `Color.Piratic.text`, and tvOS does not pin `preferredColorScheme` — light
   /// appearance made the synopsis black on dark artwork (unreadable). With no picture
   /// behind it, it follows the appearance instead (`heroChromeColorScheme`).
   private var content: some View {
@@ -2975,7 +2975,7 @@ struct MediaItemHeroView: View {
 
   /// Not `text`, not `subtitle`: the row Apple puts under the title looks like primary
   /// text with the artwork faintly coming through it.
-  static let metaStyle = Color.KinoPub.text.opacity(0.85)
+  static let metaStyle = Color.Piratic.text.opacity(0.85)
 
 #if os(tvOS)
   // Unused for layout — the slideshow slide sizes the hero. Kept so shared metrics

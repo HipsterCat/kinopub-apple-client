@@ -302,8 +302,8 @@ public struct MediaCardContextPreview: View {
 #if os(macOS)
     Color(nsColor: .windowBackgroundColor)
 #elseif os(tvOS)
-    // tvOS has no systemBackground; `Color.KinoPub.background` is clear (page fill).
-    Color.KinoPub.glassSubstitute
+    // tvOS has no systemBackground; `Color.Piratic.background` is clear (page fill).
+    Color.Piratic.glassSubstitute
 #else
     Color(uiColor: .systemBackground)
 #endif

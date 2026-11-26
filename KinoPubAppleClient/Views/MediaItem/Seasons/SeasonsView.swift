@@ -22,7 +22,7 @@ struct SeasonsView: View {
       listView
     }
     .platformNavigationTitle("Seasons")
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
   }
 
   var listView: some View {

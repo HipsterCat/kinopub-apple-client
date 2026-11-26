@@ -31,14 +31,14 @@ public struct ProgressButton: View {
       
       Circle()
         .trim(from: 0.0, to: 1.0)
-        .stroke(Color.KinoPub.accent.opacity(0.2), lineWidth: 3)
+        .stroke(Color.Piratic.accent.opacity(0.2), lineWidth: 3)
         .background(Color.clear)
         .frame(width: 35, height: 35)
         .rotationEffect(.degrees(-90))
       
       Circle()
         .trim(from: 0.0, to: CGFloat(progress))
-        .stroke(Color.KinoPub.accent, lineWidth: 3)
+        .stroke(Color.Piratic.accent, lineWidth: 3)
         .background(Color.clear)
         .frame(width: 40, height: 40)
         .rotationEffect(.degrees(-90))
@@ -48,7 +48,7 @@ public struct ProgressButton: View {
         action(progressState)
       }) {
         Image(systemName: progressState == .resume ? "pause.fill" : "play.fill")
-          .foregroundColor(Color.KinoPub.accent)
+          .foregroundColor(Color.Piratic.accent)
           .font(.headline)
           .frame(width: 20, height: 20)
           .background(Color.clear)

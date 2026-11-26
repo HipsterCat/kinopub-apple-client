@@ -20,9 +20,9 @@ struct ChangelogBullets: View {
       ForEach(Array(bullets.enumerated()), id: \.offset) { _, bullet in
         HStack(alignment: .firstTextBaseline, spacing: 14) {
           Text(verbatim: "•")
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           Text(verbatim: bullet)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
         .font(InfoPopupMetrics.bodyFont)
@@ -41,7 +41,7 @@ struct ChangelogHistory: View {
     if entries.isEmpty {
       Text("WhatsNew_EmptyHistory")
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     } else {
       VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 1.5) {
         ForEach(entries) { entry in
@@ -55,7 +55,7 @@ struct ChangelogHistory: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       Text(verbatim: String(format: "Version %@".localized, entry.version))
         .font(InfoPopupMetrics.subtitleFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
       ChangelogBullets(bullets: entry.bullets(languageCode: languageCode))
     }
   }
@@ -77,12 +77,12 @@ struct WhatsNewUpdateBody: View {
         VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
           Text("WhatsNew_PreviousReleases")
             .font(InfoPopupMetrics.sectionFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           ForEach(previous) { entry in
             VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 0.75) {
               Text(verbatim: String(format: "Version %@".localized, entry.version))
                 .font(InfoPopupMetrics.subtitleFont)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
               ChangelogBullets(bullets: entry.bullets(languageCode: languageCode))
             }
           }

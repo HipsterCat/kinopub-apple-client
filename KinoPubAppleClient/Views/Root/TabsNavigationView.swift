@@ -278,7 +278,7 @@ struct TabsNavigationView: View {
     // would stand up four `SearchView`s, each with its own catalog and its own fetch.
     if navigationState.selectedTab == .search, tab == (navigationState.searchReturnTab ?? .home) {
       searchContent
-        .background(Color.KinoPub.background)
+        .background(Color.Piratic.background)
     } else {
       browseContent(for: tab)
     }

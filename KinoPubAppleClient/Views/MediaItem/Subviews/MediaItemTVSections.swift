@@ -68,7 +68,7 @@ enum MediaItemTVSections {
     static let authorShelfPrefix = "director-"
     static let castShelfPrefix = "actor-"
     static let gallery = "stills"
-    static let kinoPubScore = "KinoPub"
+    static let kinoPubScore = "Kinopub"
   }
 
   static func make(_ input: Input) -> [TVPageSection] {

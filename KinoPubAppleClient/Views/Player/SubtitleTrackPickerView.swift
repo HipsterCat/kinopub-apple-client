@@ -39,7 +39,7 @@ struct SubtitleTrackPickerView: View {
 #if !os(tvOS)
       .scrollContentBackground(.hidden)
 #endif
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .platformNavigationTitle("Subtitles")
 #if !os(tvOS)
       .toolbar {
@@ -66,7 +66,7 @@ struct SubtitleTrackPickerView: View {
         Spacer()
         if isSelected {
           Image(systemName: "checkmark")
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
       .contentShape(Rectangle())

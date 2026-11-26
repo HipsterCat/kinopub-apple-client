@@ -46,7 +46,7 @@ struct WatchlistView: View {
 #if !os(tvOS)
         .navigationSubtitle(newEpisodesSubtitle)
 #endif
-        .background(Color.KinoPub.background)
+        .background(Color.Piratic.background)
         // Every poster here is a subscription — a bookmark ribbon would sit on all of
         // them and mean nothing (Sasha, 2026-11-20).
         .environment(\.hidesMediaCardBookmarkSymbol, true)

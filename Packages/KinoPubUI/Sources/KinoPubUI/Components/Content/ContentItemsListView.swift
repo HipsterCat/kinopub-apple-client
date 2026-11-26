@@ -299,7 +299,7 @@ public struct ContentItemsListView<Header: View>: View {
   /// stays on the filters / search field while the page is still loading.
   private var placeholderCard: some View {
     VStack(alignment: .leading, spacing: Metrics.cardCaptionSpacing) {
-      Color.KinoPub.placeholder
+      Color.Piratic.placeholder
         .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
@@ -314,12 +314,12 @@ public struct ContentItemsListView<Header: View>: View {
 
   private var placeholderListRow: some View {
     HStack(spacing: 14) {
-      Color.KinoPub.placeholder
+      Color.Piratic.placeholder
         .frame(width: 52, height: 78)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
       VStack(alignment: .leading, spacing: 6) {
-        Color.KinoPub.placeholder.frame(height: 14).frame(maxWidth: 180)
-        Color.KinoPub.placeholder.frame(height: 12).frame(maxWidth: 120)
+        Color.Piratic.placeholder.frame(height: 14).frame(maxWidth: 180)
+        Color.Piratic.placeholder.frame(height: 12).frame(maxWidth: 120)
       }
       Spacer(minLength: 0)
     }

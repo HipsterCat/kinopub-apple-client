@@ -88,7 +88,7 @@ private struct KinoGlassModifier<S: Shape>: ViewModifier {
   @ViewBuilder
   func body(content: Content) -> some View {
     if mustNotSample {
-      content.background(shape.fill(Color.KinoPub.glassSubstitute))
+      content.background(shape.fill(Color.Piratic.glassSubstitute))
     } else {
       content.glassEffect(glass, in: shape)
     }

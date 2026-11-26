@@ -38,10 +38,10 @@ public struct VariantGallery<Content: View>: View {
       VStack(alignment: .leading, spacing: 4) {
         Text(title)
           .font(.title2.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         Text("Axis: \(axis)")
           .font(.caption)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
 
         HStack(alignment: .top, spacing: 32) {
@@ -50,7 +50,7 @@ public struct VariantGallery<Content: View>: View {
     }
     .padding(40)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
   }
 }
 
@@ -69,7 +69,7 @@ public struct Variant<Content: View>: View {
       content
       Text(name)
         .font(.caption.weight(.regular))
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
   }
 }
@@ -93,7 +93,7 @@ public struct Variant<Content: View>: View {
     Variant("substitute (reduce transparency,\nincreased contrast, A12 Apple TV)") {
       GlassSample()
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .fill(Color.KinoPub.glassSubstitute))
+          .fill(Color.Piratic.glassSubstitute))
     }
   }
   // .preferredColorScheme(.dark)
@@ -104,10 +104,10 @@ private struct GlassSample: View {
     HStack(alignment: .top, spacing: 8) {
       Text("Filters")
         .font(.headline)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
       Text("4K · HDR · 2024")
         .font(.subheadline)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
     .padding(24)
     .frame(width: 260, alignment: .leading)

@@ -22,7 +22,7 @@ public struct TitleStatusBadge: View {
   public var body: some View {
     Text(verbatim: text)
       .fontWeight(.semibold)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
       .lineLimit(1)
       .padding(.horizontal, Self.horizontalPadding)
       .padding(.vertical, Self.verticalPadding)
@@ -31,7 +31,7 @@ public struct TitleStatusBadge: View {
       }
       .overlay {
         // Increase Contrast: a solid line, not a hint of one.
-        Self.shape.strokeBorder(Color.KinoPub.text.opacity(contrast == .increased ? 0.9 : 0.45),
+        Self.shape.strokeBorder(Color.Piratic.text.opacity(contrast == .increased ? 0.9 : 0.45),
                                 lineWidth: Self.strokeWidth)
       }
       .fixedSize()

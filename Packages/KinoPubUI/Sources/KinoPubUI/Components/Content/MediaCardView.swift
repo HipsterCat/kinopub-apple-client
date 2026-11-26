@@ -1391,7 +1391,7 @@ public struct MediaCardView: View {
       .background {
         GeometryReader { geo in
           Capsule()
-            .fill(Color.KinoPub.accent)
+            .fill(Color.Piratic.accent)
             .frame(width: max(geo.size.width, geo.size.height),
                    height: geo.size.height)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1597,7 +1597,7 @@ public struct MediaCardView: View {
       if let watchedAt = card.watchedAt {
         Text(watchedAt.formatted(date: .abbreviated, time: .shortened))
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .lineLimit(1)
           .frame(maxWidth: .infinity, alignment: .center)
       }
@@ -1612,7 +1612,7 @@ public struct MediaCardView: View {
          subtitle != card.title {
         Text(subtitle)
           .font(TypeScale.cardSubtitle)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .lineLimit(1)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, alignment: .center)
@@ -1624,7 +1624,7 @@ public struct MediaCardView: View {
          let text = EpisodesLeftText(unwatchedEpisodeCount)?.formatted() {
         Text(text)
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .lineLimit(1)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, alignment: .center)
@@ -1633,7 +1633,7 @@ public struct MediaCardView: View {
       if card.isLandscape, let line = landscapeEpisodeLine {
         Text(line)
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .lineLimit(1)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, alignment: .center)
@@ -1648,7 +1648,7 @@ public struct MediaCardView: View {
           fadedIcons: fadedRatingIcons
         )
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
 
       if !card.captionStats.isEmpty {
@@ -1662,7 +1662,7 @@ public struct MediaCardView: View {
           }
         }
         .font(TypeScale.cardMeta)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .center)
       }
@@ -1717,7 +1717,7 @@ public struct MediaCardView: View {
       }
     }
     .font(TypeScale.cardMeta)
-    .foregroundStyle(Color.KinoPub.subtitle)
+    .foregroundStyle(Color.Piratic.subtitle)
     .frame(maxWidth: .infinity, alignment: .center)
   }
 

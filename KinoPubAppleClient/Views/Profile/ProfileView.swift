@@ -30,7 +30,7 @@ struct ProfileView: View {
 #else
     // SettingsRootView owns NavigationStack (phone) or NavigationSplitView (wide iOS / Mac).
     SettingsRootView(model: model)
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .navigationStackActive(for: .settings, selected: navigationState.selectedTab)
 #endif
   }
@@ -52,7 +52,7 @@ private struct TVProfileSettingsHost: View {
 
   var body: some View {
     settings
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .onAppear { model.fetch() }
     .alert("Are you sure?", isPresented: $showLogoutAlert) {
       Button("Logout", role: .destructive) { model.logout() }

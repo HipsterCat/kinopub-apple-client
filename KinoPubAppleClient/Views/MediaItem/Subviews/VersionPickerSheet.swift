@@ -177,7 +177,7 @@ struct VersionPickerSheet: View {
     VStack(alignment: .leading, spacing: 18) {
       Text("Choose a Version")
         .font(.title3)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
       VStack(spacing: 12) {

@@ -313,7 +313,7 @@ struct HistoryView: View {
       guard isLoaded else { return }
       await refresh()
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .task {
       cardMenu.bind(errorHandler: errorHandler)
       await loadInitial()

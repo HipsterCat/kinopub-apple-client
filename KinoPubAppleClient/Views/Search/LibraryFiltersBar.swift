@@ -431,7 +431,7 @@ struct LibraryFilterGlassStyle: ViewModifier {
         if isProminent {
           content
                 .buttonStyle(.glassProminent)
-//            .tint(Color.KinoPub.accent)
+//            .tint(Color.Piratic.accent)
         } else {
           content
 //              /* */ .buttonStyle(.glass)
@@ -440,8 +440,8 @@ struct LibraryFilterGlassStyle: ViewModifier {
       } else if isProminent {
         content
           .buttonStyle(.glassProminent)
-//          .tint(Color.KinoPub.accent)
-//          .kinoGlass(in: .capsule, tint: Color.KinoPub.accent, interactive: true)
+//          .tint(Color.Piratic.accent)
+//          .kinoGlass(in: .capsule, tint: Color.Piratic.accent, interactive: true)
       } else {
         content
           // System glass — required for accessory-bar filter chips (UI Lab path).
@@ -466,7 +466,7 @@ struct LibraryFilterGlassStyle: ViewModifier {
       errorHandler: ErrorHandler()
     )
   )
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
   // .preferredColorScheme(.dark)
 }
 #endif

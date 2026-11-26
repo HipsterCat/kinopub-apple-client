@@ -100,7 +100,7 @@ struct MediaItemCastAndCrewPage: View {
 #if os(iOS) || os(macOS)
     .navigationSubtitle("MediaItem_CastSection".localized)
 #endif
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .onAppear {
       if !visibleTabs.contains(tab), let first = visibleTabs.first {
         tab = first
@@ -136,20 +136,20 @@ private struct CastAndCrewRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(entry.person.name)
           .font(.body.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .lineLimit(1)
 
         if let role = entry.roleLine, !role.isEmpty {
           Text(role)
             .font(.subheadline)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(2)
         }
 
         if let episodes = entry.episodeLine {
           Text(episodes)
             .font(.subheadline)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(1)
         }
       }

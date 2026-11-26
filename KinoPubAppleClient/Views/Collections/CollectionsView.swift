@@ -24,7 +24,7 @@ struct CollectionsView: View {
     @Bindable var errorHandler = errorHandler
     content
       .platformNavigationTitle("Collections")
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .task { await model.fetch() }
       .refreshable { await model.refresh() }
       .handleError(state: $errorHandler.state)

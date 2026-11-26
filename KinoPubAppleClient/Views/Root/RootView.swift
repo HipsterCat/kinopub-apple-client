@@ -128,7 +128,7 @@ struct LaunchStatusLabel: View {
   var body: some View {
     Text(joined)
       .font(TypeScale.cardMeta)
-      .foregroundStyle(Color.KinoPub.subtitle)
+      .foregroundStyle(Color.Piratic.subtitle)
       .multilineTextAlignment(.center)
       .lineLimit(2)
       .padding(.horizontal, 32)
@@ -157,7 +157,7 @@ struct RootView_Previews: PreviewProvider {
 
 #Preview("Launch status") {
   ZStack {
-    Color.KinoPub.background.ignoresSafeArea()
+    Color.Piratic.background.ignoresSafeArea()
     LaunchStatusLabel()
   }
   .task {

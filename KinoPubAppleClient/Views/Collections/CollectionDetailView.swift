@@ -41,7 +41,7 @@ struct CollectionDetailView: View {
       }
       .catalogGridChrome()
 #endif
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
         await model.fetch()

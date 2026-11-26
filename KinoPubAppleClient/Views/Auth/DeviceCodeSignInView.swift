@@ -214,7 +214,7 @@ struct DeviceCodeSignInView<Logo: View>: View {
                 .stroke(.quaternary, lineWidth: Metrics.ringLineWidth)
               Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(Color.KinoPub.accent,
+                .stroke(Color.Piratic.accent,
                         style: StrokeStyle(lineWidth: Metrics.ringLineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             }

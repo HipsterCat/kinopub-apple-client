@@ -28,7 +28,7 @@ struct PlayerCasesView: View {
 
   var body: some View {
     ZStack {
-      Color.KinoPub.background.edgesIgnoringSafeArea(.all)
+      Color.Piratic.background.edgesIgnoringSafeArea(.all)
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 24) {
           Button {
@@ -92,7 +92,7 @@ private struct PlayerCaseRow: View {
       if let source = playerCase.source {
         Text(source)
           .font(.subheadline)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
       if let info = playerCase.info {
         Text("Sends: \(PlayerCase.titleLine(info))")
@@ -100,7 +100,7 @@ private struct PlayerCaseRow: View {
         if let description = info.description {
           Text(description)
             .lineLimit(2)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
       }
       if let note = playerCase.note {
@@ -108,7 +108,7 @@ private struct PlayerCaseRow: View {
           .foregroundStyle(.orange)
       }
       Text("Expect: \(playerCase.expectation)")
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
     .font(.callout)
     .frame(maxWidth: .infinity, alignment: .leading)

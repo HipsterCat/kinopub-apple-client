@@ -45,7 +45,7 @@ public struct HudToastView: View {
         .lineLimit(2)
         .minimumScaleFactor(0.85)
     }
-    .foregroundStyle(Color.KinoPub.text)
+    .foregroundStyle(Color.Piratic.text)
     .padding(.horizontal, Metrics.hudContentInset)
     .padding(.vertical, Metrics.hudContentInset)
     .frame(width: Metrics.hudSide, height: Metrics.hudSide)
@@ -109,7 +109,7 @@ private struct HudToastModifier: ViewModifier {
 
 #Preview("HUD") {
   ZStack {
-    Color.KinoPub.background.ignoresSafeArea()
+    Color.Piratic.background.ignoresSafeArea()
     HudToastView(systemImage: "checkmark", title: "Removed")
   }
 }

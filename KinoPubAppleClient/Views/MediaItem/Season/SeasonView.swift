@@ -29,7 +29,7 @@ struct SeasonView: View {
       listView
     }
     .platformNavigationTitle(model.season.fixedTitle)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
   }
 
   var gridLayout: [GridItem] {

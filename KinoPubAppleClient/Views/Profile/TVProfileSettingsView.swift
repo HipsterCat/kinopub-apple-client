@@ -963,7 +963,7 @@ private struct SettingsCategoryPage<Content: View>: View {
     } content: {
       content($focused)
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
   }
 }
 
@@ -1000,7 +1000,7 @@ private struct TVReleaseNotesPage: View {
         }
       }
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .defaultFocus($focused, 0)
   }
 
@@ -1234,7 +1234,7 @@ private struct SettingsChoiceView: View {
         .focused($focusedID, equals: option.id)
       }
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .defaultFocus($focusedID, selection)
     .onAppear {
       if focusedID == nil {
@@ -1429,7 +1429,7 @@ private struct TVTabsAndSectionsPage: View {
         .focused($focused, equals: .reset)
       }
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
   }
 }
 
@@ -1476,7 +1476,7 @@ private struct TVFeatureFlagsPage: View {
         .focused($focused, equals: .reset)
       }
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
   }
 
   private func rows(appliesAtLaunch: Bool) -> some View {
@@ -1549,7 +1549,7 @@ private struct TVKinopoiskKeyView: View {
         .padding(.horizontal, Metrics.pillHorizontalPadding)
         .fixedSize(horizontal: false, vertical: true)
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .defaultFocus($isFieldFocused, true)
   }
 }
@@ -1596,7 +1596,7 @@ private struct TVRememberedTracksPage: View {
         }
       }
     }
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
     .onAppear {
       groups = TrackPreferenceDigest.sections(from: AppContext.shared.trackPreferences.storedScopes)
         .enumerated()

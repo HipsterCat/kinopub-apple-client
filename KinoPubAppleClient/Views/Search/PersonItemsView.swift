@@ -60,7 +60,7 @@ struct PersonItemsView: View {
 
   var body: some View {
     catalogBody
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
 #if os(macOS)
     // The header spells the name out in large type already: no second large title.
     .macPageTitle(Text(resolvedPerson.name), isBlank: true)
@@ -348,16 +348,16 @@ struct PersonItemsView: View {
       VStack(alignment: .leading, spacing: 8) {
         Text(resolvedPerson.name)
           .font(Self.nameFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
 
         Text(resolvedPerson.role.titleKey.localized)
           .font(Self.roleFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
 
         if let metaLine = metaLine, !metaLine.isEmpty {
           Text(metaLine)
             .font(Self.metaFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
 
         if let biography, !biography.isEmpty {
@@ -377,7 +377,7 @@ struct PersonItemsView: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(truncated ? String(text.prefix(Self.bioPreviewLimit)) + "…" : text)
         .font(Self.bioFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .fixedSize(horizontal: false, vertical: true)
 
       if text.count > Self.bioPreviewLimit {

@@ -181,7 +181,7 @@ struct KinoPubAppleClientApp: App {
     .defaultSize(width: 420, height: 420)
     .restorationBehavior(.disabled)
 
-    Window("About Kinopub", id: AboutWindow.id) {
+    Window("About Piratic", id: AboutWindow.id) {
       AboutView()
         .listedInWindowMenu(disallowTabbing: true)
 //        // .preferredColorScheme(.dark)
@@ -320,7 +320,7 @@ private struct AboutCommands: Commands {
 
   var body: some Commands {
     CommandGroup(replacing: .appInfo) {
-      Button("About Kinopub") {
+      Button("About Piratic") {
         openWindow(id: AboutWindow.id)
       }
     }

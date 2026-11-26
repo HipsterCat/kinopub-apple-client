@@ -42,7 +42,7 @@ public struct MarqueeText: View {
   public init(
     _ text: String,
     font: Font = TypeScale.cardTitle,
-    foreground: Color = Color.KinoPub.text,
+    foreground: Color = Color.Piratic.text,
     alignment: Alignment = .leading,
     fillsWidth: Bool = true,
     style: Style = .title

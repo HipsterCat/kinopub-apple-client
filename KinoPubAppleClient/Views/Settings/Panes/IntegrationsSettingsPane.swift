@@ -180,7 +180,7 @@ struct IntegrationDetailView: View {
         }
       } else if integration == .tmdb {
         Section {
-          Toggle("KinoPub proxy", isOn: proxyBinding)
+          Toggle("TMDB Proxy", isOn: proxyBinding)
             .disabled(!hasKey)
         } footer: {
           VStack(alignment: .leading, spacing: 8) {

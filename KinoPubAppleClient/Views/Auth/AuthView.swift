@@ -23,7 +23,7 @@ struct AuthView: View {
     ZStack {
       // Static backdrop, not the live app behind glass: the catalog underneath used to blink
       // through the blur every time a poster or the hero swapped.
-      Color.KinoPub.background
+      Color.Piratic.background
         .ignoresSafeArea()
       Rectangle()
         .fill(.ultraThinMaterial)

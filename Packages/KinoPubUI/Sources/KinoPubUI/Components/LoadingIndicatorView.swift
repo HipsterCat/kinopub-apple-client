@@ -33,7 +33,7 @@ public struct LoadingIndicatorView: View {
 #endif
       ProgressView()
 #if !os(tvOS)
-        .tint(Color.KinoPub.text)
+        .tint(Color.Piratic.text)
 #endif
         .controlSize(.large)
         .opacity(isVisible ? 1 : 0)
@@ -54,5 +54,5 @@ public struct LoadingIndicatorView: View {
 
 #Preview {
   LoadingIndicatorView()
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
 }

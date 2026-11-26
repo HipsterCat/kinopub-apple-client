@@ -100,7 +100,7 @@ struct TVUIKitComponentGalleryView: View {
       }
       .padding(.vertical, 60)
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .platformNavigationTitle("TVUIKit Gallery")
     .fullScreenCover(isPresented: $showsDigitEntry) {
       TVDigitEntryRepresentable {

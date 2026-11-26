@@ -51,8 +51,8 @@ private struct PhoneWideArt: View {
     CachedRemoteImage(
       url: PhonePageSample.wide,
       contentMode: .fill,
-      placeholder: { Color.KinoPub.placeholder },
-      failure: { Color.KinoPub.placeholder }
+      placeholder: { Color.Piratic.placeholder },
+      failure: { Color.Piratic.placeholder }
     )
   }
 }
@@ -64,8 +64,8 @@ private struct PhonePoster: View {
     CachedRemoteImage(
       url: PhonePageSample.poster,
       contentMode: .fill,
-      placeholder: { Color.KinoPub.placeholder },
-      failure: { Color.KinoPub.placeholder }
+      placeholder: { Color.Piratic.placeholder },
+      failure: { Color.Piratic.placeholder }
     )
     .aspectRatio(CardAspect.poster.ratio, contentMode: .fill)
     .frame(width: width)
@@ -113,18 +113,18 @@ private struct PhoneMetaBlock: View {
       } else {
         Text(PhonePageSample.title)
           .font(TypeScale.heroTitle)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .multilineTextAlignment(centered ? .center : .leading)
       }
 
       Text(PhonePageSample.meta)
         .font(TypeScale.detailBody)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
 
       if showGenres {
         Text(PhonePageSample.genres)
           .font(TypeScale.detailBody)
-          .foregroundStyle(Color.KinoPub.subtitle.opacity(0.85))
+          .foregroundStyle(Color.Piratic.subtitle.opacity(0.85))
       }
     }
     .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
@@ -144,7 +144,7 @@ private struct PhoneTitleLogo: View {
     ) {
       Text(PhonePageSample.title)
         .font(TypeScale.heroTitle)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
     }
   }
 }
@@ -204,7 +204,7 @@ private struct PhonePlot: View {
   var body: some View {
     Text(PhonePageSample.plot)
       .font(TypeScale.detailBody)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,8 +216,8 @@ private struct PhoneGradientFoot: View {
     LinearGradient(
       stops: [
         .init(color: .clear, location: 0.35),
-        .init(color: Color.KinoPub.background.opacity(0.55), location: 0.7),
-        .init(color: Color.KinoPub.background, location: 1)
+        .init(color: Color.Piratic.background.opacity(0.55), location: 0.7),
+        .init(color: Color.Piratic.background, location: 1)
       ],
       startPoint: .top,
       endPoint: .bottom
@@ -280,7 +280,7 @@ private struct PhonePageOdyssey: View {
     }
     .scrollIndicators(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .ignoresSafeArea(edges: .top)
   }
 }
@@ -343,7 +343,7 @@ private struct PhonePageTitleOnArt: View {
     }
     .scrollIndicators(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .ignoresSafeArea(edges: .top)
   }
 }
@@ -403,7 +403,7 @@ private struct PhonePageSystemExtension: View {
     }
     .scrollIndicators(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .ignoresSafeArea(edges: .top)
   }
 }

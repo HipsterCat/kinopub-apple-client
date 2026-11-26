@@ -771,7 +771,7 @@ struct MediaItemView: View {
         }
 //        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
       .onPreferenceChange(PageScrollOffsetKey.self) { pageScrollMinY = $0 }
@@ -1168,7 +1168,7 @@ struct MediaItemView: View {
   /// What the page sits on with `detailAmbientBackdropEnabled` off: the app background
   /// and nothing else — no still, no blur buffer, nothing decoded for it.
   private var genericBackground: some View {
-    Color.KinoPub.background
+    Color.Piratic.background
 #if os(macOS)
       // Same reason as `ambientBackground`: ignoring horizontally paints under the
       // sidebar and makes every rail look clipped.
@@ -1180,12 +1180,12 @@ struct MediaItemView: View {
 
   private var ambientBackground: some View {
     ZStack {
-      Color.KinoPub.background
+      Color.Piratic.background
 /// TODO IT MUST BE SAME IDENTICAL PICTURE - WIDE ONE. TVOS, IOS, MACOS, etc
       MediaItemPosterWash(url: URL(string: verticalCover(itemModel.mediaItem.posters.medium)))
         .opacity(0.55)
 
-      Color.KinoPub.background.opacity(0.55)
+      Color.Piratic.background.opacity(0.55)
     }
     .clipped()
 #if os(macOS)

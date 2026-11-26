@@ -33,7 +33,7 @@ struct ShortcutItemsView: View {
     @Bindable var errorHandler = errorHandler
     content
       .platformNavigationTitle(title)
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
         await catalog.fetchItems()
@@ -122,7 +122,7 @@ struct FilteredShelfView: View {
     @Bindable var errorHandler = errorHandler
     content
       .platformNavigationTitle(title)
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
         await catalog.fetchItems()
@@ -286,7 +286,7 @@ struct ContinueWatchingListView: View {
   var body: some View {
     content
       .platformNavigationTitle("Continue Watching")
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
         await load()

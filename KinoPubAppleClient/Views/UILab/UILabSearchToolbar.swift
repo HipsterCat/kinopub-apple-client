@@ -532,7 +532,7 @@ struct UILabGlassChipStyle: ViewModifier {
       if isProminent {
         content
               .buttonStyle(.glassProminent)
-//          .tint(Color.KinoPub.accentPri)
+//          .tint(Color.Piratic.accentPri)
       } else {
         content
           .buttonStyle(.glass)

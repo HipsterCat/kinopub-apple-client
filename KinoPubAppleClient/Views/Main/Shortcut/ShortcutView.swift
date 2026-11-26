@@ -17,7 +17,7 @@ struct ShortcutSelectionView: View {
   
   var body: some View {
     ZStack {
-      Color.KinoPub.background.edgesIgnoringSafeArea(.all)
+      Color.Piratic.background.edgesIgnoringSafeArea(.all)
       VStack {
         HStack {
           mediaTypesPicker
@@ -32,7 +32,7 @@ struct ShortcutSelectionView: View {
       }
       
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
 #if !os(tvOS)
     .presentationDetents([.height(180.0)])
     .presentationDragIndicator(.visible)

@@ -85,7 +85,7 @@ struct MediaItemRatingsAndReviewsPage: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .platformNavigationTitle(payload.item.localizedTitle)
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
   }
 
   /// The card's head without its rows: here the sources are rows of their own, named and
@@ -200,7 +200,7 @@ struct MediaItemRatingsAndReviewsPage: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .platformNavigationTitle(payload.item.localizedTitle)
-    .background(Color.KinoPub.background.ignoresSafeArea())
+    .background(Color.Piratic.background.ignoresSafeArea())
   }
 
   private var traktScore: ExternalRating? {
@@ -329,7 +329,7 @@ struct RatingDistributionCard<Footer: View>: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(verbatim: score)
               .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
             if let votes, votes > 0 {
               Text(verbatim: "\(votes.formatted(.number.grouping(.automatic))) \(TraktDistributionCard.unit(votes))")
                 .font(TypeScale.detailBody)
@@ -408,7 +408,7 @@ struct MyShowsStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.Piratic.text)
             }
             .font(TypeScale.detailBody)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -457,7 +457,7 @@ struct DoubanStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.Piratic.text)
             }
             .font(TypeScale.detailBody)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -469,7 +469,7 @@ struct DoubanStatsCard: View {
         if let line = Self.rankLine(rank, isSeries: stats?.isSeries == true) {
           Label(line, systemImage: "trophy")
             .font(TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
     }
@@ -522,7 +522,7 @@ struct AudienceStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.Piratic.text)
             }
             .font(TypeScale.detailBody)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -534,7 +534,7 @@ struct AudienceStatsCard: View {
                              : LocalizedStringKey("MediaItem_DuringCreditsScene"),
                 systemImage: "sparkles")
             .font(TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
     }
@@ -570,11 +570,11 @@ struct ReviewInsightsCard: View {
       VStack(alignment: .leading, spacing: 8) {
         Text(title)
           .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         ForEach(points, id: \.self) { point in
           Label {
             Text(verbatim: point)
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
               .fixedSize(horizontal: false, vertical: true)
           } icon: {
             Image(systemName: symbol).foregroundStyle(tint)

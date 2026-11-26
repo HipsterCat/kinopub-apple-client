@@ -9,11 +9,11 @@ struct DataSourcesAttributionView: View {
     VStack(alignment: .leading, spacing: 12) {
       Text("TMDB")
         .font(.title2.weight(.bold))
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
 
       Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
         .font(.footnote)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .fixedSize(horizontal: false, vertical: true)
 
       Link(destination: URL(string: "https://www.themoviedb.org")!) {
@@ -23,18 +23,18 @@ struct DataSourcesAttributionView: View {
 
       Text("Kinopoisk")
         .font(.title2.weight(.bold))
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .padding(.top, 4)
 
       Text("Facts, stills, reviews and some cast details come from a third-party Kinopoisk data proxy (kpapp.link), not an official Kinopoisk product.")
         .font(.footnote)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .fixedSize(horizontal: false, vertical: true)
 
       if KinopoiskKeyValidation.isValidated {
         Text("Awards and richer metadata also use your own Kinopoisk Unofficial API key (kinopoiskapiunofficial.tech).")
           .font(.footnote)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .fixedSize(horizontal: false, vertical: true)
 
         Link(destination: URL(string: "https://kinopoiskapiunofficial.tech")!) {

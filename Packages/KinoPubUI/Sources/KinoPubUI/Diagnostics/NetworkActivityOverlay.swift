@@ -73,7 +73,7 @@ public extension View {
 
 #Preview("In flight") {
   ZStack {
-    Color.KinoPub.background
+    Color.Piratic.background
     NetworkActivityOverlay()
   }
   .task {

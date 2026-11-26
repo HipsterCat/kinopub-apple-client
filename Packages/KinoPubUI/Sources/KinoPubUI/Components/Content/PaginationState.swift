@@ -93,7 +93,7 @@ public struct PaginationFooter: View {
         VStack(spacing: 12) {
           Text("Pagination_Failed")
             .font(TypeScale.cardSubtitle)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
           if let onRetry {
             Button("Try Again", action: onRetry)
 #if !os(tvOS)
@@ -105,7 +105,7 @@ public struct PaginationFooter: View {
       case .complete:
         Text(state.completionText)
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
     }
     .animation(.easeOut(duration: 0.2), value: state)
@@ -135,24 +135,24 @@ public struct PaginationTailTile: View {
       case .failed:
         Image(systemName: "arrow.clockwise")
           .font(.title3)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
         Text("Pagination_Failed_Short")
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .multilineTextAlignment(.center)
       case .complete:
         Text("\(state.loadedCount)")
           .font(TypeScale.cardTitle)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         Text("Pagination_AllLoaded_Short")
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .multilineTextAlignment(.center)
       }
     }
     .padding(8)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.KinoPub.selectionBackground.opacity(0.35),
+    .background(Color.Piratic.selectionBackground.opacity(0.35),
                 in: RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
   }
 
@@ -193,7 +193,7 @@ public struct PaginationHeaderBadge: View {
     case .failed:
       Image(systemName: "exclamationmark.triangle")
         .font(.caption)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
   }
 }

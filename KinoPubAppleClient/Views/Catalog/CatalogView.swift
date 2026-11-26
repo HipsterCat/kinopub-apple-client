@@ -41,7 +41,7 @@ struct CatalogView: View {
     RouteStack(tab: tab, zoom: true) {
       catalogView
         .platformNavigationTitle(title)
-        .background(Color.KinoPub.background)
+        .background(Color.Piratic.background)
         .toolbar {
           // Not `.primaryAction` on macOS — that placement nests inside `.searchable`
           // and makes the search field look custom (sort glyph in the field).

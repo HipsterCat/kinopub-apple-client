@@ -139,7 +139,7 @@ enum PreviewSample {
   }
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
   // .preferredColorScheme(.dark)
 }
 

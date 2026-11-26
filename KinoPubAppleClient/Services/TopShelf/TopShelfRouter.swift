@@ -9,7 +9,7 @@ import KinoPubUI
 import OSLog
 import KinoPubLogging
 
-/// Opens a `kinopub://` link from the Top Shelf on Watch Now's stack, the way the same
+/// Opens a `piratic://` link from the Top Shelf on Watch Now's stack, the way the same
 /// card on Home would: the title's page, or the player over it for a Continue Watching
 /// card. Menu from either lands on the title, then Home.
 @MainActor

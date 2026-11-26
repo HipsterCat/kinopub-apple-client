@@ -91,14 +91,14 @@ struct DevicesListView: View {
         if let software = device.software, !software.isEmpty {
           Text(software)
             .font(.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
       }
       Spacer()
       if isCurrent {
         Text("This Device")
           .font(.caption)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       } else {
         Button(role: .destructive) {
           pendingRemoval = device

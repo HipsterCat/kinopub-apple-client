@@ -181,7 +181,7 @@ struct MediaItemTVPage: View {
     case .fact(let text):
       Text(text)
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .multilineTextAlignment(.leading)
     case .spec(let id):
       if let spec = fullSpec(id) {
@@ -225,7 +225,7 @@ private struct SpecPopupBody: View {
           }
           Text(row.text)
             .font(font(for: row.style))
-            .foregroundStyle(row.style == .caption || row.style == .detail ? Color.secondary : Color.KinoPub.text)
+            .foregroundStyle(row.style == .caption || row.style == .detail ? Color.secondary : Color.Piratic.text)
             // Words wrap in full; nothing is cut.
             .fixedSize(horizontal: false, vertical: true)
           if let secondary = row.secondary {
@@ -235,7 +235,7 @@ private struct SpecPopupBody: View {
             Text(badge)
               .font(.caption2.weight(.bold))
               .padding(.horizontal, 6)
-              .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.KinoPub.text, lineWidth: 1.5))
+              .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.Piratic.text, lineWidth: 1.5))
           }
         }
         .padding(.top, row.style == .language || row.style == .caption ? 8 : 0)

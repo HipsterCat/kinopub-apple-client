@@ -147,5 +147,5 @@ public struct UnavailableView: View {
                   message: "Check your connection and try again.",
                   retryTitle: "Try Again",
                   onRetry: {})
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
 }

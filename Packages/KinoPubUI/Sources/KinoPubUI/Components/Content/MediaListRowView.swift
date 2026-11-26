@@ -34,14 +34,14 @@ public struct MediaListRowView: View {
       VStack(alignment: .leading, spacing: Self.titleMetaSpacing) {
         Text(title)
           .font(Self.titleFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .lineLimit(2)
           .multilineTextAlignment(.leading)
 
         if let meta, !meta.isEmpty {
           Text(meta)
             .font(Self.metaFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(1)
         }
       }
@@ -65,7 +65,7 @@ public struct MediaListRowView: View {
         CachedRemoteImage(url: backgroundArtURL, contentMode: .fill)
         // Text sits on the leading edge — the scrim is darkest under it.
         LinearGradient(
-          colors: [Color.KinoPub.background.opacity(0.85), Color.KinoPub.background.opacity(0.25)],
+          colors: [Color.Piratic.background.opacity(0.85), Color.Piratic.background.opacity(0.25)],
           startPoint: .leading,
           endPoint: .trailing
         )
@@ -102,6 +102,6 @@ public struct MediaListRowView: View {
     )
   }
   .padding()
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
 }
 #endif

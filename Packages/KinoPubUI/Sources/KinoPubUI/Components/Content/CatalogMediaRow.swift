@@ -34,14 +34,14 @@ public struct CatalogMediaRow: View {
       VStack(alignment: .leading, spacing: 4) {
         Text(card.title)
           .font(TypeScale.detailSection)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .lineLimit(2)
           .multilineTextAlignment(.leading)
 
         if let meta = metaLine, !meta.isEmpty {
           Text(meta)
             .font(TypeScale.cardMeta)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(1)
         }
       }
@@ -115,6 +115,6 @@ public struct CatalogMediaRow: View {
     ))
   }
   .padding(.horizontal)
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
 }
 #endif

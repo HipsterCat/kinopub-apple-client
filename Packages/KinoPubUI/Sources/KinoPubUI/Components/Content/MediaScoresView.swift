@@ -415,7 +415,7 @@ public struct MediaScoresView: View {
         Text(CompactCountFormat.string(total))
           .font(.caption2)
           .fontWeight(.regular)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .monospacedDigit()
       }
     }
@@ -436,7 +436,7 @@ public struct MediaScoresView: View {
         score(item: item, showsVotes: ownCount)
         if votes, phoneLineTotalVotes, total > 0, item.id == lastAudience {
           Text(verbatim: "(\(CompactCountFormat.string(total)))")
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .monospacedDigit()
             .padding(.leading, -rowSpacing / 2)
         }
@@ -476,16 +476,16 @@ public struct MediaScoresView: View {
       height: usesLineMarks ? Self.lineIconHeight : Self.iconHeight,
       style: logoStyle
     )
-    .foregroundStyle(fadedIcons ? Color.KinoPub.subtitle : Color.KinoPub.text)
+    .foregroundStyle(fadedIcons ? Color.Piratic.subtitle : Color.Piratic.text)
     if !item.displayScore.isEmpty {
       Text(item.displayScore)
         .fontDesign(.rounded)
         .fontWeight(.semibold)
-        .foregroundStyle(item.drawsFaint || fadedIcons ? Color.KinoPub.subtitle : Color.KinoPub.text)
+        .foregroundStyle(item.drawsFaint || fadedIcons ? Color.Piratic.subtitle : Color.Piratic.text)
       if phoneLine, let scale = MediaScores.phoneScale(item) {
         Text(verbatim: scale)
           .fontDesign(.rounded)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .padding(.leading, -Self.markSpacing)
       }
     }
@@ -493,7 +493,7 @@ public struct MediaScoresView: View {
       Text(collapsesVotesToFit ? votes : "(\(votes))")
         .font(.caption2)
         .fontWeight(.regular)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .monospacedDigit()
     }
   }
@@ -568,6 +568,6 @@ private struct MarkFillsLineHeight: Layout {
     MediaScoresView(imdb: nil, kinopoisk: 6.2, kinopoiskVotes: 1_200)
   }
   .font(.body)
-  .foregroundStyle(Color.KinoPub.text)
+  .foregroundStyle(Color.Piratic.text)
   .padding()
 }

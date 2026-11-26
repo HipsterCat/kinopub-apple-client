@@ -57,12 +57,12 @@ private struct HeroBleedHarness<Content: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       if showsBleedZone {
-        Color.KinoPub.background
+        Color.Piratic.background
           .frame(height: bleedHeight)
           .overlay(alignment: .bottom) {
             Text("↑ chrome / safe area")
               .font(.caption2)
-              .foregroundStyle(Color.KinoPub.subtitle.opacity(0.7))
+              .foregroundStyle(Color.Piratic.subtitle.opacity(0.7))
               .padding(.bottom, 6)
           }
       }
@@ -76,7 +76,7 @@ private struct HeroBleedHarness<Content: View>: View {
         }
     }
     .frame(width: stageWidth)
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     .overlay {
       RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -116,8 +116,8 @@ private var sampleArt: some View {
   CachedRemoteImage(
     url: HeroBleedSample.wideURL,
     contentMode: .fill,
-    placeholder: { Color.KinoPub.placeholder },
-    failure: { Color.KinoPub.placeholder }
+    placeholder: { Color.Piratic.placeholder },
+    failure: { Color.Piratic.placeholder }
   )
 }
 
@@ -176,9 +176,9 @@ private struct HeroBleedMaterialWash: View {
 
       LinearGradient(
         stops: [
-          .init(color: Color.KinoPub.background.opacity(0), location: 0.45),
-          .init(color: Color.KinoPub.background.opacity(0.55), location: 0.82),
-          .init(color: Color.KinoPub.background, location: 1)
+          .init(color: Color.Piratic.background.opacity(0), location: 0.45),
+          .init(color: Color.Piratic.background.opacity(0.55), location: 0.82),
+          .init(color: Color.Piratic.background, location: 1)
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -237,8 +237,8 @@ private struct HeroBleedArtExtension: View {
         LinearGradient(
           stops: [
             .init(color: .clear, location: 0.55),
-            .init(color: Color.KinoPub.background.opacity(0.75), location: 0.92),
-            .init(color: Color.KinoPub.background, location: 1)
+            .init(color: Color.Piratic.background.opacity(0.75), location: 0.92),
+            .init(color: Color.Piratic.background, location: 1)
           ],
           startPoint: .top,
           endPoint: .bottom
@@ -271,7 +271,7 @@ private struct HeroBleedSystemExtension: View {
           .overlay(alignment: .bottom) {
             Text("↑ system extension")
               .font(.caption2)
-              .foregroundStyle(Color.KinoPub.subtitle.opacity(0.85))
+              .foregroundStyle(Color.Piratic.subtitle.opacity(0.85))
               .padding(.bottom, 6)
           }
       }

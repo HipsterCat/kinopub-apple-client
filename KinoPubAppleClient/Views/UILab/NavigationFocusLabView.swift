@@ -102,7 +102,7 @@ struct NavigationFocusLabView: View {
       }
       .padding(60)
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .fullScreenCover(item: $running) { variant in
       NavLabRunner(variant: variant)
     }
@@ -136,7 +136,7 @@ private struct NavLabRunner: View {
         .allowsHitTesting(false)
       hud
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .onExitCommand { dismiss() }
     .task {
       // Polling, deliberately: the values we are after are UIKit state with no

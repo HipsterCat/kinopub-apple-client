@@ -393,7 +393,21 @@
       }
     },
     "About Kinopub" : {
-
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About Piratic"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О Пиратике"
+          }
+        }
+      }
     },
     "About KinoPub" : {
       "comment" : "The about page.",
@@ -403,16 +417,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "About Kinopub"
+            "value" : "About Piratic"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "О Кинопабе"
+            "state" : "translated",
+            "value" : "О Пиратике"
           }
         }
       }
+    },
+    "About Piratic" : {
+
     },
     "AC3 Audio" : {
       "comment" : "tvOS search filters: titles with AC3 sound",
@@ -1652,12 +1669,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You are now signed in to Kinopub."
+            "value" : "Successfully signed in to Kinopub"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Вход в аккаунт Кинопаб выполнен."
           }
         }
@@ -6445,13 +6462,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Douban has no public API any more. KinoPub's server asks Douban's app API on the app's behalf and keeps the answers for a day. Only numbers reach the app, nothing in Chinese."
+            "value" : "Douban has no public API any more. Our server asks Douban's app API on the app's behalf and keeps the answers for a day. Only numbers reach the app, nothing in Chinese."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Публичного API у Douban больше нет. Сервер KinoPub сам спрашивает API приложения Douban и хранит ответы сутки. В приложение приходят только цифры, без текста на китайском."
+            "state" : "needs_review",
+            "value" : "Публичного API у Douban больше нет. Наш сервер сам спрашивает API приложения Douban и хранит ответы сутки. В приложение приходят только цифры, без текста на китайском."
           }
         }
       }
@@ -6540,22 +6557,6 @@
         }
       }
     },
-    "Integration_MyAnimeList_DataToggle" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ratings"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оценки"
-          }
-        }
-      }
-    },
     "Integration_MyAnimeList_DataFooter" : {
       "localizations" : {
         "en" : {
@@ -6572,18 +6573,18 @@
         }
       }
     },
-    "Integration_Shikimori_About" : {
+    "Integration_MyAnimeList_DataToggle" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shikimori is a Russian anime and manga tracker. Sign-in for your rates is prepared for Piratic and will land later."
+            "value" : "Ratings"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shikimori — русскоязычный трекер аниме и манги. Вход для ваших оценок подготовлен для Piratic и появится позже."
+            "value" : "Оценки"
           }
         }
       }
@@ -7166,6 +7167,22 @@
         }
       }
     },
+    "Integration_Shikimori_About" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shikimori is a Russian anime and manga tracker. Sign-in for your rates is prepared for Piratic and will land later."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shikimori — русскоязычный трекер аниме и манги. Вход для ваших оценок подготовлен для Piratic и появится позже."
+          }
+        }
+      }
+    },
     "Integration_SignOut_Message" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7342,13 +7359,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Works by default through KinoPub's server: title logos and backdrops, cast photos and biographies, episode names and air dates. With your own key TMDB is asked directly, with your own limits, and often faster."
+            "value" : "Works by default through Kinopub's server: title logos and backdrops, cast photos and biographies, episode names and air dates. With your own key TMDB is asked directly, with your own limits, and often faster."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Работает по умолчанию через сервер KinoPub: логотипы и фоны тайтлов, фото и биографии актёров, названия и даты выхода серий. Со своим ключом запросы идут в TMDB напрямую, со своими лимитами и часто быстрее."
+            "state" : "needs_review",
+            "value" : "Работает по умолчанию через сервер Кинопаба: логотипы и фоны тайтлов, фото и биографии актёров, названия и даты выхода серий. Со своим ключом запросы идут в TMDB напрямую, со своими лимитами и часто быстрее."
           }
         }
       }
@@ -7393,13 +7410,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "On, TMDB is asked through KinoPub's server and your key is not used. Turn it on if TMDB does not open directly on your network."
+            "value" : "On, TMDB is asked through Piratic’s server and your key is not used. Turn it on if TMDB does not open directly on your network."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Когда включено, запросы к TMDB идут через сервер KinoPub, а ваш ключ не используется. Включите, если TMDB напрямую не открывается в вашей сети."
+            "state" : "needs_review",
+            "value" : "Когда включено, запросы к TMDB идут через сервер Пиратика, а ваш ключ не используется. Включите, если TMDB напрямую не открывается в вашей сети."
           }
         }
       }
@@ -8339,12 +8356,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KinoPub proxy"
+            "value" : "Kinopub proxy"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Прокси KinoPub"
           }
         }
@@ -8476,6 +8493,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Подробнее…"
+          }
+        }
+      }
+    },
+    "Left Unfinished" : {
+      "comment" : "Continue Watching sneak-peek reason when a title is unfinished with no fresh play date.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left unfinished"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недосмотрено"
           }
         }
       }
@@ -8742,24 +8777,6 @@
         }
       }
     },
-    "Left Unfinished" : {
-      "comment" : "Continue Watching sneak-peek reason when a title is unfinished with no fresh play date.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Left unfinished"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Недосмотрено"
-          }
-        }
-      }
-    },
     "Library_Unwatched" : {
       "comment" : "Following header segment: series that still have episodes left.",
       "extractionState" : "manual",
@@ -8819,7 +8836,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kinopub is built with these open-source libraries."
+            "value" : "Piratic is built with these open-source libraries."
           }
         },
         "ru" : {
@@ -9786,159 +9803,6 @@
         }
       }
     },
-    "MediaItem_CrewDeptArt" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Art"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оформление"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptCamera" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Камера"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptCostume" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Costume & Make-Up"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Костюмы и грим"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptDirecting" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Directing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Режиссура"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptEditing" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Editing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Монтаж"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptOther" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "More"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ещё"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptProduction" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Production"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Продакшн"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptSound" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sound"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Звук"
-          }
-        }
-      }
-    },
-    "MediaItem_CrewDeptWriting" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сценарий"
-          }
-        }
-      }
-    },
     "MediaItem_CatalogViews" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10208,6 +10072,159 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Участники"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptArt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Art"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оформление"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptCamera" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Камера"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptCostume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Costume & Make-Up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Костюмы и грим"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptDirecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режиссура"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptEditing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Монтаж"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptOther" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptProduction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Production"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продакшн"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptSound" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Звук"
+          }
+        }
+      }
+    },
+    "MediaItem_CrewDeptWriting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сценарий"
           }
         }
       }
@@ -11635,12 +11652,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not on Kinopub yet"
+            "value" : "Item is not available on Kinopub"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Ещё нет на Кинопабе"
           }
         }
@@ -19979,6 +19996,9 @@
           }
         }
       }
+    },
+    "TMDB Proxy" : {
+
     },
     "TMDB proxy admin" : {
       "comment" : "A section for configuring the TMDB proxy admin.",

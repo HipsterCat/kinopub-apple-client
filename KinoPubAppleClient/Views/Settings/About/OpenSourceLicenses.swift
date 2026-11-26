@@ -61,17 +61,17 @@ struct OpenSourceLicensesView: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       Text("Licenses_Intro")
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .fixedSize(horizontal: false, vertical: true)
 
       ForEach(OpenSourceLicenses.all) { license in
         VStack(alignment: .leading, spacing: 6) {
           Text(verbatim: license.name)
             .font(InfoPopupMetrics.bodyFont.weight(.semibold))
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           Text(verbatim: "\(license.copyright) · MIT License\n\(license.url)")
             .font(.callout)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -79,10 +79,10 @@ struct OpenSourceLicensesView: View {
       VStack(alignment: .leading, spacing: 12) {
         Text(verbatim: "MIT License")
           .font(InfoPopupMetrics.subtitleFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         Text(verbatim: OpenSourceLicenses.mitLicense)
           .font(.callout)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .fixedSize(horizontal: false, vertical: true)
       }
       .padding(.top, 8)

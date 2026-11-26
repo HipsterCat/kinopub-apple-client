@@ -16,7 +16,7 @@ struct StreamSurveyView: View {
 
   var body: some View {
     ZStack {
-      Color.KinoPub.background.edgesIgnoringSafeArea(.all)
+      Color.Piratic.background.edgesIgnoringSafeArea(.all)
       ScrollView {
         VStack(alignment: .leading, spacing: 24) {
           Button {
@@ -27,12 +27,12 @@ struct StreamSurveyView: View {
           .disabled(model.isRunning)
 
           Text(model.status)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
 
           if !model.report.isEmpty {
             Text(model.report)
               .font(.system(.footnote, design: .monospaced))
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
 #if os(tvOS)
               // Nothing else in the report is focusable, and a tvOS ScrollView with no
               // focusable content simply refuses to scroll.

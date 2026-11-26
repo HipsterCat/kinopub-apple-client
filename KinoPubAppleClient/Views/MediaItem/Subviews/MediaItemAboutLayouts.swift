@@ -158,16 +158,16 @@ struct AboutLayoutAppleShape: View {
       VStack(alignment: .leading, spacing: 8) {
         Text(content.title)
           .font(AboutMetrics.cardTitleFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if let genre = content.primaryGenre {
           Text(genre.uppercased())
             .font(AboutMetrics.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
         if let synopsis = content.synopsis {
           Text(synopsis)
             .font(AboutMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -182,15 +182,15 @@ struct AboutLayoutAppleShape: View {
           if let rating = content.ageRating {
             Text(rating)
               .font(AboutMetrics.cardTitleFont)
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
           }
           Text("MediaItem_Flags")
             .font(AboutMetrics.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
           if !content.advisories.isEmpty {
             Text(content.advisories.joined(separator: ", "))
               .font(AboutMetrics.bodyFont)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
@@ -230,15 +230,15 @@ struct AboutLayoutLegend: View {
           HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text(badge.short)
               .font(AboutMetrics.captionFont.monospaced())
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
               .frame(width: AboutMetrics.legendGutter, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
               Text(badge.name)
                 .font(AboutMetrics.valueFont)
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.Piratic.text)
               Text(badge.explanation)
                 .font(AboutMetrics.captionFont)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -339,19 +339,19 @@ struct AboutLayoutSpecSheet: View {
 
       VStack(spacing: 0) {
         ForEach(Array(allSections.enumerated()), id: \.element.id) { index, section in
-          if index > 0 { Divider().overlay(Color.KinoPub.subtitle.opacity(0.18)) }
+          if index > 0 { Divider().overlay(Color.Piratic.subtitle.opacity(0.18)) }
           HStack(alignment: .firstTextBaseline, spacing: AboutMetrics.columnSpacing) {
             Text(LocalizedStringKey(section.caption))
               .font(AboutMetrics.captionFont)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
               .frame(width: AboutMetrics.specLabelWidth, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
               ForEach(section.values) { value in
                 Text(value.title)
                   .font(value.style == .note ? AboutMetrics.captionFont : AboutMetrics.valueFont)
                   .foregroundStyle(value.style == .note
-                                   ? Color.KinoPub.subtitle
-                                   : Color.KinoPub.text)
+                                   ? Color.Piratic.subtitle
+                                   : Color.Piratic.text)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
@@ -361,17 +361,17 @@ struct AboutLayoutSpecSheet: View {
         }
 
         if !content.languageSummary.isEmpty {
-          Divider().overlay(Color.KinoPub.subtitle.opacity(0.18))
+          Divider().overlay(Color.Piratic.subtitle.opacity(0.18))
           HStack(alignment: .firstTextBaseline, spacing: AboutMetrics.columnSpacing) {
             Text("Languages")
               .font(AboutMetrics.captionFont)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
               .frame(width: AboutMetrics.specLabelWidth, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
               ForEach(content.languageSummary) { line in
                 Text(AboutFormat.languageLine(line))
                   .font(AboutMetrics.valueFont)
-                  .foregroundStyle(Color.KinoPub.text)
+                  .foregroundStyle(Color.Piratic.text)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
@@ -381,11 +381,11 @@ struct AboutLayoutSpecSheet: View {
         }
 
         if !content.badges.isEmpty {
-          Divider().overlay(Color.KinoPub.subtitle.opacity(0.18))
+          Divider().overlay(Color.Piratic.subtitle.opacity(0.18))
           HStack(alignment: .firstTextBaseline, spacing: AboutMetrics.columnSpacing) {
             Text("MediaItem_Technical")
               .font(AboutMetrics.captionFont)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
               .frame(width: AboutMetrics.specLabelWidth, alignment: .leading)
             AboutFlowLayout(spacing: AboutMetrics.chipSpacing) {
               ForEach(content.badges) { badge in
@@ -459,7 +459,7 @@ struct AboutColumn: View {
     VStack(alignment: .leading, spacing: AboutMetrics.sectionSpacing) {
       Text(title)
         .font(AboutMetrics.columnTitleFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
 
       lines(typography: .inline)
     }
@@ -476,13 +476,13 @@ struct AboutColumn: View {
         VStack(alignment: .leading, spacing: 3) {
           Text(LocalizedStringKey(section.caption))
             .font(typography.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
           ForEach(section.values) { value in
             Text(value.title)
               .font(value.style == .note ? typography.caption : typography.value)
               .foregroundStyle(value.style == .note
-                               ? Color.KinoPub.subtitle
-                               : Color.KinoPub.text)
+                               ? Color.Piratic.subtitle
+                               : Color.Piratic.text)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
@@ -492,11 +492,11 @@ struct AboutColumn: View {
         VStack(alignment: .leading, spacing: 3) {
           Text("MediaItem_Voice")
             .font(typography.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
           ForEach(languageLines) { line in
             Text(AboutFormat.languageLine(line))
               .font(typography.value)
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
@@ -506,10 +506,10 @@ struct AboutColumn: View {
         VStack(alignment: .leading, spacing: 3) {
           Text("Subtitles")
             .font(typography.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
           Text(subtitleNames.joined(separator: ", "))
             .font(typography.value)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -528,7 +528,7 @@ struct AboutLegendColumn: View {
     VStack(alignment: .leading, spacing: AboutMetrics.sectionSpacing) {
       Text("MediaItem_Technical")
         .font(AboutMetrics.columnTitleFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
 
       legend(typography: .inline)
     }
@@ -545,7 +545,7 @@ struct AboutLegendColumn: View {
           AboutBadgeChip(badge: badge)
           Text(badge.explanation)
             .font(typography.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -560,7 +560,7 @@ struct AboutBadgeChip: View {
   var body: some View {
     Text(badge.short)
       .font(AboutMetrics.badgeFont)
-      .foregroundStyle(badge.isProminent ? Color.black : Color.KinoPub.text)
+      .foregroundStyle(badge.isProminent ? Color.black : Color.Piratic.text)
       .padding(.horizontal, AboutMetrics.badgeHorizontalPadding)
       .padding(.vertical, AboutMetrics.badgeVerticalPadding)
       .background {
@@ -569,7 +569,7 @@ struct AboutBadgeChip: View {
       }
       .overlay {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .stroke(Color.KinoPub.subtitle.opacity(badge.isProminent ? 0 : 0.5), lineWidth: 1)
+          .stroke(Color.Piratic.subtitle.opacity(badge.isProminent ? 0 : 0.5), lineWidth: 1)
       }
   }
 }
@@ -594,14 +594,14 @@ struct AboutSpecTile: View {
       VStack(alignment: .leading, spacing: 6) {
         Text(tile.caption)
           .font(AboutMetrics.captionFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
         Text(tile.value)
           .font(AboutMetrics.tileValueFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if let detail = tile.detail {
           Text(detail)
             .font(AboutMetrics.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
       }
       .frame(width: AboutMetrics.tileWidth, alignment: .leading)

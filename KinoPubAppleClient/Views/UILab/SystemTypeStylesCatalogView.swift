@@ -29,7 +29,7 @@ struct SystemTypeStylesCatalogView: View {
       .padding(contentPadding)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
     .platformNavigationTitle("Type Styles")
     .sheet(item: $previewSelection) { selection in
       TypeStyleMaterialPreviewSheet(selection: selection)
@@ -459,7 +459,7 @@ private struct TypeStyleSampleCard: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .fill(Color.KinoPub.background)
+          .fill(Color.Piratic.background)
       }
       .overlay {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -542,11 +542,11 @@ private struct TypeStyleColoredText: View {
       case .quaternary:
         Text(text).foregroundStyle(.quaternary)
       case .accent:
-        Text(text).foregroundStyle(Color.KinoPub.accent)
+        Text(text).foregroundStyle(Color.Piratic.accent)
       case .kinoText:
-        Text(text).foregroundStyle(Color.KinoPub.text)
+        Text(text).foregroundStyle(Color.Piratic.text)
       case .kinoSubtitle:
-        Text(text).foregroundStyle(Color.KinoPub.subtitle)
+        Text(text).foregroundStyle(Color.Piratic.subtitle)
       }
     }
   }
@@ -573,7 +573,7 @@ private struct TypeStyleMaterialPreviewSheet: View {
         }
         .padding(contentPadding)
       }
-      .background(Color.KinoPub.background)
+      .background(Color.Piratic.background)
       .platformNavigationTitle("Material Preview")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -679,7 +679,7 @@ private struct TypeStyleMaterialPreviewSheet: View {
     .overlay {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
         .strokeBorder(
-          role == selection.role ? Color.KinoPub.accent : Color.primary.opacity(0.08),
+          role == selection.role ? Color.Piratic.accent : Color.primary.opacity(0.08),
           lineWidth: role == selection.role ? 2 : 1
         )
     }
@@ -858,13 +858,13 @@ private struct TypeScaleTokenRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
           Text(token.sample)
             .font(token.font)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
 
           Spacer(minLength: 0)
 
           Text(token.sample)
             .font(token.font)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
 
         Text("Tap for material preview")
@@ -875,7 +875,7 @@ private struct TypeScaleTokenRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .fill(Color.KinoPub.selectionBackground)
+          .fill(Color.Piratic.selectionBackground)
       }
     }
     .buttonStyle(.plain)
@@ -925,7 +925,7 @@ private struct FontWeightSpec: Identifiable {
         styleName: "Body"
     ) { }
     .padding()
-    .background(Color.KinoPub.background)
+    .background(Color.Piratic.background)
 }
 
 

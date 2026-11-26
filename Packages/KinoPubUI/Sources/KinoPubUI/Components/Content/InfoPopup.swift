@@ -50,22 +50,22 @@ public enum InfoPopupMetrics {
   public static let maxWidth: CGFloat = 620
   public static let padding: CGFloat = 28
   public static let cornerRadius: CGFloat = 24
-  public static let titleFont: Font = .title2
+     public static let titleFont: Font = .title2.weight(.semibold)
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let captionFont: Font = .footnote
-  public static let sectionFont: Font = .title2.bold()
+  public static let sectionFont: Font = .title2.weight(.semibold)
   public static let contentSpacing: CGFloat = 18
   public static let scrimOpacity: Double = 0.5
 #else
   public static let maxWidth: CGFloat = 640
   public static let padding: CGFloat = 24
   public static let cornerRadius: CGFloat = 16
-  public static let titleFont: Font = .title2
+     public static let titleFont: Font = .title2.weight(.semibold)
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let captionFont: Font = .footnote
-  public static let sectionFont: Font = .title2.bold()
+     public static let sectionFont: Font = .title2.weight(.semibold)
   public static let contentSpacing: CGFloat = 18
   public static let scrimOpacity: Double = 0.5
 #endif
@@ -363,11 +363,11 @@ public struct InfoPopupView<Content: View>: View {
       VStack(alignment: .leading, spacing: 8) {
         title
           .font(InfoPopupMetrics.titleFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if let subtitle {
           subtitle
             .font(InfoPopupMetrics.subtitleFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
       }
 #endif
@@ -397,10 +397,10 @@ public struct InfoPopupSection<Content: View>: View {
       title
         .font(InfoPopupMetrics.sectionFont)
 #if os(tvOS)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
 #else
         // The TV app's sheet: «Информация», «Языки» in bold primary.
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
 #endif
       content()
     }
@@ -423,11 +423,11 @@ public struct InfoPopupFact: View {
 #if os(tvOS)
       label
         .font(InfoPopupMetrics.captionFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
       if !value.isEmpty {
         Text(verbatim: value)
           .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .fixedSize(horizontal: false, vertical: true)
       }
 #else
@@ -435,11 +435,11 @@ public struct InfoPopupFact: View {
       // over «2026»). A row with nothing to say is its name alone, not a name over a gap.
       label
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
       if !value.isEmpty {
         Text(verbatim: value)
           .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .fixedSize(horizontal: false, vertical: true)
       }
 #endif
@@ -727,7 +727,7 @@ public enum InfoPopupTriggerStyle {
       .expandsIntoInfoPopup(title: Text("Synopsis")) {
         Text(String(repeating: "Синопсис, который не поместился целиком. ", count: 8))
           .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
       }
   }
   .padding(40)

@@ -751,11 +751,11 @@ private struct AggregateRatingTile: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("Rating")
           .font(MediaItemRatingsSection.titleFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if votes > 0 {
           Text("\(votes.formatted(.number.grouping(.automatic))) \("votes".localized)")
             .font(MediaItemRatingsSection.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
 //            .(horizontal: , vertical: true)
         }
       }
@@ -764,7 +764,7 @@ private struct AggregateRatingTile: View {
     .padding(MediaItemRatingsSection.tilePadding)
 #endif
 //    .background(
-//      Color.KinoPub.selectionBackground.opacity(0.5),
+//      Color.Piratic.selectionBackground.opacity(0.5),
 //      in: RoundedRectangle(cornerRadius: 14, style: .continuous)
 //    )
   }
@@ -825,7 +825,7 @@ private struct RatingTile: View {
       } else if let caption {
         Text(caption)
           .font(MediaItemRatingsSection.captionFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
@@ -838,7 +838,7 @@ private struct RatingTile: View {
         ScoreValueText(score.value == nil ? "?" : score.display,
                        font: MediaItemRatingsSection.valueUIFont)
           .foregroundStyle(score.drawsFaint || score.value == nil
-                           ? Color.KinoPub.subtitle : Color.KinoPub.text)
+                           ? Color.Piratic.subtitle : Color.Piratic.text)
       }
     }
     .frame(height: MediaItemRatingsSection.lineHeight)
@@ -908,18 +908,18 @@ private struct RatingTile: View {
 
       if !score.isPlaceholder {
         ScoreValueText(score.display, font: MediaItemRatingsSection.valueUIFont)
-          .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+          .foregroundStyle(score.drawsFaint ? Color.Piratic.subtitle : Color.Piratic.text)
       }
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
           Text(score.id)
             .font(MediaItemRatingsSection.titleFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           if isLink {
             Image(systemName: "arrow.up.right")
               .font(MediaItemRatingsSection.captionFont)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
           }
         }
         // Voters but no score yet — say so the way the source itself does, rather
@@ -927,17 +927,17 @@ private struct RatingTile: View {
         if score.isPlaceholder {
           Text("MediaItem_NoRatings")
             .font(MediaItemRatingsSection.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         } else if score.value == nil {
           Text("MediaItem_NotEnoughRatings")
             .font(MediaItemRatingsSection.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         } else if let votes = score.votes, votes > 0 {
           Text("\(votes.formatted(.number.grouping(.automatic))) \("votes".localized)")
             .font(MediaItemRatingsSection.captionFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -965,7 +965,7 @@ private struct KinopubThumbButtonStyle: ButtonStyle {
     configuration.label
       .font(MediaItemRatingsSection.captionFont)
       .foregroundStyle(chosen ? Color.white
-                        : (showPill ? Color.KinoPub.text : Color.KinoPub.subtitle))
+                        : (showPill ? Color.Piratic.text : Color.Piratic.subtitle))
       .padding(.horizontal, 10)
       .padding(.vertical, 5)
       .background {
@@ -1013,13 +1013,13 @@ private struct ViewsRatingTile: View {
           .accessibilityHidden(true)
           
         ScoreValueText(formattedViewCount(views), font: MediaItemRatingsSection.valueUIFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .accessibilityLabel(views.formatted(.number.grouping(.automatic)))
       }
       .frame(height: MediaItemRatingsSection.lineHeight)
       Text("MediaItem_Views")
         .font(MediaItemRatingsSection.captionFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
 #if os(tvOS)
     .padding(MediaItemRatingsSection.tilePadding)
@@ -1264,7 +1264,7 @@ struct CastAvatarView: View {
   @ViewBuilder
   private func content<S: InsettableShape>(shape: S) -> some View {
     ZStack {
-      shape.fill(Color.KinoPub.placeholder)
+      shape.fill(Color.Piratic.placeholder)
 
       if let image {
         image
@@ -1352,7 +1352,7 @@ struct CastAvatarView: View {
       )
       Text(Self.initials(of: name))
         .font(initialsFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
     }
   }
 
@@ -1412,7 +1412,7 @@ struct CastPortraitView: View {
         Text(person.name)
           .font(Self.nameFont)
           .fontWeight(.semibold)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .lineLimit(episodeLine == nil ? 2 : 1)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, alignment: .center)
@@ -1420,7 +1420,7 @@ struct CastPortraitView: View {
         if let characterLine {
           Text(characterLine)
             .font(Self.roleFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(episodeLine == nil ? 2 : 1)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -1429,7 +1429,7 @@ struct CastPortraitView: View {
         if let episodeLine {
           Text(episodeLine)
             .font(Self.roleFont)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -1576,7 +1576,7 @@ private struct MediaItemPosterShelfSkeleton: View {
         HStack(alignment: .top, spacing: metrics.gutter) {
           ForEach(0..<metrics.columns, id: \.self) { _ in
             RoundedRectangle(cornerRadius: MediaCardView.cornerRadius, style: .continuous)
-//              .fill(Color.KinoPub.selectionBackground.opacity(0.45))
+//              .fill(Color.Piratic.selectionBackground.opacity(0.45))
               .aspectRatio(CardAspect.poster.ratio, contentMode: .fill)
               .containerRelativeFrame(.horizontal,
                                       count: metrics.columns,
@@ -1760,7 +1760,7 @@ private struct SetlistRow: View {
       VStack(alignment: .leading, spacing: 0) {
         VStack(alignment: .leading, spacing: 2) {
           Text(track.title)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           if reservesSubtitle {
             Text(track.subtitle ?? " ")
               .font(.subheadline)
@@ -1807,16 +1807,16 @@ private struct AwardRow: View {
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
       Image(systemName: award.won ? "trophy.fill" : "trophy")
-        .foregroundStyle(award.won ? Color.yellow : Color.KinoPub.subtitle)
+        .foregroundStyle(award.won ? Color.yellow : Color.Piratic.subtitle)
         .frame(width: 20)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(award.nominationName.map { "\(award.name) — \($0)" } ?? award.name)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if let year = award.year {
           Text(String(year))
             .font(.caption)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
       }
 
@@ -1879,8 +1879,8 @@ struct MediaItemPhotosSection: View {
     CachedRemoteImage(
       url: url,
       contentMode: .fill,
-      placeholder: { Color.KinoPub.selectionBackground },
-      failure: { Color.KinoPub.selectionBackground }
+      placeholder: { Color.Piratic.selectionBackground },
+      failure: { Color.Piratic.selectionBackground }
     )
     .frame(width: Self.tileWidth, height: Self.tileWidth * 9 / 16)
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -1957,13 +1957,13 @@ private struct CommunityVoteButton: View {
         if count > 0 {
           Text("\(count.formatted(.number.grouping(.automatic)))")
             .font(MediaItemRatingsSection.titleFont)
-            .foregroundStyle(active ? Color.KinoPub.text : Color.KinoPub.subtitle)
+            .foregroundStyle(active ? Color.Piratic.text : Color.Piratic.subtitle)
             .scaleEffect(pulse ? 1.22 : 1)
         }
       }
       .padding(.horizontal, MediaItemRatingsSection.tilePadding)
       .padding(.vertical, MediaItemRatingsSection.tilePadding * 0.7)
-      .background(Color.KinoPub.selectionBackground.opacity(0.5), in: Capsule(style: .continuous))
+      .background(Color.Piratic.selectionBackground.opacity(0.5), in: Capsule(style: .continuous))
     }
     .buttonStyle(DetailTileStyle.buttonStyle)
     .disabled(!enabled)
@@ -2040,7 +2040,7 @@ private struct FactCard: View {
           Spacer(minLength: 0)
         } else {
           FillingText(fact.text, font: TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
     }
@@ -2300,7 +2300,7 @@ struct MediaItemRatingsCard: View {
           HStack(alignment: .center, spacing: 12) {
             Text(aggregate.formatted)
               .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
               .fixedSize()
             // Always orange, never the tier colour: stars are the shape of "how good",
             // and a green or grey star row reads as a second, contradicting signal.
@@ -2359,7 +2359,7 @@ struct MediaItemRatingsCard: View {
   private func tableRow(_ score: RatingSources.Score) -> some View {
     HStack(spacing: 8) {
       ScoreValueText(score.display, font: ScoreValueTypography.runningText)
-        .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+        .foregroundStyle(score.drawsFaint ? Color.Piratic.subtitle : Color.Piratic.text)
         .frame(width: Self.valueColumn, alignment: .leading)
 
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
@@ -2379,7 +2379,7 @@ struct MediaItemRatingsCard: View {
       }
     }
     .font(TypeScale.detailBody)
-    .foregroundStyle(Color.KinoPub.text)
+    .foregroundStyle(Color.Piratic.text)
     // Every cell keeps its own width. Letting the row squeeze them is what broke the
     // chips into "6." / "4" on two lines.
     .lineLimit(1)
@@ -2399,7 +2399,7 @@ struct MediaItemRatingsCard: View {
           .foregroundStyle(.secondary)
       } else {
         ScoreValueText(score.display, font: ScoreValueTypography.runningText)
-          .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+          .foregroundStyle(score.drawsFaint ? Color.Piratic.subtitle : Color.Piratic.text)
       }
       if let votes = score.votesCompact {
         Text("(\(votes))")
@@ -2446,7 +2446,7 @@ struct MediaItemRatingSourceRows: View {
   private func row(_ score: RatingSources.Score) -> some View {
     let content = HStack(spacing: 12) {
       ScoreValueText(score.display, font: ScoreValueTypography.runningText)
-        .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+        .foregroundStyle(score.drawsFaint ? Color.Piratic.subtitle : Color.Piratic.text)
         .frame(width: Self.valueColumn, alignment: .leading)
 
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
@@ -2475,7 +2475,7 @@ struct MediaItemRatingSourceRows: View {
       }
     }
       .font(TypeScale.detailBody)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
       // Cells keep their own width; the row is what flexes.
       .lineLimit(1)
       .fixedSize(horizontal: false, vertical: true)
@@ -2514,11 +2514,11 @@ struct ReviewsSummaryCard: View {
       VStack(alignment: .leading, spacing: 6) {
         Text(summary.total.formatted(.number.grouping(.automatic)))
           .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
           .fixedSize()
         Text("Reviews")
           .font(TypeScale.detailBody)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
 
         Spacer(minLength: 12)
 
@@ -2549,7 +2549,7 @@ struct ReviewsSummaryCard: View {
           .foregroundStyle(.secondary)
         Spacer(minLength: 8)
         Text(count.formatted(.number.grouping(.automatic)))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
       }
       .font(TypeScale.detailBody)
       .lineLimit(1)
@@ -2617,7 +2617,7 @@ struct ReviewCard: View {
       // cut half the titles mid-word for a line the body did not get back anyway.
       Text(headline)
         .font(TypeScale.detailBody.weight(.semibold))
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .fixedSize(horizontal: false, vertical: true)
 
       // Fills whatever is left between the headline and the footer, and ellipsises on
@@ -2638,7 +2638,7 @@ struct ReviewCard: View {
           FillingText(collapsedBody, font: TypeScale.detailBody)
         }
       }
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
 
       // One size for the whole card. The footer used to be `.caption`, which made the
       // card read as three different documents stacked.
@@ -2692,7 +2692,7 @@ struct ReviewCard: View {
         if !review.title.isEmpty {
           Text(review.title)
             .font(TypeScale.detailBody.weight(.semibold))
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
         Spacer(minLength: 8)
@@ -2710,7 +2710,7 @@ struct ReviewCard: View {
       // and exactly what the compact one collapses away.
       Text(review.body)
         .font(TypeScale.detailBody)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -2946,27 +2946,27 @@ private struct SkipSegmentsCard: View {
         VStack(alignment: .leading, spacing: 2) {
           Text("MediaItem_SkipSegments")
             .font(TypeScale.detailBody.weight(.semibold))
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
           Text(verbatim: preview?.subtitle ?? SkipSegmentsPreview.sources(nil))
             .font(TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
             .lineLimit(1)
         }
         if let preview {
           if preview.rows.isEmpty {
             Text("MediaItem_SkipSegmentsNone")
               .font(TypeScale.detailBody)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
           } else {
             VStack(alignment: .leading, spacing: 6) {
               ForEach(preview.rows, id: \.kind) { row in
                 HStack {
                   Text(verbatim: SkipSegmentsPreview.title(for: row.kind))
-                    .foregroundStyle(Color.KinoPub.subtitle)
+                    .foregroundStyle(Color.Piratic.subtitle)
                   Spacer(minLength: 8)
                   Text(verbatim: row.length)
                     .monospacedDigit()
-                    .foregroundStyle(Color.KinoPub.text)
+                    .foregroundStyle(Color.Piratic.text)
                 }
                 .font(TypeScale.detailBody)
                 .accessibilityElement(children: .combine)
@@ -3008,7 +3008,7 @@ private struct VideoCard: View {
       VStack(alignment: .leading, spacing: 12) {
         Text("MediaItem_VideoCard")
           .font(TypeScale.detailBody.weight(.regular))
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
 
         VStack(alignment: .leading, spacing: 10) {
           ForEach(badges) { badge in
@@ -3016,7 +3016,7 @@ private struct VideoCard: View {
               icon(for: badge)
               Text(badge.label)
                 .font(TypeScale.detailBody)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
             }
           }
         }
@@ -3030,10 +3030,10 @@ private struct VideoCard: View {
             VStack(alignment: .leading, spacing: 2) {
               Text(badge.label)
                 .font(InfoPopupMetrics.bodyFont.weight(.regular))
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
               Text(badge.explanation)
                 .font(.caption)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -3042,12 +3042,12 @@ private struct VideoCard: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("MediaItem_VideoQuality")
               .font(.caption)
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
             VStack(alignment: .leading, spacing: 6) {
               ForEach(Array(qualityLines.enumerated()), id: \.offset) { _, line in
                 Text(line)
                   .font(InfoPopupMetrics.bodyFont)
-                  .foregroundStyle(Color.KinoPub.text)
+                  .foregroundStyle(Color.Piratic.text)
               }
             }
           }
@@ -3060,11 +3060,11 @@ private struct VideoCard: View {
   private func icon(for badge: VideoBadge, height: CGFloat = VideoCard.iconHeight) -> some View {
     if let glyph = badge.glyph {
       CapabilityGlyph(glyph, height: height)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
     } else if let systemImage = badge.systemImage {
       Image(systemName: systemImage)
         .font(.system(size: height * 0.8, weight: .semibold))
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .frame(height: height, alignment: .center)
     }
   }
@@ -3096,7 +3096,7 @@ private struct VideoCard: View {
     "480p · h264 · 720×300"
   ])
   .padding()
-  .background(Color.KinoPub.background)
+  .background(Color.Piratic.background)
 //  // .preferredColorScheme(.dark)
 }
 #endif
@@ -3118,7 +3118,7 @@ private struct ParentalAdvisoryCard: View {
       VStack(alignment: .leading, spacing: 10) {
         Text("MediaItem_AgeRating")
           .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
 
         if let ageRating {
           HStack(spacing: 8) {
@@ -3126,16 +3126,16 @@ private struct ParentalAdvisoryCard: View {
 //              .foregroundStyle(.green)
             Text(ageRating)
               .font(.system(.title2, design: .rounded, weight: .medium))
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
           }
           Text("MediaItem_LegendAgeRating")
             .font(TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
 
         if !advisories.isEmpty {
           FillingText(advisories.joined(separator: " · "), font: TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
     }
@@ -3147,7 +3147,7 @@ private struct ParentalAdvisoryCard: View {
 //              .foregroundStyle(.green)
             Text(ageRating)
               .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.subtitle)
+              .foregroundStyle(Color.Piratic.subtitle)
           }
           Text("MediaItem_LegendAgeRating")
             .font(InfoPopupMetrics.bodyFont)
@@ -3158,7 +3158,7 @@ private struct ParentalAdvisoryCard: View {
             ForEach(advisories, id: \.self) { advisory in
               Text(advisory)
                 .font(InfoPopupMetrics.bodyFont)
-                .foregroundStyle(Color.KinoPub.subtitle)
+                .foregroundStyle(Color.Piratic.subtitle)
             }
           }
         }
@@ -3181,15 +3181,15 @@ private struct CommonSenseCard: View {
       VStack(alignment: .leading, spacing: 10) {
         Text(verbatim: "Common Sense Media")
           .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
         if let age = review.age {
           Text(String(format: "MediaItem_CommonSenseAge".localized, age))
             .font(.system(.title2, design: .rounded, weight: .medium))
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
         if let line = review.oneLiner {
           FillingText(line, font: TypeScale.detailBody)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
         }
       }
     }
@@ -3198,13 +3198,13 @@ private struct CommonSenseCard: View {
         if let age = review.age {
           Text(String(format: "MediaItem_CommonSenseAge".localized, age))
             .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
         ages
         if let line = review.oneLiner {
           Text(verbatim: line)
             .font(InfoPopupMetrics.bodyFont.weight(.semibold))
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.Piratic.subtitle)
         }
         if let text = review.parentsNeedToKnow {
           section("MediaItem_CommonSenseParents", text)
@@ -3259,7 +3259,7 @@ private struct CommonSenseCard: View {
         .foregroundStyle(.secondary)
       Text(verbatim: text)
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(Color.Piratic.subtitle)
         .fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -3269,7 +3269,7 @@ private struct CommonSenseCard: View {
     HStack(spacing: 3) {
       ForEach(0..<5, id: \.self) { index in
         Circle()
-          .fill(Double(index) < topic.rating.rounded() ? Color.KinoPub.subtitle : Color.primary.opacity(0.15))
+          .fill(Double(index) < topic.rating.rounded() ? Color.Piratic.subtitle : Color.primary.opacity(0.15))
           .frame(width: 7, height: 7)
       }
     }
@@ -3320,7 +3320,7 @@ private struct LanguagesCard: View {
       VStack(alignment: .leading, spacing: 10) {
         Text("Languages")
           .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
 
         VStack(alignment: .leading, spacing: 8) {
           ForEach(shown.visible) { group in
@@ -3357,7 +3357,7 @@ private struct LanguagesCard: View {
               .foregroundStyle(.secondary)
             Text(subtitleOnly.map(\.name).joined(separator: ", "))
               .font(InfoPopupMetrics.bodyFont)
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.Piratic.text)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
@@ -3371,7 +3371,7 @@ private struct LanguagesCard: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(group.name)
           .font(TypeScale.detailBody)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         if let best = group.detailLines.first {
           Text(best)
             .font(.caption)
@@ -3392,7 +3392,7 @@ private struct LanguagesCard: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(group.name)
           .font(InfoPopupMetrics.bodyFont.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.Piratic.text)
         ForEach(Array(group.detailLines.enumerated()), id: \.offset) { _, line in
           Text(line)
             .font(.caption)
@@ -4076,7 +4076,7 @@ struct MediaItemInfoColumns: View {
     var body: some View {
       Text(title)
         .font(MediaItemInfoColumns.valueFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .padding(.horizontal, MediaItemInfoColumns.tagHorizontalPadding)
         .padding(.vertical, MediaItemInfoColumns.tagVerticalPadding)
         .background(Capsule().fill(.thinMaterial))
@@ -4114,7 +4114,7 @@ struct MediaItemInfoColumns: View {
       VStack(alignment: .leading, spacing: MediaItemInfoColumns.stackSpacing) {
         Text(LocalizedStringKey(section.caption))
           .font(MediaItemInfoColumns.captionFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
 
         ForEach(section.values) { value in
           Text(value.title)
@@ -4122,8 +4122,8 @@ struct MediaItemInfoColumns: View {
                   ? MediaItemInfoColumns.captionFont
                   : MediaItemInfoColumns.plainValueFont)
             .foregroundStyle(value.style == .note
-                             ? Color.KinoPub.subtitle
-                             : Color.KinoPub.subtitle)
+                             ? Color.Piratic.subtitle
+                             : Color.Piratic.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -4164,7 +4164,7 @@ struct MediaItemInfoColumns: View {
             }
           }
           .font(MediaItemInfoColumns.captionFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
         }
 #endif
       }
@@ -4193,7 +4193,7 @@ struct MediaItemInfoColumns: View {
 #endif
       }
       .font(MediaItemInfoColumns.captionFont)
-      .foregroundStyle(Color.KinoPub.subtitle)
+      .foregroundStyle(Color.Piratic.subtitle)
 #if !os(tvOS)
       .sheet(isPresented: $showsDebugSheet) {
         DebugLogView(entries: debugLog, metadataPath: metadataPath)
@@ -4364,12 +4364,12 @@ struct MediaItemInfoColumns: View {
 #endif
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.KinoPub.selectionBackground.opacity(0.5),
+            .background(Color.Piratic.selectionBackground.opacity(0.5),
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
       }
       .padding(10)
-      .background(Color.KinoPub.selectionBackground.opacity(0.25),
+      .background(Color.Piratic.selectionBackground.opacity(0.25),
                   in: RoundedRectangle(cornerRadius: 10, style: .continuous))
       .animation(.easeOut(duration: 0.15), value: isExpanded)
     }
@@ -4484,11 +4484,11 @@ private struct SourceChipButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .font(MediaItemInfoColumns.captionFont)
-        .foregroundStyle(Color.KinoPub.subtitle) // бля даже кнопку верстать приходитса бро???
+        .foregroundStyle(Color.Piratic.subtitle) // бля даже кнопку верстать приходитса бро???
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
         .background(
-          Color.KinoPub.selectionBackground.opacity(isHovered ? 0.5 : 0),
+          Color.Piratic.selectionBackground.opacity(isHovered ? 0.5 : 0),
           in: Capsule()
         )
         .scaleEffect(configuration.isPressed ? 0.96 : 1)
@@ -4709,7 +4709,7 @@ struct MediaItemPlotView: View {
   private var expandedPlot: some View {
     Text(popupPlot)
       .font(InfoPopupMetrics.bodyFont)
-      .foregroundStyle(Color.KinoPub.subtitle)
+      .foregroundStyle(Color.Piratic.subtitle)
       .multilineTextAlignment(.leading)
   }
 
@@ -4793,7 +4793,7 @@ struct MediaItemPlotView: View {
   static let font: Font = TypeScale.detailBody
 
   static func moreCapsuleFill(contrast: ColorSchemeContrast) -> Color {
-    Color.KinoPub.text.opacity(contrast == .increased ? 0.35 : 0.2)
+    Color.Piratic.text.opacity(contrast == .increased ? 0.35 : 0.2)
   }
 }
 
@@ -4833,7 +4833,7 @@ struct PlotParagraph: View {
     } else {
       Self.inlineMoreText(text, capsuleFill: MediaItemPlotView.moreCapsuleFill(contrast: contrast))
         .font(MediaItemPlotView.font)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .lineLimit(lineLimit)
         .multilineTextAlignment(centered ? .center : .leading)
         .textRenderer(
@@ -4891,7 +4891,7 @@ struct PlotParagraph: View {
   private var paragraph: some View {
     Text(text)
       .font(MediaItemPlotView.font)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
       .lineLimit(lineLimit)
       .multilineTextAlignment(centered ? .center : .leading)
       .fixedSize(horizontal: false, vertical: true)
@@ -4955,7 +4955,7 @@ struct SynopsisMoreHint: View {
     Text("Synopsis_More")
       .font(MediaItemPlotView.moreFont)
       .textCase(.uppercase)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(Color.Piratic.text)
       .lineLimit(1)
       .fixedSize()
       .padding(.horizontal, MediaItemPlotView.moreInsetH)
@@ -5066,7 +5066,7 @@ struct MediaItemSynopsisPopupContent: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       Text(plot)
         .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.Piratic.text)
         .fixedSize(horizontal: false, vertical: true)
 
       stripLine
@@ -5084,7 +5084,7 @@ struct MediaItemSynopsisPopupContent: View {
         InfoPopupSection(Text("Subtitles")) {
           Text(verbatim: subtitleNames.joined(separator: ", "))
             .font(InfoPopupMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -5093,7 +5093,7 @@ struct MediaItemSynopsisPopupContent: View {
         InfoPopupSection(Text("MediaItem_SpecVideo")) {
           Text(verbatim: videoLines.joined(separator: "\n"))
             .font(InfoPopupMetrics.bodyFont)
-            .foregroundStyle(Color.KinoPub.text)
+            .foregroundStyle(Color.Piratic.text)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -5132,7 +5132,7 @@ struct MediaItemSynopsisPopupContent: View {
         }
       }
       .font(InfoPopupMetrics.captionFont)
-      .foregroundStyle(Color.KinoPub.subtitle)
+      .foregroundStyle(Color.Piratic.subtitle)
     }
   }
 
