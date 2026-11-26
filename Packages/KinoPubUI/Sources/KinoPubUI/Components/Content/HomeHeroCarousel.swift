@@ -132,17 +132,29 @@ public struct HomeHeroCarousel: View {
   /// The hero's height under the bars for a page `width` wide on a `screen` tall
   /// screen, the bars' `topBleed` above it. Mac: the picture, toolbar strip included,
   /// is always 16:9 of its own width (the window's, less the sidebar), whatever the window's height (Sasha,
-  /// 2026-10-30). iPad: a 16:9 picture as long as it leaves a fifth of the screen.
-  /// Phone: a 16:10 still under the bars and room under it for the words, at most 70%
-  /// of the screen.
+  /// 2026-10-30). iPad full-bleed: a 16:9 picture as long as it leaves a fifth of the
+  /// screen. iPad with an overlaying sidebar (`contentWidth` noticeably narrower than
+  /// `width`): a tighter 4:3 of the content column — Apple TV app framing, so the
+  /// subject stays in the visible column instead of a soft full-bleed crop under the
+  /// sidebar (Sasha, 2026-11-26). Phone: a 16:10 still under the bars and room under it
+  /// for the words, at most 70% of the screen.
   public static func height(width: CGFloat, topBleed: CGFloat, screen: CGFloat,
-                            isCompact: Bool) -> CGFloat {
+                            isCompact: Bool, contentWidth: CGFloat? = nil) -> CGFloat {
 #if os(macOS)
     let picture = width * 9 / 16
 #else
-    let picture: CGFloat = isCompact
-      ? min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
-      : min(width * 9 / 16 + topBleed, screen * 0.8)
+    let picture: CGFloat
+    if isCompact {
+      picture = min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
+    } else if let contentWidth,
+              contentWidth > 0,
+              width - contentWidth >= Metrics.sidebarOverlayThreshold {
+      // Tighter aspect of the column beside the sidebar (4:3), not 16:9 of the full
+      // bleed width — matches the Apple TV app's shrink when the sidebar is open.
+      picture = min(contentWidth / Metrics.sidebarContentAspect + topBleed, screen * 0.8)
+    } else {
+      picture = min(width * 9 / 16 + topBleed, screen * 0.8)
+    }
 #endif
     return max(picture - topBleed, 0).rounded()
   }
@@ -322,7 +334,9 @@ public struct HomeHeroCarousel: View {
   /// memory cache on the first paint of a neighbour.
   private var warmupBackdropSize: CGSize {
     HeroPagePicture.decodeSize(width: size.width, height: size.height + topBleed,
-                            topBleed: topBleed, isCompact: isCompact)
+                            topBleed: topBleed, isCompact: isCompact,
+                            contentWidth: pageMargins?.contentWidth,
+                            coveredLeading: pageMargins?.coveredLeading ?? 0)
   }
 
   /// How long one title stays before the next — tvOS's `TVPageHeroCarousel.dwell`.
@@ -576,18 +590,17 @@ public struct HomeHeroCarousel: View {
   }
 
   /// What the detail page's Play says for this title (`MediaActionCatalog.play`, laid
-  /// over this device's positions); plain Play until its details are in. The quieter
-  /// glass pill, not the detail page's white one: the banner is a preview, and white
-  /// read as the loudest thing on Home (Sasha, 2026-10-31).
+  /// over this device's positions); plain Play until its details are in. White pill,
+  /// dark label — same as the title page and the Apple TV app (Sasha, 2026-11-26).
   private func playButton(_ feature: HomeHeroFeature) -> some View {
     var appearance = feature.play ?? MediaActionAppearance(
       id: .play,
-      chrome: .pill,
+      chrome: .playPill,
       systemImage: "play.fill",
       title: hero.labels.play,
       accessibilityLabel: hero.labels.play
     )
-    appearance.chrome = .pill
+    appearance.chrome = .playPill
     // Phone: «Смотреть» / «Продолжить» / «Пересмотреть», as the title page's (Sasha, 2026-11-10).
     if isCompact { appearance = MediaActionCatalog.compactPlay(appearance) }
     return MediaActionButton(appearance) { onPlay(feature.card) }
@@ -649,7 +662,7 @@ public struct HomeHeroCarousel: View {
 
   // MARK: Metrics
 
-  private enum Metrics {
+  enum Metrics {
     static let wordSpacing: CGFloat = 8
     /// Under the logo, a little more than between the lines: tvOS's 24 against 14.
     static let markGap: CGFloat = 6
@@ -664,6 +677,10 @@ public struct HomeHeroCarousel: View {
     static let dotsReserve: CGFloat = 48
     /// How far the words travel while they fade, against the hero's width.
     static let wordsTravel: CGFloat = 0.06
+    /// Leading cover (iPad sidebar) big enough to reframe the banner — not a notch.
+    static let sidebarOverlayThreshold: CGFloat = 40
+    /// Width ÷ height for the content column when the sidebar overlays (tighter than 16:9).
+    static let sidebarContentAspect: CGFloat = 4 / 3
   }
 
   /// The words fade out by half-way through a turn and the next title's in after it.
@@ -745,6 +762,9 @@ private struct HeroPagePicture: View {
   let height: CGFloat
   let topBleed: CGFloat
   let isCompact: Bool
+  /// Leading cover from `PageMargins` (iPad sidebar). Shifts the fill so the subject
+  /// sits in the content column, not under the glass.
+  @Environment(\.pageMargins) private var pageMargins
 
   /// How far a picture drifts against a whole page of scroll.
   static let drift: CGFloat = 0.12
@@ -761,8 +781,25 @@ private struct HeroPagePicture: View {
   /// its edge (a narrower layer left seams and a white strip mid-turn).
   private var pictureWidth: CGFloat { (width * (1 + 2 * Self.drift)).rounded() }
 
+  /// When the iPad sidebar overlays, nudge the crop toward the content column so the
+  /// subject is framed there (Apple TV app), not centred under the glass.
+  private var contentCropOffset: CGFloat {
+#if os(iOS)
+    guard !isCompact else { return 0 }
+    let covered = pageMargins?.coveredLeading ?? 0
+    guard covered >= HomeHeroCarousel.Metrics.sidebarOverlayThreshold else { return 0 }
+    return (covered / 2).rounded()
+#else
+    return 0
+#endif
+  }
+
   static func decodeSize(width: CGFloat, height: CGFloat, topBleed: CGFloat,
-                         isCompact: Bool) -> CGSize {
+                         isCompact: Bool, contentWidth: CGFloat? = nil,
+                         coveredLeading: CGFloat = 0) -> CGSize {
+    // Decode for the drawn box (full width × height). `contentWidth` / covered only
+    // affect layout height and crop offset — never a smaller decode that soft-upscales.
+    let _ = (contentWidth, coveredLeading)
     let wide = (width * (1 + 2 * drift)).rounded()
 #if os(iOS)
     if isCompact {
@@ -785,7 +822,8 @@ private struct HeroPagePicture: View {
   /// The picture from the top of the screen. Cropped, it keeps its top — heads and
   /// skies, not the middle. On a phone the 16:10 still starts under the bars, as the
   /// title page has it (Sasha, 2026-11-16): sharp from the top of the screen, fading
-  /// into glass below.
+  /// into glass below. With an iPad sidebar open, the fill is shifted so the subject
+  /// stays framed in the content column.
   @ViewBuilder
   private var picture: some View {
     let wide = pictureWidth
@@ -808,6 +846,8 @@ private struct HeroPagePicture: View {
     FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill,
                         size: CGSize(width: width, height: height))
       .frame(width: width, height: height, alignment: .top)
+      .offset(x: contentCropOffset)
+      .frame(width: self.width, height: height)
       .clipped()
   }
 }

@@ -109,13 +109,14 @@ public extension View {
 
 public extension View {
   /// The main Play: a **solid white capsule with a dark label**, in every state and both
-  /// appearances, over any picture — the Apple TV app's primary (Sasha, 2026-11-21). The
-  /// prominent glass it replaced sampled the picture and the page under it, so on the
-  /// light appearance it slowly turned white as focus left the hero, and on the device
-  /// every focus move between the buttons repainted it.
+  /// appearances, over any picture — the Apple TV app's primary (Sasha, 2026-11-21;
+  /// iOS home + title too, 2026-11-26). The prominent glass it replaced sampled the
+  /// picture and the page under it, so on the light appearance it slowly turned white as
+  /// focus left the hero, and on the device every focus move between the buttons
+  /// repainted it.
   ///
-  /// tvOS and macOS: the system's bordered prominent button tinted white — the focus lift
-  /// and press stay the system's. iOS keeps the monochrome prominent glass.
+  /// All platforms: the system's bordered prominent button tinted white — solid fill,
+  /// dark label, not see-through glass.
   func mediaActionPlayPillStyle() -> some View {
 #if os(tvOS)
     buttonStyle(.borderedProminent)
@@ -374,32 +375,20 @@ private struct MediaActionCatalogPreviewRow: View {
 #endif
 
 #if !os(tvOS)
-#if !os(tvOS)
-/// The monochrome Play: the prominent glass in a solid colour — white on the hero's dark,
-/// black on a light page. A hierarchical tint (`.secondary`, `.primary`) is no colour of
-/// its own: the prominent glass drew it see-through, the main button came out grey under
-/// brighter secondary ones, and its hover had nothing to lift (Sasha, 2026-10-31).
+/// The monochrome Play: bordered prominent in a solid colour — white on the hero's dark,
+/// black on a light page. Glass looked soft/grey on iPad home and title banners; solid
+/// white matches the Apple TV app (Sasha, 2026-11-26).
 private struct MonochromePlayTint: ViewModifier {
   @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
-#if os(macOS)
-    // The Mac: the plain prominent button, no glass (Sasha, 2026-11-21: «попроще на маке»).
     content
       .buttonStyle(.borderedProminent)
       .buttonBorderShape(.capsule)
       .modifier(MediaActionControlSize())
       .tint(colorScheme == .dark ? Color.white : Color.black)
-#else
-    content
-      .buttonStyle(.glassProminent)
-      .buttonBorderShape(.capsule)
-      .modifier(MediaActionControlSize())
-      .tint(colorScheme == .dark ? Color.white : Color.black)
-#endif
   }
 }
-#endif
 
 private struct MediaActionCircleChrome: ViewModifier {
   func body(content: Content) -> some View {

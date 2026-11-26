@@ -129,9 +129,10 @@ private struct PlayPillLabelColor: ViewModifier {
   func body(content: Content) -> some View {
     if isPlayPill {
       if appearsActive {
+        // Black on the white Play (hero is forced dark); white on the black Play in light.
+        // tvOS always black: a focused button hands its label the inverted appearance,
+        // and the scheme rule painted white on white under focus.
 #if os(tvOS)
-        // Always black on the white Play: a focused tvOS button hands its label the
-        // inverted appearance, and the scheme rule painted white on white under focus.
         let label = Color.black
 #else
         let label = colorScheme == .dark ? Color.black : Color.white
