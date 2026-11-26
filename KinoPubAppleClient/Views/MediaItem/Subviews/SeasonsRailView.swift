@@ -1623,9 +1623,10 @@ struct SeasonsRailView: View {
                       caption: .always)
       }
       .modifier(MediaCardContextMenuModifier(
-        entries: contextEntries(for: episode, season: season),
-        previewSpec: .from(card: card(for: episode, in: season, schedule: schedule),
-                           surface: .episodeRail)
+        isEnabled: true,
+        entriesProvider: { contextEntries(for: episode, season: season) },
+        previewCard: card(for: episode, in: season, schedule: schedule),
+        previewSurface: .episodeRail
       ))
 
     case .playable(let season, let episode, let schedule):

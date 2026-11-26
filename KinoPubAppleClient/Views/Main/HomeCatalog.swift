@@ -1286,6 +1286,12 @@ class HomeCatalog: ObservableObject {
     // such titles at the top left the row at 11 (2026-10-25). Payloads are asked for a
     // batch at a time, so a full row costs no more than it did.
     let ranked = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: pool.count)
+    let reasonByID: [Int: ContinueWatchingOrder.Reason] = Dictionary(
+      uniqueKeysWithValues: candidates.compactMap { candidate in
+        ContinueWatchingOrder.reason(for: candidate, rules: rules)
+          .map { (candidate.item.id, $0) }
+      }
+    )
     var cards: [MediaCard] = []
     var next = 0
     var rounds = 0
@@ -1303,7 +1309,8 @@ class HomeCatalog: ObservableObject {
                   local: localByID[$0.id],
                   isInHistory: historyIDs.contains($0.id) || localByID[$0.id] != nil,
                   isInWatchlist: watchlistIDs.contains($0.id),
-                  cached: cachedByID[$0.id])
+                  cached: cachedByID[$0.id],
+                  reason: reasonByID[$0.id])
       }
     }
     return Array(cards.prefix(cap))
@@ -1445,7 +1452,8 @@ class HomeCatalog: ObservableObject {
                            local: LocalWatchEntry?,
                            isInHistory: Bool,
                            isInWatchlist: Bool,
-                           cached: MediaCard?) -> MediaCard? {
+                           cached: MediaCard?,
+                           reason: ContinueWatchingOrder.Reason? = nil) -> MediaCard? {
     let isSeries = item.isEpisodicType
     let video: Int?
     let season: Int?
@@ -1560,7 +1568,10 @@ class HomeCatalog: ObservableObject {
     let unwatched = (isSeries && isInWatchlist)
       ? item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
       : nil
-    return MediaCard(id: item.id,
+    let typeKey = detail?.type ?? item.type
+    let genres = detail.map { KinoPubMediaMapping.genres($0.genres, type: typeKey) } ?? []
+    let year = detail.flatMap { $0.year > 0 ? $0.year : nil }
+    var card = MediaCard(id: item.id,
                      posterURL: item.posters.medium,
                      title: title,
                      subtitle: item.originalTitle,
@@ -1581,11 +1592,27 @@ class HomeCatalog: ObservableObject {
                      isSeries: isSeries,
                      isInHistory: isInHistory,
                      viewerState: ViewerState(isFollowing: isSeries ? isInWatchlist : nil),
+                     year: year,
                      unwatchedEpisodes: unwatched,
                      durationSeconds: durationSeconds,
+                     genres: genres,
                      primaryAction: .play,
                      imdbID: detail?.imdb,
                      kinopoiskID: item.kinopoisk)
+    card.continuePeekHint = Self.continuePeekHint(for: reason)
+    return card
+  }
+
+  /// Sneak-peek secondary for Continue Watching when genre is not the right answer.
+  static func continuePeekHint(for reason: ContinueWatchingOrder.Reason?) -> String? {
+    switch reason {
+    case .bookmarked:
+      return String(localized: "Bookmarked")
+    case .unfinished:
+      return String(localized: "Left Unfinished")
+    case .watched, .released, .none:
+      return nil
+    }
   }
 
   private static func durationSeconds(history: HistoryEntry?, local: LocalWatchEntry?) -> Int? {

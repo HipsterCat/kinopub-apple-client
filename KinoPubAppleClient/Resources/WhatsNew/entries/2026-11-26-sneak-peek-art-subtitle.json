@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "Долгое нажатие на карточку: обложка на языке оформления (не чужой Kinopub-постер), выше качество; в «Продолжить просмотр» подпись — жанр или причина («В закладках», «Недосмотрено»), без «1 серия» на фильмах; у сериалов — тот же кадр, что при наведении / фокусе."
+  ],
+  "en": [
+    "Long-press sneak peek: artwork follows your cover language (not the wrong Kinopub default) and loads sharper; Continue Watching shows genre or reason (“Bookmarked”, “Left unfinished”), never “Ep. 1” on movies; series use the same still as hover / focus."
+  ]
+}

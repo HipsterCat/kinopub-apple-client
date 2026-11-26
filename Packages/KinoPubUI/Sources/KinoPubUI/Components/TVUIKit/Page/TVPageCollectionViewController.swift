@@ -21,6 +21,7 @@ import SwiftUI
 import TVUIKit
 import UIKit
 import KinoPubLogging
+import KinoPubMetadata
 
 /// What the page says about itself while it has nothing (or nothing yet) to show.
 public enum TVPageStatus: Equatable {
@@ -48,6 +49,8 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The section's last loaded item came on screen; the owner decides if there is more.
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  /// Worker image route for sneak-peek episode stills (same as macOS hover).
+  public var titleImageRoute = TitleImageRoute(baseURL: nil)
   /// The hero's Play. Details is `onSelect` with the fronted title as a `.feature`.
   public var onPlay: ((MediaCard) -> Void)?
   /// What the hero's Bookmark button lists for a title — the app's bookmark entries.
@@ -1897,10 +1900,12 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     }
     PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
     let section = sections[indexPath.section]
-    // Still rails paint landscape; poster rails paint 2:3 — `from(card:)` picks aspect.
+    // Still rails paint landscape; poster rails paint 2:3. Title-level stills
+    // (Continue Watching) use `.shelf` so the peek footer is genre/reason, not «Ep. 1».
     let preview = MediaCardContextPreviewSpec.from(
       card: card,
-      surface: section.kind == .still ? .episodeRail : .shelf
+      surface: .shelf,
+      images: titleImageRoute
     )
     return TVUIKitContextMenuBuilder.configuration(
       identifier: indexPath as NSIndexPath,

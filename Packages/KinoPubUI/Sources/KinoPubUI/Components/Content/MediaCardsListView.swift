@@ -122,7 +122,8 @@ public struct MediaCardsListView: View {
         .modifier(MediaCardContextMenuModifier(
           isEnabled: contextMenuProvider != nil,
           entriesProvider: { contextMenuProvider?(card) ?? [] },
-          previewSpecProvider: { .from(card: card, surface: .shelf) }
+          previewCard: card,
+          previewSurface: .shelf
         ))
       }
     }

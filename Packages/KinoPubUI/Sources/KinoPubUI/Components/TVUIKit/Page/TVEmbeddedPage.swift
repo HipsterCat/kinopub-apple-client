@@ -22,6 +22,7 @@ public struct TVEmbeddedPage: UIViewControllerRepresentable {
   public let accessibilityID: String?
   public let onSelect: (TVPageSection, TVPageItem) -> Void
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  @Environment(\.titleImageRoute) private var titleImageRoute
 
   public init(sections: [TVPageSection],
               sideInset: CGFloat = TVHIGGrid.sideInset,
@@ -72,6 +73,7 @@ public struct TVEmbeddedPage: UIViewControllerRepresentable {
     controller.accessibilityID = accessibilityID
     controller.onSelect = onSelect
     controller.contextMenuProvider = contextMenuProvider
+    controller.titleImageRoute = titleImageRoute
     controller.returnsToTopOnMenu = false
   }
 }

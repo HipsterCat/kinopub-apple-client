@@ -212,7 +212,8 @@ struct LibraryView: View {
           .modifier(MediaCardContextMenuModifier(
             isEnabled: true,
             entriesProvider: { contextEntries(card) },
-            previewSpecProvider: { .from(card: card, surface: .shelf) }
+            previewCard: card,
+            previewSurface: .shelf
           ))
         }
       }
