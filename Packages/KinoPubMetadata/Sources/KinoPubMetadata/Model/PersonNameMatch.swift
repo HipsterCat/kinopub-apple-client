@@ -21,18 +21,37 @@ public enum PersonNameMatch: Sendable {
   }
 
   /// Best candidate in `candidates` for `query`, or `nil` below threshold / margin.
-  public static func bestIndex(query: String, in candidates: [String]) -> Ranked? {
-    guard !candidates.isEmpty else { return nil }
-    var ranked: [Ranked] = []
-    ranked.reserveCapacity(candidates.count)
-    for (index, candidate) in candidates.enumerated() {
-      ranked.append(Ranked(index: index, score: score(query, candidate)))
+  ///
+  /// `excluding` skips already-claimed pool rows as winners, but they still compete
+  /// for the runner-up margin — so surname-only «Уилсон» stays ambiguous after one
+  /// Wilson was matched, instead of collapsing onto the leftover sibling.
+  public static func bestIndex(
+    query: String,
+    in candidates: [String],
+    excluding: Set<Int> = []
+  ) -> Ranked? {
+    pickBest(scores: candidates.map { score(query, $0) }, excluding: excluding)
+  }
+
+  /// Pick the best unused index from precomputed per-candidate scores.
+  public static func pickBest(scores: [Double], excluding: Set<Int> = []) -> Ranked? {
+    var best: Ranked?
+    for (index, value) in scores.enumerated() where !excluding.contains(index) {
+      if let current = best {
+        if value > current.score {
+          best = Ranked(index: index, score: value)
+        }
+      } else {
+        best = Ranked(index: index, score: value)
+      }
     }
-    ranked.sort { $0.score > $1.score }
-    guard let best = ranked.first, best.score >= acceptScore else { return nil }
-    let second = ranked.dropFirst().first?.score ?? 0
-    guard best.score - second >= acceptMargin else { return nil }
-    return best
+    guard let hit = best, hit.score >= acceptScore else { return nil }
+    let second = scores.enumerated()
+      .filter { $0.offset != hit.index }
+      .map(\.element)
+      .max() ?? 0
+    guard hit.score - second >= acceptMargin else { return nil }
+    return hit
   }
 
   /// Combined score 0…100. Suitable for small closed pools only.
@@ -72,7 +91,29 @@ public enum PersonNameMatch: Sendable {
     }
 
     let grams = bigramJaccard(qa.joined(), qb.joined())
-    return 0.35 * full + 0.35 * surname + 0.20 * given + 0.10 * grams
+    var total = 0.35 * full + 0.35 * surname + 0.20 * given + 0.10 * grams
+    // Matching credit initials (С.↔C.) are a strong closed-pool signal; a clash
+    // (С. vs K.) should not win the other Hall.
+    total += initialAdjustment(givenA, givenB)
+    return min(100, max(0, total))
+  }
+
+  /// +15 when both sides share an exact single-letter initial; −20 when both have
+  /// initials and none match (Майкл С. must not accept Michael K.).
+  private static func initialAdjustment(_ givenA: [String], _ givenB: [String]) -> Double {
+    let ia = givenA.filter { $0.count == 1 }
+    let ib = givenB.filter { $0.count == 1 }
+    guard !ia.isEmpty, !ib.isEmpty else { return 0 }
+    var used = Set<Int>()
+    var matched = 0
+    for token in ia {
+      if let index = ib.enumerated().first(where: { !used.contains($0.offset) && $0.element == token })?.offset {
+        used.insert(index)
+        matched += 1
+      }
+    }
+    if matched > 0 { return 15 }
+    return -20
   }
 
   // MARK: - Tokens / normalize
@@ -89,20 +130,30 @@ public enum PersonNameMatch: Sendable {
       .lowercased()
       .replacingOccurrences(of: "ё", with: "е")
     var buffered = ""
+    var origins: [UnicodeScalar] = []
     var out: [String] = []
+    func flush() {
+      guard !buffered.isEmpty else { return }
+      // Lone Cyrillic initials mirror Latin *glyphs* (С. → C, not phonetic /s/).
+      if origins.count == 1, let initial = initialLatinize(origins[0]) {
+        out.append(String(Character(initial)))
+      } else {
+        out.append(buffered)
+      }
+      buffered = ""
+      origins.removeAll(keepingCapacity: true)
+    }
     for scalar in folded.unicodeScalars {
       if scalar == "ъ" || scalar == "ь" { continue }
       if let mapped = latinize(scalar) {
         buffered.append(Character(mapped))
+        origins.append(scalar)
       } else if scalar == "-" || CharacterSet.whitespacesAndNewlines.contains(scalar) {
-        if !buffered.isEmpty {
-          out.append(buffered)
-          buffered = ""
-        }
+        flush()
       }
       // other punctuation dropped
     }
-    if !buffered.isEmpty { out.append(buffered) }
+    flush()
     return out
   }
 
@@ -137,6 +188,40 @@ public enum PersonNameMatch: Sendable {
     case "я": return "a"
     default:
       if CharacterSet.alphanumerics.contains(scalar) { return scalar }
+      return nil
+    }
+  }
+
+  /// Single-letter Cyrillic credit initials as Latin letters (Майкл С. ↔ Michael C.).
+  private static func initialLatinize(_ scalar: UnicodeScalar) -> UnicodeScalar? {
+    switch scalar {
+    case "с": return "c"
+    case "к": return "k"
+    case "а": return "a"
+    case "в": return "v"
+    case "е", "э": return "e"
+    case "м": return "m"
+    case "н": return "n"
+    case "о": return "o"
+    case "р": return "r"
+    case "т": return "t"
+    case "х": return "h"
+    case "у": return "u"
+    case "и": return "i"
+    case "д": return "d"
+    case "г": return "g"
+    case "б": return "b"
+    case "п": return "p"
+    case "л": return "l"
+    case "ф": return "f"
+    case "з": return "z"
+    case "ж": return "z"
+    case "ч": return "c"
+    case "ш", "щ": return "s"
+    case "я": return "a"
+    case "ю": return "u"
+    case "ы", "й": return "y"
+    default:
       return nil
     }
   }

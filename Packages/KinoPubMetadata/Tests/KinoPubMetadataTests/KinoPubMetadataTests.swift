@@ -164,11 +164,16 @@ final class TitleMetadataMergeTests: XCTestCase {
 
     // Surname-only against two Wilsons — margin fails.
     XCTAssertNil(PersonNameMatch.bestIndex(query: "Уилсон", in: pool))
+    // After one Wilson is claimed, the leftover sibling must still look ambiguous.
+    XCTAssertNil(PersonNameMatch.bestIndex(query: "Уилсон", in: pool, excluding: [3]))
 
-    // Different middle initial must not win the other Hall.
-    let hallPool = ["Michael K. Hall", "Michael C. Hall"]
-    let hall = PersonNameMatch.bestIndex(query: "Майкл С. Холл", in: hallPool)
-    XCTAssertEqual(hall?.index, 1)
+    // Middle initial: same-script discrimination (stage-1; cross-script Hall needs aliases).
+    let hallRU = ["Майкл К. Холл", "Майкл С. Холл"]
+    XCTAssertEqual(PersonNameMatch.bestIndex(query: "Майкл С. Холл", in: hallRU)?.index, 1)
+    let hallEN = ["Michael K. Hall", "Michael C. Hall"]
+    XCTAssertEqual(PersonNameMatch.bestIndex(query: "Michael C. Hall", in: hallEN)?.index, 1)
+    // Cyrillic С. initial maps to Latin C (glyph), not phonetic /s/.
+    XCTAssertEqual(PersonNameMatch.bestIndex(query: "Майкл С. Холл", in: hallEN)?.index, 1)
   }
 
   func testPersonPhotoMarksTinyKinopoiskAsUpgrade() {

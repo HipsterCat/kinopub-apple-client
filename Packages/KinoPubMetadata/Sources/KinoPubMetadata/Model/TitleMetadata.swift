@@ -976,27 +976,10 @@ public struct TitleMetadata: Sendable {
           return overlay[index]
         }
       }
-      var best: (index: Int, score: Double)?
-      var second: Double = 0
-      for (index, spellings) in spellingsByIndex.enumerated() where !taken.contains(index) {
-        let score = queries.flatMap { query in spellings.map { PersonNameMatch.score(query, $0) } }
-          .max() ?? 0
-        if let current = best {
-          if score > current.score {
-            second = current.score
-            best = (index, score)
-          } else if score > second {
-            second = score
-          }
-        } else {
-          best = (index, score)
-        }
+      let scores = spellingsByIndex.map { spellings in
+        queries.flatMap { query in spellings.map { PersonNameMatch.score(query, $0) } }.max() ?? 0
       }
-      guard let hit = best,
-            hit.score >= PersonNameMatch.acceptScore,
-            hit.score - second >= PersonNameMatch.acceptMargin else {
-        return nil
-      }
+      guard let hit = PersonNameMatch.pickBest(scores: scores, excluding: taken) else { return nil }
       taken.insert(hit.index)
       return overlay[hit.index]
     }
@@ -1045,27 +1028,11 @@ public struct TitleMetadata: Sendable {
         taken.insert(index)
         return pool[index]
       }
-      // Closed-pool fuzzy: score the query against every unused member's spellings.
-      var best: (index: Int, score: Double)?
-      var second: Double = 0
-      for (index, spellings) in spellingsByIndex.enumerated() where !taken.contains(index) {
-        let memberScore = spellings.map { PersonNameMatch.score(name, $0) }.max() ?? 0
-        if let current = best {
-          if memberScore > current.score {
-            second = current.score
-            best = (index, memberScore)
-          } else if memberScore > second {
-            second = memberScore
-          }
-        } else {
-          best = (index, memberScore)
-        }
+      // Closed-pool fuzzy: unused winner, margin vs the whole pool (incl. taken).
+      let scores = spellingsByIndex.map { spellings in
+        spellings.map { PersonNameMatch.score(name, $0) }.max() ?? 0
       }
-      guard let hit = best,
-            hit.score >= PersonNameMatch.acceptScore,
-            hit.score - second >= PersonNameMatch.acceptMargin else {
-        return nil
-      }
+      guard let hit = PersonNameMatch.pickBest(scores: scores, excluding: taken) else { return nil }
       taken.insert(hit.index)
       return pool[hit.index]
     }
