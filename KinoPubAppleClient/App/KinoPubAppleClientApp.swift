@@ -230,13 +230,18 @@ struct KinoPubAppleClientApp: App {
       .kinopubAppearancePreference()
       .kinopubAppLanguage(appLanguage)
       .onAppear { ShellRemount.shared.navigation = navigation }
-#if os(tvOS)
-      // Top Shelf items open here (`TopShelfLink`).
+      // Piratic OAuth redirects (`piratic://myanimelist`, `piratic://shikimori`) and
+      // Top Shelf (`kinopub://…` on tvOS). Account token exchange is not wired yet.
       .onOpenURL { url in
+        if let redirect = PiraticOAuthRedirect(url: url) {
+          Logger.app.info("OAuth redirect reserved: \(String(describing: redirect))")
+          return
+        }
+#if os(tvOS)
         guard let link = TopShelfLink(url: url) else { return }
         TopShelfRouter.open(link, navigation: navigation)
-      }
 #endif
+      }
 #if DEBUG
       // `-KINOPUBOpenItem <id>`: open on a title's page, for screenshots of a live
       // detail page without walking there.

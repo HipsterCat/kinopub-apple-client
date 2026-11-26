@@ -39,7 +39,9 @@ time, in app code, at runtime.
 | OMDb | **[omdb.md](omdb.md)** | 🔎 probed, fetcher live | 150 real responses captured. **RT + Metacritic, and only for movies** — 136/138 movies had RT, 1/11 series did. Geography turned out irrelevant (France, Japan, Hong Kong, Jordan all covered). IMDb id only, so it never resolves identity. **1 000/day** = 53 days for one pass, so it is lazy by construction with no sweep mode. Errors arrive as HTTP 200 with `Response:"False"` |
 | Trakt | — | no | Watched state, progress, recommendations. Needs user OAuth |
 | Simkl / MDBList | — | no | List and rating aggregation; both appear in every comparable project |
-| Shikimori / MAL / AniList | — | no | Anime, where the general sources are weakest and id mapping is hardest |
+| MyAnimeList | **[myanimelist.md](myanimelist.md)** | **yes — public ratings** | Official v2 `X-MAL-CLIENT-ID`; mean + `num_scoring_users` (18h cache). OAuth redirect `piratic://myanimelist` prepared |
+| Shikimori | **[shikimori.md](shikimori.md)** | OAuth prepared | Piratic User-Agent; GraphQL preferred for reads; `user_rates` scope; redirect `piratic://shikimori` |
+| AniList | — | no | Anime, alongside MAL / Shikimori |
 | Plex / Jellyfin | — | no | User-linked libraries, not metadata sources |
 | **IntroDB** | — | no | Intro/outro markers by IMDb id — the general source for what we currently have only for tvoe's own encodes. Working client in `Lume/Services/Network/IntroDBClient.swift` |
 | **TVmaze** | — | no | Keyless, episode-level: air dates, schedules, per-episode artwork. Where TMDB is thin on TV. Client in `Plozz/Sources/MetadataKit/TVmazeArtworkProvider.swift` |

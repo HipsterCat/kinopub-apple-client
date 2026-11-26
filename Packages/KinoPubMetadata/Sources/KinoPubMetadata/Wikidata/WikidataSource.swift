@@ -139,7 +139,10 @@ public final class WikidataSource: MetadataSource, Sendable {
     add(.rottenTomatoes, string("P1258").map { "https://www.rottentomatoes.com/\($0)" })
     add(.trakt, string("P8013").map { "https://trakt.tv/\($0)" })
     add(.tvdb, string("P4835").map { "https://thetvdb.com/?tab=series&id=\($0)" })
-    add(.myAnimeList, string("P4086").map { "https://myanimelist.net/anime/\($0)" })
+    if let mal = string("P4086"), let id = Int(mal), id > 0 {
+      meta.malID = id
+      add(.myAnimeList, "https://myanimelist.net/anime/\(id)")
+    }
     add(.aniDB, string("P5646").map { "https://anidb.net/anime/\($0)" })
     add(.aniList, string("P8729").map { "https://anilist.co/anime/\($0)" })
     add(.kitsu, string("P11495").map { "https://kitsu.app/anime/\($0)" })

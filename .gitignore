@@ -68,5 +68,8 @@ fastlane/.env
 *.provisionprofile
 AuthKey_*.p8
 
+## Local secrets (copy from Config/Secrets.xcconfig.template)
+Config/Secrets.xcconfig
+
 ## Agent / Cursor worktrees
 .worktrees/

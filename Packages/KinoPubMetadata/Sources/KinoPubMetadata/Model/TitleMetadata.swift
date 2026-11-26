@@ -314,10 +314,11 @@ public struct Review: Sendable, Hashable, Identifiable {
   public var isFromTrakt: Bool { source == .trakt }
 }
 
-/// A score another catalogue publishes, relayed by Trakt's `/ratings?extended=all`:
-/// Trakt's own, Rotten Tomatoes (critics and audience), Metacritic, Letterboxd and
-/// MyAnimeList. Kept on each source's own scale; `score10` is the 0…10 the page sorts by.
-/// Not part of the aggregate `Rating`, which stays IMDb, Kinopoisk and TMDB.
+/// A score another catalogue publishes: Trakt's own and the ones it relays (Rotten
+/// Tomatoes, Metacritic, Letterboxd), plus MyAnimeList from the official API when
+/// configured (Trakt's MAL copy is the fallback). Kept on each source's own scale;
+/// `score10` is the 0…10 the page sorts by. Not part of the aggregate `Rating`, which
+/// stays IMDb, Kinopoisk and TMDB.
 public struct ExternalRating: Sendable, Hashable, Identifiable {
   public enum Kind: String, Sendable, Hashable, CaseIterable {
     /// 0…10, with votes.
@@ -384,6 +385,36 @@ public struct MyShowsStats: Sendable, Hashable {
   public init(watching: Int, watchingTotal: Int) {
     self.watching = watching
     self.watchingTotal = watchingTotal
+  }
+}
+
+/// MyAnimeList rank / popularity / list-status counts from the official v2 API.
+public struct MyAnimeListStats: Sendable, Hashable {
+  public let rank: Int?
+  public let popularity: Int?
+  public let watching: Int?
+  public let completed: Int?
+  public let onHold: Int?
+  public let dropped: Int?
+  public let planToWatch: Int?
+  public let numListUsers: Int?
+
+  public init(rank: Int?, popularity: Int?, watching: Int?, completed: Int?,
+              onHold: Int?, dropped: Int?, planToWatch: Int?, numListUsers: Int?) {
+    self.rank = rank
+    self.popularity = popularity
+    self.watching = watching
+    self.completed = completed
+    self.onHold = onHold
+    self.dropped = dropped
+    self.planToWatch = planToWatch
+    self.numListUsers = numListUsers
+  }
+
+  public var isEmpty: Bool {
+    rank == nil && popularity == nil
+      && watching == nil && completed == nil && onHold == nil
+      && dropped == nil && planToWatch == nil && numListUsers == nil
   }
 }
 
@@ -793,6 +824,9 @@ public struct TitleMetadata: Sendable {
   public var boxOfficeWorldwideUSD: Int?
   public var awardCounts: AwardCounts?
   public var myShowsStats: MyShowsStats?
+  /// Official MyAnimeList anime id and list-status / rank side-channel.
+  public var malID: Int?
+  public var myAnimeListStats: MyAnimeListStats?
   /// Plex's id for the title (24 hex characters) and Common Sense Media through Plex.
   public var plexID: String?
   public var commonSense: CommonSenseMedia?
@@ -881,8 +915,8 @@ public struct TitleMetadata: Sendable {
     if kinopoiskID == nil { kinopoiskID = other.kinopoiskID }
     if tmdbRating == nil { tmdbRating = other.tmdbRating }
     if tmdbVotes == nil { tmdbVotes = other.tmdbVotes }
-    for rating in other.externalRatings where !externalRatings.contains(where: { $0.kind == rating.kind }) {
-      externalRatings.append(rating)
+    for rating in other.externalRatings {
+      mergeExternalRating(rating)
     }
     if traktURL == nil { traktURL = other.traktURL }
     if traktDistribution.isEmpty { traktDistribution = other.traktDistribution }
@@ -896,6 +930,8 @@ public struct TitleMetadata: Sendable {
     if boxOfficeWorldwideUSD == nil { boxOfficeWorldwideUSD = other.boxOfficeWorldwideUSD }
     if awardCounts == nil { awardCounts = other.awardCounts }
     if myShowsStats == nil { myShowsStats = other.myShowsStats }
+    if malID == nil { malID = other.malID }
+    if myAnimeListStats == nil { myAnimeListStats = other.myAnimeListStats }
     if plexID == nil { plexID = other.plexID }
     if let incoming = other.commonSense { commonSense = incoming.richer(than: commonSense) }
     // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
@@ -911,6 +947,19 @@ public struct TitleMetadata: Sendable {
     fragments.append(contentsOf: other.fragments)
     parts.merge(other.parts) { mine, _ in mine }
     debugLog.append(contentsOf: other.debugLog)
+  }
+
+  /// First score of each kind wins, except MyAnimeList: the copy with more votes is
+  /// fresher (official API vs Trakt-relayed).
+  private mutating func mergeExternalRating(_ rating: ExternalRating) {
+    if let index = externalRatings.firstIndex(where: { $0.kind == rating.kind }) {
+      if rating.kind == .myAnimeList,
+         (rating.votes ?? 0) > (externalRatings[index].votes ?? 0) {
+        externalRatings[index] = rating
+      }
+      return
+    }
+    externalRatings.append(rating)
   }
 
   /// Kinopoisk's reviews gap-fill each other (keyed API and proxy carry the same ones);

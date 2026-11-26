@@ -6525,18 +6525,65 @@
       }
     },
     "Integration_MyAnimeList_About" : {
-      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "MyAnimeList is the largest anime database and list. Once signed in, your MyAnimeList progress and scores will follow what you watch here."
+            "value" : "MyAnimeList is the largest anime database. The app reads its official scores and vote counts for anime on the title page (no sign-in). Account linking for your list is coming later."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "MyAnimeList — крупнейшая база и список аниме. После входа прогресс и оценки в MyAnimeList будут следовать за тем, что вы смотрите здесь."
+            "value" : "MyAnimeList — крупнейшая база аниме. Приложение читает официальные оценки и число голосов для аниме на странице тайтла (без входа). Привязка аккаунта для вашего списка будет позже."
+          }
+        }
+      }
+    },
+    "Integration_MyAnimeList_DataToggle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценки"
+          }
+        }
+      }
+    },
+    "Integration_MyAnimeList_DataFooter" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the official MyAnimeList score and vote count on anime title pages. Cached for about a day."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает официальную оценку MyAnimeList и число голосов на страницах аниме. Кэш около суток."
+          }
+        }
+      }
+    },
+    "Integration_Shikimori_About" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shikimori is a Russian anime and manga tracker. Sign-in for your rates is prepared for Piratic and will land later."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shikimori — русскоязычный трекер аниме и манги. Вход для ваших оценок подготовлен для Piratic и появится позже."
           }
         }
       }
@@ -7392,18 +7439,17 @@
       }
     },
     "Integration_Trakt_DataFooter" : {
-      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "On the title page: Trakt's score, Rotten Tomatoes, Metacritic, Letterboxd and MyAnimeList, and reviews from Trakt. No sign-in needed."
+            "value" : "On the title page: Trakt's score, Rotten Tomatoes, Metacritic, Letterboxd, and reviews from Trakt. MyAnimeList scores prefer the official API when configured. No sign-in needed."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "На странице тайтла: оценка Trakt, Rotten Tomatoes, Metacritic, Letterboxd и MyAnimeList, а также отзывы с Trakt. Входить не нужно."
+            "value" : "На странице тайтла: оценка Trakt, Rotten Tomatoes, Metacritic, Letterboxd и отзывы с Trakt. Оценки MyAnimeList предпочитают официальный API, если он настроен. Входить не нужно."
           }
         }
       }
