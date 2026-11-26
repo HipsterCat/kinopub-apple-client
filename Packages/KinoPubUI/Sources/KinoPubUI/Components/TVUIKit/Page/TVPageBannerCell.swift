@@ -577,12 +577,13 @@ final class TVPageBannerCell: UICollectionViewCell {
     style: MediaScoreLogo.Style
   ) -> UIImageView? {
     guard let image = source.uiImage(style: style), image.size.height > 0 else { return nil }
+    let drawHeight = source.opticalHeight(for: height, style: style)
     let view = UIImageView(image: image.withRenderingMode(.alwaysOriginal))
     view.contentMode = .scaleAspectFit
     view.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      view.heightAnchor.constraint(equalToConstant: height),
-      view.widthAnchor.constraint(equalToConstant: (height * image.size.width / image.size.height).rounded())
+      view.heightAnchor.constraint(equalToConstant: drawHeight),
+      view.widthAnchor.constraint(equalToConstant: (drawHeight * image.size.width / image.size.height).rounded())
     ])
     return view
   }

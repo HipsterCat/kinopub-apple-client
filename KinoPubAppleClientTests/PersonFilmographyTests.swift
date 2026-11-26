@@ -92,6 +92,26 @@ final class PersonFilmographyTests: XCTestCase {
     XCTAssertEqual(missing?.unavailableNotice, "MediaItem_NotOnKinoPubChip".localized)
   }
 
+  func testMergedTimelineInterleavesByYear() {
+    let kinopub = [
+      sampleItem(title: "New / New", year: 2024),
+      sampleItem(title: "Old / Old", year: 2018)
+    ]
+    let credits = [
+      PersonCredit(tmdbId: 1, mediaType: "movie", title: "Missing Mid",
+                   character: "Lead", releaseDate: date(2021)),
+      PersonCredit(tmdbId: 2, mediaType: "movie", title: "Missing New",
+                   character: "Lead", releaseDate: date(2023))
+    ]
+    let window = PersonFilmography.MatchWindow.yearSorted(items: kinopub, complete: true)
+    let external = PersonFilmography.externalCards(credits: credits, kinopubItems: kinopub,
+                                                   role: .actor, window: window)
+    let timeline = PersonFilmography.mergedTimeline(kinopubItems: kinopub,
+                                                    externalCards: external,
+                                                    descending: true)
+    XCTAssertEqual(timeline.map(\.title), ["New", "Missing New", "Missing Mid", "Old"])
+  }
+
   private func date(_ year: Int) -> Date {
     var c = DateComponents()
     c.year = year

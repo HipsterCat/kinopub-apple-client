@@ -2,16 +2,16 @@
 //  PersonFilmography.swift
 //  KinoPubAppleClient
 //
-//  Merge Kinopub person listings with TMDB combined_credits: titles missing from
-//  the catalog stay visible as «Not on Kinopub» cards, keyed by TMDB id for a
-//  later ID join.
+//  Merge Kinopub person listings with TMDB combined_credits into **one chronological
+//  grid** — titles missing from the catalog keep a «Нет на Кинопабе» badge in the
+//  same timeline (no second rail). Keyed by TMDB id for a later ID join.
 //
 //  Matching uses the **loaded Kinopub window only** — never prefetch every page.
 //  On year sort, a TMDB credit is eligible as unavailable only when its year sits
 //  inside the years already loaded (same timeline). Credits that may still appear
 //  on later pages stay out until that window covers them or the listing is complete.
-//  Future / unreleased titles keep no «Not on Kinopub» chip — art often exists nowhere
-//  yet, so the chip would falsely imply Kinopub-only absence (Sasha, 2026-11-26).
+//  Future / unreleased titles keep no absence chip — art often exists nowhere yet,
+//  so the chip would falsely imply Kinopub-only absence (Sasha, 2026-11-26).
 //
 
 import Foundation
@@ -104,6 +104,26 @@ enum PersonFilmography {
     if let date = credit.releaseDate { return date > now }
     guard let year = credit.year, year > 0 else { return false }
     return year > Calendar.current.component(.year, from: now)
+  }
+
+  /// One chronological grid: Kinopub titles and TMDB-only cards interleaved by year.
+  /// No second «Not on Kinopub» rail (Sasha, 2026-11-26).
+  static func mergedTimeline(kinopubItems: [MediaItem],
+                             externalCards: [MediaCard],
+                             descending: Bool) -> [MediaCard] {
+    let kinopub = kinopubItems.map { MediaCard($0) }
+    return (kinopub + externalCards).sorted { a, b in
+      let ya = a.year ?? 0
+      let yb = b.year ?? 0
+      if ya != yb {
+        return descending ? ya > yb : ya < yb
+      }
+      // Kinopub (positive ids) before TMDB-only synthetics at the same year.
+      let aKinopub = a.id > 0
+      let bKinopub = b.id > 0
+      if aKinopub != bKinopub { return aKinopub && !bKinopub }
+      return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
+    }
   }
 
   private static func normalize(_ title: String) -> String {

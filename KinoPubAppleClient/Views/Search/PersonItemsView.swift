@@ -14,7 +14,8 @@ import KinoPubMetadata
 /// the poster grid: photo, name, role, and room for a biography, then sort and the
 /// type pull-down. Elsewhere the same filters sit over the shared list.
 ///
-/// TMDB `combined_credits` fill titles Kinopub does not carry («Not on Kinopub»).
+/// TMDB `combined_credits` fill titles Kinopub does not carry — same chronological
+/// grid as the Kinopub listing, with a «Нет на Кинопабе» badge (not a second rail).
 /// Matched against the **loaded** Kinopub window only — no page prefetch, no false
 /// unavailable for titles that may still appear later. Catalog queries use
 /// `MediaPerson.catalogNames` / `also_known_as`, not display localization alone.
@@ -31,6 +32,8 @@ struct PersonItemsView: View {
   /// The margin the credits grid below actually landed on. Padding this page's hero and
   /// section header by a constant of their own is what put them off the first column.
   @Environment(\.shelfGridInset) private var gridInset
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.mediaGridLayout) private var gridLayout
 #endif
   @Environment(\.openURL) private var openURL
   @StateObject private var catalog: LibraryCatalog
@@ -41,6 +44,7 @@ struct PersonItemsView: View {
 #if !os(tvOS)
   @State private var bioExpanded = false
   @State private var showingFilters = false
+  @State private var containerWidth: CGFloat = 1920
 #endif
 
   init(person: MediaPerson,
@@ -107,50 +111,136 @@ struct PersonItemsView: View {
   }
 #endif
 
+  /// Kinopub + TMDB-only cards in one year-ordered timeline.
+  private var timelineCards: [MediaCard] {
+    let descending = catalog.filter.sort != .year || catalog.filter.sortDescending
+    return PersonFilmography.mergedTimeline(
+      kinopubItems: catalog.items,
+      externalCards: externalCards,
+      descending: descending
+    )
+  }
+
   @ViewBuilder
   private var catalogBody: some View {
 #if os(tvOS)
     tvCatalog
       .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
 #else
-    ContentItemsListView(
-      items: $catalog.items,
-      onLoadMoreContent: { catalog.loadMoreContent(after: $0) },
-      navigationLinkProvider: { linkProvider.link(for: $0) },
-      contextMenuProvider: { item in
-        MediaCardContextMenus.entries(
-          for: item,
-          menu: cardMenu,
-          pushRoute: { navigationState.push($0) },
-          openURL: { openURL($0) }
-        )
-      },
-      emptyMessage: showsEmptyMessage ? "No Results" : nil,
-      pagination: catalog.paginationState,
-      onRetryPagination: { catalog.retryPagination() }
-    ) {
-      hero
-      creditsHeader
-      if catalog.loadFailed && catalog.items.isEmpty {
-        UnavailableView(
-          title: "Couldn't Load",
-          systemImage: "wifi.exclamationmark",
-          message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-          retryTitle: "Try Again",
-          onRetry: {
-            Task { await catalog.refresh() }
-          },
-          secondaryTitle: "Back",
-          onSecondary: { dismiss() }
-        )
-        .padding(.top, 24)
+    ScrollView {
+      VStack(alignment: .leading, spacing: 0) {
+        hero
+        creditsHeader
+        if catalog.loadFailed && catalog.items.isEmpty {
+          UnavailableView(
+            title: "Couldn't Load",
+            systemImage: "wifi.exclamationmark",
+            message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
+            retryTitle: "Try Again",
+            onRetry: {
+              Task { await catalog.refresh() }
+            },
+            secondaryTitle: "Back",
+            onSecondary: { dismiss() }
+          )
+          .padding(.top, 24)
+        } else if showsEmptyMessage {
+          UnavailableView(title: "No Results", systemImage: "magnifyingglass")
+            .frame(maxWidth: .infinity)
+            .padding(.top, 40)
+        } else if gridLayout == .list {
+          timelineList
+        } else {
+          timelineGrid
+        }
+        PaginationFooter(state: catalog.paginationState, onRetry: { catalog.retryPagination() })
       }
-      if !externalCards.isEmpty {
-        externalCreditsSection
-      }
+    }
+    .remembersScroll()
+    .environment(\.shelfGridInset, shelfMetrics.gridInset(in: containerWidth))
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.width
+    } action: { width in
+      if width > 0 { containerWidth = width }
     }
 #endif
   }
+
+#if !os(tvOS)
+  private var shelfMetrics: ShelfMetrics {
+    .posters(width: containerWidth, typeSize: dynamicTypeSize)
+  }
+
+  private var gridColumns: [GridItem] {
+    Array(
+      repeating: GridItem(.flexible(), spacing: shelfMetrics.gutter, alignment: .top),
+      count: shelfMetrics.columns
+    )
+  }
+
+  private var timelineGrid: some View {
+    LazyVGrid(columns: gridColumns, spacing: shelfMetrics.gutter) {
+      ForEach(timelineCards) { card in
+        timelineCell(card)
+      }
+    }
+    .safeAreaPadding(.horizontal, shelfMetrics.gridInset(in: containerWidth))
+    .padding(.vertical, 8)
+  }
+
+  private var timelineList: some View {
+    LazyVStack(alignment: .leading, spacing: 0) {
+      ForEach(timelineCards) { card in
+        timelineCell(card, listRow: true)
+        Divider().opacity(0.35)
+      }
+    }
+    .safeAreaPadding(.horizontal, shelfMetrics.gridInset(in: containerWidth))
+    .padding(.vertical, 8)
+  }
+
+  @ViewBuilder
+  private func timelineCell(_ card: MediaCard, listRow: Bool = false) -> some View {
+    let kinopubItem = catalog.items.first { $0.id == card.itemID }
+    if let kinopubItem {
+      NavigationLink(value: linkProvider.link(for: kinopubItem)) {
+        timelineLabel(card, listRow: listRow)
+          .onAppear { catalog.loadMoreContent(after: kinopubItem) }
+      }
+      .modifier(TimelineCardButtonStyle(listRow: listRow))
+      .modifier(MediaCardContextMenuModifier(
+        isEnabled: true,
+        entriesProvider: {
+          MediaCardContextMenus.entries(
+            for: kinopubItem,
+            menu: cardMenu,
+            pushRoute: { navigationState.push($0) },
+            openURL: { openURL($0) }
+          )
+        },
+        previewCard: card,
+        previewSurface: .shelf
+      ))
+    } else {
+      // TMDB-only — no Kinopub detail to open.
+      timelineLabel(card, listRow: listRow)
+        .onAppear {
+          guard let last = catalog.items.last,
+                timelineCards.suffix(6).contains(where: { $0.id == card.id }) else { return }
+          catalog.loadMoreContent(after: last)
+        }
+    }
+  }
+
+  @ViewBuilder
+  private func timelineLabel(_ card: MediaCard, listRow: Bool) -> some View {
+    if listRow {
+      CatalogMediaRow(card: card)
+    } else {
+      MediaCardView(card: card, caption: .always)
+    }
+  }
+#endif
 
 #if os(tvOS)
   private var tvCatalog: some View {
@@ -159,9 +249,7 @@ struct PersonItemsView: View {
       status: tvStatus,
       accessibilityID: "kinopub.page.person",
       onSelect: { _, item in
-        guard let card = item.card else { return }
-        // TMDB-only titles have no Kinopub id — Select does nothing.
-        guard card.unavailableNotice == nil,
+        guard let card = item.card,
               let media = catalog.items.first(where: { $0.id == card.itemID }),
               let route = linkProvider.link(for: media) as? Route else { return }
         navigationState.push(route)
@@ -191,15 +279,13 @@ struct PersonItemsView: View {
     )
   }
 
-  /// Header, then sort and the type pull-down, then the credits grid. The header is
-  /// one focus stop (biography opens when it is focused). Entry focus is the first
-  /// poster. Default sort is year descending.
+  /// Header, then sort and the type pull-down, then **one** chronological credits grid
+  /// (Kinopub + TMDB-only interleaved by year — no second rail).
   private var tvSections: [TVPageSection] {
     let header = TVPageSection.masthead(id: "person-header", personMasthead)
     let controls = TVSearchFilters.controls(catalog: catalog, includeType: true)
     let creditsTitle = resolvedPerson.role == .actor ? "Acting".localized : "Directing".localized
-    let kinopubCards = catalog.items.map { MediaCard($0) }
-    let cards = kinopubCards + externalCards
+    let cards = timelineCards
     if cards.isEmpty && catalog.isLoading {
       return [header, controls, .placeholder(id: "credits", title: creditsTitle, kind: .poster, columns: 6, flow: .grid)]
     }
@@ -312,7 +398,7 @@ struct PersonItemsView: View {
       HStack(alignment: .firstTextBaseline, spacing: Self.heroSpacing) {
         SectionHeader(
           "Credits",
-          count: catalog.items.isEmpty ? nil : "\(catalog.items.count)"
+          count: timelineCards.isEmpty ? nil : "\(timelineCards.count)"
         )
 
         Spacer(minLength: Self.heroSpacing)
@@ -325,22 +411,18 @@ struct PersonItemsView: View {
 #endif
     }
   }
+#endif
 
-  private var externalCreditsSection: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      SectionHeader("MediaItem_NotOnKinoPubChip".localized, count: "\(externalCards.count)")
-        .padding(.horizontal, gridInset)
-        .padding(.top, Self.verticalPadding)
-      ScrollView(.horizontal, showsIndicators: false) {
-        // Top-align: a shorter caption (no rating line) must not float the card upward.
-        LazyHStack(alignment: .top, spacing: 12) {
-          ForEach(externalCards) { card in
-            MediaCardView(card: card, caption: .always)
-              .frame(width: 120, alignment: .top)
-          }
-        }
-        .padding(.horizontal, gridInset)
-        .padding(.bottom, 8)
+#if !os(tvOS)
+  /// Poster vs list button chrome for the shared filmography timeline.
+  private struct TimelineCardButtonStyle: ViewModifier {
+    let listRow: Bool
+    @ViewBuilder
+    func body(content: Content) -> some View {
+      if listRow {
+        content.buttonStyle(.plain)
+      } else {
+        content.buttonStyle(MediaCardButtonStyle())
       }
     }
   }
