@@ -148,3 +148,16 @@ final class ArtworkPipelineTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(bytes, 8 * 4 * 4)
   }
 }
+
+final class WorkerArtworkDailyTests: XCTestCase {
+  func testADiscoveryURLCarriesTheDayAndAStampedFileDoesNot() throws {
+    let now = Date(timeIntervalSince1970: 86_400 * 20_000 + 5)
+    let discovery = try XCTUnwrap(URL(string: "https://w.test/img/poster/by/kinopub/1?w=780&lang=ru"))
+    XCTAssertEqual(WorkerArtwork.daily(discovery, now: now).absoluteString,
+                   "https://w.test/img/poster/by/kinopub/1?w=780&lang=ru&d=20000")
+    let stamped = try XCTUnwrap(URL(string: "https://w.test/img/poster/by/kinopub/1/ru/poster.jpg?w=780"))
+    XCTAssertEqual(WorkerArtwork.daily(stamped, now: now), stamped)
+    let other = try XCTUnwrap(URL(string: "https://m.staticpop.net/poster/item/big/1.jpg"))
+    XCTAssertEqual(WorkerArtwork.daily(other, now: now), other)
+  }
+}

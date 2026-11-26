@@ -375,8 +375,13 @@ async function handleImageQuery(request, url, env, ctx, route) {
   // A finished document with no file is a real miss. Anything still cold
   // waits, up to five seconds, and only then 404s. A locale with no logo is
   // asked again on a later request for that same locale, once six hours have
-  // passed, skipping the response cache.
-  const fresh = imageRequest.kind === "logo" && logoRecheckDue(stored, imageRequest.lang);
+  // passed, skipping the response cache. Posters and covers missing in the
+  // asked language are asked again after a day, and every document after a
+  // week (Sasha 2026-11-26: a miss used to stick for the document's 30 days).
+  // When a fallback is already on hand it is served and the refresh runs
+  // behind the response.
+  const fresh = imageRequest.s == null && artworkRecheckDue(stored, imageRequest.kind, imageRequest.lang);
+  if (asset && fresh) refreshInBackground(env, ctx, id, hints, stored);
   let waitedMs = 0;
   if (!asset && (!stored || stored.pending === true || fresh)) {
     const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
@@ -442,8 +447,14 @@ async function handleImageQuery(request, url, env, ctx, route) {
   }
   // Wide title card (`src=` = kino.pub's wide): cover in the language → textless
   // backdrop → kino.pub's wide. Without `src` a cover stays strict.
-  if (!asset && imageRequest.kind === "cover" && imageRequest.src) {
-    asset = coverChain(stored, imageRequest.lang || "ru", imageRequest.src)[0] || null;
+  // Covers stored by the offline card pipeline (D1 c2_image: Kinopoisk / tvoe
+  // covers) fill a language TMDB has nothing in.
+  if (!asset && imageRequest.kind === "cover") {
+    const view = await withCatalogCovers(env, id, stored, imageRequest.lang || "ru");
+    asset = selectQueryAsset(view, imageRequest, hints);
+    if (!asset && imageRequest.src) {
+      asset = coverChain(view, imageRequest.lang || "ru", imageRequest.src)[0] || null;
+    }
   }
 
   if (!asset) {
@@ -1216,8 +1227,9 @@ async function proxyStamped(request, url, env, ctx, stamp) {
     if (hit) return hit;
   }
 
-  const stored = await readDocument(env, id);
+  let stored = await readDocument(env, id);
   const lang = stamp.lang === "und" ? null : stamp.lang;
+  if (stamp.kind === "cover" && lang) stored = await withCatalogCovers(env, id, stored, lang);
   const imageRequest = {
     kind: stamp.kind,
     id,
@@ -1322,6 +1334,79 @@ function posterChain(document, hints, lang, kinopubSrc) {
     .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url) && (a.lang ?? null) !== lang);
   push(bestAsset(others, "poster", lang));
   return chain;
+}
+
+export const ARTWORK_RECHECK_MS = 24 * 60 * 60 * 1000;
+export const ARTWORK_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether this request should re-read TMDB for the title. Logos keep their
+ * six-hour per-locale rule. A title poster or cover with nothing in the asked
+ * language is due a day after the last build; any document a week after it.
+ */
+export function artworkRecheckDue(stored, kind, lang, now = Date.now()) {
+  if (!stored || stored.pending === true) return false;
+  if (kind === "logo" && logoRecheckDue(stored, lang, now)) return true;
+  const built = Date.parse(stored.built_at || "");
+  if (!Number.isFinite(built)) return kind === "poster" || kind === "cover";
+  const age = now - built;
+  if (age >= ARTWORK_STALE_MS) return true;
+  if (age < ARTWORK_RECHECK_MS || !lang) return false;
+  if (kind === "cover") return coverCandidates(stored, lang).length === 0;
+  if (kind === "poster") {
+    return !(stored.artwork?.poster || []).some((item) => {
+      const asset = normalizeAsset(item);
+      return asset && langTag(asset.lang) === lang && (asset.source === "tmdb" || asset.source === "tvoe");
+    });
+  }
+  return false;
+}
+
+// One background refresh per title per isolate per ten minutes: a grid of
+// forty posters of one title must not queue forty TMDB reads.
+const refreshing = new Map();
+const REFRESH_THROTTLE_MS = 10 * 60 * 1000;
+
+function refreshInBackground(env, ctx, id, hints, stored) {
+  const now = Date.now();
+  const last = refreshing.get(id);
+  if (last && now - last < REFRESH_THROTTLE_MS) return;
+  refreshing.set(id, now);
+  if (refreshing.size > 2000) refreshing.clear();
+  ctx?.waitUntil?.(resolveAndStore(env, id, hints, stored, { fresh: true }).catch(() => {}));
+}
+
+/**
+ * The document with the covers the offline card pipeline stored in D1
+ * (`c2_image` kind cover: Kinopoisk / tvoe plates) added, when the document
+ * has none in `lang`. Read-only view: never written back to KV.
+ */
+async function withCatalogCovers(env, id, document, lang) {
+  if (!env?.CATALOG || !document) return document;
+  if (coverCandidates(document, lang).length) return document;
+  try {
+    const rows = await env.CATALOG.prepare(
+      `SELECT lang, url, width, height FROM c2_image
+        WHERE kinopub_id = ? AND kind = 'cover' AND person_id IS NULL AND season IS NULL`,
+    ).bind(Number(id)).all();
+    const extra = (rows?.results || [])
+      .filter((row) => row.url && safeHttpURL(row.url))
+      .map((row) => {
+        const source = inferSource(row.url);
+        return {
+          source: source === "unknown" ? "catalog" : source,
+          url: row.url, lang: row.lang || null,
+          width: row.width || null, height: row.height || null,
+        };
+      });
+    if (!extra.length) return document;
+    return {
+      ...document,
+      artwork: { ...document.artwork, cover: [...(document.artwork?.cover || []), ...extra] },
+    };
+  } catch {
+    return document;
+  }
 }
 
 /**
