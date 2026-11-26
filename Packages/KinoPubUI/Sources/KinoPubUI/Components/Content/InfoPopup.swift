@@ -210,6 +210,8 @@ public struct InfoPopupView<Content: View>: View {
         panelBody
       }
       .scrollBounceBehavior(.basedOnSize)
+      // The soft edge left the bullets legible under the title and subtitle.
+      .scrollEdgeEffectStyle(.hard, for: .top)
       .navigationTitle(title)
       .modifier(OptionalNavigationSubtitle(subtitle: subtitle))
       .navigationBarTitleDisplayMode(.inline)
@@ -274,11 +276,17 @@ public struct InfoPopupView<Content: View>: View {
       .frame(maxWidth: .infinity)
       .padding(.horizontal, 48)
       .padding(.top, 4)
-      Button(role: .close, action: close)
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
-        .keyboardShortcut(.cancelAction)
+      // Outside a toolbar `Button(role: .close)` draws its title («Закрыть»), not the
+      // xmark, so the glyph is given; `.bordered` + circle as the title page's round
+      // Mac buttons (`.glass` took the app's primary tint and filled solid).
+      Button(role: .close, action: close) {
+        Label("Close", systemImage: "xmark")
+          .labelStyle(.iconOnly)
+      }
+      .buttonStyle(.bordered)
+      .buttonBorderShape(.circle)
+      .controlSize(.large)
+      .keyboardShortcut(.cancelAction)
     }
     .padding(.horizontal, 14)
     .padding(.top, 14)
@@ -301,6 +309,9 @@ public struct InfoPopupView<Content: View>: View {
   private func continueButton(_ title: Text) -> some View {
     Button(action: close) {
       title
+        // iOS keeps a white label on the white fill in dark: the label is the
+        // opposite of the fill, as on the Mac.
+        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.borderedProminent)
