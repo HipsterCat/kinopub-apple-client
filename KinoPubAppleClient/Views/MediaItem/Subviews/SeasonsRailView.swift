@@ -263,6 +263,12 @@ struct SeasonsRailView: View {
   /// The episode rail's own position — unlike the reader's proxy, moving it does not
   /// drag the page along. Used to put a rebuilt rail back where it stood.
   @State private var railPosition = ScrollPosition(idType: String.self)
+  /// This view's own copy of the rail has already been put back where the page's memory
+  /// says it stood. Once per appearance: `entries` changes many times after that (a season
+  /// window hydrates, TMDB schedules add the episodes kino.pub lacks), and putting the rail
+  /// back on each change dragged a season pill's scroll back to wherever the rail stood
+  /// mid-flight — S1 pressed, the rail jerked and stopped on S1E7 (Sasha, 2026-11-26).
+  @State private var didRestorePosition = false
   /// The season whose «Подробности» are up.
   @State private var seasonDetails: SeasonCardInfo?
   /// The season whose TMDB posters are being looked through.
@@ -1579,13 +1585,16 @@ struct SeasonsRailView: View {
         return entry.map { (anchor, index, $0) }
       }
       guard let leading = visible.min(by: { $0.index < $1.index }) else { return }
+      // A pill's scroll in flight: the cards it passes are not where the rail stands.
+      // `selectTab` has already written its target into the memory.
+      guard !isScrollingFromTab else { return }
       let entry = leading.entry
       rail.leadingEntryID = entry.id
       rail.leadingAnchor = leading.anchor
       if let season = entry.season {
         hydrate(around: season.id)
       }
-      guard !isScrollingFromTab, entry.tabID != selectedTabID else { return }
+      guard entry.tabID != selectedTabID else { return }
       selectedTabID = entry.tabID
     }
   }
@@ -1711,6 +1720,7 @@ struct SeasonsRailView: View {
     }
 #endif
     isScrollingFromTab = true
+#if os(tvOS)
     if animated {
       withAnimation(.easeOut(duration: 0.2)) {
         proxy.scrollTo(anchor, anchor: .leading)
@@ -1720,13 +1730,36 @@ struct SeasonsRailView: View {
     }
     Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(250))
-      // Again, once the lazy row has laid out the cards around the target: a jump from
-      // far away landed on an estimate and left the season's first card short of the
-      // edge (Sasha, 2026-10-30).
       proxy.scrollTo(anchor, anchor: .leading)
       try? await Task.sleep(for: .milliseconds(100))
       isScrollingFromTab = false
     }
+#else
+    // Where the rail stands from now on, so a rebuilt page comes back here and not to a
+    // card the scroll passed on the way.
+    rail.leadingEntryID = target.id
+    rail.leadingAnchor = anchor
+    // The rail's own position, not the reader's proxy: `proxy.scrollTo(_, anchor: .leading)`
+    // also scrolls the page so the rail sits mid-height — the page jerked on every pill
+    // press. And an id position stays on its card while cards before it change (a hydrated
+    // season's holes), where a one-off offset jump is left behind.
+    if animated {
+      withAnimation(.easeOut(duration: 0.2)) {
+        railPosition.scrollTo(id: anchor, anchor: .leading)
+      }
+    } else {
+      railPosition.scrollTo(id: anchor, anchor: .leading)
+    }
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(250))
+      // Again, once the lazy row has laid out the cards around the target: a jump from
+      // far away landed on an estimate and left the season's first card short of the
+      // edge (Sasha, 2026-10-30).
+      railPosition.scrollTo(id: anchor, anchor: .leading)
+      try? await Task.sleep(for: .milliseconds(100))
+      isScrollingFromTab = false
+    }
+#endif
   }
 
   /// Where the rail stands and Down from the hero lands: the episode the hero's main
@@ -1752,7 +1785,9 @@ struct SeasonsRailView: View {
 #if !os(tvOS)
     // Opened before (the page was rebuilt on coming back): stand where it stood.
     if didScrollToUnseen {
+      guard !didRestorePosition else { return }
       guard let id = rail.leadingEntryID, entries.contains(where: { $0.id == id }) else { return }
+      didRestorePosition = true
       railPosition.scrollTo(id: rail.leadingAnchor ?? Self.episodeAnchor(id), anchor: .leading)
       return
     }
@@ -1762,6 +1797,9 @@ struct SeasonsRailView: View {
     guard !Task.isCancelled else { return }
     // Only now: bailing above must leave this false so a later payload gets its turn.
     didScrollToUnseen = true
+#if !os(tvOS)
+    didRestorePosition = true
+#endif
     // The first episode is already where the rail opens. `scrollTo` would also drag
     // the page down onto the episodes, and there is nothing to reveal.
     guard target.id != entries.first?.id else {
