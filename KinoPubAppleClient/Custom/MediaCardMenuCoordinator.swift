@@ -9,6 +9,7 @@
 import Foundation
 import KinoPubBackend
 import KinoPubUI
+import KinoPubMetadata
 import OSLog
 import KinoPubLogging
 
@@ -126,8 +127,11 @@ final class MediaCardMenuCoordinator: ObservableObject {
   }
 
   func changeImages(_ card: MediaCard) {
+    // The sheet opens on what the card shows: a poster card on Poster, a wide title
+    // card on Cover (Sasha, 2026-11-26).
     imagePickerTarget = TitleImagePickerTarget(kinopubID: card.itemID, imdb: card.imdbID,
-                                               title: card.title)
+                                               title: card.title,
+                                               initialKind: card.isLandscape ? .cover : .poster)
   }
 
   func play(_ card: MediaCard, push: @escaping (Route) -> Void) {
