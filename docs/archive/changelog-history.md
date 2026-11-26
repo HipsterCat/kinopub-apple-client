@@ -1,0 +1,3041 @@
+# Changelog history (archived)
+
+Dated implementation notes moved out of [CHANGELOG.md](../../CHANGELOG.md) so agents are not
+forced to re-read ~200KB of history on every Unreleased append. **Evidence only** — never
+automatic requirements. For new shipped facts, append a short bullet under `## Unreleased` in
+`CHANGELOG.md`; do not extend this archive.
+
+## Formerly under Unreleased
+
+### Compact counts k/M; Kinopub like/dislike on pointer platforms (KP-12)
+
+- `CompactCountFormat` in KinoPubUI: always Latin `k` / `M`, round with up to
+  one decimal for thousands and two for millions (1.1M, 15.56M, 554.6k). Replaces
+  integer truncation in `MediaScoreItem.votesCompact` and locale
+  `.notation(.compactName)` (`тыс.` / `млн`) in view counts, collections and
+  reviews stats.
+- iOS / iPadOS / macOS detail ratings: interactive thumbs on the kino.pub tile
+  (basic outline → hover/press capsules → solid cast pill), confirm alert before
+  `vote(up:)`, dark-mode mark `kinopub_big_white`. Separate
+  `MediaItemCommunityVoteSection` stays tvOS-only for the SwiftUI fallback.
+
+### `/v2/title` takes the same identity hints as `/v1/title` (2026-11-10)
+
+- `GET /v2/title/by/kinopub/{id}` with no query is still the stored card. Query
+  params `imdb`, `kinopoisk`, `runtime`, `year`, `name_ru`, `name_original` (and
+  the older `title` / `original`) let a cold id match TMDB instead of 404.
+  `GET /v2/title?imdb=` / `?kinopoisk=` looks up a stored card. The app sends
+  those hints from `TitleCardSource`.
+
+### Trailer player: closes at the end; no Info on trailers (2026-11-03)
+
+- The end-of-stream observer only ran for `.media`, so a trailer that finished
+  sat on its last frame. Trailers now send `.dismiss` on
+  `AVPlayerItemDidPlayToEndTime` (nothing is marked watched). Live never ends.
+- tvOS trailers set `playbackControlsIncludeInfoViews = false`: Info showed the
+  trailer's running time and AVKit has no switch for that line alone. Diagnostics
+  «Info panel on trailers» (`FeatureFlag.trailerInfoPanel`, off) brings it back.
+
+### TestFlight: Xcode 27.2 RC uploaded and Fastlane called it a failure (2026-10-28)
+
+- From 22 Oct the `xcode-27` image selected Xcode 27.2 beta 2; App Store Connect
+  rejected those archives (`Unsupported SDK or Xcode version`). The image then
+  shipped 27.2 RC: archive, export and `altool` `UPLOAD SUCCEEDED`, but Fastlane
+  2.238.0 treated a spurious `CDUploaderStateInfoResumeFilePath` ERROR as
+  failure ([fastlane#30130](https://github.com/fastlane/fastlane/issues/30130),
+  fixed in 2.240.0). Fastlane is 2.241.2. The Xcode picker prefers a 27.x GM,
+  then an RC, then a beta — `sort -V` would pick `beta_2` over
+  `Release_Candidate` when both are on the image.
+
+### tvOS tests: wait for the deferred poster probe; skip local-only UI walks (2026-10-28)
+
+- `TVPageCellMetrics.recipe` returns an estimate and probes `TVPosterView` 0.2 s
+  later (Search grid keyboard, 2026-10-25). Cover tests were asserting against
+  the estimate (art 370 pt high where the recipe promised 384). They wait for
+  the probe without calling `recipe` again — polling it reset the probe deadline
+  and the estimate never left.
+- `PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown` needs
+  `tools/slow-hls-server.py` on `:8765`. CI starts it for the tvOS test job;
+  the test skips if the port is down.
+- `TVMenuBackUITests.testSettingsLeftWithoutMenuReopensAtItsFirstLevel` needs a
+  kino.pub session and skips in CI like the other local walks.
+
+### A rail's count is its title (2026-10-26)
+
+- The videos and versions rails say “4 видео” and “2 версии”. One item keeps
+  «Видео» or «Версии». The separate count beside the title is off for now.
+
+### kino.pub's thumbs are not a rating (2026-10-26)
+
+- The aggregate no longer weighs kino.pub. A thumb cannot be changed, so a misclick
+  is not a score. The card stays, and it still sorts last.
+- The line under the synopsis is IMDb, then Kinopoisk, then TMDB. Kinopoisk with
+  voters and no published number is a secondary "?". `0%` is written as `0%`.
+  TMDB and kino.pub with five voters or fewer keep the number, in secondary ink.
+- The thumbs under that card are outline and secondary until the viewer has
+  voted. The thumb they cast fills green (up) or red (down), and the count
+  beside it is the text colour; the other stays an outline. The line springs
+  once when the vote lands. Same colours on the vote buttons.
+- A known source with no ratings yet still has a card: the mark, and “No ratings”
+  under it. kino.pub is one of them even at 0 votes, because that card is the vote.
+  When a score arrives and the row reorders, those cards slide; the rest of the
+  page does not.
+- The chooser is “Want to rate?”. tvOS draws the thumbs itself, because the
+  system dialog drops a button's image. The vote lands as a toast. Selecting
+  the card again is what repeats that the vote cannot be changed.
+- The line under the synopsis uses the 32 pt colour marks, each at its own
+  width. The home hero uses the same drawings. The black drawings of the same
+  marks are in the catalogue for a later tint.
+- The line under the synopsis sorts like the cards. A published score stays.
+  A "?" is dropped only when two published scores outvote it about a hundred
+  to one.
+- Review faces are largest first, zeros are absent, and a single reaction
+  replaces the speech bubbles.
+- kino.pub with no votes shows both outline thumbs at 0.
+
+### TMDB's score reads as a percentage (2026-10-26)
+
+- Wherever a TMDB score is printed it is a whole percent (`75%`), the same way
+  kino.pub's thumbs already are. The stored value stays 0…10 so the aggregate can
+  weigh it. On the detail plaques and the ratings table the percent sign is the
+  same character at three quarters of the digit size: SF has no OpenType feature
+  that shrinks only `%`.
+- tvOS score cards are 20 pt wider than the column, so `100%` sits beside the IMDb
+  mark without the digits shrinking to fit.
+
+### TV tab: the grid is the loaded grid (2026-10-26)
+
+- The full channel list is baked in (`TVChannelCatalog`, 51 channels, title order):
+  name, logo URL and the average colour of the card's edge. The tab paints that grid
+  on the first frame. `/v1/tv` and the guide run together; the list replaces the baked
+  one, and the same set keeps this order so the grid does not reshuffle. Select does
+  nothing until a stream link is in.
+- Channel logos were centre-cropped. `TVUIKitRemoteImage.load` takes a fit/fill mode
+  and then `imageWithSource` decoded with fill anyway, so a 240×180 card lost its
+  top and bottom before letterbox could run. The mode now reaches the decode.
+
+### Home no longer fetches shelves it does not paint (2026-10-25)
+
+- Watch Now, Movies and Series stopped requesting `/v1/items/hot`, `/fresh` and
+  `/popular`. Those six calls ran on every launch and the rows appeared only when
+  every configured shelf was empty.
+- A rail asks for 8 titles on tvOS and 12 on iOS and macOS, instead of the
+  server's page of about 40. Bookmarks and collections on those rails use the
+  same page. The rest loads when the row scrolls.
+
+### tvOS detail page: the picture stays behind menus and dialogs (2026-10-25)
+
+- Opening a hero menu, context menu, alert or popup cleared `@FocusState` and the
+  page read that as focus moving into the sections, so `PageBackdrop` faded the
+  picture out. A presentation over the page is not the sections; the picture stays.
+
+### Appearance: cover language (2026-10-25)
+
+- Settings › Appearance › Covers and images. Unset, it follows the app language
+  (Russian → Russian, anything else → English). An explicit choice stays when the
+  interface language changes.
+- In Russian, a vertical kino.pub cover (`/item/big/` and `/item/medium/`) for a title
+  with a Kinopoisk id loads `kinopoiskapiunofficial.tech/images/posters/kp/{id}.jpg`
+  (667×1000) — the size Apple TV asks for. `/item/small/` loads `kp_small` (360×540).
+  Wide stills stay kino.pub's. The stored card URL stays the kino.pub one, so switching
+  back does not refetch the row. A watching payload with no Kinopoisk id keeps the
+  kino.pub cover.
+
+### tvOS Search: Up from the keyboard returns to the tab (2026-10-25)
+
+- The focus guide that carries Down from the Search tab into the keyboard was also
+  catching Up and redirecting it into the results, onto a filter chip. Menu was the
+  only way back to the tab. The guide is on only while the tab bar has focus.
+
+### tvOS Search: the grid keyboard's globe key no longer freezes the page (2026-10-25)
+
+- Select on the globe, and the first Down beside the grid keyboard, ran the poster
+  probe (`TVPosterView.setFrame`) for every width the keyboard slid through, inside
+  the press. `setFrame` spins the run loop, so the next width probed before the
+  press could return. An unmeasured width is estimated; the poster is measured
+  once that width stays still.
+
+### tvOS Search: the grid keyboard shifts the results instead of reflowing them (2026-10-25)
+
+- The column count followed the width beside the keyboard, so posters grew and
+  wrapped onto the next row, then jumped back when focus hid the keyboard. A
+  screen-spanning page sizes the grid for the full screen. The keyboard only
+  moves the collection; the last column clips, as in Podcasts.
+- That clip is the screen, not a mask on the results. A cell that leaves the
+  collection's bounds is removed, so while the keyboard narrows the host the
+  collection stays a full row wide. Masking the host cut every rail short of the
+  screen: the next card's peek shrank to a sliver and Right stopped shifting the
+  row by one column. `clipsToBounds` stays off, as on Home.
+
+### Library sidebar: a count on the trailing edge (2026-10-23)
+
+- tvOS draws it in the cell's accessory slot: the folder's number, and All Bookmarks
+  as the sum of those numbers, on the trailing edge. The title is what truncates — a
+  value cell's secondary text gave the spare width to the title and the number
+  disappeared. Focused, the number takes the title's colour so it stays readable on
+  the light platter. Subscriptions, Continue and History stay blank — the folder list
+  does not know them, and a first page's length would be wrong. macOS already showed
+  a folder's count; All Bookmarks now shows the same sum there.
+
+### tvOS player: the Info tab is always there (2026-10-23)
+
+- AVKit decides whether the strip has an Info tab when `customInfoViewControllers` is set, from
+  the item's `externalMetadata` at that moment, and does not look again. From a thin card (Home's
+  banner) the stream's links are fetched first, so the item — and its metadata — came after the
+  tabs: the strip was Episodes and Up Next until a key press rebuilt it. The custom tabs now wait
+  for the first metadata stamp (`PlayerManager.releaseContentTabs`). DEBUG `-KINOPUBSlowInfo
+  <seconds>` delays the stamp; `PlayerTabsUITests.testInfoTabArrivesWithLateMetadata`.
+
+### tvOS player tabs: open row vs platter, behind a switch (2026-10-21)
+
+- `FeatureFlag.playerTabsPlatter` (Settings › Diagnostics, default off). Off: Home's still row
+  over the video, edge to edge across the screen — its first tile on the 80 pt margin the tab
+  strip stands on, four columns, the page gutter, no captions, no platter; the tile before shows
+  in the margin, like the Apple TV app's Chapters. AVKit does not clip a custom tab, so the rail
+  runs past the tab's sides to the window's.
+  On: the glass platter with the even 40 pt air of the previous pass (`PlayerRailTab.Style`).
+- DEBUG `-KINOPUBFixtureOpensAt <n>`: `seasonStrip` season 2 has ten episodes watched to `n − 1`,
+  so Play opens S2E`n`. `PlayerTabsUITests.testEpisodesOpenInTheMiddleOfASeason` shoots both styles.
+
+### tvOS player tabs, fourth pass (2026-10-21)
+
+- The tab is **Episodes / Серии** for every series. Tiles are a `TVUIKitMediaItemRail.TileRun`:
+  40 pt of air all round, half the gutter between tiles (`PlayerTabPlatter`). TMDB's episodes
+  kino.pub lacks are back in the row (`PlayerManager.loadEpisodesSchedule`, same season match as
+  the title page), not playable.
+- No dimming on the playing tile (kept, hidden, in the overlay). The ring shows in focus and
+  under Increase Contrast, hugging the still. Probed: anything on the still's own layers is
+  clipped to the still, and its focused layer overscans past the edge, so the ring stays a
+  cell background; the press-down scale doesn't reach it. `TVMediaItemContentBadgeProperties`
+  has colour, font and transform only — no way to show the system badge unfocused.
+
+### tvOS player tabs, third pass (2026-10-21)
+
+- Season before Up Next. Five columns, no caption under the tiles (`TVPageCaption.never`, now
+  honoured by the cell), runtime and bar on the focused tile only
+  (`TVUIKitMediaItemRail(overlayOnFocus:)`); the system "Next episode" badge already showed on
+  focus only.
+- Up Next gets an entry (its first tile), so Down from the tab lands there instead of on the
+  sliver at the edge; both tabs return to the tile the remote left from.
+
+### tvOS player tabs, second pass (2026-10-21)
+
+- Season and Up Next use the title page's still run (`TVPageLayout.stillRun`) at six columns,
+  side inset gutter + 28 pt so a scrolled rail peeks both ways; `PlayerRailTab` (UIKit) centres
+  the art-and-caption block on the platter. A hosted rail had sized itself to its row and SwiftUI
+  centred that taller row, so stills sat on the platter's edge. `TVUIKitMediaItemRail(fillsHeight:)`.
+- The platter frame is Info's to the pixel on 27.2 and 26.5: AVKit sizes the panel to the tallest
+  tab, so the tab asks 263, the platter sits 14 down and is 250 tall. Hosted content opts out of
+  the safe area (`safeAreaRegions = []`), or the glass stopped 10 pt short at the screen's bottom.
+- The playing episode's ring is a `UIBackgroundConfiguration` stroke (`strokeOutset` keeps it
+  concentric) on the still's frame, and on `focusedFrameGuide` when focused, in the focus
+  animation — it stays on the focused tile. Off under Increase Contrast while focused.
+
+### tvOS Picture in Picture (2026-10-21)
+
+- The tvOS app never declared `UIBackgroundModes: audio` — the iOS SDK got it per-SDK in the
+  project, and the June PiP commit that added it to `Info.plist` lived only on the community
+  fork. Apple's tvOS PiP sample declares it; it is now in `Info.plist` (an
+  `INFOPLIST_KEY_UIBackgroundModes[sdk=appletv*]` setting did not reach the built plist).
+- The player is a pushed route, not a presentation, so `PictureInPictureKeeper` does what AVKit's
+  auto-dismiss and the sample's re-present do: leave the route on start (session kept), hold the
+  controller and delegate, push a new route on restore that adopts the live manager
+  (`PlaybackSession.adopt`) and the held controller, end the film when the window is closed.
+- **Not verified:** the tvOS simulator has no PiP (`isPictureInPictureSupported()` is false on
+  26.5). Every step logs `PiP:` for a device run.
+
+### Player: no year on an episode (2026-10-20)
+
+- `PlayerInfo` sends no `commonIdentifierCreationDate` for an episode. AVKit draws that one slot
+  both before the subtitle in the title view and in the Info tab's line; a string under
+  `iTunesMetadataReleaseDate` lands in the same slot, `quickTimeMetadataYear` nowhere (tvOS 26.5
+  simulator). So the year goes from both places for episodes; films keep it.
+
+### tvOS player tabs: Up Next, then the season playing, on a platter (2026-10-20)
+
+- The Info strip of a series is Info, Up Next, **Season N** — the season playing alone, in the
+  same `TVUIKitMediaItemRail` as Up Next (`PlayerManager.railTab`), so both tabs are one height
+  and the strip stands still. The rail parks on the episode playing on its first layout and Down
+  lands there. `TVSeasonRail` is no longer used by the player.
+- Both tabs sit on a player-glass platter matched to AVKit's Info platter (≈ 46 pt corners, on
+  the strip's margins), clipping the rail so a tile scrolled off the side shows a sliver.
+- The episode playing: dimmed still, a ring at rest (hidden on focus — no double outline under
+  the high-contrast focus style), primary caption, runtime instead of a bar
+  (`TVUIKitMediaItem.isNowPlaying`).
+- Watched on those tiles comes from `ViewerStateReading`, not the snapshot cached when the
+  player opened — binge-watched episodes 2–4 show as watched.
+- **Fixed:** `TVUIKitMediaItemCell.canBecomeFocused` answered `cellAllowsFocus` alone, so the
+  collection view never asked `canFocusItemAt` — `TVSeasonRail.canFocusItem` had never run. It
+  now ANDs `super`. The detail-page fixture UI tests (26) pass with it on tvOS 27.2.
+- DEBUG: `-KINOPUBFixtureRealPlayer` now works with `-KINOPUBDetailFixture` too — episodes get
+  Apple's sample stream and drawn stills, so `PlayerTabsUITests` walks the real
+  `AVPlayerViewController` with no session.
+
+### tvOS Search hang and first paint (2026-10-20)
+
+- **Hang**: focusing results with the grid keyboard (`_shouldHideGridKeyboardUnfocused`) widened
+  the page from ~590 pt to full width. Growing the collection horizontally to the window fought
+  the search container's layout, and dropping focus on the cell rebuild brought the keyboard
+  back — a hide/show loop. XCTest: `Timed out while evaluating UI query` (238 s on `6f4edd7`,
+  241 s on `b8bbd11`; the two sibling tests that never hide the keyboard passed in ~9–12 s).
+  The collection now extends vertically only; while results have focus they remember the
+  focused poster. Behaviour kept: keyboard slides away while results have focus, Left from
+  the first column brings it back.
+- **First paint**: the Search tab stood up `UISearchContainerViewController` lazily on first
+  visit, so the field and keyboard arrived seconds later. `TVSearchChrome.prewarm()` builds that
+  stack when the tab bar is created (WWDC 2020 "Discover search suggestions for Apple TV";
+  Apple Developer Forums 17819; same shape as Rivulet / Plozz keeping search as a real tab VC).
+  Filter chips paint with the keyboard; catalog posters apply on the next run-loop turn. The
+  catalog itself starts loading on tab-bar creation, not on first appearance.
+
+### TV tab — what's on air (2026-10-18)
+
+- **Guide**: epg.pw, one request per channel (`api/epg.json?channel_id=`, ~10 KB, two days),
+  instead of the fork's whole XMLTV feeds (5–22 MB parsed on the device). `EPGChannelTable`
+  maps kino.pub channel id → epg.pw id: 47 of 51, each checked live on 2026-10-17; the 4K Sky
+  copies share their HD schedule (one request). Not in the guide: Eleven Sports 4K, MMA-TV,
+  NBC Sports, UFC ТВ. `EPGServiceImpl` keeps each schedule 6 h in memory and Caches, falls
+  back to the stale copy on failure; epg.pw gives no end times, so a programme ends at the
+  next start. The fork's unreferenced `EPGSources.json` is gone.
+- **Tile**: the programme is the still's `secondaryText` (`TVPageTile.subtitle`); tvOS draws it
+  over the art of the *focused* tile, uppercased — not as a line under the name. A
+  `TimelineView(.everyMinute)` rolls it over when a programme ends.
+
+### TV tab — live channels (2026-10-17)
+
+- **TV** tab on tvOS (`NavigationTabs.tv`, `TVChannelsView`): `/v1/tv` as one
+  `TVPageSection.tiles` grid of 16:9 stills, 5 columns (320 pt — the logos' own 240×180 at
+  1080p). The service and model were already ported from the community fork
+  (`TVChannelsRequest`, `TVChannel`); nothing read them. The list is refetched when the tab
+  comes back after 5 min, because stream links carry a token.
+- **Logos** are 240×180 cards with the mark on their own colour (some gradients). A crop to
+  16:9 cut them, so `TVUIKitMediaItem.artworkFit = .letterbox` decodes with `.fit` and
+  `TVUIKitTileArtwork.letterboxed` draws the picture full-height with its outermost
+  columns stretched to the edges — one plate, no bars — through `render` (BGRA, the focus
+  effect's format).
+- **`WatchMode.live`** / `Route.livePlayer`: the stream URL is the channel's `hls`; every
+  `watchMode == .media` gate keeps out resume, marktime, track memory, Up Next, Episodes and
+  end-of-playback. The info panel gets the channel name only — the channel id is not a title
+  id, so the title sources and progress store are never asked about it — and no Info actions.
+- **`-KINOPUBTVChannelsFixture YES`** (+ `-KINOPUBFixtureRealArt YES` for CDN logos): the tab
+  on a stand-in API with the stand-in player; `TVChannelsUITests` walks it.
+
+### Library pass from the Asana list (2026-10-17)
+
+- **Continue** is `/v1/watching/movies` (the reference client's «Недосмотренные ›
+  Фильмы») then `/v1/watching/serials?subscribed=0` less the `subscribed=1` ids — those
+  live in Subscriptions (Sasha). Still wide title art that plays on Select, time left from
+  history (`continueCard`); started-only filter on series dropped; header `UnfinishedCountText` («14 недосмотрено»).
+  `RowKey.watchingMovies` became `.unfinishedSerials` — the disk snapshot file fails to
+  decode once after the upgrade and is rebuilt.
+- **Still grids** counted the caption line twice (in `belowItem` and on top of
+  `gridRowSpacing`, and once more in the section bottom): 160 pt art to art, 112 empty.
+  Now the line plus `captionedRowGap`.
+- **Sidebar width** measured labels in `.headline` 38 pt by hand and missed the cell's own
+  margins and padding; it now lays a sizing `LibrarySidebarCell` out (≤ 25 % of the
+  screen). Rows start on the side inset (`insetsLayoutMarginsFromSafeArea = false`); the
+  trailing `systemMinimumLayoutMargins` (16) is the focused row's growth room, so the grid
+  overlaps it and its own side inset is the gap. The system marquee
+  (`enablesMarqueeWhenAncestorFocused`) did nothing until `textProperties.numberOfLines = 1`
+  — `UIListContentConfiguration` defaults to 0. Cover captions now fade at the trailing
+  edge at rest like that label, not an ellipsis (`TVPageMarqueeLine`).
+- **Cover over its caption on first open**: the sidebar's width settles after the grid's
+  first pass, columns change, and a configured `TVPageLockupPosterCell` kept its recipe.
+  It re-measures in `apply(_:)` when the layout gives it another width.
+- **Section switch** kept the old list's offset and remembered index path, so a folder
+  opened as deep as History was scrolled and kept paging. `TVPage(contentID:)` resets to
+  the top and focuses the first card on entry. History's per-day sections each asked for
+  the next page at their end; only `loadsMore` sections ask now.
+- **Focus handoff**: a focused card that leaves the list hands focus to the one now in its
+  place (`TVPageCollectionViewController.focusHandoff`), at once or on focus's return. In
+  the plain fixture case UIKit already did that; the real path (back from the player
+  through a pop) was not reproducible without a session.
+- **"Every card focused at once"** was not reproduced: `_UIStackedImageContainerView`
+  `stackFocused` read 0 or 1 on every step of sidebar / grid / tab-bar walks on 26.5 and
+  27.2 (Library fixture, in tabs too).
+- Library fixture: folders (one long name, one paged 70 titles, last page repeated past the
+  end as kino.pub does), paged History, `-KINOPUBFixtureInTabs`, and
+  `-KINOPUBFixtureWatchOutAfter <s>`; a fresh store every launch.
+
+### What's New at launch, About with history and licences (2026-10-16)
+
+The launch sheet never appeared: it keyed on the marketing version, which is "1.0" for
+every TestFlight build, so the first install recorded "1.0" and nothing ever differed.
+The gate is now per bullet (`AppChangelog.pendingWhatsNew`): bullets this device has not
+shown, in its language; Done or Menu stores every bullet, both languages, as seen. Installs
+that only have the old `whatsNew.lastSeenVersion` were never shown anything and get the
+whole list once. A fresh install stays quiet.
+
+All three — launch popup, history, licences — are the shared `InfoPopupView` (Rivulet's
+look, Sasha). On tvOS it is now a `fullScreenCover` with a clear background, not a sheet:
+the sheet drew a second, larger platter around our panel. TVSettingKit pages present it
+through `InfoPopupPresenter` (overFullScreen, crossfade). The panel hugs short text and
+scrolls long text with faded edges. Focus has **one** stop — Done, or the text when there
+is no button — and `onMoveCommand` pages the text: with the text as a second stop, Down
+from it went straight back to Done and nothing scrolled (26.5 simulator, Device Hub
+remote). This applies to the detail page's popups too.
+
+About (tvOS): Version «1.0 (10)» is a `TSKSettingItem` with `canFocus = false`
+(`TSKRow.isFocusable`; probed on 27.2, works on 26.5), then What's New and Licenses. The
+root's left panel lost the build notes under the plate — TVSettingKit shrank them to fit.
+`Bundle.releaseNotes` had no other reader and is gone; the Fastfile still writes
+`KPReleaseNotes` (ROADMAP TODO). Licences: every linked package is MIT with identical text
+(checked against the checkouts), so `OpenSourceLicenses` lists copyright lines and shows the
+text once. DEBUG: `-KINOPUBWhatsNew YES`, `-KINOPUBSettingsPopup history|licenses`.
+
+### Home's Continue Watching shows the title's wide cover (2026-10-16)
+
+Not the episode's thumbnail — kino.pub's thumbnail is a random frame, often black, and does not
+say which show it is (Sasha). Same rule as Library Continue and History (`titleWideArtwork`); the
+still is only a fallback for a title with no wide art. Live: every title on the row had one.
+
+### Watched is 85%, kino.pub's own rule (2026-10-16)
+
+`WatchProgress.isFinished` was "the last 60–180 s"; kino.pub's watched flag is ≥ 85% of the
+runtime — probed with `marktime` on a 3392 s episode (2883 s unwatched, 2884 s watched, recomputed
+from the current play head) and consistent with all 186 play heads on the account. Our rule is
+now the server's (`WatchProgress.watchedFraction`), so a play head without a flag — this device's,
+a history row — reads as the title's page does. The player's Up Next panel keeps its own timing
+(`upNextLeadTime`, the last 60–180 s): when to offer the next episode is not when this one counts.
+
+### Continue Watching offers what the title's page says (2026-10-16)
+
+VisionQuest S1E2 was watched on its page and "in progress" on Home: the row judged a history play
+head (2434 of 2706 s) by our credits window, never asking the title, whose payload says
+`watched: 1`. The row now asks for every series' payload and for every title the server's
+watching lists no longer carry, reusing one until its title moves. The guess from counts no
+longer treats a series-wide watched count as an episode number past season 1 — it had Invasion
+on «S3, E30», «Обратная сторона Земли» on «S6, E59», and seven more off the same way; live they
+now read S3 E10 (68%), S6 E6 (41%) and so on. Open: kino.pub's watched flag starts at ~87%,
+our window at the last 60–180 s (docs/product/continue-watching.md).
+
+### Title-page hero: same logo slot as Home, no text→logo swap (2026-10-16)
+
+#55 reserved the Home banner slot, but the detail hero still timed out the
+*metadata lookup* into the lettered title (1.5 s) and then swapped it for a late
+logo. One `TitleLogoSession` now drives the banner, the tvOS/iOS/macOS title
+hero, and the phone page variants. Timeout applies only once a logo URL exists;
+pending stays empty; a late image does not replace text. The slot keeps the logo
+box height so empty → logo does not shove the actions.
+
+### tvOS Library: Following Unwatched/All, folder total, ellipsis (2026-10-15)
+
+Library grid headers travel with the content again (`pinToVisibleBounds` off). Focusing
+a cover still does not lift the title — `headerDodge` stays identity on `.grid`.
+
+Following replaces the Type pull-down with Unwatched / All (Search chips, Unwatched
+default). All keeps unwatched series first, then a *Watched* / *Просмотренные* section.
+
+A bookmark folder header is «Всего 694» / «Total 694», never the bare number. Rename
+and Delete live in one ellipsis before sort.
+
+### Library Continue is title cards again; player has an Episodes tab (2026-10-15)
+
+Library Continue no longer expands a series into episode cells under **Episodes** /
+**Серии** — that belonged in the player (Sasha: the player, not the Library). Series
+and films are 16:9 play-on-select title cards under Continue, as before #58.
+
+The tvOS player's Info strip keeps **Up Next** / **Далее** as it is, and adds
+**Episodes** / **Серии** *before* it, for a series only. Same `TVSeasonRail` and
+episode cells as the title page; the season playing is selected; Select plays the
+episode in place. A film has no Episodes tab. End-of-episode Settings are unchanged.
+
+### Catalog captions, Search silent refresh, Library header (2026-10-13)
+
+Grid subtitles (search catalog, collections, person credits, Library bookmarks) are
+year then genre: «2024 Драма», «2019–2024 Драма» for an ended series, «2026 Драма»
+while it is ongoing. Following still says how many episodes are left.
+
+Search on tvOS revalidates in the background when you come back to the tab, and when
+you return to the list after five minutes: it does not clear the grid or show a
+loading state, and it only replaces the listing if page 1 actually changed.
+
+The Library section header is one label (the count *is* the title — «156
+непросмотренных серий», not that beside «Подписки»). Its filter pills are the same
+`TVPageChip` Search uses, at the same size. The header scrolls with the grid; it
+does not pin over the covers. Focusing a cover still does not nudge it.
+
+### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
+
+`testTheTableTakesFocusOnlyWhereSelectDoesSomething` slept 1.5 s after Menu then
+snapshotted `focusedDescription` once. The page is out of the accessibility tree
+while InfoPopup dismisses; on a slow runner that snapshot missed the Audio card
+and the assertion message (a second query) already showed it. Same wait as
+`testFocusReturnsAfterPopup`. The table and popup were not part of the player /
+Library Continue change.
+
+### End of an episode is a Settings choice (2026-10-13)
+
+Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode
+in the same season; **Continue to Next Season** (default off) also plays the next season's
+opener. Auto-play off, or a film, dismisses. A next episode with an empty files ladder
+is unavailable and does not skip ahead. Decision is `PlaybackEnd` (unit-tested for every
+toggle combination). The tvOS Up Next `AVContentProposal` offers the same next episode.
+
+Library Continue briefly listed series as episode cells (PR #58); that was reverted
+2026-10-15 — the player Episodes tab is where that list lives.
+
+### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
+
+GitHub never queued the `23 6 * * *` cron on Oct 13 (nor Oct 12 06:00). This
+repo is a fork; after `cursoragent` last changed `testflight.yml`, `schedule`
+stopped firing. The one run that did fire (Oct 11 11:47) followed a human merge
+of the workflow. Push to `main` is the daily trigger again, capped at one
+successful automatic archive per UTC day. Cron stays as best-effort.
+
+iOS Release archive died sending `DownloadNotificationManager` across `await`
+in the app `.task` (`KinoPubAppleClientApp.swift:83`): `requestPermission()` was
+`@concurrent`. The type is `@MainActor`; download callbacks hop onto it. tvOS
+does not compile that `.task`. macOS in the same run compiled, then
+`exportArchive` used the installer cert as the app identity; ExportOptions now
+pins Apple Distribution + 3rd Party Mac Developer Installer.
+
+### No deprecation warnings left; Library header count redraws (2026-10-12)
+
+Apple's last three: `AVMetadataItem.stringValue` → `load(.stringValue)`, awaited once per
+selection group into `RenditionNames` (probe on a real master: the same `NAME=` for all 16 dubs
+and 49 subtitles); `supplementariesFollowContentInsets = false` →
+`supplementaryContentInsetsReference = .none` (Library header band pixel-identical);
+`UIWindow(frame:)` in tests → `init(windowScene:)` (`TestWindow`). A clean tvOS build-for-testing
+has no deprecation warning. Library *Subscriptions* no longer says «0 unwatched episodes» over
+covers that say otherwise: a visible section header is re-configured when its count changes.
+
+### No deprecated model API left; the card carries facts (2026-10-12)
+
+Four slices. Deleted every deprecated helper nobody called (Duration formatters,
+NextPlayableEpisode, the old episode-label helpers, `TitleMetadata.mediaFragment(kind:)`,
+`MediaLibraryStore.watchProgress`). The detail page words its release line and info-list runtimes
+through `TitleMetaLine` / `RuntimeText` from one `MediaItem.mediaEntity`; a multi-version film's
+info-list runtime is now the film's. `MediaCard`'s three copies of viewer state are one
+`viewerState`, and menus read `ViewerStateReader` when they open. The card's pre-worded
+`metaLine` / `genreLine` / `countryLine` / `seasonsLabel` became facts (`genres`, `country`,
+`seasonCount`) worded at paint time; the Library genre filter matches any of a card's genres by
+id instead of the primary's name. Cards cached before decode into the new fields. What is left in
+the build's deprecation warnings is Apple's: `AVMetadataItem.stringValue`,
+`supplementariesFollowContentInsets`, and two test-only UIKit inits.
+
+### Continue Watching actually refreshes (2026-10-12)
+
+The row requested constantly and never changed. `ContentStore.invalidate` only set
+`fetchedAt = .distantPast`; Home's `.task` had already run, and `onAppear` only
+re-applied the local overlay on the cached snapshot. An in-flight `refresh()` that
+landed after an invalidate then stamped `fetchedAt = now`, so the next
+`refreshIfStale` treated the old cards as fresh for another 60 s. Overlay always
+won, even when the snapshot was further along (other device).
+
+- Generation on invalidate / `setItems` / `removeCard`; a superseded fetch does
+  not write, and `refresh()` retries.
+- `contentStoreDidInvalidateWatch` — Home refetches Continue Watching. Foreground
+  (`scenePhase == .active`) does the same.
+- Overlay skips a local playhead behind the snapshot. `forSeries` skips a stale
+  local in-progress behind a further server count. Live S/E beats the cached card.
+- Mark watched on the detail page writes a finished tombstone so Home hides /
+  steps the card before the refetch returns.
+
+### Continue Watching drops abandoned titles and ranks next-up by series recency (2026-10-12)
+
+`/v1/watching/serials` lists every unfinished serial. The row now drops titles not
+touched in **90 days** (unless still on the watchlist), titles with no date in the
+fetched history page that are not on the watchlist, and samples under 90 s that
+were last touched more than **14 days** ago. An unstarted next episode inherits
+the newest `last_seen` among that series' rows in the history page already
+fetched — no extra request (Sashimi #648 / #629).
+
+### Hero / banner title logo: no text flicker while the logo loads (2026-10-12)
+
+The title slot and the logo share one place. Showing the lettered name while the
+logo loaded, then swapping, was the flicker. Presentation now follows Plozz
+`HeroLogoPresentationPolicy` (33c1219): the slot stays empty (layout reserved)
+while a lookup is in flight; a cached logo paints on the first frame; the
+lettered title appears only after a confirmed miss (no logo in metadata, 404, or
+a 1.5 s timeout). Completions carry a request id so a stale decode cannot paint
+a newer card. `HomeCatalog.bannerLogos` distinguishes pending / URL / miss —
+`nil` used to mean both "not yet" and "there isn't one", which drew the name
+immediately.
+
+### TestFlight: at most one automatic upload per day (2026-10-12)
+
+Push to `main` no longer archives. One cron, `23 6 * * *` (06:23 UTC), uploads
+only if HEAD is not the last SHA that actually archived. `workflow_dispatch`
+stays for a manual build anytime. Lint on Fastlane/xcproj changes remains
+`testflight-lint.yml`.
+
+### TestFlight: push to main uploads; cron moved off :00 (2026-10-12)
+
+Oct 12 06:00 UTC never created a `schedule` run. Cron was `0 6 * * *` — GitHub
+delays and can **drop** queued `schedule` jobs at the start of the hour. This
+repo is a fork of `leoru/kinopub-apple-client`, which makes cron a backup, not
+a guarantee. Push to `main` only uploaded on a marketing/build version bump, so
+every Oct 11 push skipped and a missed cron left no archive.
+
+- Push and schedule now share one rule: upload when HEAD is not the last SHA
+  that actually archived (`Upload *` succeeded).
+- Cron is `23 6 * * *` and `41 18 * * *`.
+
+### tvOS Library: hugging sidebar, staged Menu, section header, genre+year captions (2026-10-11)
+
+Sidebar order is Подписки / Продолжить / Все закладки / folders / История at the
+bottom. Fixed rows get an SF Symbol in a square slot; folders do not. Width hugs
+the longest label. The page goes to the screen edges; the gap between sidebar and
+grid is the horizontal safe-area inset. Default focus is the sidebar; the last
+section is kept for the session. First Menu from a grid row below the top returns
+there (same `StagedMenuBack` as Home); the next press is the sidebar, then the
+tab bar.
+
+Every section has a 52 pt header — the History day header's height — with the
+section title, a count («156 непросмотренных серий» on Following), and the Search
+page's sort/type chips. Bookmark folders add Rename / Delete there and as a
+long-press menu.
+
+Poster subtitles in catalog grids (search, collection, person, library bookmarks)
+are `Жанр Год`, or `Жанр 2019–2024` for an ended series. Following still says how
+many episodes are left.
+
+Folder rename is `POST /v1/bookmarks/create` with `folder` + `title` — not in the
+public docs, unverified live.
+
+### Cast ranking: kino.pub's list, not TMDB billing, and the lead is never dropped (2026-10-11)
+
+#50 (`f1992bd`) narrowed `rankedCast` so kino.pub's first name was restored **only** when TMDB
+could not match them (no episode count) — a workaround so the `filmCrew` extras stayed off the
+front of a fixture. On live titles that dropped Dexter's unmatched lead when the match later
+had a count, moved Jason Statham from #1 to #10 in *Mutiny*, and put an unknown ahead of
+Bondarchuk in *Трудно быть богом*.
+
+- Restored Sasha's rule from `d933f84`: the first of kino.pub's own list is never dropped; if
+  ranking left them out they open the row. The Dexter-only guard is gone.
+- A film no longer *sorts* by TMDB billing. kino.pub's order stands; billing only drops bit
+  parts (`order >= 12`). A series still ranks by episodes and drops guests.
+- Tests follow the live titles (Statham first, Bondarchuk top-3, Dexter present), not the
+  fixture's extras-first list. Duplicate-credit dedupe, cell reconfigure, and Following
+  captions from #50 stay.
+
+### TestFlight: archive Xcode 27 xcproj, not gym's pbxproj (2026-10-11)
+
+First real TestFlight run
+([38136826984](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/38136826984))
+failed on iOS, tvOS and macOS before compiling: `apply_app_signing!` called
+`Xcodeproj::Project.open`, and xcodeproj 1.28.1 looks for `project.pbxproj`.
+This repo is Xcode 27's `project.xcproj` only. The upload job was also on
+`macos-26` / Xcode 26, which cannot open that file either (CI already uses
+`xcode-27`).
+
+- Sign by patching the app target's keys in `project.xcproj` (not the xcodeproj
+  gem, not global xcargs that leak onto SPM). Archive with `xcodebuild archive`
+  / `exportArchive`. gym would have hit the same pbxproj open.
+- Upload jobs: `runs-on: xcode-27` + `select-xcode-27.sh`.
+- Secrets-free check: `fastlane ios lint` and `xcodebuild -list` in
+  `.github/workflows/testflight-lint.yml`.
+
+### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
+
+Season tabs and episodes are **`TVSeasonRail`** (KinoPubUI): a row of system list cells
+(`UICollectionViewListCell`, `UIListContentConfiguration` / `UIBackgroundConfiguration.listCell()`
+— focused and selected looks are the cell's, as on the Library sidebar) over the episode rail, in
+one view controller. Where focus lands is the engine's: two full-width `UIFocusGuide`s (over the
+tabs, over the rail) redirect into the collection view that should take the move, whose
+`indexPathForPreferredFocusedView` names the item, and `canFocusItemAt` keeps the remote off what
+it must not land on — every tab while focus is outside, every episode but the entry while it is on
+the tabs. The walk: [docs/product/detail-sections.md](../../docs/product/detail-sections.md#seasons-rail-tvos).
+`testSeasonRailFocusWalk` checks it on the `seasonStrip` fixture (now 6 / 8 / 5 episodes, watched to
+S2E3); passes on tvOS 27.2 and 26.5.
+
+- **Why the rail did not scroll:** it was an orthogonal section, and `scrollToItem` on one drives a
+  private inner scroll view that ignores the section's insets — the target landed flush with the
+  screen edge, or nothing moved. A still row (`TVUIKitMediaItemRail(columns:)`) is now its collection
+  view's own horizontal scroll (`TVPageLayout.stillRun`), and `align(to:)` sets the offset: the
+  item's art on the page margin, clamped so the last item rests on the trailing margin.
+- **Why the first still sat 80 pt right of the title:** the rail's compositional layout used the
+  default `contentInsetsReference` (`.safeArea`), so tvOS added its 80 pt to ours.
+  `stillRunConfiguration()` sets `.none`.
+- **Seasons are not set apart by a gap:** the seasons that are not the selected one stand back
+  (`TVSeasonRailController.otherSeasonAlpha`, 0.8, through `TVUIKitMediaItemCell.tileAlpha` — on the
+  content view and re-applied after each configuration, which can put a new content view in place).
+- **The rail stays where the remote left it** after focus has been in it — up to the hero, back from
+  the player; only a new page opens on the hero's episode.
+- **Runtime chip:** on every still tile without a progress bar, at rest too, watched included, on the
+  Watched badge's dark pill (`TVUIKitMediaItemStatus.showsRuntime`, the overlay's `runtimeBadge`).
+- **The hero's action row** carries `defaultFocus(…, priority: .userInitiated)`, so Up from the tabs
+  (or a one-season rail) lands on the main button, not the circle above.
+- **The gap under the rail** was the rail's own row gap plus the SwiftUI stack's 44; on tvOS the
+  stack under the hero no longer adds spacing (`MediaItemView.contentSpacing`).
+- `SeasonTabStrip` / `SeasonPill` are iOS and macOS only now; the tvOS focus code in them is gone.
+
+### Library captions and two TVPage snapshot crashes (2026-10-11)
+
+After [007c0eb](https://github.com/HipsterCat/kinopub-apple-client/commit/007c0eb) Sasha's
+simulators (tvOS 26.5 and 27.2) showed empty *Following* subtitles and two fatal snapshot
+applies.
+
+- **Following's second line is `unwatchedEpisodes`.** `/v1/watching/serials` has `total` /
+  `watched` / `new`; `WatchingItem.unwatchedCount` and `followingCard` fill the field;
+  `TVPageLockupPosterCell.posterSubtitle` reads it (then the year). The store then lays
+  today's `ViewerState` over every title card. `MediaCard.withViewerState` dropped the
+  count, so a signed-in Library (AppContext always has a viewer) painted every cover
+  with a title and an empty line. The field is copied through now. The Library fixture
+  store has a viewer too, so a `-KINOPUBLibraryFixture` shot walks the same overlay.
+- **`TVPageItemID` carries the cell registration.** Library Following (posters) and
+  Continue (stills) used to share section id `"library"` and title ids; switching
+  sections reconfigured a `TVPageLockupPosterCell` with the still registration
+  (`NSInternalInconsistencyException`). The registration is part of the id — a kind
+  change is a new identity, a wording change is not — and the cell provider dequeues
+  from `id.registration`. Registrations are created once in `configureDataSource`.
+  Library grids are now `library.<persistenceID>`.
+- **Credits cannot list the same person twice.** `MediaPerson.id` is `role:name`;
+  kino.pub listed Валид Зуэйтер twice on 126967 and `applySnapshot` died. `credits()`
+  keeps the first card per id, `cardID` prefers a TMDB person id, and
+  `TVPageSection.uniquedItems()` / `applySnapshot` drop later duplicates generally.
+- **Person cells now have an accessibility id.** Cast & Crew dequeues
+  `TVUIKitPersonCell`, which set a label and never an identifier, so XCUI saw
+  «Энтони Руссо, Режиссёр» with an empty id. It now uses `kinopub.card.person.*`,
+  the same scheme as search's wide card (which also copies the id onto `TVCardView`).
+
+### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
+
+The three columns of the table under the page are **three stacks of cards** (`TVPageGroup.stacked`),
+a card to every item, **borderless**: `TVPageSpecCell` is no longer a `TVCardView` (whose focus look
+is the white platter) but a plain cell — text at rest, a quiet translucent plate under focus, no
+lift, the words do not move, the secondary ones go primary — and **it can take focus only if the
+item opens something** (`Spec.opensInPopup`: Audio, Subtitles, the cast's *Развернуть*; `canBecomeFocused`). The
+rest are text and the remote skips them. Audio and Subtitles stay focusable even with nothing folded
+away — a page whose bottom holds nothing focusable cannot be scrolled to.
+`TVPageStripPlan` places a stacked group's cards one under another, each as tall as its rows
+(`TVPageSpecContent.height(for:cardWidth:)`, no minimum), at one of `columns` equal widths a gutter
+apart (557 at 1760, twice the air two cards of a row have), with no focus room (`insets: .zero`).
+Between two **blocks** the air is the card's padding (28) plus `stackGap` (12); between two items that
+are only read `itemVerticalPadding` (11) makes it half.
+
+- **Every label is body, regular** — rows, headers, the facts' text (`TVPageFonts.font(.body,
+  weight: .regular)`: the bare text style renders medium on tvOS); captions and headers secondary.
+- **Words are never cut:** a `.value` *or* `.detail` row without badges or a note wraps
+  (`TVPageSpecRowView.wraps`) — a dub's studios included.
+- **No emoji, no flags** anywhere in it: genres, countries, languages. `MediaItemTVEmoji.swift`
+  (`Emoji`, `TypeSymbol`) had no caller left and is deleted, with its tests.
+- **Dubs are words**, no icon: `kind: studio, studio` for every kind (`dubRows`). **Subtitles are
+  one `.value` line**, languages two spaces apart, `(CC)` / `(Forced)` in brackets
+  (`subtitleRows`). **«+ ещё N»** (`MediaItem_SpecMore`) replaces «N more languages» + chevron; the
+  row style `.more` has no glyph, `Spec.Row.Leading.emoji` and the chevron view are gone.
+- **The people of a kind with no faces are text under the table, with no heading**
+  (`creditsAsText`, the last section of `make`): creators, the cast, an empty third column — not near
+  the top under "Cast & Crew". The cast card shows `creditsPreview` (6) names whole, and **always**
+  has the *Развернуть* link under it (`MediaItem_Expand`, a `.more` row of `cast.expand`): the one
+  focus stop of the section, which opens everyone kino.pub lists in the popup, a row to a name.
+- **Seasons and episodes are in the video column**, under the runtimes, not in the information one.
+- `MediaItem_TagGenre` / `MediaItem_TagCountry` are the singular captions, picked by how many.
+- Not run: the tests were written and compile; Sasha asked to hold test runs until the sections are
+  done. Not looked at on any simulator or device — in particular how the quiet focus plate looks
+  and whether Down moves between stacked cards of an orthogonal strip as the plan lays them out.
+
+### Reviews: a count in the scores' row, the words on a page of their own (2026-10-11)
+
+The detail page no longer carries the reviews' text. `MediaItemTVSections.ratings` ends the scores'
+row in a card that counts them — `TVPageInfoCard.Reviews`, drawn by `TVPageReviewsContent`: bubbles
+before the total, the title under them, a face and a count per tone on the right — the height of a
+score card (`TVPageRatingContent.height`) and, via `TVPageInfoCard.width(inColumn:)`, as wide as its
+words need, never narrower than a score. Select pushes `MediaItemReviewsTVPage` (new, tvOS; the
+route's `RouteDestination` case picks it): a `TVPage` grid of the review cards, three across, with the
+shared info popup for reading one whole. The "Reviews" strip group and `reviewLimit` are gone.
+
+- **Apple API limitation, probed on the tvOS 26.5 simulator (2026-10-11):** SF Symbols has
+  `face.smiling` and not `face.frowning` or `face.neutral` (`UIImage(systemName:)` is nil), so the
+  three tone faces are drawn (`TVPageMoodGlyph`, a template image): a ring, two eyes, a smile, a frown
+  or a straight mouth. The bubbles are `bubble.left.and.text.bubble.right.fill`. Re-probe on the next
+  SDK.
+- The count is `ReviewsSummary.total` (the source's), the page shows what we carry — the first page
+  the proxy gave. Tones come from the summary, or are tallied from the reviews held.
+- The old UI tests that walked the reviews in the row (`kinopub.review.*`) were reworked, and the
+  one that watched the Ratings title stay on the margin while the row scrolled is gone: the row no
+  longer scrolls sideways, and `TVPageStripPlanTests` still covers the rule.
+- Not run: the tests compile; Sasha asked to hold test runs. Not looked at on any simulator.
+
+### Cast & Crew in one row; stills and facts (2026-10-11)
+
+- **Cast & Crew is one heading over one row of people, no sections inside** (`credits`): the role
+  is the card's own subtitle (`MediaPresentationProfile.authorRoleKey` — «Режиссёр», «Создатель»). A
+  film's director opens the row; a show's creators (`authorRole == .creator`) close it behind the
+  actors and never get a row of their own. A strip with a heading and untitled groups stands its cards
+  `headerToItems` under the header (`TVPageStripPlan.insets.top`), like a rail.
+- **The first of kino.pub's cast list is never dropped** (`rankedCast`): no episode count,
+  sent away as a guest — Dexter's own Dexter. If ranking leaves them out they open the row.
+  #50 later narrowed this to unmatched series only so fixture extras stayed gone; that
+  workaround is reverted (see Unreleased, 2026-10-11).
+- **A fixture page shows no network portraits** (`ActorImageProvider.photoURL` returns nil under
+  `-KINOPUBDetailFixture` unless `-KINOPUBFixtureRealArt YES`), and the drawn silhouettes are gone
+  from `DetailFixtureArt`: a person with no photo is their initials, as in search.
+- **Stills are an adaptive grid, up to six** (`TVPageGalleryContent.frames`): the column count whose
+  tile is closest to 16:9, a short last row widened to fill it; the chevron cell is gone.
+- **Facts:** the words start at the top of the card (a label taller than its text centres it — the
+  label is now as tall as its words); spoilers go last, each keeping the id of its place in kino.pub's
+  list; the spoiler glyph is secondary at caption1 and the *Show* label (`Fact.revealTitle`,
+  `MediaItem_FactShow`) is gone.
+- Not run: the tests for this compile; Sasha asked to hold test runs until the sections are done.
+  Not looked at on any simulator or device.
+
+### The table under the page: three columns that fill the width (2026-10-11)
+
+The strip of type / year / country / genre pills is gone, and the table says what it said.
+`MediaItemTVSections.specifications` is **Audio & Subtitles | Video | Information** — three columns
+at most, always, sharing the content width equally (`TVPageGroup.fillsWidth`, one `TVPageStripPlan`
+card width: `(content − air) / n`, 572 at 1760). Audio and subtitles are one column under two
+headings (`Spec.Row.Style.heading`); a title that reports none says «Нет данных» / «Нет субтитров».
+Video leads with the resolution, then the runtime — a series' is one episode's with the whole run's
+under it. Information is type, year, genres, countries; for a series a status, the years it aired
+(«с 2026», «с 2019 по 2026» — `SeriesFacts.years`) and how many seasons and episodes. The people of a
+kind with no faces (concert, stand-up, documentary, show, animation) are the **last rows of that third
+column** — they were a fourth column in front of the others — every name in full.
+
+- **Values wrap and are never cut.** A `.value` row of words only (no badge, no note) takes as many
+  lines as it needs, so a column's height is a function of its rows *and its width*:
+  `TVPageSpecContent.height(for:cardWidth:)`, `TVPageSpecRowView.height(for:width:)` (measured on a
+  `UILabel` set up as the row's own, `setUnhyphenated`). Names are joined with a no-break space inside
+  each, so a line breaks between two people, never in one. The old six-name cap is gone.
+- Chips on the detail page are gone: `tags()`, `searchTarget(forChip:)` and the `tag.*` ids were
+  deleted, with the Select-to-search they allowed.
+- `SeriesFacts` (new, shared) is where "has it ended?", the status line, the years and the unit
+  words live — the SwiftUI info columns now ask it instead of keeping their own copy.
+- Not run: the UI and unit tests for this were written and compile; Sasha asked to hold test runs
+  until the sections are done. Not looked at on any simulator or device.
+
+### Similar: the same actors | this director | by genre, ten each (2026-10-11)
+
+The tvOS detail page's *Similar* is one heading over up to three groups of Home's posters, in one
+strip, each under a subheading — the way *Cast & Crew* is built: «Эти же актёры», «От этого
+режиссёра», then the genres («Фантастика, боевики, приключения» — kino.pub's similar, or the genre
+floor). **In that order, ten covers at most in each**; a title is shown once, under the first group
+that has it, and each group takes its ten from what the groups before it left. The director's and the
+lead's shelves are no longer rows below the chips; only collections are. Rules:
+[docs/product/detail-sections.md](../../docs/product/detail-sections.md).
+
+- **A strip can hold posters.** `TVPageGroup.cell = .poster` draws a group's `.card` and
+  `.placeholder` items as the rails' `TVPageLockupPosterCell` (recipe `.poster`, caption `.never`),
+  `TVPageStripPlan` places them at the HIG gutter inside a group *and* between groups. Not a second
+  poster component: the same cell, registration and recipe.
+- **One nesting, one look.** The titles over a strip's groups lift by **one** amount
+  (`TVPageLayout.stripTitleLift`, the wide card's lift) whichever card has focus. Before, they lifted
+  by the focused card's own growth — 19 pt over a poster, 11 over a person's card — so heading →
+  subheading → stack read differently in Similar and in Cast & Crew. At rest the two were already the
+  same geometry (`TVPageStripPlanTests`).
+- **Item ids in a strip carry the group** (`TVPageSection.itemID(at:)`): two groups can hold the
+  same title or the same run of skeleton tiles, and a diffable snapshot must not see one id twice.
+- The model hands the builder the two people groups — their words and whether the query is in
+  flight (`MediaItemModel.authorGroup` / `castGroup`); the words are roles with no name in them
+  (`MediaPresentationProfile.similarAuthorTitleKey`), and a pending group is six skeleton covers.
+- Seen on the 26.5 simulator before the reorder and the ten-cover limit: the `film` fixture and the
+  templates gallery's *Similar · posters* strip. The fixture now serves the lead's and the
+  director's shelves differently. tvOS 27.2 and a device: not looked at.
+
+### Score cards: mark before the number, a dash for "not enough ratings" (2026-10-11)
+
+tvOS rating cards (`TVPageRatingContent`) are one line of **mark, 16 pt, number** over one line of
+voters, centred: the number is `title2` rounded medium, the count `caption2` regular, and no
+source's name is written beside its mark any more (`TVPageInfoCard.Rating.showsName` is gone). The
+card is as tall as those lines — `TVPageRatingContent.height`, 168 pt at the default size — instead
+of the 276 pt every info card used; `TVPageInfoCard.height(forWidth:)` says so per kind, and a
+strip's group is as tall as its tallest card, so the reviews beside the scores stay 276 and the
+scores sit at the top of the row. A source with voters and no published score
+(`Rating.value == nil`) draws `—` in secondary ink and writes its voters, where it used to write
+«Пока недостаточно оценок» in the caption.
+
+- **Probed, tvOS 26.5 simulator: SF Compact is not there.** No family, `UIFont(name:)` returns nil
+  for `SFCompactRounded-Medium`, and `UIFontWidth` has condensed / standard / expanded / compressed
+  but no compact. `title2` + rounded + medium (`.SFUIRounded-Medium`, 57 pt) is the nearest, and
+  what the mock's digits are.
+- Looked at on the 26.5 simulator through the templates gallery and the `film` fixture; the
+  gallery has the no-score card (`kp-pending`). tvOS 27.2 and a device: not looked at. iOS, iPadOS
+  and macOS draw their own SwiftUI score tiles and were not touched.
+
+### Season line: «Сезон» and a pill per season (2026-10-11)
+
+The tab strip above the episode rail is `SeasonTabStrip` (new file) and says what Sasha specified:
+the word first, numbers after it with no gap, never kino.pub's season titles. One season reads
+`Сезон 1` with nothing to press — and the line is **always there and always the same height**
+(`SeasonTabStripTests` measure it with and without pills, with glyphs, at accessibility sizes).
+A pill is the headline style plus 10 pt above and below (66 pt on tvOS), 24 pt of padding each
+side of the text, and never narrower than tall (`PillWidth`, a one-child `Layout`: a `minWidth`
+frame cannot say "my own height") — `1` is 67 × 66, `10` is 91 × 66, `4–7 🔒` 152 × 66. The word
+«Сезон» is always secondary with 20 pt before the first pill; the air between the line and the
+rail is 22 pt (it was 11). Unselected available pills are primary while focus is on the strip and
+secondary once it is down in the episodes; lock and clock pills are secondary always, and the
+clock is `clock.fill`. Seasons kino.pub does not have are secondary with a glyph after the number: a
+clock for the announced one, a lock for the run it lacks, which is one pill (`4–7`). Selecting one
+scrolls the rail to its trailing card; no schedule is fetched for a number kino.pub does not carry.
+
+- The strip's tvOS focus moved into the strip (a `@FocusState`, `focusSection` + `defaultFocus` and
+  the entry token), so `SeasonsRailView` only owns the selection. **Focus lands on the selected
+  pill** from the hero and from any episode — `defaultFocus` at `.userInitiated` priority on a
+  `focusSection`; the section alone, or `prefersDefaultFocus` in a `focusScope`, took the pill
+  nearest in x (measured, tvOS 26.5 and 27.2).
+- **Measured, tvOS 26.5:** `.buttonStyle(.borderless)` puts the system focus highlight on the first
+  `Image` of a label — a lock or clock drawn as an `Image` came out as a bright blob over the glyph.
+  The glyph is a character of the `Text` instead. A text label gets no lift at all, so the fill that
+  follows selection (and selection follows focus) is what shows where you are. `.glass` +
+  `.capsule` gives the real thing but pads to 104 pt; see ROADMAP.
+- DEBUG: `-KINOPUBDetailFixture seasonStrip` — kino.pub seasons 1–3, TMDB seasons 4–7 (aired) and 8
+  (announced). `TVDetailLayoutUITests.testSeasonLineWalksEveryKindOfPill` and
+  `testSeasonLineOfAOneSeasonShowIsJustTheWord` walk it. Not looked at on a device.
+
+### Library Following / Continue / History (2026-10-10)
+
+tvOS Library section contents (Sasha):
+
+- **Following.** The line under a cover is the unwatched episode count — «1 серия», «2 серии»,
+  «5 серий» — from `total − watched` (else `new`). Empty when nothing is left. `EpisodesLeftText`
+  no longer prefixes «Ещё».
+- **Continue.** 16:9 cards (unfinished films plus serials already started). Artwork is the title's
+  wide cover, not the episode still. Select plays at the resume point. Title is the show/movie
+  name; subtitle is time remaining (`RemainingText`, «Ещё 43 мин»).
+- **History.** Select plays that item/episode. Artwork is the title's wide cover (episode thumb
+  parked). Title is the movie name, or the show plus S/E; subtitle is when it was watched
+  («27 января в 20:54»). Grouped by day: Сегодня, Вчера, then «15 сентября 2026».
+- Still grids use the system's two caption lines (`updated(for:)` + `secondaryText`). No overlay
+  chrome for the text.
+
+### TestFlight on a schedule, in-app What's New (2026-10-10)
+
+- **TestFlight.** `testflight.yml` still has `workflow_dispatch`. It now also runs daily (if
+  `main` has commits that have not been uploaded) and when `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION` change on `main`. Missing App Store Connect / signing secrets skip
+  the workflow with a notice instead of failing. What to Test is the current version's
+  `whats-new.json` bullets. Secrets and the first-upload steps:
+  [docs/testflight.md](../../docs/testflight.md).
+- **What's New.** `whats-new.json` is the localized (ru, en) user-facing changelog. A sheet
+  shows once after an update to a marketing version that has bullets; Settings › About has
+  the version, the build, and the full history. Agents add a bullet there when the change is
+  visible to a viewer (AGENTS.md › Working agreement).
+
+### tvOS build cleanup: tabs, Library sidebar, Home banner, Continue Watching (2026-10-07)
+
+- **Tabs.** The DEBUG Library sandbox tabs (`SwiftUI` / `UIKit`, `TVSidebarSandbox`) are off the
+  tvOS bar. Search / Watch Now / Movies / Series / Library / Settings remain. The sandbox file stays
+  in UILab; `-KINOPUBInitialTab library|settings` still jumps a tab without walking the bar.
+- **Library.** tvOS sidebar rebuilt in the TVShowroom shape (reimplemented: that sample is
+  all-rights-reserved). Pill rows, no icons, no counters. Focus over a row switches the grid;
+  the selected pill stays `borderedProminent` when focus is in the grid (TVShowroom dropped the
+  selected look on the way out). Each column is a `focusSection`; Menu from the grid returns to
+  the selected row. The page fills below the tab bar; the list uses the system scroll-edge fade.
+- **Home banner.** Restored the pre-full-screen banner (`fb12276`, round 3): centred `TVCardView`
+  platters, 16:9, neighbours peeking, no `TVCollectionViewFullScreenLayout` parallax. Each title
+  once (Sasha, 2026-10-01). The full-screen carousel is gone.
+- **Continue Watching.** Five stills across (HIG 5-column, 320 at 1920), title under the tile at
+  rest, system focus — no overlay scale on the tile.
+
+### Grid captions are ours: every cover keeps two lines and its height (2026-10-07)
+
+Sasha's Search grid, scrolled: cells with no second line under them and taller art («Война», «Фантазии
+Речных», anime with no year). The note above that a visible `.always` footer never collapsed had been
+measured on a rail; on a grid it does: the gallery's new 99-cover catalog grid (`Catalog · poster grid`),
+scrolled 40 rows with the remote on tvOS 27.2, ended with **28 of 99 covers one-line** — footer 37 pt,
+art 421 — and 71 right (footer 74, art 384). The system footer decides on its first layout and nothing
+set on it, its labels, the lockup or the texts made that stable (the list is in AGENTS.md ›
+Troubleshooting).
+
+**So a captioned cover no longer has a system footer.** The lockup is the rail's footer-less cover — rigid,
+art 384 whatever the title — and `TVPageCaptionView`, a sibling under it, draws the two lines:
+the title (secondary at rest, primary focused; an ellipsis, and a scrolling marquee with soft edges while
+focused when it is wider than the art), and under it the year, *or* the episodes left in the Library's
+Following, *or* nothing (the line is still there, empty). Callout 31 pt, centred, and the whole caption
+drops by the focus room as the cover grows, inside the focus update's animation; `.onFocus` fades it in.
+`TVPageCellRecipe.captionHeight`/`lockupHeight` keep the grid's pitch: item = bare cover + 12 pt + two
+lines (510 at a 256 art, as before; at larger Dynamic Type the lines grow and the item with them).
+The caption's geometry is set when the cell is configured, not in `layoutSubviews`.
+Result on both runtimes (27.2, 26.5), 40 rows down the same grid: all 101 samples read art 384, cell 510,
+caption 74. New: `TVDetailLayoutUITests.testAGridScrolledFarKeepsEveryCoverTheSame`,
+`TVPosterCoverTests` (recipe, two lines under every art, cells re-dequeued 72 times, the drop, the marquee).
+
+DEBUG: `-KINOPUBLibraryFixture YES` shows the real Library on a stand-in API — twelve followed series, ten of
+them with episodes waiting — so the *Following* captions («Ещё 2 серии», «Ещё 1 серия») can be seen and
+tested with no session (`TVDetailLayoutUITests.testLibraryFollowingSaysHowManyEpisodesAreLeft`).
+The gallery's catalog grid has covers with a year, without, and with episodes left.
+
+### Covers of one height, captions by shape, no "See all" tile (2026-10-06)
+
+Sasha's screenshots of the live page: covers in one shelf of different heights — the first three 40 pt
+taller than the next two, the one cut off at the right edge the tallest — and the end-of-shelf *See all*
+tile naming itself under itself on focus. The cause is the footer, not the art: a captioned
+`TVPosterView` splits its cell's height between the art and a footer, the cell is sized for a two-line
+footer (title and year), and where the footer came out one line the art grew into the difference —
+384 pt became 421–424, on tvOS 26.5 and 27.2 alike. Measured causes: a card with no year; the footer's
+second line collapsing a third of a second after a cell is created *in the window* when the system hides
+the footer (`.onFocus`) — a different cell each run, about half of the embedded page's, 6 of 34 on the
+plain gallery; and the lockup being squeezed into a cell whose size it disagrees with. Fixes that did
+not work are listed in AGENTS.md › Troubleshooting (invisible footers, forced focus room, adaptive
+heights, repair after layout).
+
+**The decision (Sasha, 2026-10-06): captions follow the shape.** A rail — Watch Now, Movies, Series
+(they are the same sections), the shelves under a title — has no title or year under a cover, not even on
+focus: `.never`, no footer in the lockup, nothing to take from the art. `TVPageSection.posters` says so
+itself (`caption: nil` → rail `.never`, grid `.always`), and `MainView` no longer picks `.onFocus` for
+Movies and Series. A grid — catalog, collection, a profile's credits, the Library — names every cover
+(`.always`). Search keeps its captions. In the Library's *Following*
+the line under a cover is **how many episodes are still unwatched** («Ещё 3 серии», «3 episodes left»):
+`MediaCard.unwatchedEpisodes` (from `/v1/watching/serials` → `new`) worded by `EpisodesLeftText`
+(KinoPubMedia), shown by the poster cell in place of the year. The *See all* tile is gone with the
+`tilesOnFocus` caption (`TVPageCaption` is `onFocus | always | never` again); a shelf's own page — all of
+a director's or a collection's titles — is no longer reachable from the shelf on tvOS. All 262 samples of
+a walk of the detail fixture's shelves read 256 × 384 art, on both runtimes, the cut-off cover included.
+`TVPosterCoverTests` lays a row of covers out in cells of the recipe's envelope and checks each is the
+art the recipe promised, with `.never` and `.always` (with `.onFocus` it fails on a year-less card).
+**Superseded the next day — see "Grid captions are ours" below: a visible system footer collapses too.**
+
+### tvOS 26.5: every poster of the detail page looked focused at once (2026-10-06)
+
+Sasha's screenshots of the 26.5 simulator: on the new page's shelves ("More by This Director", "More
+with …") every poster wore the focused look — a lighter plate, a bright rim, glass — and the one that
+really had focus was not lifted any further; Home's shelves were fine. Measured: on tvOS 26.x UIKit
+re-asks every poster's art "is the focused view above me?" on each layout and image assignment
+(`-[UIImageView _updateLayeredImageIsFocusedWithFocusedView:focusAnimationCoordinator:]`, no
+coordinator), and while the hero's SwiftUI button holds focus the focused view it is handed is
+`HostingScrollView.PlatformGroupContainer`, an ancestor of every poster on the page — so all 15 art
+stacks (`isStackFocused`) were born and re-laid-out focused and nothing took it back until the remote
+had visited each. Home's page is the tab's root and has no such ancestor; tvOS 27.2 has no such method.
+`TVPosterArtFocus.bind` (new, private selector, shape-checked, a no-op where the method is not there)
+answers the question for poster art: only its own cell can focus it. Verified on both simulators —
+every stack 0 while the hero and the cards hold focus, 1 on the focused poster only, a poster's edge
+profile on 26.5 identical to 27.2's, before / after shots of the row, and the templates gallery (Home's
+shape) pixel-identical on 26.5 with the guard on and off — and by `TVPosterArtFocusTests` (skipped on
+27.2). The lesson for the next lockup on this page is in AGENTS.md › Troubleshooting.
+New DEBUG launch args that found it: `-KINOPUBFixtureRealArt`, `-KINOPUBFixtureInTabs`,
+`-KINOPUBSlowShelves`.
+
+### tvOS detail sections, round two (2026-10-06)
+
+Sasha's notes on the page above, all in: **Cast & Crew** is one heading (a `TVPageSection.strip` can
+carry a `title` now) with *Director* and *Starring* as smaller subheadings (`TVPageGroup.isSubheading`)
+and no profession on any card — a character, when TMDB has one, is a card's only line. One director
+stands beside the cast; several (up to three) are a row of their own with the cast under it. The cast is
+ranked (`MediaItemTVSections.rankedCast`: a series by episodes, a film by TMDB billing order, kino.pub's
+order as the tie-break), guests in under a fifth of the episodes are dropped, and a row holds twelve at
+most. A group's title stays on the page's side margin while any of its group is on screen
+(`TVPageStripPlan.stickyShifts`, applied to the *label* inside a group-wide title cell). The air in a
+strip is half the HIG's: 22 pt between cards, 40 between card groups (pills keep 80). The type pill
+wears an SF Symbol (`TypeSymbol`) instead of an emoji; covers carry no title or year under them, not
+even on focus (first built as a `tilesOnFocus` caption with an invisible footer — replaced the same
+day, see "Covers of one height" above); the Debug button is gone from the tvOS footer. The `filmCrew`
+fixture (two directors, a sixteen-name billing) and `TVDetailLayoutUITests` walk it. The SwiftUI-hero
+platter fix (`TVCardViewFocusRelease`) stays, though the footer's Debug button was the only place its
+bug showed.
+
+### tvOS detail sections: a new order, in columns (2026-10-06)
+
+Under the hero (which is untouched) the page now reads Ratings | Reviews, Director | Cast, Similar,
+Stills | Facts, Type · Year · Countries · Genres, the other shelves, Video | Audio | Subtitles —
+Sasha's order, `docs/product/detail-sections.md`. It is one embedded TVUIKit page
+(`TVEmbeddedPage`, a non-scrolling collection sized to its content inside the hero's `ScrollView`,
+so hero and sections stay one scroll and one focus graph) built from data by
+`MediaItemTVSections.make`. New in `TVPage`: `.strip` (one orthogonal section holding titled groups,
+frames from `TVPageStripPlan`) and `.infoCard` (a `TVCardView` holding a rating, a review, a fact, a
+mosaic of stills or a specification column). Search's wide person card and Home's poster section are
+reused as they are; the platter tint and radius they share are now `TVPagePlatter`. The directors of
+a fiction title are faces now, in a column beside the cast. Specifications fold languages the viewer
+does not read into "N more languages" (one rule, `LanguageListVisibility`); Select on a review, a
+fact or a column opens the full text in the info popup, on the stills the gallery, on the kino.pub
+rating a one-shot vote. The SwiftUI sections remain behind `FeatureFlags.tvDetailSections` (default
+on) and are what the other platforms draw. Verified on the tvOS 27.2 simulator on a fixture
+(`-KINOPUBDetailFixture film`, `TVDetailLayoutUITests`), not on a device. Three findings worth
+keeping, in AGENTS.md › Troubleshooting: Russian hyphenation in `UILabel` is stopped only by an
+`NSLanguage` attribute; a multi-line label's lines are `linePitch` apart, not `lineHeight`; and a
+`TVCardView` in a focused cell stays lifted when focus leaves for the SwiftUI hero or footer,
+because TVUIKit reads SwiftUI's container view as "an ancestor is focused" — info cards put their
+platter down themselves (`TVCardViewFocusRelease.swift`, private names, guarded).
+
+### Worker auto-deploy + language/TTL/tvoe plan (2026-10-04)
+
+GitHub Actions `TMDB proxy worker` runs `npm test` then `cloudflare/wrangler-action`
+on push to `main` under `workers/tmdb-proxy/**` (and `workflow_dispatch`). Missing
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` skip deploy with a notice.
+Unknown `/img` kinds 404 (same contract as logo). Plan for `?lang=ru|en`, freshness
+TTLs, and tvoe as preferred ru source: `docs/research/worker.md`. Storage host is
+TBD. Not implemented in the worker yet.
+
+### tvOS Menu-back on every TVPage list (2026-10-06)
+
+`returnsToTopOnMenu` defaults on: Search, a pushed collection / person page, and
+every other `TVPage` grid share `StagedMenuBack` + `.onExitCommand` /
+`pressesBegan`. At the top row Menu still pops a pushed page and still reaches
+Search's field. The detail page's `TVEmbeddedPage` stays off — Menu still pops
+(`985564d`). `CollectionsView` is still a SwiftUI row list, not `TVPage`.
+
+### tvOS Menu returns to the top row first (2026-10-04)
+
+On Watch Now / Movies / Series / Library, Menu from a deep shelf scrolls to and
+focuses the top row; a second press passes through to the tab bar. Delivery is
+`.onExitCommand` (nil at the top row) plus `pressesBegan` on `TVPage`, not a
+window interceptor — we ship `.tabBarOnly`, which is the difference from
+Rivulet `6c5355f` (their `.sidebarAdaptable` never delivered Menu to the page).
+Merged `#45` (`8562dd9`). Extended to Search and pushed `TVPage` lists 2026-10-06.
+
+### Worker `/img/logo` 404s when nothing is stored (2026-10-04)
+
+`GET /img/logo/{size}/kinopub/{id}` with no stored logo answers **404**, never a
+kino.pub poster. Poster and backdrop still fall back to `m.staticpop.net`. Merged
+`#43` (`cd816c4`). Live 404s wait on auto-deploy secrets.
+
+### tvOS deployment floor is 26.5 (2026-10-04)
+
+Owner decision: **26.5**, not 26.6. That is the minimum tvOS 26 simulator
+runtime; real devices can all update to 26.6, but the simulator cannot.
+The app and project already said 26.5; the test and UI-test targets still
+said 26.6. iOS and macOS stay at 26.6. Packages declare `.tvOS("26.5")`
+(SPM has no `.v26_5` case).
+
+### kino.pub's age rating says nothing (2026-10-04)
+
+v1 item details and listings have no age field on any type; api2's `age_rating` is `null` or
+`-1` even on a title Kinopoisk knows (Sasha's capture). Recorded as no signal in `MediaItem`,
+`MediaPrecedence` and `video.md`; the age rating stays Kinopoisk's / TMDB's. The TODO is closed.
+
+### Rows keep refs; titles live in one record store (2026-10-04)
+
+`MediaRecordStore` keeps each title once, as the merged model under its `MediaRef`
+(`records-v1.json` beside the rows). Home's catalogue shelves and bookmark folders now store
+only refs and word their cards when read, so a title on two shelves paints the newest payload
+on both. Other rows still store cards; the old row file is read once as cards. Step 4,
+slice 1 of docs/media-model.md. Slice 2: opening a title's page refreshes its record, so the
+shelf it came from paints the details payload's facts afterwards.
+
+### Cached rows paint today's viewer state (2026-10-04)
+
+`ContentStore.cards(_:)` lays `ViewerState` (`AppContext.viewerState`, the stores' marks over the
+payload's word) over every title card as it is read: a film finished on this device since the row
+was fetched reads watched, a series followed or a title bookmarked since reads so, without waiting
+for the row's TTL. Episode cards (Continue Watching, history) keep their own painting.
+`LocalWatchProgressStore.record(itemID:season:episode:)` makes the per-card lookup O(1).
+
+### One genre on a card; anime and animation lead (2026-10-04)
+
+A card's line carries one genre, the primary (D7). The primary genre puts anime first, then
+animation (with both, anime) — `GenreVocabulary.primaryFirst`, applied by the merge; catalogue
+cards now go through the merge too.
+
+### Every catalogue card is built from the media model (2026-10-04)
+
+`MediaCard(_ item:)` maps the kino.pub payload into the model and words the card with
+`MediaCard(ref:entity:state:)`. What changes on screen: genre names come from our vocabulary
+(English in English, «Эксклюзив» no longer a genre, Documentary leads a documentary); a film's
+runtime on a multi-version film is the film's, not every version summed; a film never reads as
+followed; a medium poster missing falls back to the big one. The model gained `formats`
+(4K / HD / 3D) and `ArtworkSet.posterPreview`; the vocabulary `SeasonCountText` (plural-correct
+in Russian without a strings table) and `TitleMetaLine`.
+
+### Continue means the episode touched last (2026-10-04)
+
+`EpisodeQueue.continueTarget` — the hero's Play, Continue Watching, the card menu — is the
+episode the viewer touched last, as the Apple TV app does (D17): in progress → that one,
+finished → the next. By play time when known (this device's records), else by reading order.
+A skipped earlier episode stays skipped; after the finale with gaps, the first one missed. The
+list-less Continue Watching guess already followed this rule.
+
+### tvOS detail page: episode rail like Home, artwork no longer stuck behind the cast host (2026-10-04)
+
+- **Grey episode stills were a queue, not the cells.** Nuke downloads through one queue,
+  six at a time. The cast photos (`m.pushbr.com`) answer nothing for ~25 s and then fail
+  — measured from the Mac with curl and in the tvOS simulator's artwork log — and the
+  detail page asks for eight of them before its episode stills, so the stills waited
+  behind them for half a minute while their own host (`m.staticpop.net`) answers in
+  0.3 s. `Artwork.pipeline` now allows 24 downloads in flight (URLSession still caps
+  each host) and gives a request 15 s. Cold-cache runs: stills in 1–3 s.
+- **The episode and version rails are a Home still row:**
+  `TVUIKitMediaItemRail(columns:)` lays out with `TVPageLayout.stillRail` — the HIG
+  5-column still (`MainView.stillColumns`), gutter, focus room — instead of the system
+  metrics × 1.18. Runtime shows on the focused tile, as on Home.
+- **The corner of an episode kino.pub lacks:** its date while it is ahead («Позже»
+  undated), the lock once it has aired — never both. Dates drop the year when it is
+  this year.
+- `TVMediaItemContentConfiguration.wideCell()` draws one line under the still:
+  `secondaryText` stays hidden at any cell height and a newline in `text` is cut
+  (probe app, tvOS 27.2 simulator). The release-date subtitle is parked: the target
+  is the Apple TV app's episode tile (number, date, title, description; a footer
+  with its own focus background), still to be researched.
+
+### One queue for "which episode" (2026-10-03)
+
+`EpisodeQueue` (KinoPubBackend) is a series' episodes in reading order with each one's
+`ViewerState`, and every "which episode" question is a named query on it: `next(after:)` (the
+end-of-episode proposal), `nextUnwatched(after:)` (Up Next — now by this device's own marks and
+resume points too), `continueTarget` (the hero's Play, Continue Watching with details, the card
+menu). `primaryEpisode` reads it — and now in sorted order, not the payload's;
+`NextPlayableEpisode` is deprecated. The one disagreement left — a card without an episode list
+guesses "after the furthest watched", the hero says "the first unwatched" — is decision D17.
+
+### Concert setlists; the worker's own doc (2026-10-03)
+
+`MediaItem.tracklist` (`TracklistEntry`, reads both `artists` and the documented `artist`) maps
+to `MediaEntity.setlist`; «N/A» stays an unnamed place in the order. kino.pub's age rating is in
+the API (the official Apple TV app shows it) but no captured payload has the field yet — a TODO
+in `MediaItem`, `MediaPrecedence` and `docs/providers/kinopub/video.md`. The worker's README
+now records how the app calls it today (it never reads `/v1/title` or `/img/`; the Home banner
+runs the whole metadata pipeline per card for a logo), the two layers it should serve, and the
+v3 document.
+
+### Episode wording by place, season count on cards, deprecations (2026-10-03)
+
+The detail page lists an episode as «7. Name» / «Серия 7»; Up Next says «S1, E2: Name»;
+Continue Watching cards and hero capsules carry the season count (`MediaCard.seasonCount`,
+`MediaActionContext.seasonCount`), so a one-season show says «E2» / «2 серия». The watched
+ring counts whole episodes only. Replaced helpers are `@available(*, deprecated)` with the
+replacement named — `Duration` formatting, `ContinueWatchingEpisode.overlayLabel`, the
+pre-worded and viewer-state fields of `MediaCard`, `MediaItem`'s display lines,
+`TitleMetadata.mediaFragment(kind:)`. Unused `MediaAction_*` strings removed. Provider policy
+corrected: the worker proxies and aggregates when it helps; a viewer's own connection stays
+in the app (`docs/media-model.md`).
+
+### One wording per fact and surface (2026-10-03)
+
+`KinoPubMedia/Presentation`: `EpisodeText`, `SeasonText`, `RuntimeText`, `RemainingText` at
+three lengths, and `MediaSurface` — the table of which surface uses which. The user's wording
+([docs/product/media-text.md](../../docs/product/media-text.md)): «S1, E1: Name» in the player,
+«Episode 1» when the show has only its first season, «1ч 53м» / «1ч 53 мин» / the system's
+«1 час 53 минуты», VoiceOver always long. Replaced: four episode formats in about a dozen
+places, the English-only `Duration.compact` (Russian screens said «2h 35m»), a second
+«Эпизод 1» filter, two «time left» strings, three copies of the settings scope label.
+`PlayerInfo.Labels` is gone — the player passes a language. Follow is a series' alone;
+`ViewerState.isFollowing` replaces `isInWatchlist`, and the context menu offers it on series
+only. `ViewerState` tallies watched and downloaded episodes for a series or a season.
+
+### One key and one read for what the viewer has done (2026-10-03)
+
+`MediaRef` (KinoPubMedia) names a title, an episode or a film's version; `watchRef` is what
+a watch state is kept under. `ViewerState` (KinoPubBackend) is the payload's word with this
+device's optimistic writes on top, by one tested set of rules; `ViewerStateReader`
+(`AppContext.viewerState`) gathers those writes from the stores. `MediaLibraryStore` keeps
+watched marks by `MediaRef`: a film's old marks migrate, the per-episode map keyed by the
+episode's server id is dropped — it was written and never read. The detail page's watched
+and watchlist state read through the reader.
+
+### The media model keeps every source's facts (2026-10-03)
+
+`MediaEntity.claims` holds every fragment an entity was merged from; the stored fields are
+only the default per field (`MediaPrecedence`). `claims(for:_:)` / `value(from:_:)` answer a
+particular source's fact — Kinopoisk's slogan, TMDB's plot. Tagline and short description
+are their own fields. Fragments carry their text's language; the model is `Codable`.
+`MetadataService` used to gap-fill its overlay in *arrival* order; it now merges in source
+order and keeps each source's part. Kinopoisk's details payload (names, plot, short
+description, slogan, age rating, scores, genres, countries) was decoded and dropped; it is
+Kinopoisk's own fragment now. Direction and plan: [docs/media-model.md](../../docs/media-model.md).
+
+### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
+
+Sasha's list of 2026-10-03, checked on fixtures in the tvOS simulator (`TVDetailPageUITests`,
+`-KINOPUBDetailFixture`), not yet on device:
+
+- **Follow leads** a series with everything watched whenever the next episode of the last
+  season on kino.pub has a TMDB date — ahead at any distance, or aired and not uploaded. The
+  two-week window is gone; the next episode opening another season does not count
+  (`MediaItemModel.awaitedEpisodeAirDate`).
+- **Focus after the player.** Watching the last episode turned Play into Follow + Replay;
+  `mediaActionStyle` switches on chrome, so the focused control was rebuilt and tvOS was left
+  with nothing focused. The hero now claims its entry control on opening and on coming back
+  (Follow when it leads, else Play / Replay), and after a row change that took focus with it,
+  checked against the focus engine (`TVFocusProbe`) so a rail card keeps its focus.
+- **Episodes TMDB lists and kino.pub does not have** draw a lock in the corner; the badge says
+  «Сегодня» / «Вчера» / «Позавчера» / «3 дня назад» for the last three days, the date for one
+  ahead, «Позже» with no date, and nothing for one long aired. Select says why it cannot play
+  (`MissingEpisodeAirState`, `TVUIKitMediaItemStatus.locked`).
+- **Films in several versions** get a play pill per version for the first two, named after
+  the version («Смотреть» / «Вторая версия» without names), each with its own progress.
+- **Library refreshes after watching.** Local progress invalidates the Library's watching rows
+  (Subscriptions, Unwatched, History), and coming back to the Library root re-activates the
+  section, so a subscription watched to the end leaves the list.
+
+### Review fixes (2026-10-02)
+
+Deep-review follow-up, updated onto main after catalog PR #38 merged. Unique
+catalog follow-up from draft PR #40 is folded in here so that stack is not
+left targeting a dead base.
+
+Library catalog first-page loads cancel the previous Task and ignore stale
+completions. Hero actions never use `.disabled` (loading is a handler guard).
+Search tab Down/Up no longer races the focus animator with an async press
+rescue. Catalog pages take live safe-area insets instead of stacking 80 pt on
+a 1920 canvas. Masthead cells self-size for Dynamic Type, invalidate only
+their own item, cap biography at eight lines, and use a tvOS-available
+focused fill instead of a 1.03 scale. Poster context-menu logging is compiled
+out of Release. Banner detail Tasks are cancelled on refresh. KinoPubConfig
+loads coalesce on an actor. Initials discs redraw on light/dark. Nuke stays
+behind `Artwork` (`ArtworkImage` no longer imports NukeUI;
+`NukeExtensions` / `nuke_display` live on `TVUIKitRemoteImage`). Poster cells
+keep one collection-view context-menu path.
+
+### tvOS drawn artwork is 32-bit: the focus effect read past the placeholder (2026-10-02)
+
+The tvOS UI tests died on CI with EXC_BAD_ACCESS in `vImageConvert_ARGB8888toPlanar8`,
+inside the focus effect's image stack (`_UIStackedImageContainerLayer`), under
+`TVPosterView(image:)` from the poster probe in `TVPageCellMetrics`. `UIGraphicsImageRenderer`
+picks its bitmap format from what is drawn, and the grey placeholder and monogram came back
+as grey with alpha, 16 bits a pixel (`TVUIKitTileArtworkTests`, measured on the CI simulator);
+the focus effect reads 32. `TVUIKitTileArtwork.render` now draws placeholders, tiles,
+monograms and cropped person photos into an explicit 32-bit BGRA sRGB bitmap. The same
+placeholder sits in Continue Watching cells while their stills load; whether it explains
+the device crash there (a different stack) is not proven.
+
+### tvOS Home banner: built the way Apple's full-screen layout sample is (2026-10-02)
+
+The first device build of the full-screen banner (below) did not browse: focus moved
+but the row never scrolled, focus was invisible, the words were cut, and the app
+crashed. Checked this time against Apple's "Creating immersive experiences using a
+full-screen layout" sample and a probe app in the tvOS 27.2 simulator, with the focus log:
+
+- **No scroll:** `indexPathForPreferredFocusedView(in:)` is asked on *every* move inside
+  the row, and answering with the centred title pinned focus there. It now answers the
+  middle title once, on the first entry, and nil after that.
+- **No hand scrolling:** `scrollToItem` at start left the centred card unpainted, and it
+  ran inside `layoutSubviews`, moving focus during a layout pass — the likely source of
+  the device crash (focus update → `_UIStackedImageContainerLayer` → `CALayer setBounds`
+  under `layout_is_active`). Not reproduced in the simulator; validation pending on device.
+- **`maskAmount` is not a focus state:** at any value but 1 the layout's cards cannot take
+  focus (Left / Right and Up stop). It is the sample's Expand: Select opens the card edge
+  to edge, reports the title, closes it.
+- **Focus is the system image focus:** backdrop and poster set
+  `adjustsImageWhenAncestorFocused` — the centred card's art zooms inside its mask with
+  the specular highlight and the poster lifts; both settle when focus leaves the banner.
+- The cell *is* the card; its masked views bleed to the carousel's bounds. Logo width was
+  computed from a card inset twice; the meta line stretched its last label (the genre) to
+  the column's far edge. The card hangs from the top (rounded top corners only, straight
+  bottom on the layout's edge) — that is the system shape, not a crop.
+- `TVHomeBannerUITests` walks the gallery: start centred on the middle title, Right /
+  Left centre the neighbour, the row ends after six, Down leaves, Up returns, Select
+  closes again and the row still browses. Screenshots attached.
+
+### tvOS Home banner on the system full-screen layout (2026-10-01)
+
+The banner is one full-width page item (`TVPageItem.banner`) drawn by
+`TVPageBannerCarouselCell`: a nested collection view on TVUIKit's
+`TVCollectionViewFullScreenLayout`, the layout Top Shelf's carousel uses. One card in the
+middle, a sliver of each neighbour past its sides, and the layout's own parallax between
+the backdrop (`maskedBackgroundView`) and the words (`maskedContentView`). The six titles
+show once each: the 41 laps, `TVPageSection.startIndex` and the start-centring code are
+gone. The row starts on the middle title; the page hands focus to it, and Select and the
+card menu report the title as `.feature` as before. Geometry: cards 240 in from the sides,
+`interitemSpacing` = gutter, 12:5 cards, the layout's default top mask; read from the docs
+and WWDC19 211, not yet checked on a device. The UIKit zoom into the detail page is parked
+in 095eee9; reverting that commit brings it back.
+
+### tvOS collection and person pages use the search catalog (2026-10-01)
+
+Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's
+title and counts, or a person's photo, name and role — is the first section, so it
+scrolls away with the grid, and is one focus stop (Up from the grid reaches it; a
+person's biography opens under that focus). Under it: a labeled sort pull-down, and on
+a person page the type pull-down as well. Default sort is year descending
+(`sort=-year` on `/v1/items`; the same order applied on the device for a collection).
+The rest of the search filter row stays on search. `/v1/collections/view` takes no
+parameters, so a collection only reorders the list it already fetched; it does not
+filter locally. Entry focus is the first poster; the page asks once and then stops
+fighting the remote, so Up into the masthead sticks. Masthead rest height is fixed —
+detail / bio metadata must not reflow the grid. Poster grids are one custom group of
+absolute envelopes, so a short last row keeps the same poster size and the title under
+the art. Person circles (the page avatar and the cast rail) are a photo or
+high-contrast initials on a solid disc, with no monogram plate. iOS and macOS keep
+`LibraryFiltersBar`; a collection there shows sort only.
+
+### tvOS: context menu on vertical poster shelves (2026-10-01)
+
+Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the **cell**, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters used
+`TVPosterView` (a `UIControl`); focus landed on lockup internals even after
+`canBecomeFocused = false` (7a8bd62) — lift looked right via ancestor rules, but the
+collection PCM hook never saw a cell-focused leaf. Menu-host / `UIButton.menu`
+attempts also failed: Play-Pause never reached `configurationForMenuAtLocation`.
+
+Fix: `TVUIKitNonFocusablePosterView` sets `isUserInteractionEnabled = false` so the
+whole lockup subtree cannot take focus; the **cell** is the focused leaf (same shape
+as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
+DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
+returned / nil). CW stills unchanged.
+
+### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
+
+On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
+entered the field). `TVSearchPage` now embeds `UISearchContainerViewController` in
+`TVSearchPageHostViewController` with a tab-bar-band `UIFocusGuide` into the search
+chrome and preferred focus on the search bar. Verified on Apple TV 4K (1080p) /
+tvOS 26.5 simulator: Down lights a keyboard key; tab-bar focus pill dims.
+`testSearchTabDownFromTabBar` captures the sequence.
+
+### Hero: no cover context menu; label title until logo (2026-10-01)
+
+The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
+long-press/PCM was shrinking the artwork and exposing card actions (Play, Hide,
+raw image URLs) that belong on shelves, not the page you are already on. Title
+chrome always shows the label text until the TMDB logo has actually painted
+(`.empty` / loading / missing URL), instead of holding an empty space.
+
+### Home banner round 3 (2026-10-01)
+
+Device feedback on round 2. Banner meta is now only: score logos + values, season count,
+one genre; no year, runtime, country or dots; caption size; stays secondary on focus (the
+plot, 4 lines, goes primary). Seasons are always counted as seasons (`MediaItem.seasonsLabel`,
+carried as `MediaCard.seasonsLabel`); the one-season "N episodes" rule is gone. Scrims are
+Auto Layout gradient views: the old layers took their frame in `layoutSubviews`, before the
+card view sized the platter, so reused cells drew no scrim. Score logos are template image
+views (the text attachments did not draw). The row is centred on its start banner when it
+first shows; the per-focus centring that fought the focus engine's scroll is removed, and
+focus moves rely on `.groupPagingCentered` alone (to verify on device).
+
+### Home banner round 2; series meta from the shared line (2026-10-01)
+
+- **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and
+  `releaseLine`) now says "N серий" for a one-season series and "N сезонов" otherwise
+  (plural strings in the backend catalog), and nothing for a listed series without
+  `seasons` instead of `duration.total` (every episode summed: "11h" on an anime).
+  `MediaCard(item)` counts `isEpisodicType` as a series, so listed series lose the bogus
+  runtime and get series menus.
+- **Banner data.** `HomeCatalog.bannerDetails` re-reads each banner title through
+  `fetchDetails(excludeLinks: true)`, so the meta has the season/episode count and the
+  logo lookup has the IMDb id even for cached shelf cards.
+- **Banner cell.** Meta is the shared format only: scores as `MediaScoresView` draws them
+  (template logo at its fixed height, width from the art, then the value), then the
+  card's `metaLine`. Plot cut to its first sentence, same style as the meta, secondary at
+  rest and white on focus. Name (no logo) takes the full width in a smaller font. Separate
+  top and bottom scrims. 16:9 platter.
+- **Centred row.** `TVPageLayout.bannerRail`: width `(container − 2·gutter) / 2`, centring
+  insets, `.groupPagingCentered`, and the focused banner's row scroller is centred with the
+  focus animation (`centerBanner`). Not yet checked on a device.
+
+### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
+
+The banner row is `TVPageSection.banner` of `TVPageItem.feature` items drawn by
+`TVPageBannerCell`: a `TVCardView` platter (system lift and tilt) holding the backdrop, the
+title logo or the name, the plot, one meta line (IMDb, КП, first genre, running time or year)
+and the poster inset at the trailing edge. Logos come from `MetadataService` (the detail
+page's call and cache) via `HomeCatalog.bannerLogos`; `MediaCard` now carries `imdbID` /
+`kinopoiskID` for that lookup, so cards cached before this have no logo until their row
+refreshes. The six titles repeat for 41 laps and focus starts in the middle one
+(`TVPageSection.startIndex`), so the row scrolls either way for ~120 presses.
+### Hero actions: no focus-disable; always-dark chrome (2026-10-01)
+
+Steering Down-from-plot by `.disabled`-ing secondary hero actions left Trailer /
+Bookmark / More dim whenever `@FocusState` lagged, and broke bookmark Menus.
+Removed. Down → Play is separate `.focusSection()`s + `defaultFocus`. Hero content
+forces dark color scheme and a stronger black scrim so the synopsis stays readable
+on light artwork / light appearance.
+
+
+### Optimistic auth launch — no splash while refreshing (2026-10-01)
+
+A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`). Refresh is driven by the stored
+access-token expiry (`expires_in` → Keychain clock, proactive ~90s early) and by content 401s —
+not a blocking splash. `APIClient` awaits token recovery and **retries the failed request once**
+instead of failing every shelf while refresh is in flight. Detail pages that already have a card
+snapshot keep the paint and toast on soft failure; only a true cold miss shows `UnavailableView`.
+Transient refresh failures keep the session and back off; only a fatal grant rejection clears
+Keychain and shows activation. Cold start with no token is unchanged. DEBUG `DevSessionMirror`
+behavior is unchanged.
+
+### Hero Shuffle: icon-only, long series only (2026-10-01)
+
+Shuffle is no longer a labelled Trailer peer — that taller focus plate lifted the whole
+hero. It is always a circle immediately before More, and only when the series has **more
+than 5 seasons** and is **not** on the watchlist. Finer unwatched-count rules deferred.
+Product: `docs/product/media-actions.md`.
+
+### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
+
+Download is available on any title when the flag/platform allows it: idle circle → circular
+progress + pause while downloading → gone from the row once on disk (delete lives in More).
+Series long-press on Mark Watched / Download offers season · unwatched-in-season · all.
+When a series is ongoing, everything is watched, and the next episode airs within ~2 weeks,
+Follow leads as a labelled primary (`Отслеживать` / `Track`) and Play demotes to Replay.
+Copy: EN `S1, E2` / `53m left`; RU `1 сезон, 2 серия` / `Ещё 53 мин`. Product matrix:
+`docs/product/media-actions.md`.
+
+### tvOS Home banner on the page (2026-10-01)
+
+The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
+Home never showed it whatever `homeBanner` said. `MainView.pageSections` now puts
+`catalog.bannerCards` first as an untitled `TVPageSection.stills` row, two across, caption
+always on — the system wide cell, not `HomeBannerCardView`.
+
+### Card shapes and collection categories (2026-09-27)
+
+TVPage gains `TVPageCellKind.square`, `TVPageItem.tile` (flat or gradient
+`TVUIKitTileArtwork`) and an opt-in poster score chip (`showsRating`); all
+are previewed in `TVPageTemplatesGallery`, none is placed on a screen yet.
+Collection categories are not in the API: `CollectionCategory.catalog` reads a
+bundled snapshot of kpapp.link `categories.html` (38 categories, 531 ids). kpapp
+findings (genre 107 Дорама, api2 without token, `logos.s`) live as notes in
+`docs/providers/kinopub/`.
+
+### tvOS Settings in categories; developer tools in every build (2026-10-01)
+
+`TVProfileSettingsView`'s root is a list of categories (`TVSettingsCategory`), each pushing a
+`SettingsCategoryPage` with its own `@FocusState`; Experiments and About are their own pages. With
+focus still on the tab bar the left panel is `SettingsAppInfoPlate`: the `kinopub_icon` plate,
+version and build, and `Bundle.releaseNotes` — `KPReleaseNotes`, which the Fastfile writes into
+`Info.plist` from the TestFlight changelog before archiving (a local build has none). Server &
+connection and Device are new on tvOS: `DeviceSettingsPaneModel` is no longer iOS/macOS-only, and
+each change is POSTed as it is made. The labs (`PlayerCasesView`, `TVUIKitComponentGalleryView`,
+`NavigationFocusLabView`, `LibrarySidebarLabView`, `SystemTypeStylesCatalogView`,
+`StreamSurveyView` + `StreamSurvey`) lost their `DEBUG` guard and are listed under For developers
+in every build; iOS / macOS still link them from DEBUG only. `fakeSeasonsOnMovies` and the sidebar
+sandbox tabs stay DEBUG.
+
+Second pass, same day: every row is a focus stop (`SettingsInfoRow` — read-only rows too), the
+root is one list, labels are `.headline`, colours are hierarchical styles only. About is Version ·
+Build · *What's new* (its own page, one row per note line); Remembered tracks and Data sources are
+rows, not text blocks. A pushed page draws its title in the tab bar's band and hides the system
+bar: `.navigationTitle` landed under the hidden tab bar's inset, level with the list. The left
+panel shifts (`.push(from: .trailing)`) instead of crossfading.
+
+Third pass, same day: **tvOS Settings runs on Apple's private `TVSettingKit`**
+(`TVSettingKit.swift` adapter, `TVSettingsCatalog.swift` content). `_TSKSplitViewController`
+around a `UINavigationController` of `TSKViewController`s, one runtime subclass
+(`KinoPubTSKPageController`) supplying `loadSettingGroups`, `previewForItemAtIndexPath:` and a nil
+`defaultIndexPathForPreview` for the root, so the app plate shows while the tab bar has focus.
+Rows are `TSKSettingItem` title / toggle / multi-value / text-input / action items bound by KVC
+to `TSKValueStore`, which reads and writes the existing `@AppStorage` keys, `DeviceSettingsPaneModel`,
+`KinopoiskKeySettingsModel` and `FeatureFlag`. Labs and the network log are presented full screen
+(each in its own `NavigationStack` — Player cases pushes routes) with the environment forwarded.
+`TVProfileSettingsView` is now only the fallback when TVSettingKit is missing. Probed: a plain
+`UINavigationController` push on tvOS crossfades like SwiftUI's, so the system slide comes only
+with TVSettingKit's `_TSKSlideAnimator`; my interim full-page slide (`TVSlideNavigationStack`) is
+deleted. Findings while wiring it: an action selector named `perform(_:)` resolves to NSObject's
+`performSelector:` under `#selector` (crash); an info row shows its value only through
+`representedObject.keyPath` + a formatter, not `localizedValue`; a group's description is not
+rendered as a footer. DEBUG launch arguments `-KINOPUBInitialTab settings`,
+`-KINOPUBSettingsPage <category>`, `-KINOPUBSettingsLab <lab>`, `-KINOPUBSwiftUISettings YES`.
+
+### Hero action white fill is focus, not a Play tint (2026-10-01)
+
+Hero actions use system glass again (`.glassProminent` Play, `.glass` pills/circles), forced
+dark on the row for now. White elevated look is focus — no `.tint(.primary)`. Bookmark menu
+is multi-select with a **Save to** section, stays open, and no longer rebuilds identity on
+toggle (that was dumping focus back to Play). Mark Watched is tap-to-toggle; episode/season
+choices are long-press context menu only. Circle glyphs keep a fixed slot + symbol replace
+bounce so the bell toggle cannot look like row spacing grew.
+
+### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
+
+A trailer sends no subtitle (the Info tab used «Trailer» as its heading) and its Info tab has only
+*Go to Movie / Show*. `PlayerInfo.Labels.extra` is gone. The Up Next tab is this show's next
+**unwatched** episode (`PlaybackMediaContext.nextUnwatched`) and then Home's Continue Watching cards
+(`HomeCatalog.paintedContinueWatchingCards`, now static) minus the playing title and anything
+watched; a card plays through `MediaCardMenuCoordinator.resolve`, shared with Home's Play.
+`PlaybackMediaContext.upcoming` is gone; `PlayerManager.onPlayEpisode` is `onPlay(any PlayableItem)`.
+
+### Player cases in the UI Lab (2026-10-01)
+
+`PlayerCasesView` (DEBUG; tvOS Settings → Diagnostics, iOS/macOS Advanced → UI Lab): film, film and
+series trailer, named and placeholder-named episode, concert, documentary, docuseries, TV show,
+film version, download — on live titles, each showing the `PlayerInfo` the player's own pipeline
+computes (TMDB included) beside the expectation from `docs/product/playback-info.md`, opening the
+real player routes. Rows carry `playerCase.<id>` accessibility identifiers for a UI test.
+
+### Up Next on the media model; review cleanup (2026-10-01)
+
+The Up Next tab's tiles take their name and frame from `MediaContext`
+(`PlaybackMediaContext.upcoming` / `context(for:in:)` / `enrichedContexts`) instead of reading
+kino.pub's `Episode` fields directly, so TMDB names replace «Эпизод N» there too. `MediaPrecedence`
+ranks kino.pub's still first, as the episode rail always did. *Go to Show / Go to Movie* follows the
+context's kind (a series' trailer goes to the show). The system Info buttons are captured by the
+player's coordinator, not stashed on the controller with `objc_setAssociatedObject`.
+`tools/player-lab/` is deleted: it needed another repo's catalogue to run.
+
+### Year slot fixed; Next Episode and Go to Show on the tvOS Info tab (2026-09-30)
+
+AVKit renders a date-shaped *string* as a stray number (`"2025-01-01"` → 12169); the creation
+date now goes out as an `NSDate` at noon UTC (`PlayerInfo.metadataItems()`, probed on the tvOS 27.2
+simulator). The Info tab gets *From Beginning* (system) and *Go to Show / Go to Movie* through
+`infoViewActions` — which shows two buttons at most; Next Episode lives in the Up Next tab. An **Up Next** tab beside Info lists the
+following episodes on our wide rail tile (badge on the next one, resume progress). Device check still
+pending. `tools/player-lab/` is the throwaway app the variants were judged in.
+
+### Placeholder episode names are not names (2026-09-30)
+
+`EpisodeTitle` (KinoPubMedia) recognises «Эпизод 1», «Серия №3», "Episode 12", "S01E01": the merge
+treats them as blank for episodes, so a real name from another source wins and the player's line
+is *Season 1, Episode 1* instead of *Season 1, Episode 1: Эпизод 1*. The episode rail uses it too.
+
+### Labels; one genre file for app, ingest and worker; document v2 (2026-09-29)
+
+"Эксклюзив" is kept as a `MediaLabel` (`MediaEntity.labels`, union-merged; source key
+`genre:128`) instead of being dropped. The genre table moved out of Swift into
+`KinoPubMedia/Resources/genres.json`, read by `GenreVocabulary`, `tools/metadata-ingest/genres.py`
+and `workers/tmdb-proxy/src/genres.js`; each genre carries a `GenreGroup`. `tvshow` implies a new
+*TV Show* genre. `MediaPresentationProfile` reads our genres and `KinoPubMediaMapping.typeMapping`
+— its genre-title word lists are gone. Documents are version 2: `kind` `movie | show`, `genres` our
+ids primary first, raw rows in `genre_sources`. Test fixtures that invented kino.pub genre ids
+(id 9 as «Документальный», 2 as «Аниме») now use the real ones.
+
+### kino.pub's full genre list in the media model; Documentary leads (2026-09-29)
+
+`GenreVocabulary`'s `kinopub` column is now kino.pub's whole reference list
+(`kpapp.link/config.json` v2.12.7 → `filter.genres`, all four sets), kept verbatim as
+`KinoPubBackendTests/Fixtures/kinopub_config.json` and tested id by id. kino.pub ids decide; names
+only rescue an unknown id. New genres for the documentary subjects and TV formats kino.pub files
+(space, universe, survival, quiz, entertainment, …) and its music set; genres no source listed
+(ambient, techno, punk, …) are gone. `GenreVocabulary.kinopub` returns nil for "Эксклюзив"
+(128, 133): a badge, not a genre. Documentaries lead with Documentary
+(`TypeMapping.impliedGenreLeads`); concerts still lead with their music.
+
+### The media model: `KinoPubMedia`, and the player's info panel on it (2026-09-28)
+
+New package `Packages/KinoPubMedia` — our provider-neutral model in Apple's vocabulary: shapes
+`movie / show / season / episode / extra`, `MediaEntity` (short/long synopsis, ordered genres whose
+first is primary, dated release at the precision the source had, age rating, `Score` per provider,
+artwork, provenance), `GenreVocabulary` (our genre ids; kino.pub ids, TMDB ids and RU/EN names as
+columns), `MediaAggregator` with `MediaPrecedence.standard`, `MediaContext` (what an episode
+borrows and never borrows), and `PlayerInfo`, the projection onto Apple's documented player fields.
+KinoPubBackend and KinoPubMetadata depend on it; each maps its own payload
+(`KinoPubMediaMapping`, `MediaFragments.swift`).
+
+`PlaybackMetadata` (KinoPubBackend) is **gone**: genres were a comma list in
+`commonIdentifierType`, which no Apple surface reads as a genre, and the series poster always beat
+the episode's still. `PlayerManager` stamps `PlayerInfo` now, via
+`Services/Playback/PlaybackMediaContext.swift`; `displaySubtitle` is gone with it (the episode line
+is localized: *Сезон 2, Серия 5*). TMDB's show overview, genres, season overview/score and
+per-episode score are decoded and carried (`TitleMetadata.overview/genres`,
+`SeasonSummary.overview/voteAverage`, `EpisodeSchedule.voteAverage/voteCount`). The kino.pub →
+TMDB season match moved out of `MediaItemModel` into `TMDBSeasonMatch`.
+### Feature flags switchable in the app (2026-09-28)
+
+`FeatureFlags.*` are computed now, read from `FeatureFlag` — compiled default plus a per-device
+override (`featureFlag.<case>` in `UserDefaults`), listed in Settings › Diagnostics › Feature
+flags on every platform and in every build. Flags that shape the shell (tabs, pages, card
+chrome) are pinned at launch by `FeatureFlag.applyAtLaunch()`; the rest are read when their
+surface next opens. `RatingFeature.combinedEnabled` became a `var` the app writes at launch.
+
+### kino.pub HLS masters captured (2026-09-28)
+
+[docs/providers/kinopub/hls.md](../../docs/providers/kinopub/hls.md). `NAME` is built from the API row
+(`NN. type. author (LANG)`, or `Track N (LANG)` without a type), AVFoundation merges the
+per-quality copies itself, and the system menu names an option after `NAME` only in the
+viewer's own language. `AudioRenditions.sourceIndex` reads both shapes.
+
+### Stock Audio / Subtitles menus in the player (2026-09-28)
+
+The master rewrite (`HLSAudioLabeler` + `HLSMasterResourceLoader`) is behind
+`FeatureFlags.rewritesStreamTrackMenus`, **off**: the player opens the CDN's master as it is,
+and AVKit names the tracks. `TrackResolver` still picks the dub and subtitles and the ledger
+still learns from the system menu. `AudioRenditions.signature(for:apiTracks:)` is gone —
+`signature(forRenditionAt:in:apiTracks:naming:)` needs the whole menu, because pairing a CDN
+name with its API row (`01.` ↔ `index` 1, then language in listing order) is a property of the
+list, not of one option. The labeler's own copy of those rules is gone with it.
+
+### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
+
+Horizontal poster *shelves* use a compositional layout: item
+`fractionalWidth(1)` of a **260**-wide group (HIG 6@260 pin). Group height
+fills the rail so leftover focus room sits below the lockup, not as a gap
+under the title. Library / vertical grids stay **FlowLayout + pinned 260**
+— filling 6 columns in a sidebar pane shrank those posters. Title + rail
+are one inner `VStack(spacing: 4)` inside `Section` (header→poster 4 pt,
+not the page’s 80 pt row spacing). Focused caption is `UIColor.label`.
+`captionTopPadding` is **2**. Titled-row spacing **100 → 80**.
+
+First Movies/Series layout ignores a zero-width geometry frame so leading
+80 pt and tile 260 match Watch Now.
+
+### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
+
+Sasha / hig: every poster and landscape shelf is `Section(title) { rail }` — the
+title lives in the Section. Sketch `Headers/Section Header/Dark/Secondary/1 Line`
+= Headline emphasized → `TypeScale.rowHeader` = **`.headline.bold()`** +
+`.foregroundStyle(.secondary)` (not Title 2 ~57pt, not Primary/Subtitle/Eyebrow/
+App Icon/Pill). UIKit `boundarySupplementary` titles and `TVUIKitPosterPage` are
+gone; each rail is one horizontal TVUIKit representable (or the SwiftUI
+fallback). Header → rail gap is Sketch **~8–24 pt** (not 28 stacked on
+Section’s own spacing, and not a spare focus strip above the posters).
+Poster caption still animates down by focus growth so the 8 pt rest gap is
+not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
+
+tvOS shell does **not** apply `.preferredColorScheme` at all unless DEBUG
+`-KINOPUBForceColorScheme light|dark` is passed (passing `nil` still pinned
+Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
+**Series** (not Home / Shows). Shot harness (not on the shared Debug scheme):
+`-KINOPUBForceColorScheme` and `-KINOPUBFocusFirstPoster`. `simctl ui
+appearance` unsupported.
+
+Archi / hig shot review: Section titles were **centered** (light ~795 pt /
+x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough when
+the header hugs. A 1920-wide UIKit title that painted at screen x=80
+(`TVLeadingSectionTitle`) was retracted by Sasha — not acceptable craft.
+The header is SwiftUI `SectionHeader` pinned to the shelf’s measured
+`containerWidth` (same coordinate space as the rail) with `leadingInset`.
+Continue Watching is skipped by row id + `collectionView.allowsFocus` / `canFocusItemAt`
+/ cell `canBecomeFocused` (not `UIView.allowsFocus` or `focusGroupPriority`,
+which are unavailable on tvOS). Returning nil from preferred index defaulted
+to the first CW cell. Only Hot Movies claims initial poster focus.
+Header→items stays Sketch **~8–24 pt**. Caption clearance under the focused
+poster is unchanged. Args stay off the shared Debug scheme.
+
+`-KINOPUBFocusFirstPoster` does **not** steal focus from the SwiftUI Watch
+Now tab pill in this embed (local verify at `f59f31b`: light frames at
+10/15/20/25s were byte-identical). Hig caption evidence is
+`WatchNowHigShotsUITests`: skip unless the Mac-host session file exists
+(`SIMULATOR_HOST_HOME` — UI tests run in the simulator sandbox, so
+`NSHomeDirectory()` is the wrong home), `XCUIRemote.shared.press(.down)`
+until a `kinopub.poster.*` cell hasFocus, write PNGs to `docs/pr21-shots/`
+and `/tmp/kinopub-pr21-shots/`.
+
+hig on `ae1fc9a` / shots `31f8f65`: caption **clearance** PASS; light
+caption **color** FAIL — `TVUIKitPosterCell` caption was `.white` (~1.9:1
+on light ~178). Caption is now `.secondaryLabel` (Sketch Secondary).
+Landscape CW captions use system `wideCell()` `text` (not hardcoded white);
+overlay glyphs on artwork stay white. Leading / gap / clearance unchanged.
+
+### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
+
+Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit
+representable rails). Posters are **6@260 / gutter 40 / inset 80**. Continue
+Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around
+`orthogonalLayoutSectionForMediaItems()`). `MediaPosterShelf` is the one shelf
+component, including detail / person rows.
+
+CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
+
+| | Before | CURRENT / now |
+| --- | --- | --- |
+| Poster width | 290 (invented) | **260** (6-col table) |
+| Gutter | ~53 (10% growth + 24) | **40** |
+| Side inset | 40 | **80** |
+| Page top/bottom | 40 (`rowSpacing`) | **60** |
+| Titled-row spacing | 40 | **100** |
+
+Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
+headers and the first poster share that line. Each shelf measures its `minX`
+in the window (`max(0, 80 − minX)`) so an already-inset host is not double-cut
+and we never `ignoreSafeArea`. Trailing peek is a partial next card **past**
+that box (rail trailing inset 0, `scrollClipDisabled`). SwiftUI page stack is
+`VStack` not `LazyVStack`. tvOS follows system light/dark. Landscape CW width
+stays 352 until M3 (4@410).
+
+### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
+
+The Movies and Series tabs were `CatalogView` grids while Watch Now (formerly Home)
+already stacked `MediaPosterShelf` / TVUIKit poster rails from `HomeCatalog`. M1
+closes that gap on tvOS only:
+
+- `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
+  Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
+  are the typed tabs — the same shortcut grammar, no CW / collections / banner.
+- `MainView` is the shared stack (`MediaRowsView` of `MediaPosterShelf`). Menus stay on
+  `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
+- Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
+  sortable grids.
+
+Warm-cache paging: `refreshIfStale` used to skip the fetch that wrote the page
+cursor, so a shelf painted page 1 and never asked for more. Cursors are now
+seeded from the stored card count, and `fetchPage` writes the real `total`.
+
+### The player's info panel is filled from the title, not the episode (2026-08-25)
+
+`externalMetadata` was only ever populated when the thing playing was a
+`MediaItem`. An `Episode` is not one and carries none of its parent's facts, so
+on the surface that uses the panel most — a series on Apple TV — the viewer got
+a title, a "Season 2, Episode 5" line and an otherwise empty panel: no
+description, no genres, no artwork.
+
+- `PlayerManager.titleContext` resolves the item behind the playback: the film
+  itself, or the series snapshot `LocalWatchProgressStore` already holds (the
+  same one `PlaybackSession` reads to pick a dub). Nothing is fetched for it.
+- The mapping moved to `PlaybackMetadata` in `KinoPubBackend` — pure, so what
+  reaches the panel is asserted without an asset or a device. Year is new
+  (`.commonIdentifierCreationDate`); empty values are omitted rather than sent
+  as empty strings, which reserve space in the panel.
+- Artwork: the title's poster, falling back to the episode's own still when the
+  series is not cached. The fetch now checks the item is still current before
+  writing, so a poster arriving after the viewer left cannot repopulate a dead
+  stream.
+- **No identifier carries a capability badge.** 4K / HDR / Atmos are not
+  `externalMetadata`; on tvOS our own facts go in the panel through
+  `customInfoViewControllers`, which is still ahead of us. Everything we do send
+  is tagged `und` — a real language tag makes AVFoundation filter the item
+  against the viewer's locale and the panel shows nothing.
+
+### One track system on every platform (2026-08-25)
+
+The subtitle fix above exposed the shape of the gap; this closes it.
+
+- **Audio too.** `configureDefaultAudioWhenReady` / `applyAudibleGroup` /
+  `persistAudioSelectionIfNeeded` were tvOS-only, so iPhone and Mac played
+  whatever the master marked `DEFAULT` and the per-season dub memory never
+  applied. They are unfenced, and so is `AVMediaSelectionOption: AudioRendition`.
+- **Picks made in the system menu are learned off tvOS.** There is no picker of
+  ours there and AVKit reports nothing, so the watch-mark tick reads
+  `currentMediaSelection` — the trick tvOS already used for audio, now covering
+  subtitles as well, on the same "weight is episodes watched" floor. "Off" is
+  written down; an item that offered no subtitles teaches nothing.
+- **Matching no longer rests on order.** `SubtitleRenditions` pairs within one
+  language *and* one kind (forced / SDH); position separates only tracks that
+  are otherwise identical, and is counted from both lists in the same session,
+  never carried over from an earlier episode. `SubtitleRenditions.track(forRenditionAt:)`
+  reads a pick back by index, because two renditions of one language and kind are
+  equal in everything the protocol can see.
+- **One language table.** `SubtitleTracks.languageKey` now resolves through
+  `LanguageNames` instead of keeping a second, shorter copy — the copy was
+  missing `uzb` and `phi`, both of which kino.pub ships, so those matched nothing
+  while their names rendered correctly. `phi` → `fil` added; **`ai`, their
+  machine-translated Russian, is deliberately not an alias of `ru`** (an item can
+  carry both) and gets a name of its own.
+- **Tests where the breakage was.** `PlayerTrackSelectionTests` runs in the app
+  bundle, so it covers the player wiring **on the iOS and tvOS simulators**, not
+  just macOS `swift test`; `PlayerManager` takes an injectable `PlaybackPreflight`
+  to make that possible. **CI now runs on `claude/**` pushes** — the branch that
+  broke both device platforms compiled nowhere until a PR existed.
+
+### Subtitles off tvOS follow the resolver, not nothing (2026-08-25)
+
+Turning `appliesMediaSelectionCriteriaAutomatically` off stopped the muted
+transcription on macOS, and took the legitimate half with it: a viewer whose
+system says *Closed Captions + SDH* got no subtitles at all, which
+[playback-tracks.md](../../docs/product/playback-tracks.md) already forbids — "with no
+history, the app mirrors the system".
+
+The gap it exposed is older than that change: **`TrackResolver` only ever
+reached the player on tvOS.** `configureSubtitles()` was fenced, so off tvOS the
+per-season memory, the system caption setting and the foreign-audio rule decided
+nothing, and AVFoundation's automatic criteria were the whole policy.
+
+- The decision is now asked for on every platform; only the rendering differs.
+  tvOS still draws sidecar SRT itself, and off tvOS the answer is carried to the
+  master's own WebVTT renditions when the item loads.
+- `SubtitleRenditions` (KinoPubBackend, tested without an asset) is the bridge:
+  the API list and the master share no id, so the pairing is **language plus
+  position within that language** — the pair `SubtitleTrack.ordinal` already
+  exists for. **Assumes a master lists a language's renditions in the API's
+  order**; when it does not, the fallbacks still land on the right language.
+  Nothing in that language means no subtitles rather than a wrong line.
+- `AVMediaSelectionOption.renditionLanguageCode` moved out of the tvOS fence: it
+  now witnesses both `AudioRendition` and the new `SubtitleRendition`.
+
+**Still tvOS-only: the audio ledger.** Off tvOS the dub remains the master's
+`DEFAULT` — `HLSAudioLabeler`'s ranked pick, not the resolver's scopes and
+weights. That is the other half of the same parity, and it needs somewhere to
+record a pick made in AVKit's own menu.
+
+### The player now ends when you leave it, and the iPhone has sound (2026-08-21)
+
+Four reports from one device pass, all in `PlayerView` / `PlayerManager`:
+
+- **Leaving the player ends the film.** Nothing tore the session down: Menu on
+  tvOS popped the route and left the `AVPlayer` playing behind the browse grid,
+  and closing the macOS window only called `pause()` on a still-loaded item.
+  `PlaybackSession.stop(_:)` is the one exit — it takes the manager the screen
+  was showing, so a route tearing down *after* the next film claimed the session
+  cannot stop that one. It also writes a final watch mark (the last tick can be
+  10 s old, the last server mark 30 s) before the stream goes.
+- **iOS presents the player instead of embedding it.** An inline
+  `AVPlayerViewController` draws a transport bar and no close button, and this
+  route hides the navigation bar, so the film could not be left at all.
+  `entersFullScreenWhenPlaybackBegins` was supposed to buy that presentation and
+  did not; it is now a real modal `.fullScreen` presentation from a host
+  controller, which is where AVKit's own Done button comes from. Exit is the
+  dismissal delegate — **on iOS `onDisappear` fires when the player presents**,
+  so it can never be the signal there.
+- **The iPhone was silent because the app never configured an audio session.**
+  With no category you get `.soloAmbient`, which the Ring/Silent switch mutes by
+  definition, and the volume keys are moving the ringer, so there is no way to
+  turn any sound on. `PlaybackAudioSession` sets `.playback` / `.moviePlayback`
+  (long-form-video policy where accepted) around every stream, and iOS gets
+  `UIBackgroundModes: audio` — per-SDK in the pbxproj, so tvOS and macOS are
+  untouched. That is also the prerequisite PiP was always missing.
+- **Nothing turns captions on but the viewer.** `appliesMediaSelectionCriteriaAutomatically`
+  is off, so the system's caption settings — including the *Automatic* display
+  type, whose job is to show captions when the media is muted — stop selecting a
+  legible track behind our back on macOS. Off tvOS the selection is then made
+  explicitly: audio keeps the master's `DEFAULT` (which `HLSAudioLabeler` already
+  stamps with our ranked dub), legible starts empty, and the system menu still
+  overrides both.
+
+Two SDK facts the first CI run turned up, both now fenced:
+
+- `playerViewControllerDidEndDismissalTransition` is **unavailable in the iOS 26
+  SDK** ("cannot override … which has been marked unavailable"), so the AVKit
+  delegate cannot report Done. The exit signal is UIKit's: the host controller's
+  `viewDidAppear` once the presentation is gone.
+- `AVAudioSession.RouteSharingPolicy.longFormVideo` is `API_UNAVAILABLE(tvos)` —
+  it does not compile there, so it cannot be attempted-and-caught. iOS only.
+
+Green on CI for iOS, tvOS and macOS ([run 174](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/32813815523));
+**not watched on a device — validation pending.**
+
+### CI skips macos-26 jobs when the diff cannot compile (2026-08-21)
+
+- Fastlane, TestFlight yaml, markdown, `workers/`, `tools/` wake nothing.
+  `xcassets` / `Localizable.xcstrings` still compile (a broken catalog must
+  fail xcodebuild) but skip the simulator UI-test jobs. Swift / pbxproj still
+  run the full matrix.
+
+### TestFlight archive signing (2026-08-21)
+
+- First CI run authenticated and minted App Store profiles for `com.soda.kinopub`.
+  The archive then failed for two Fastfile bugs, not a missing bundle-id secret:
+  global `xcargs` applied `PROVISIONING_PROFILE_SPECIFIER` to SPM packages
+  ("does not support provisioning profiles"), and
+  `CODE_SIGN_IDENTITY[sdk=macosx*]` was parsed as the identity
+  `macosx*]=Apple Distribution`. Signing now writes onto the app target only.
+  macOS sigh filenames are `.mobileprovision` (Fastlane rejects `.provisionprofile`).
+- `APP_STORE_CONNECT_API_KEY_CONTENT` accepts base64 of the `.p8` **or** the PEM.
+
+- `Xcodeproj::Project.open` was resolving `KinoPubAppleClient.xcodeproj` under
+  `fastlane/` (Fastlane's cwd). The path is now absolute from the repo root.
+
+### TestFlight upload (2026-08-21)
+
+Signing and archive succeeded on [run 32497341767](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/32497341767).
+App Store Connect then rejected iOS/tvOS, and macOS Release did not compile:
+
+- **iOS 90717:** the 1024 App Store icon had an alpha channel (and was a
+  placeholder, not our mark). The set is now the KinoPub mark, opaque RGB.
+- **tvOS 90513:** no Brand Assets, so `CFBundleIcons.CFBundlePrimaryIcon` and
+  `TVTopShelfImage.TVTopShelfPrimaryImageWide` were missing.
+  `AppIcon.brandassets` sits next to `AppIcon.appiconset` under the same
+  `ASSETCATALOG_COMPILER_APPICON_NAME`.
+- **macOS:** `LibraryFiltersBar` applied `UILabGlassChipStyle`, which exists
+  only in the DEBUG UI Lab. `LibraryFilterGlassStyle` already owns the glass;
+  the extra modifier is gone.
+
+iOS then uploaded on [run 32498863231](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/32498863231).
+tvOS archived and altool said `UPLOAD SUCCEEDED`, then Fastlane failed on a
+checksum 500. macOS archived, then gym raised `IPA invalid` because a
+multiplatform target needs `sdk: "macosx"` for gym to expect a `.pkg`.
+Upload now retries Apple 500s; a redundant-binary reply is success.
+
+### Internal TestFlight from GitHub Actions (2026-08-21)
+
+- **Actions → TestFlight** archives Release of the one multiplatform target for
+  iOS, tvOS and macOS and uploads to TestFlight as a technical internal build
+  (`distribute_external: false`). Manual `workflow_dispatch` only — no git tag,
+  no GitHub Release, no App Store submission.
+- **One shared `CURRENT_PROJECT_VERSION`** is reserved first (max of the three
+  platforms' latest TestFlight numbers + 1), then the archives fan out. Marketing
+  version stays whatever is in the project (`1.0` today).
+- Signing is Swiftfin-shaped: App Store Connect API key + a persistent Apple
+  Distribution p12 in GitHub secrets, provisioning profiles minted by sigh so
+  entitlements can change without re-exporting a profile. Not Match (no extra
+  certs repo), not Codemagic (Rivulet's split), not Xcode Cloud (config would
+  live outside the repo).
+- `ITSAppUsesNonExemptEncryption=false` is in `Info.plist` so a build does not
+  sit on "Missing Compliance" until someone clicks the questionnaire — this app
+  only uses HTTPS. Testers still have to be App Store Connect Users (or named
+  in `TESTFLIGHT_INTERNAL_GROUPS`).
+- Secrets are not in the repo; the first upload waits on them. Checklist is the
+  comment at the top of `.github/workflows/testflight.yml`.
+
+### Which dub a title opens with is now a decided rule, not player-local guesswork (2026-08-20)
+
+- **`TrackResolver` decides audio and subtitles as one pure function** over a menu, what
+  the scopes remember, the settings and the system languages. No player, no network, no
+  storage — a card can ask it before the player exists, which is what the pre-open resolve
+  needs. Rules and their reasons: [docs/product/playback-tracks.md](../../docs/product/playback-tracks.md).
+- **Scopes, most specific first: season → title → `anime` class → ladder.** Season, because
+  studios change between seasons. The anime class, because a preference for watching anime
+  in the original belongs to anime, not to one title. Cartoons (genre 23) are not anime.
+- **A dub is remembered as language + kind + studio**, never a rendition name, index or URL
+  — those differ between two episodes of one season. A studio that upgrades its two-voice
+  track to a full dub still matches; "some other Russian track" deliberately does not.
+- **Weight is episodes watched, not picker opens.** Two episodes of a stopgap must not
+  outrank a season of the real preference. Count orders the ladder, recency only breaks ties.
+- **A dub never offered before beats a habit under `confidentWeight` (3).** This is the
+  "watched three episodes before anyone dubbed it properly, came back to five more seasons"
+  case. At or above that weight the habit holds, so a fresh dub cannot displace a studio the
+  viewer chose for a season.
+- **`minimumDubKind` prefers the original with subtitles over a dub below the floor**, and
+  never filters original or unknown-kind tracks — the floor is about dub quality. Ships as
+  `nil` so nothing changes silently.
+- **Subtitles are the same mechanism as audio**, not a lesser one: same scope chain, same
+  ledger, same weights. With no history the app mirrors the system's own captions setting
+  (Accessibility → Subtitles & Captioning, via `MediaAccessibility`), whose caption
+  languages also seed the language order. On top of that they come on whenever the audio
+  that won is in a language the viewer does not read — the anime in Japanese, the film that
+  only ever had an English track. Subtitles in a language the viewer cannot read still beat
+  nothing once subtitles were asked for; "off" is a remembered choice; and an item that
+  offered no track writes nothing at all.
+- **`isAnime` lives on `MediaPresentationProfile`**, which is the one place a rule that
+  depends on type or genre is derived. Separate from `kind`, because an anime and a cartoon
+  are drawn the same way and only one of them is normally watched in the original. kino.pub
+  files anime as a genre — `MediaType` has no case for it.
+- Original language is inferred from the countries on the title against the languages
+  actually on the menu. Nothing is fetched for it and no provider field was added.
+- **The priority chain is `TrackMemoryScope.chain`** — episode → season → title → genre →
+  app settings → system languages, in one place so no caller can assemble it differently.
+  The last two are the ladder, not scopes, and app settings mirror the system list until set.
+- 54 scenario tests in `TrackResolverTests`, green on CI.
+
+### What a title will play is answerable before the player opens (2026-08-20)
+
+- **`PlaybackPreflight`** owns the question. `decision(for:profile:)` answers from what is
+  already loaded — no network — so a card, a Play button or a diagnostics screen can ask
+  while drawing. `PlayerManager` asks through it too and contributes only what it alone can
+  see: the real renditions, for a master the API gave no track metadata for. Two ways of
+  assembling those inputs would have been two answers.
+- **`warm(_:)` moves the media-links request out of the tap.** A series episode arrives
+  without links and the player used to fetch them on open, which is dead time on a spinner.
+  The detail hero warms its play target while the page is on screen. A no-op for anything
+  already playable, and `MediaLinksResolver` runs one request per media id however many
+  callers ask, so re-running it costs nothing. Failure is silent on purpose — the player
+  still resolves for itself and still owns reporting a stream it cannot play.
+- `audioSummary(for:profile:)` names the dub that will play. Nil for a single track.
+
+### App test targets exist, and CI runs them (2026-08-20)
+
+- `KinoPubAppleClientTests` (unit, hosted) and `KinoPubAppleClientUITests` (XCUITest),
+  written into `project.pbxproj` by hand — there is no project generator in this repo.
+  Both are `buildForTesting` only in the scheme, so the compile jobs stay as fast as they
+  were, and a `test-app` job runs them on a tvOS and an iOS simulator.
+- **The simulator is picked by udid, never by name.** Runner images rename and renumber
+  their devices; a hard-coded `Apple TV 4K (3rd generation)` is a job that dies on the next
+  image refresh.
+- **A CI runner has no kino.pub session** — `DevSessionMirror` seeds one only from a
+  developer's own machine — so the UI tests assert what is reachable without auth: the app
+  launches and paints something. Focus is not asserted; it needs content, and a screenshot
+  cannot show whether a landing felt right.
+- **The app target's Swift module is `KinoPub`, not `KinoPubAppleClient`.** `PRODUCT_NAME`
+  is KinoPub and nothing overrides `PRODUCT_MODULE_NAME`.
+- **A witness to a public protocol from another module must be `public`**, whatever the
+  visibility of the conformance — `extension AVMediaSelectionOption: AudioRendition` needs
+  `public var renditionName`.
+
+### CI was red on tvOS and iOS, for three unrelated reasons (2026-08-20)
+
+Found while building the track work, all pre-existing, all now fixed:
+
+- `TVUIKitMediaItemStatusTests` was not fenced, and `TVUIKitMediaItem` is `#if os(tvOS)` —
+  it broke `swift test` for the whole of KinoPubUI.
+- `MediaCardView`'s watched-artwork opacity read `isHovered`, which is declared under
+  `#if os(macOS)`. Both simulator builds failed.
+- A `UILabGlassChipStyle` modifier — macOS- **and** DEBUG-only, from UILab — had been
+  pasted into `LibraryFiltersBar`'s sort menu. Both simulator builds failed.
+
+**Why nobody saw them:** `swift test` runs a package on **macOS only**. A symbol fenced to
+macOS and used unfenced compiles there and fails every simulator build, so green package
+tests prove nothing about tvOS or iOS. The `xcodebuild` jobs are the only guard.
+
+### The player asks the resolver, and the two old track memories are gone (2026-08-20)
+
+- **`AudioTrackMemory` and `AudioTrackRanker` are deleted.** The first keyed a dub by its
+  rendition display name; HLS uniques duplicate `NAME=` with a " ∙ n" suffix and renditions
+  are not ordered the same across episodes, so the handle did not survive the one jump it
+  existed for. The second re-implemented the detail page's ladder and knew nothing about
+  history. `AVMediaSelectionOption.kinopubTrackName` survives, and gains
+  `kinopubLanguageCode`.
+- **`TrackPreferenceStore`** (`Services/Playback/`) owns the ledgers, keyed by
+  `TrackMemoryScope.storageKey`, and writes to every scope a play teaches. It migrates
+  `subtitleTrackChoices` — a `SubtitleTrackReference` carries a real language code — and
+  **drops `audioTrackChoices`**, which stored a display name that cannot be reversed into
+  one. Those pick themselves up again on the next choice.
+- **`PlaybackSession` derives `TitleTrackProfile`** and hands it to the player. Genres and
+  countries are on the *item*, and an `Episode` is not one — the series snapshot in
+  `LocalWatchProgressStore` is where they are read from, so playing straight from Continue
+  Watching still knows an anime is an anime.
+- Audio and subtitles ask **one** decision, so they cannot disagree about what is playing.
+  With no API track metadata the menu is synthesised from the renditions themselves, so an
+  unlabelled master still gets a considered pick rather than AVFoundation's first rendition.
+- A play is recorded once it passes `WatchProgress.enterContinueWatchingSeconds`, not on
+  open: weight is episodes watched, and a title sampled for a minute teaches nothing.
+- The old "Default English subtitles" switch now decides *which* language wins when
+  subtitles appear, not whether they appear — that is the system's answer.
+  `SubtitleSelector` no longer selects; it catalogues.
+- **`AudioRenditions` owns the bridge** between a decided `AudioTrackInfo` and the
+  rendition the player can select, behind an `AudioRendition` protocol that
+  `AVMediaSelectionOption` conforms to. It was in `PlayerManager` behind a type that needs
+  a real asset to construct, so the sharpest rules in the feature — duplicate ` ∙ n`
+  suffixes, one label being a prefix of another, the no-API-metadata path — were untestable.
+- **Verification:** green on CI — tvOS, iOS and macOS builds plus every package suite —
+  with 77 tests over the rules and the bridge. **Nothing here has been watched on a
+  device**; that the right rendition is actually selected in a real player is unconfirmed.
+
+
+### Continue Watching stops offering junk in an arbitrary order (2026-08-20)
+
+- **The row is capped** (`ContinueWatchingOrder.maxItems`). `/v1/watching/serials`
+  returns every unfinished serial on the account, so the shelf scrolled sideways
+  through hundreds of titles nobody remembers starting.
+- **Undated titles sort by backlog.** Neither watching endpoint carries a timestamp —
+  the only dates in this row come from the one page of `/v1/history` we fetch — so most
+  of the row tied on bucket *and* date and fell through to the server's list order. It
+  now falls through to `new` ascending: one or two unwatched episodes is a title being
+  followed, a hundred and seventy is one abandoned. Films count as zero.
+- **`WatchProgress.enterContinueWatchingSeconds` (90 s)** gates a card the server never
+  listed. `startedSeconds` stays 10 s and keeps meaning "has begun" — it paints a bar on
+  a card already in the row. A local-only card has nothing to take it back out, which is
+  how a minute of a trailer became something to "continue".
+- The rules are in [docs/product/continue-watching.md](../../docs/product/continue-watching.md).
+- Unrelated, found on the way: `ContinueWatchingLocalOverlayTests` had two calls with
+  arguments in the wrong order, which stopped the whole `KinoPubBackend` test target
+  from compiling. Fixed; 305 tests pass.
+
+### Card geometry, shelf rhythm, and chrome that stays put (2026-08-20)
+
+- **A poster's height follows its column again.** `MediaCardView` measured the
+  artwork's own width and fed the height back into it; `aspectRatio(_:contentMode:
+  .fit)` accepts *every* width no wider than the one offered, so `w × w/ratio` was a
+  stable answer for any `w` — the card kept whatever width it first landed on. A
+  window resize then grew the column and the caption while the artwork stood still
+  (measured: 3 columns, 500pt → 1100pt, grid height 194 → 98 before, 193 → 425 after).
+  The width now comes from a zero-height `maxWidth: .infinity` probe above the
+  artwork, which nothing can clamp, and the box is pinned in both directions.
+- **`ShelfMetrics`: the ladder no longer falls back at the top, and the gutter is
+  derived.** Past the last named breakpoint it adds a column every 200pt instead of
+  dropping from 8 columns to 6 (which inflated every card the moment a Mac window
+  passed 1600pt). Gutter is always `inset / 2` — hand-picked per-step gutters (20 /
+  28 / 32 / 24 for banners) made the gap between two posters as wide as the page
+  margin on a phone, and a different width at every breakpoint. The phone step now
+  runs to 520pt, so a 440pt Pro Max keeps 3 columns instead of four 72pt ones.
+- **`Metrics.sectionHeaderSpacing`** joins `rowSpacing` as the two numbers that own a
+  page of sections; `landscapeFocusPadding` equals `focusPadding` off tvOS (it is
+  focus-lift room, and there is no focus engine there), so Continue Watching sits the
+  same distance under its header, and above the next section, as every poster rail.
+- **`SectionHeader` hugs its own words.** It was `maxWidth: .infinity` with the tap
+  shape over all of it, so the "see all" link — and any hover on it — covered the full
+  width of the grid; a click level with the title but four columns to the right
+  navigated. The leading inset is outside the shape now too, and the tvOS pagination
+  badge keeps its trailing position via a spacer instead of the header's old fill.
+  An HDR-boosted hover tried here the same day was **reverted**: over a grey page with
+  white labels the boost is invisible, and highlighting a full-width region with a
+  dead gap under it is not a thing anyone does. `Color.KinoPub.hdrHighlight` is gone
+  with it — do not re-add either without being asked.
+- **macOS search now reaches `/v1/items/search` at all**, and runs while you type.
+  `LibraryCatalog.init` takes a seed query, `TabsNavigationView` fills it from the
+  toolbar field, and the first non-blank character opens the surface. **The how and
+  why live on `LibraryCatalog` itself** — deliberately not repeated here.
+- **`MediaRow.onOpen`** — a "see all" that is not a push. Continue Watching's chevron
+  selects the Library tab, where the same titles live split into series, films and
+  history. `HomeCatalog` still knows nothing about tabs: `MainView` attaches it.
+- **The macOS tab bar stays drawn while searching.** Search used to be laid over the
+  whole `TabView`, which took the tabs with it; it now fills the content of the tab it
+  was entered from (that one tab only — every root stays mounted, so answering
+  "search" for all four would stand up four `SearchView`s and four fetches).
+- **An empty search field offers starters**, not just recents — recents cannot answer
+  on a first run. `/v1/items/search` matches `title` / `director` / `cast`, so the
+  examples are names as well as titles.
+
+### Community architecture, without their UI (2026-08-18)
+
+- **`MediaLibraryStore`** — the per-item optimistic library from
+  dungeon-master-xx (watchlist, watched overrides, votes, download façade,
+  local-progress query). Wired through `AppContext` and the detail page.
+  Does **not** replace `ContentStore` (Home/Library rows) or the bookmark
+  stores. Votes migrate out of the old `UserDefaults` key once.
+- **`WatchProgress.resumeFraction` is what a card paints.** The landscape time
+  chip, TVUIKit rail status, poster progress bar, episode/variant mapping, and
+  history/Play progress all stopped re-thresholding `time / duration` at 0.95 /
+  0.02. Those fudges were a second credits window (six minutes left on a
+  two-hour title vs the classifier's three). Outro markers will feed
+  `WatchProgress`, not the views.
+- **Continue Watching trusts local progress.** The player still does not
+  invalidate Home TTL (a full `.watch` refetch was the wrong lever). Instead
+  `assembleRows` overlays `LocalWatchProgressStore` onto the cached row: the
+  bar moves on the next tick, a finished film disappears, a finished episode
+  steps to the next S/E. Offered S/E stays on the card so a TTL refresh does
+  not refetch up to 12 series details. `rows-v2.json` is not rewritten from
+  the playhead.
+- A literal merge of `community/main` is still rejected: ~73 overlapping
+  files, almost all Views. Continue Watching, lazy SwiftUI stacks, and
+  `WatchProgress` were already on our side; glass stays `kinoGlass`.
+
+### Flags, a Video rename, full quality list, CC moved to Languages (2026-08-17)
+
+- **`FlagGlyph`** (`KinoPubUI`): a round flag keyed by ISO 639-1 language code or
+  ISO 3166-1 country code — both resolve to `flag_<code>` in `Media.xcassets`, so the
+  same view will serve a language row and a country tag later. The asset set is added
+  separately (by hand); a code with no matching file draws nothing rather than a
+  broken-image glyph — checked via `UIImage(named:in:)` / `NSBundle.image(forResource:)`
+  before deciding whether to draw. `LanguagesCard`'s rows lead with one now.
+- **"Technical" is `MediaItem_VideoCard` → "Video"** (`TechnicalCard`/`TechnicalBadge`
+  renamed to `VideoCard`/`VideoBadge` to match). Left `MediaItem_Technical` alone —
+  that key still titles a column in the separate, still-switchable `MediaItemAboutLayouts`
+  experiment, and renaming its text would have relabelled a different section.
+- **The Subtitles badge left the Video card** — the Languages card already puts a CC
+  glyph on every language that actually has one, which says more than a title-wide
+  flag did.
+- **The Video card's popup lists every quality the title offers**, not just the top
+  one: `mediaItem.videoTechLines` (`"1080p · h264 · 1920×1080"` per distinct file),
+  shown only when there is more than one — "what am I about to download" is a
+  quality-picking decision, not a glance.
+- No SDH badge yet, but not never: kino.pub's payload cannot tell a hard-of-hearing
+  track from a translated one today; once OpenSubtitles (or another SDH-tagging
+  source) is wired, only the badge list changes.
+
+### The badge cards got a third card, a real order, and less to hide behind (2026-08-17)
+
+- 🔴 **Reordered by what a viewer decides with, not by what was easiest to compute.**
+  The rail was Technical → Age Rating; it is now **Age Rating → Languages → Technical**
+  — can whoever's in the room watch this at all, can *you* understand it, and only
+  then what it technically is. The old order buried the one card that gates the other
+  two behind the one nobody actually opens first.
+- **Languages joins the rail** (`LanguagesCard`) — the card the mockup showed and the
+  page never had. Best dub per preferred language (reused, not reinvented: same
+  `AudioTracks` DUB→MVO→DVO→VO→AVO→Orig ranking, same `LanguageListVisibility`
+  collapsing), a CC glyph on any language that also has subtitles, "+N languages" for
+  the rest, full breakdown in the popup. **Superseded a dead, never-instantiated
+  `LanguagesCard`** that duplicated this exact job inside `MediaItemInfoColumns` — one
+  live implementation now, and five now-orphaned metrics (`languageGroupSpacing`,
+  `languageNameToKindSpacing`, `subtitleExtraTop`, `detailFont`) deleted with it.
+- **The Age Rating card decodes itself without a tap now.** `MediaItem_LegendAgeRating`
+  ("Возрастная категория тайтла.") used to live only behind the popup; a title with no
+  advisory flags — most of them — showed a bare checkmark and a number, which is what
+  read as empty. It's inline under the number always, same as the popup, so the
+  collapsed card says something even when kino.pub gave us nothing else to add.
+- **A DEBUG-only illustration, not a shipped guess.** `CapabilityGlyph` gained
+  `.dolbyVision` / `.dolbyAtmos` — real assets — and a
+  `#Preview("Technical card, with a Dolby signal (illustration)")` renders them against
+  fabricated badge data, explicitly marked non-reachable from `technicalBadges`. This
+  is "look at it without wiring it to a real source" done the way the repo's own rule
+  requires: a real user can never see a badge the app cannot back, only whoever opens
+  the preview can.
+- `mediaItemPreferredLanguages()` joins `mediaItemAdvisories(_:)` as a second shared
+  free function — the language-ranking logic was about to exist in the info table and
+  the new card as two copies.
+
+### Technical and Parental Advisory cards, on the same block shape (2026-08-17)
+
+- **`MediaItemBadgeCardsSection`** (iOS/macOS): a `BlockRail` of two `BlockCard`s, right
+  after Facts/Reviews and before the untouched info table — a Technical card (quality,
+  3D, AC-3, subtitles, audio description, each as an icon + spelled-out label) and a
+  Parental Advisory card (the age rating under a checkmark, plus whatever real
+  advisory kino.pub sent). Same component the ratings/reviews/facts rails already use;
+  nothing about the table or `InfoFooter` beneath it changed.
+- 🔴 **Only a real signal gets a badge.** kino.pub sends no HDR / Dolby Vision / Dolby
+  Atmos / MPAA flag, so those stay off — the same rule `aboutBadges` already followed,
+  restated here because the mockup this was sketched from draws exactly those. Their
+  icon assets (`dolby-vision`, `dolby-atmos`, `tv-ma`, `R`, `subtitle`) are in
+  `Media.xcassets`, unreferenced, on purpose — see `MediaItemBadgeCardsSection`'s doc
+  comment for where they plug in once a real source exists.
+  `MediaCapabilityBadges.isHDR` is real but only ever filled from a probed HLS
+  `VIDEO-RANGE`, which the detail page does not fetch.
+- **`CapabilityGlyph`** (`KinoPubUI`): the app target cannot reach `Bundle.module` —
+  every catalogue image before this went through a public wrapper defined inside
+  `KinoPubUI` (`MediaScoreLogo`, the "wing" icon), and this is the same idiom for the
+  quality/3D/CC/AD/checkmark pills. Fixed height, free width, `.template` tint.
+- **Tapping a card opens the shared `InfoPopup`** — the same "the clipped thing is the
+  trigger" mechanism `AboutColumn` / `AboutLegendColumn` already use — not a page, and
+  not a new expansion mechanism. Each badge gets its full sentence there
+  (`MediaItem_Legend*`, already localized, plus a new `MediaItem_Legend3D`).
+- Parental Advisory never writes a sentence we were not given: an age rating with no
+  advisory flags draws the number alone rather than manufacturing a reason for it.
+- `mediaItemAdvisories(_:)` replaces the `advisories` logic that was about to exist in
+  two places (`MediaItemInfoColumns` and the new card) — one function, both callers.
+
+### One card shape for the page's blocks, tried on Ratings and Reviews first (2026-08-17)
+
+- **`BlockCard` / `BlockRail` / `BlockMetrics`** (`KinoPubUI`) — the card every block-shaped section
+  on iOS/macOS is meant to be built from. Two kinds, **one look**: `.interactive` (the card is the
+  control) and `.flat` (the card is a surface holding its own rows — the table shape). One
+  component configured, not a card per section; the next blocks (facts, photos, information
+  columns) go on the same one. tvOS compiles but is not a customer — its media surfaces are TVUIKit,
+  and the section is not shown there.
+- **Fill is a `Material`, never a colour.** The detail page sits on an ambient wash of the title's
+  own artwork, so a fixed grey stops belonging to it. Hover deepens the material
+  (`.regular` → `.thick`) instead of tinting — that is the only "raised" move available without
+  introducing a colour the page did not have. Not `kinoGlass`: glass is chrome floating *over*
+  content, and a block card **is** content. Materials do their own Reduce Transparency degradation.
+- 🔴 **Scores and opinions as one section** (`MediaItemRatingsAndReviewsSection`), the App Store's
+  shape: a fixed-height rail of ratings card → review cards. **An experiment running beside the
+  shipped row, not replacing it** — `MediaItemRatingsSection` is still on the page, on every
+  platform, and so is `MediaItemReviewsSection`. Deleting the validated thing before the replacement
+  is settled is how a comparison stops being possible; both go through one switch in `MediaItemView`
+  when one wins.
+- **The block is identical on every title**: one title (always "Ratings and Reviews"), one
+  destination, always present. A header derived from what has loaded flickers, because enrichment is
+  async — the chevron used to appear halfway through. **Every card in the rail opens the same page**
+  through `BlockCard`'s new `.link` kind, so the block has exactly one destination and the cards
+  visibly hover and press.
+- **Nothing inside a card is separately clickable.** The per-source links move to the popup or to
+  buttons of their own; a small target inside a big one competing for the same press is the thing
+  the card shape exists to avoid.
+- **The ratings card**: the aggregate as a number (`largeTitle`, rounded, **semibold**) and as
+  `StarRatingRow` (new in `KinoPubUI`; takes a 0…5 value so nothing guesses the scale), stars
+  **always orange** — a green or grey star row reads as a second signal contradicting the number.
+  Under it, one `.body` line of "N Ratings · N рецензий"; the source chips are `.body` too.
+- **kino.pub's own score is the community thumbs as one percentage** under the app's own mark —
+  a thumbs system measures the share that liked it, and a lone SF Symbol in a row of brand logos
+  reads as a different kind of thing. Display only until the Rate control is designed.
+- **Sources are ordered by vote count**, biggest audience first. The order used to be the order the
+  cases were written in, which put 300 voters ahead of 300 000 on every title.
+- **Views are not a rating** and are not in the card; the review count is not a card of its own,
+  because a tally with nothing to expand had no reason to be tappable.
+- 🔴 **The aggregate weighs four sources now**, not two: IMDb, Kinopoisk, TMDB and kino.pub.
+  `Rating.init?(scores:weights:)` iterates `MediaScores.inputs` instead of naming two fields, so a
+  fifth source is data. Vote-weighting keeps it honest — on a title with 280k IMDb voters, adding
+  TMDB's 1 536 and kino.pub's 560 moved 8.34 to 8.33.
+- **TMDB is a rating source.** `vote_average` / `vote_count` were arriving on every details call and
+  being dropped; `TitleMetadata.tmdbRating` / `.tmdbVotes` now, with a `.tmdb` case on
+  `MediaScoreLogo.Source` (the asset was already there).
+- **kino.pub is a rating source**: `likes / (likes + dislikes)`, printed as a percentage and
+  averaged on the 0…10 scale, under the app's own mark (`kinopub` asset added to `KinoPubUI`).
+  A thumbs system runs high — that is real, and turnout weighting is what stops it mattering.
+- **`RatingWeights` exists and is all-on, equal.** A multiplier per source, `0` to exclude, so the
+  settings pane this is heading for — tick what you trust, weigh one above another — changes a
+  stored value rather than the shape of the calculation. "All sources, equally" is now a written
+  default rather than the absence of a decision.
+- **A card and the page it opens can differ by a tenth.** kino.pub's payload carries IMDb and
+  Kinopoisk only; TMDB arrives with enrichment and the thumbs with the vote endpoint, so a poster
+  badge aggregates two sources and the detail page four. Documented on `MediaScores` — the
+  alternative is plumbing enrichment through every shelf to buy one decimal place.
+- Both rating renderings read one `RatingSources`: which sources earn a tile, their order, what each
+  prints, and where each links are one rule, not two copies of it.
+- **Review cards have two modes, one component.** `.compact` in the rail — headline, body, sentiment,
+  date, and nothing else; a preview earns its space by being readable, not by carrying every field
+  at four points smaller. `.expanded` on the page — full body with the author's paragraphing intact,
+  nickname, turnout tallies, and a link to the source. `Review` carries `sourceId` now too.
+- **`FillingText`** (`KinoPubUI`): text that takes every line the box allows and ellipsises on the
+  last one that fits. `lineLimit(5)` is a fixed count against a box measured in points — it either
+  stopped short of the bottom or asked for a line the frame had no room for, differently at every
+  Dynamic Type size. Compact review bodies also flatten paragraph breaks: in a four-line preview a
+  blank line is a quarter of it spent on nothing.
+- **Sentiment is the one coloured thing on these cards** — green / red / secondary. It is the only
+  field a reader scans rather than reads, and it already has that convention; everything else stays
+  materials and hierarchical styles.
+- **`StarRatingRow` draws `star.fill` / `star.leadinghalf.filled` / `star`**, rounded to the nearest
+  half. The mask over five filled stars it replaced could paint 0.13 of a star, which is a fill
+  percentage, not a rating.
+- **Score marks are fixed in height and free in width** (`MediaScoreLogo.Style.compact`, the
+  `*_small` vector set). Boxing every one into `height × height` letterboxed the wide wordmarks down
+  to nothing.
+- 🔴 **A number never wraps.** `6.4` came out as "6." over "4" and `(35K)` as "(35" over "K)",
+  because nothing said the cells keep their own width and the row squeezed them. Every score cell
+  is `lineLimit(1)` and sized to itself now; the one line allowed to truncate is the votes/reviews
+  count, which is the only one long enough to outgrow the card — and a card that grows to fit a
+  vote count breaks the rail.
+- **Sources are a table by default**, one per line, fixed columns (`value | mark | name | turnout`)
+  shared between the card and the page so the two do not line up differently. The one-line chip row
+  is kept as `MediaItemRatingsCard.SourceLayout.chips` — it was already tight at four sources and
+  the sources are not going to stop arriving.
+- **One size, regular weight, throughout.** Chip values, counters, review footers and the reviews
+  tally were `.caption` / `.caption2` / semibold, which made a card read as three documents stacked.
+  Everything is `TypeScale.detailBody` at regular now; only a review's **title and sentiment** are
+  semibold, and only the aggregate digits are larger. Review bodies are primary text, not secondary.
+- **A review's title hugs.** Clamping it to one line cut half the headlines mid-word for a line the
+  body never got back.
+- `localizedPluralForm` is now one function (was inline in the season/episode unit helper), and
+  `MediaItem_UnitReview{One,Few,Many}` decline the review count — "53 рецензии", not "53 Рецензии".
+- Review cards are flat: a card that highlights under the pointer and then does nothing is worse
+  than one that does not offer, and what "expand" means has not been designed.
+- 🔴 **The proxy was already sending things we threw away.** `positiveRating` / `negativeRating`
+  (usefulness votes — *not* the review's sentiment: one capture is a NEGATIVE review at 23 useful /
+  79 not), and the page totals. `Review` now carries `helpfulVotes` / `unhelpfulVotes` / `postedAt`,
+  and `TitleMetadata.reviewsSummary` carries the totals. **`ReviewsSummary.total` is not
+  `reviews.count`** — the endpoint pages and we hold page 1, so the header count and the card count
+  legitimately disagree.
+- **`stripHTML` recovers paragraphs.** Review bodies arrive as `<br />\r\n<br />` between
+  paragraphs; dropping those with the rest of the tags glued a 4 000-character review into one
+  unbroken wall. Line breaks are restored first, runs collapsed to one blank line.
+- **`date` has no zone offset** (`2022-02-18T21:51:09`), so there is no instant to recover. Parsed
+  in the current calendar's zone, which keeps the wall-clock day Kinopoisk itself prints — UTC would
+  shift it by the offset.
+- **Sheet first, as the rule says:** [docs/providers/kinopoisk-proxy.md](../../docs/providers/kinopoisk-proxy.md)
+  documents all four `kpapi` endpoints from live captures, including the fields we deliberately
+  leave (`BLOOPER` facts, non-actor crew, review paging).
+- Verified: builds on macOS, iOS and tvOS. **Not seen running** — the iOS 26.0 simulator runtime
+  cannot load this build at all (`dyld: Symbol not found: …glassEffect…`, an SDK/runtime mismatch
+  that predates this change).
+
+### Watching reported the wrong id, and reported it too early (2026-08-17)
+
+- 🔴 **Continue Watching asks the series itself which episode is next.** Nothing else can answer it:
+  history and the watching counters do not know where a season ends, so an eight-episode S1 read as
+  "S1, E9" — an episode with no file to play — and an episode whose last five minutes are credits
+  came back as "resume" while the server already counted it watched. `HomeCatalog` now fetches the
+  payload for each series in the row (max 12, `nolinks`, only when the row's TTL expires) and takes
+  `primaryEpisode` — the same property the detail page's Play button uses, so the two can no longer
+  disagree. A series whose `playbackAction` is `playAgain` leaves the row. The history/counter
+  heuristic below stays as the fallback when a payload does not arrive.
+- **Anything that fetches details and hands an episode onward stamps its seasons first**
+  (`MediaCardMenuCoordinator.play`) — otherwise the episode reaches the player with no item id and,
+  since the fix below, reports nothing at all.
+- 🔴 **Continue Watching offered episodes that were already watched.** The card took its S/E from the
+  newest history row — which is where the viewer *was*, not what to play next — so a series whose
+  last row was "S1, E2, finished" offered E2 again, with E2's full runtime under it as if it had
+  never been played. `ContinueWatchingEpisode.forSeries` picks it now: an episode someone is
+  mid-way through, else the server's watched count + 1, else one past the last thing seen. A card
+  whose series is fully watched (and has no new episodes) is **dropped from the row**. Progress bar,
+  duration and `mediaID` are only attached when the episode is actually being resumed — they belong
+  to the previous episode otherwise, and the overlay label now says whatever Play will open.
+
+- 🔴 **`/v1/watching*` keys on the *item* id, never the episode's.** `Episode.metadata` fell back to
+  its own id when the season had not been stamped, so `GET /v1/watching?id=928900&season=1&video=2`
+  answered 404 (928900 is episode 2's *media* id; the series is 87940). Setting `Season.mediaId` now
+  stamps every episode in it, `Episode.metadata` reports `0` rather than guessing, and
+  `WatchingMetadata.isResolved` is what `PlayerManager` checks before saying anything to the server.
+  A media id that collides with a real item id would have written progress onto another title.
+  `MediaItem.downloadableItems` carried the same bug.
+- **Nothing is reported before playback starts.** `fetchWatchMark()` ran from `onAppear` on all three
+  platforms — before the player had an item, about a title the viewer had not begun. It now fires
+  once, on `readyToPlay`, from the player itself.
+
+### One profile decides what a type or genre changes on screen (2026-08-17)
+
+**The rules themselves are product, and live in
+[docs/product/media-presentation.md](../../docs/product/media-presentation.md)** — not here, and not in
+AGENTS.md. What shipped:
+
+- **`MediaPresentationProfile` (KinoPubBackend) is the only place a type/genre rule may live.** Views
+  ask `mediaItem.presentation`; a view that tests `type == "concert"` itself is the defect the type
+  exists to prevent — such a rule lands on one surface and is missed on the poster, the card and the
+  label next to it. Kinds: `fiction`, `documentary`, `concert`, `standup`, `animation`, `show`, plus
+  `MediaAuthorRole` (director vs creator).
+- `Cast & Crew` is **dead** as a string key — the rail is actors-only and reads `MediaItem_CastSection`
+  ("В ролях"). New keys: `MediaItem_Credits`, `MediaItem_CreditsParticipants`, `MediaItem_Creators`,
+  `MediaItem_MoreBy{Director,Directors,Creator,Creators}`.
+- **Genres are matched by id where we know one** (101 stand-up, 23 animation) and by RU/EN title
+  otherwise, because we hold no genre-id table. The real one is `filter.genres` in
+  `kpapp.link/config.json` (see [docs/providers/kinopub/references.md](../../docs/providers/kinopub/references.md));
+  folding it in would retire the string matching.
+- 🔴 **A comma on `cast` / `director` matches nothing** — verified live 2026-08-17, against what the
+  vendor docs claim: `director=Фил Лорд,Кристофер Миллер` answers an empty list where either name
+  alone answers a filmography. A shelf covering two people is **two requests merged**
+  (`MediaPerson.each(of:role:limit:)`); the earlier `MediaPerson.group(names:role:)` is **dead**.
+  On `genre` we do use a comma as OR (`LibraryFilter.genreIDs`) — still unverified, so the genre
+  shelf falls back to a single genre when the multi-genre request answers nothing.
+- **The genre floor waits for every other shelf to have *answered*, not to be empty.** Firing on
+  "still empty" ran it against `MediaItem.mock()` while the details were in flight, and put a
+  "More in Comedy" shelf of cartoons on a concert page. `similarLoaded` / `collectionsLoaded` join
+  the two credit flags as the gate, and the row's id now carries the genre ids it asked for.
+- **The related area is a plan, not three hard-wired shelves** — similar → author → cast →
+  collections → a genre floor that only fires when everything else came back empty, so no type opens
+  a page that recommends nothing. `CastShelfPolicy` says who the cast shelf asks for and what floats
+  to the front of the answer; `preferringTypes(_:)` is an ordering and never a filter.
+- 🔴 **`items/collections/{id}` is not on our host** — `/v1/items/collections/248` answers 404 on
+  `api.service-kp.com` (seen live). It lives on the PWA's branch,
+  `api.ios-kp.store/api2/v1.1/`, so `Endpoint` gained **`baseURLOverride`** and
+  `ItemCollectionsRequest` is the only endpoint that sets it. Everything else stays on the mirror
+  the user signed in to. `NavigationLinkProvider.collection(_:)` is new, for those shelf headers.
+- **The genre floor asks the web client's own genre query** — `type` + `genre=23,26` +
+  `country` + `period=month` + `sort=-updated`, narrowing dropped one step at a time until
+  something answers (`LibraryFilter.genreIDs` is the comma-joined OR).
+- **One card per film** in person shelves and on the person page: `MediaItem.filmIdentity` +
+  `collapsingFilmVariants` collapse the 3D and flat entries of one title (they share a Kinopoisk /
+  IMDb id). The library grid and search do **not** collapse: a "3D" type filter asks for exactly
+  those entries.
+
+### Device identity actually reaches kino.pub (2026-08-16)
+
+- **Every JSON body POST was a silent no-op.** `RequestBuilder` wrote a JSON body and set no
+  `Content-Type`, so URLSession stamped it `application/x-www-form-urlencoded`; kino.pub parsed no
+  parameters out of it and still answered `{"status":200}`. That is why `/v1/device/notify` kept
+  writing "unknown / unknown / unknown" and the streaming profile never moved. The builder now
+  labels the body `application/json` unless the endpoint sets its own header. Verified live against
+  `api.service-kp.com`: same body, header off → nothing changes; header on → applies.
+  Every body POST rode on this — notify, device settings, bookmark toggle, folder create/remove,
+  token refresh.
+- **`DeviceIdentity` has no model table.** Titles/models/OS names come from the system at runtime
+  (`UIDevice` / `WKInterfaceDevice` / `Host` + `sysctl`), so an unreleased device still reads
+  correctly. `hardware` is `"<family> (<identifier>[, chip])"` — `Mac (MacBookPro18,2, Apple M1 Max)`,
+  `iPhone (iPhone17,1)` — and the raw identifier keeps it exact. macOS `uname` is the *architecture*,
+  so the Mac model comes from `sysctl hw.model`; in a Simulator both are the host's, so
+  `SIMULATOR_MODEL_IDENTIFIER` wins. The OS moved to `software` (`"macOS 27.0, KinoPub v1.0 (1)"`),
+  where kino.pub's own docs put it. `DeviceIdentity.deviceName` is the single source for the
+  device's name — nothing else may invent one. macOS bidi isolates (U+2068/U+2069) around the
+  localized host name are stripped.
+- **Registration happens at activation, not on every launch.** `DeviceService.syncDeviceProfile(activated:)`
+  replaces `registerDeviceIdentity()` + `syncCapabilities()`. `AuthState.markSignedIn(activated:)`
+  separates a device-code exchange from a token refresh. Later launches no-op unless the payload
+  changed (rename, OS update, new build, new hardware) or the last attempt failed — see
+  `DeviceProfileRegistry`, cleared on logout. Re-pushing the profile every launch is what let the
+  capability sync clobber a streaming profile the user had just edited in Settings › Device.
+
+### Concerts decode, and the PWA's API surface is written down (2026-08-16)
+
+- **The PWA's API surface is written into the vendor sheets, each note next to the method it
+  describes** — not a separate file. Everything ours is marked 🔎, and anything captured but not
+  probed by us says so, so it reads as a shape and not a contract:
+  - `intro` — the alternate hosts (`api.boramoraboom.ru`, and `api.ios-kp.store` with its
+    `/api2/v1.1/` branch) and the artwork domains. **Nothing may key on a domain**: the same poster
+    comes from `m.staticpop.net`, `m.boramoraboom.ru` or `m.pushbr.com`.
+  - `video` — **`conditions[]`**, undocumented and the mechanism behind every filter checkbox in
+    their UI: repeatable free-form comparisons (`year<=2020`, `kinopoisk_rating>=6.0`). Noted on
+    **`/v1/items`**, which is where the captured requests went. `/v1/items/search` is a different
+    method — text over `title` / `cast` / `director`, `type=` sent empty for "all" — and the web
+    client never sends it a filter, so neither should we. Also **`api2/v1.1/items/search` answers
+    with no token at all** (verified: HTTP 200, 40 summary items with a ready-made `value` display
+    string and a `pagination` block, but no `videos` / `genres` / `duration`) — it looks like the
+    typeahead endpoint, and it is a search that works **before login**. Plus
+    `api2/v1.1/items/{id}`, a slim response carrying **`age_rating` and `fps`, neither of which v1
+    returns** — we currently take the age rating from TMDB only.
+  - `collections` — `items/collections/{item_id}`, which collections an item sits in, with
+    `views`/`watchers` counters that exist nowhere else.
+  - `device` — the real `settings` payload, where the vendor doc has only `// Список настроек`:
+    five checkboxes and two lists, including **`streamingType`** (HTTP / HLS / HLS2 / HLS4 — the
+    choice between the `url.*` variants we currently hard-code to `hls4`) and `serverLocation`
+    (1 = NL, 3 = RU, which is the `?loc=nl` on every CDN URL).
+  - `references` — **`https://www.kpapp.link/config.json`, public and unauthenticated**: types,
+    genres, countries, sorts, subtitle languages, the 11 menu sections, home blocks and quality
+    tables in one 26 KB file. `home_blocks_shortcut` is the spec the hard-coded
+    `HomeCatalog.Shortcut` is supposed to become, and `filter.types[].genres` says which genre set
+    applies to which type — they are not all-to-all.
+- **A concert payload now has a fixture and tests** (item 126187). It decodes — but it is the first
+  payload seen with **`imdb: null` alongside `imdb_rating: 8.1`**, so "has a rating" can never imply
+  "has an external id". Also `subtype: ""` (empty, not absent), `trailer: null`, and
+  `audios[].author: null` on an original-language track.
+- 🔴 **`tracklist` is not decoded at all** — six tracks in that payload, dropped on the floor.
+  `ConcertItemTests.testTracklistIsNotDecodedYet` pins the gap and fails the day it is closed.
+  On the live data `artists` and `url` are empty on every track and an unknown one is literally
+  `"N/A"`, so only `title` is usable.
+- **Artwork hosts in the network-log filter were incomplete** — kino.pub serves the same posters
+  from `m.boramoraboom.ru` and `m.pushbr.com` too. Added, and the list is now labelled as knowingly
+  incomplete with the extension patterns as the real net.
+- Kept **out of AGENTS.md on purpose**: this was decided once and belongs with the method, not in
+  the file every session loads. The multi-version findings live in `video.md` too — including one
+  place the vendor docs disagree with reality (`tracks` documented as `'1,2,3,4'`, arrives as `4`).
+- 221 backend tests green.
+
+### Films with several versions are playable, and stop being a tag (2026-08-16)
+
+- **`PlaybackVariant` + `VersionsRailView`.** A `subtype: "multi"` movie ships its encodings in
+  `videos` — several entries with `snumber: 0`, their own `id`, and a human `title` ("24 fps",
+  "48 fps"); director's cut and colour/black-and-white are the same shape. They now render as a
+  landscape rail directly under the hero, above the seasons rail, using the same card an episode
+  draws (`MediaCard(variant:)`) and the same TVUIKit media-item cell on tvOS. They are **not**
+  episodes and never enter that rail.
+- **`videos.first` was the bug.** Every film-level `PlayableItem` member — `files`, `metadata`,
+  `subtitles`, `audioTracks`, `watchableURL` — read `videos.first`, so on a two-version title the
+  second version was unreachable *and* Play resumed the first one at a position belonging to the
+  other encoding. They now read `MediaItem.primaryVideo`: the started-but-unfinished version, else
+  the first. `playbackAction` considers every version, not just one.
+- **`subtype: multi` is gone from the tag strip** (type · country · genre). It is not a fact about
+  the film in the way a country is — it says the film ships in several versions, which the rail now
+  says by listing them. Unknown subtypes still render: better an unexplained word than a dropped one.
+- **A 2 h 24 min film was claiming 4 h 48 min.** `duration.total` is the sum of every *version*
+  (8634 + 8634 on item 124447), the same trap the code already documented one level up for series.
+  The runtime line now uses `duration.average` when a film has versions.
+- **Subtitles and audio are per version.** On item 124447 the 24 fps encoding carries 55 subtitle
+  tracks and the 48 fps one carries none — so reading them off `videos.first` handed the 48 fps
+  player a subtitle list that was not its own.
+- **Verified against the real response.** `Fixtures/item_124447_multi.json` is the actual
+  `GET /v1/items/124447` payload (signed CDN URLs replaced, subtitle/audio/file lists trimmed —
+  nothing asserted on was changed), with `MultiVersionItemTests` covering decode, variant order and
+  ids, `metadata` shape, per-version subtitles, the runtime, and `playbackAction`.
+- **The ROADMAP's "fake episodes `s0e1`/`s0e2`" note was right all along** — that is the API's own
+  notation: every `videos` entry carries `snumber: 0` and `number: 1…n`. (An earlier draft of this
+  entry called the note wrong; it was not.) **Multi-part films are the same mechanism**, not a
+  second one — one `videos` array either way, and only the `title` string says which. So do not
+  infer semantics from the structure.
+- Not verified on a device: how the rail reads at ten feet, and how `.card` focus looks on it.
+
+### A network log you can read on the device, and a launch that says what it is waiting for (2026-08-16)
+
+- **Settings › Diagnostics › Network log** — every request with headers, full request and response
+  bodies, timing, errors and cURL, kept 14 days on the device, searchable and filterable, exportable
+  as a `.pulse` file. Backed by [Pulse 5.2.3](https://github.com/kean/Pulse), pinned `from:
+  "5.2.3"`, declared in `KinoPubUI`; nothing outside `NetworkDiagnostics` / `NetworkConsoleView`
+  imports it.
+- **What it replaced:** `ResponseLoggingPlugin` logs one line — status, URL, byte count — and says
+  in its own doc comment that bodies are not dumped. There was no in-app viewer and no history, so
+  on an Apple TV with no Xcode attached a slow launch and a failing one looked identical.
+- **Capture is `NetworkLogger.enableProxy()`, once in `App.init`.** It swizzles `URLSession`, which
+  is what makes one call cover kino.pub, artwork through Nuke, TMDB and the Cloudflare workers, and
+  what makes tasks visible while they are still in flight. **Not DEBUG-only** — the launches worth
+  reading a log for are TestFlight ones on real hardware.
+- **The log records API traffic only, and is capped.** Artwork and media are excluded at capture by
+  host (`*.staticpop.net`, `image.tmdb.org`, `*.mds.yandex.net`) *and* by extension (jpg/png/webp/
+  gif/avif, m3u8/ts/mp4/mkv/m4s) — both, because hosts catch artwork served without an extension and
+  extensions catch a CDN we have not met. A picture in a log answers no question its status line
+  did not already answer, and an HLS segment answers none at all.
+- **`NetworkDiagnostics.store` is ours, not `LoggerStore.shared`.** Pulse's shared store is built
+  with its defaults and cannot be reconfigured after creation, and those defaults are what produced
+  50 MB log files: **256 MB** of store, **8 MB** per response body. Ours caps the store at 32 MB and
+  a body at 512 KB — kino.pub's largest reply, a history page, is about 96 KB. It lives in
+  `Caches/`, the only place on tvOS an app may put a file this size; the system purges it between
+  runs there, which is the documented tvOS trade.
+- Settings › Storage gained a **Network log** row (size + clear) alongside the artwork one.
+- **Tokens are redacted at capture, not at export.** `Authorization`, `Cookie`, `access_token`,
+  `refresh_token`, `api_key`, `password`. A redaction you have to remember to apply at share time is
+  one you will forget, and this store is meant to be shared.
+- **`CURLLoggingPlugin` is out of the default plugin stack.** It printed every request's headers,
+  bearer token included, into the system log; the Network log renders cURL redacted. The type is
+  kept for one-off local debugging.
+- **`NetworkActivity` (`KinoPubLogging`) answers the other half:** what is outstanding *now*,
+  hooked once in `URLSessionImpl` so no view model has to remember to report and none can forget.
+  Pulse cannot answer this — it writes its record when a task *completes*.
+- **The launch splash says what it is waiting for, in release.** `LaunchStatusLabel` replaces the
+  bare `ProgressView` with the names of everything currently outstanding, joined — "Проверяем
+  сессию · Загружаем историю" — because the wait is several things at once and a single-line
+  "Loading…" is the empty spinner with extra steps. Names are distinct and ordered by start, so
+  three catalogue pages in flight read as one thing and not a stutter.
+- **Activity entries carry a localization key, not a path.** `Activity_Session`, `Activity_History`,
+  `Activity_Watching`, `Activity_Bookmarks`, `Activity_Collections`, `Activity_Catalog`,
+  `Activity_Sections`, `Activity_Search`, `Activity_Device`, `Activity_Network` — RU + EN in
+  `Localizable.xcstrings`. An unmapped endpoint falls back to "Загружаем" rather than to `/v1/items/…`;
+  the path travels alongside for the debug overlay, which shows paths precisely because it is for
+  whoever is debugging. Product decision (2026-08-16): the label ships.
+- Item 2 of [the 2026-08-10 plan](plans/2026-08-10-launch-status-and-continuity.md) —
+  activity *toasts* — was **not** built; the debug overlay covers that ground and `HudToast` was
+  left alone. Items 3–5 of that plan are still open; its header now says so.
+- **Streaming to the Pulse app on a Mac**, off by default, toggled in Settings › Advanced ›
+  Diagnostics (and in the tvOS diagnostics list, where it matters most — reading a log on a
+  television with a remote is nobody's idea of a good time). `RemoteLogger` over Bonjour
+  `_pulse._tcp`; `NSBonjourServices` + `NSLocalNetworkUsageDescription` added to `Info.plist`.
+  Enabling it is what asks for local-network permission, so nothing turns it on for the user, and
+  it is restored at launch only if they left it on. The macOS entitlements already carried
+  `network.client` / `network.server`.
+- **Adapter:** `PulseUI.ConsoleView` does not exist on macOS in 5.2.3 — the module ships
+  `ConsoleView-ios/-tvos/-watchos` and fences its public init `#if !os(macOS)`. Capture runs on the
+  Mac anyway, so `NetworkConsoleView` offers export there and the `.pulse` file opens in the
+  standalone Pulse app.
+- The "Verbose logging" / "Keep playback diagnostics" toggles are gone. They were bound to `@State`
+  that nothing read, under the footer "Demo controls — not saved yet".
+- Verified: `xcodebuild build` green on tvOS 27 simulator, iOS Simulator and macOS. **Not yet run
+  on a physical Apple TV** — which is the run that motivated this, so the launch trace it is
+  supposed to produce has not been read yet.
+
+### One artwork cache on Nuke, for all four platforms (2026-08-16)
+
+- **`Artwork` (`ArtworkPipeline.swift`) is the single image cache.** Decoded-image memory cache
+  keyed by *target size*, one disk entry per URL (`.storeOriginalData`), request coalescing and
+  prefetching — for tvOS, iOS, iPadOS and macOS at once. Backed by
+  [Nuke 13](https://github.com/kean/Nuke), pinned `from: "13.2.0"`, declared in `KinoPubUI`.
+- **What it replaced:** tvOS had all of that hand-written in `TVUIKitRemoteImage` (private
+  `NSCache`, an `ArtworkFetcher` actor for coalescing, `preparingThumbnail` downsampling);
+  iOS/macOS had `AsyncImage`, which caches **bytes** and pays a full decode on every recycled
+  tile — and which stays in `.empty` forever on a 404 instead of reporting failure. A fix on one
+  side never reached the other. `TVUIKitRemoteImage` keeps its three-function API
+  (`cached` / `load` / `prefetch`), so no cell changed.
+- **Nothing outside `KinoPubUI` imports Nuke.** `Artwork`, `ArtworkImage`, `CachedRemoteImage`,
+  `FallbackRemoteImage` and `TVUIKitRemoteImage` are the whole surface — swapping the library is
+  one file. The fallback chain (wide → big → poster) stays ours; no image library models it.
+- **`AsyncImage` is gone from the codebase** — all 14 remaining call sites moved over (media cards,
+  hero still, blurred poster and ambient backdrop, title logos, season stills, the stills rail and
+  its sheet, downloads, the UILab backdrop, two preview galleries). `ArtworkImage` is the primitive
+  with `AsyncImage`'s phase shape for the sites whose states need different geometry — a title logo
+  that fails becomes a text block — and `CachedRemoteImage` is that primitive configured, which is
+  what every other site uses.
+- **Prefetching stops at the data cache and is now cancellable.** The old fire-and-forget
+  `Task.detached` prefetch decoded at *full resolution* under a cache key no poster or wide cell
+  ever read, and could not be cancelled when the row scrolled away. All three prefetching
+  collections gained `cancelPrefetchingForItemsAt`.
+- **Artwork no longer shares `URLCache` with the API client** — the loader's session cache is off,
+  so Settings › Storage gained an **Artwork cache** row (disk + memory, clearable) and the Network
+  cache row is now API responses only. That file's "there is no unified image cache yet" note is
+  void.
+- `ArtworkLog.loaded(_:bytes:)` → `loaded(_:from:)`, reporting which tier answered
+  (memory / disk / network). A rail refetching over the network every scroll pass is a cache-key
+  bug, and that is where it shows.
+- **AGENTS.md gained a [Dependencies](../../AGENTS.md#dependencies) section.** There was never a ban on
+  third-party SPM — the repo already shipped `KeychainAccess`, `PopupView` and `Reachability` — but
+  the one-component-per-idea rules were readable as one, and that reading is what kept the artwork
+  stack split in two. The bar: it replaces code we would otherwise own, it stays behind our own
+  type, it is pinned to a major, and it builds on all four platforms. Telemetry stays the exception.
+- Verified: `xcodebuild build` green on tvOS 27 simulator, iOS Simulator and macOS. **Scroll
+  behaviour not yet watched on device.**
+
+### Docs: one context file, five skills, and constraints that stop becoming requirements (2026-08-13)
+
+- **The documentation tree collapsed into [AGENTS.md](../../AGENTS.md) + [ROADMAP.md](../../ROADMAP.md) +
+  `.claude/skills/`.** `docs/en/policies/`, `docs/en/apple-platform/` and `docs/en/features/` are
+  gone as folders: durable rules are one always-on file, how-to knowledge loads on demand
+  (`tvos-surface`, `apple-chrome`, `player-avkit`, `metadata-service`, `docs-upkeep`), stage
+  checklists are one roadmap, and every dated plan moved to `docs/archive/plans/` with a note at the
+  top saying what survived it. Before: ~23.6k words of always-relevant docs plus 21.6k words of
+  plans that agents kept reading as law. The rule that keeps it that way: **a line in AGENTS.md must
+  carry either the default or the cost of getting it wrong.**
+- **Constraints are not requirements.** Every limitation gets one of four labels — Apple API /
+  performance / focus invariant / product decision — and only the last two may become durable
+  requirements; the first two become one named adapter. Three registers came with it: banned
+  patterns (focus bridges, shared `@FocusState` cases, manual focus delays, hand-rolled focus
+  chrome, continuous scroll-progress choreography, hand-driven `contentOffset`, custom hero focus
+  graphs, SwiftUI preview state machines, screen-specific component variants), invalid
+  agent-invented "requirements", and the two adapters that are allowed to exist.
+- **Voided as requirements:** the detail page's scroll-progress scrub (`washProgress`), "hero lives
+  outside the scrolling container" (only the *artwork layer* does — hero content stays in one focus
+  graph with the sections), the overlay title logo / compact title, and tab-bar pinning. The
+  detail-page plan is now explicitly history, with a table of what survived.
+- **Renderers differ by platform on purpose:** tvOS media surfaces are UIKit + TVUIKit; iOS/iPadOS/
+  macOS are SwiftUI including `.navigationTransition(.zoom)`. Shared: models, services, view
+  models, component semantics, tokens, assets — never view hierarchy or geometry. Cross-platform
+  geometry parity (the two-line tvOS poster caption) is named as the anti-pattern it was.
+- **`badgeText` can carry a glyph** — an SF Symbol is a character. "The system badge cannot show an
+  icon" was never a reason for a parallel overlay system.
+- **The playable graph** ([ROADMAP](../../ROADMAP.md#4--kinopub-catalog-completeness)):
+  episodes, trailers, parts and versions are one `PlayableItem` rail, with `PlaybackVariant` under
+  it (kino.pub ships 24/48 fps as `s0e1`/`s0e2` — item 124447 is the probe). Detail pages lead with
+  what can be played. The kino.pub endpoints to map before more detail UI are listed there.
+
+### The info popup, and hero buttons that are actually the system's
+
+- **`InfoPopup` (KinoPubUI) is the one "show me the rest of this" surface, on every platform** —
+  phase 8 of the detail-page plan, with the trigger deliberately changed from the reference app's.
+  No round `i` button: `expandsIntoInfoPopup(title:)` makes the *clipped content itself* the
+  control. Presentation is the system's per platform — a sheet drawn as a centred panel over a
+  scrim on tvOS (where Menu dismisses it for free, and `.presentationBackground(.clear)` is what
+  keeps it reading as a popup instead of a pushed page), detents on iPhone/iPad, a panel on macOS.
+- **The synopsis now always opens** — every platform, truncated or not. It used to be a dead press
+  on tvOS whenever the text happened to fit, and plain unfocusable copy off tvOS: the same
+  paragraph behaved two ways for a reason the reader cannot see. The "More" hint still depends on
+  truncation, because that is a statement about the text, not about whether the control exists.
+- **The About columns open themselves too** (`AboutColumn`, `AboutLegendColumn`) — the same lines at
+  reading size, which is the whole point at ten feet. `MediaItemDetailSheet` /
+  `MediaItemSheetLayout` are gone; their own doc comment promised "the synopsis, **or a column with
+  its lists unclamped**" and only ever delivered the synopsis. **Judge on device:** the columns are
+  `Button`s now, so on tvOS they wear `.card`, which argues with `AboutLayoutAppleShape`'s "no card
+  behind the columns at all".
+- **Hero actions are `.borderedProminent` / `.bordered` with a border shape, and nothing else.**
+  Three hand-written `ButtonStyle`s went away: hand-painted capsule and circle plates, hairline
+  strokes, `Color.white.opacity(0.22)` fills, black-on-white inversion, `.onHover` state, drop
+  shadows, and a `scaleEffect` focus lift with its own spring — a reimplementation of two system
+  styles, which on tvOS also meant owning the focus lift, the specular and the press feedback the
+  system already ships. `.circle` and `.capsule` are real `ButtonBorderShape`s on tvOS 26 (checked
+  in the SDK). What survives is the vocabulary, the icon metrics, and the resume bar — the one part
+  with no system equivalent, now drawn with **hierarchical** styles (`.tertiary` / `.primary`) so it
+  inverts with the button instead of needing a `forceFocusedColors` flag to guess when the button
+  turned white.
+- **Trailer is a labelled capsule, first in the row under Play** — not a fifth anonymous circle. The
+  circles are all *state* (following / filed / how far in); the trailer is the other thing on the
+  page you can watch, and a film glyph among four state glyphs read as one more toggle. The hidden
+  "Up from Play opens the fullscreen trailer" gesture is untouched and now arguably redundant —
+  left as a product call.
+- **Built on tvOS, macOS and iOS. Not run** — the hero and the popup are visual work and the
+  simulator is yours.
+
+### One navigation assembly, one tab table, and a lab for the tvOS bar
+
+- **`RouteStack` replaces ten hand-copied stacks.** Every tab used to write the same four lines —
+  a `NavigationStack` bound to one of `NavigationState`'s arrays, a `.navigationDestination(for:
+  Route.self)` building a `RouteDestination`, and a `.navigationStackActive` gate — and they had
+  already drifted: two passed a zoom namespace, eight did not. `RouteStack(tab:zoom:)` now owns all
+  four; `appRouteDestinations()` covers the two stacks whose path is local `@State`
+  (bookmark-folder tabs, tvOS Settings). Zoom stays **opt-in per stack** because the zoom *source*
+  modifier is `#if os(iOS)`-only — publishing a namespace on a stack whose cards never mark a
+  source would give the destination a transition with nothing to match.
+- **`NavigationState` lost both of its ten-case switches.** `push` and `popToRoot` each carried one
+  over the same tabs — two places to forget a tab in. One `routes(for:)` key-path table feeds both,
+  plus the new `path(for:)` binding. `.settings` has no shared stack and now says so once.
+- **`TabsNavigationView`: four hand-written platform trees → one browse-tab table.** The tabs come
+  from `browseTabs` and a `ForEach` (`ForEach` conforms to `TabContent`); each platform only decides
+  how a tab labels itself and which utility ends surround it. That drift was already visible — the
+  iPad bar's own comment described "glyph · words · glyph" while its code built icon+word chips.
+  Badges stay off tvOS: `TabContent.badge` is `@available(tvOS, unavailable)` in the 27.0 SDK
+  interface (checked, not assumed).
+- **The unrendered profile-avatar fetch is gone.** `TabsNavigationView` downloaded the avatar and
+  the user record on every sign-in into `@State` that no branch of its body drew — left over from
+  the parked sidebar shell. `SettingsRootView` already loads and caches the avatar for the one
+  screen that shows it. Two fewer launch requests, which is the direction
+  `docs/archive/plans/2026-08-10-launch-status-and-continuity.md` asks for.
+- **Fixed on sight: five Settings diagnostics rows shared one `@FocusState` value.** All bound
+  `.focused($focusedItem, equals: .diagnostics)` — the exact ambiguity
+  `.claude/skills/tvos-surface/SKILL.md` bans and that cost a misdiagnosed detour on the detail
+  page. `SettingsFocusItem.diagnostics` now carries a disambiguating id; the tip stays shared.
+- **New DEBUG/tvOS page: Settings → Diagnostics → "Navigation / Focus Lab."** Four shells of the
+  same two-tab app, each isolating one variable behind the tab-bar and focus-stranding bugs:
+  (A) what ships — stack per tab, SwiftUI rails; (B) one `NavigationStack` outside the `TabView`;
+  (C) one `UICollectionView` with the rails as `orthogonalLayoutSectionForMediaItems` sections;
+  (D) C plus `setContentScrollView(_:for: .top)`. A HUD reads `isTabBarHidden`, the class+address of
+  whatever `contentScrollView(for: .top)` resolved to, and stack depth — because the screen and the
+  system disagreeing is the bug, and that is not visible from SwiftUI. Each variant runs in a
+  `fullScreenCover`: nested in the real Settings tab it would measure the *app's* tab bar controller
+  instead of its own. **Built on all three platforms, not yet run.**
+
+### tvOS wide rails are system media items
+
+- **Every 16:9 horizontal rail now draws with `TVMediaItemContentConfiguration.wideCell()`, laid out
+  by `NSCollectionLayoutSection.orthogonalLayoutSectionForMediaItems()`** — new
+  `TVUIKitMediaItemRail` in KinoPubUI. The hand-built landscape tile (artwork + gradient legibility
+  band + title + meta + progress track, all stacked by hand in `TVUIKitContinueWatchingCell`) is
+  gone from the shelf path: text, secondary line, badge, and progress bar are configuration
+  properties, so the focus motion, band, badge shape, and bar are all system-owned.
+  `MediaPosterShelf` routes landscape cards there; Continue Watching is the first surface on it.
+- **Posters stay on `TVPosterView`.** The media-item configuration ships a 16:9
+  `wideCellConfiguration` only — there is no 2:3 variant, so `TVUIKitPosterCell` /
+  `TVUIKitMediaCollection` remain the poster and vertical-grid path (including landscape *grids*,
+  which the orthogonal section cannot express).
+- **`text` and `secondaryText` are not two stacked lines under the tile** — measured on device, not
+  read off the header: `text` renders centred *below* the artwork, `secondaryText` renders *over* the
+  artwork's bottom-leading corner. They are different surfaces; setting both put `secondaryText`
+  straight through our own chip in that corner (caught it live — a card's own title, rendered by the
+  system in caps, drawn on top of our "▶ 1h 52m"). We use `text` only, and leave `secondaryText` nil.
+- **One look, not a set of options.** First pass shipped a knobs struct (scale / progress-on-focus /
+  center-glyph / title-on-focus) with an A/B gallery bench to compare them — reasonable for exploring,
+  wrong for shipping: no product requirement asked for options, and the result read as "a UI ideas
+  page," not a component. `TVUIKitMediaItemRailStyle` is gone; the rail has exactly one behaviour now.
+- **Under the tile: the name, always visible, not focus-gated.** A movie's own title, or "S2, E11 ·
+  Show" for an episode — built from `overlayLabel` (already formatted "S2, E11" by both History and
+  Continue Watching) plus `title`. Earlier this said "state, never the name" and showed a generic
+  "Continue" placeholder instead — wrong: the artwork's own baked-in title text is not the same
+  surface as the caption below the tile, so putting the real name there is not a duplicate.
+- **Inside the artwork: the bar and the runtime are mutually exclusive, both shown immediately —
+  never gated by focus.** Went through two readings before landing here. First pass showed "56m left"
+  unconditionally beside the glyph; second pass hid all text until focus (bar-only at rest). Landed
+  on: `TVUIKitMediaItemStatus.showsRuntime` is true for `.ready`/`.watched`, false for `.inProgress`
+  (the bar already says "how far along" — showing both is redundant) and `.upcoming` (nothing is
+  known yet). Whichever one applies shows immediately. The glyph (bottom-leading) and the runtime
+  (bottom-trailing) are on opposite corners of the same row, not a shared pill — no black background
+  behind either; a drop shadow (`applyLegibilityShadow`) carries contrast instead, the same technique
+  system text over artwork uses elsewhere. Declined: having the bar itself visually displace the
+  glyph/runtime as it fills — the system draws its bar in a separate layer we cannot hook into, so
+  that would need custom position math tied to `progress`, exactly the bespoke logic this rail is
+  trying to avoid. **No SF Symbol floats over the middle of the tile on focus** — that shipped in the
+  first pass and reads as homemade; removed.
+- **A top-leading badge carries "Watched" and an upcoming release date** — `TVUIKitMediaItemStatus
+  .stateBadgeText` / `.badgeShowsClock`. Unlike the bottom-corner glyph/runtime, this one *does* sit
+  on a pill (`badge` in the overlay): it is a badge, the same kind of chrome as the 4K/HDR capability
+  badge it replaces for exactly these two states — the corner has room for one, and the state wins
+  (`updateConfiguration` suppresses `config.badgeText` whenever `status.stateBadgeText != nil`). The
+  system's own badge is text-only (`TVMediaItemContentBadgeProperties` has no icon slot), so the clock
+  glyph on an upcoming tile is ours, not the system's — this is the one place in the rail that is
+  deliberately custom rather than system-drawn, because the system genuinely cannot do it.
+- **Progress is never a series completion ratio.** `TVUIKitMediaItem.status(for:)` returns `.ready`
+  for any `isSeries` card with no `video` pinned to it, regardless of what `progress` holds — e.g.
+  `WatchingItem.progress` (`LibrarySectionCatalog.card(for:isSeries:)`) is `watched episodes / total`,
+  not a resume point, and must never paint a bar even if such a card is ever routed through this rail.
+- **`TVMediaItemContentConfiguration.overlayView`** carries what the configuration has no property
+  for: a light bottom-up gradient (so the glyph/runtime read over any artwork — this replaces the
+  commented-out `TVUIKitBottomInfoBlurView` for this rail specifically), the glyph, the runtime, the
+  state badge, and the watched scrim. One view per cell, mutated in place; the configuration is
+  rebuilt every state change and would otherwise rebuild the overlay with it.
+- **Status drives the glyph** (`TVUIKitMediaItemStatus`): ready/in-progress/watched → play or
+  checkmark, unavailable/upcoming → **no glyph at all** — nothing to select. A missing episode is
+  signalled by the absent glyph and the caption, not by fading or disabling the tile.
+- `TVUIKitMediaItem.badgeText` is one capability token — 4K, else HDR. `MediaCard.badge` deliberately
+  does **not** feed it: on Home it carries kino.pub's "+10 new episodes" counter, which is noise in a
+  corner chip.
+- Sizing is **measured, then scaled**: `orthogonalLayoutSectionForMediaItems()` cannot be resized — it
+  exposes neither its group nor its item — so `TVUIKitMediaItemMetrics` probes what it lays out at a
+  given width (tile size, gap, vertical padding) with a throwaway collection view and rebuilds an
+  equivalent section at a fixed `TVUIKitMediaItemMetrics.scale` (1.18). The system row reads small in
+  our shelves; the tile keeps Apple's proportions. The rail reports its height through `sizeThatFits`
+  — callers must not pin a `.frame(height:)` on top of it.
+- `TVUIKitTileArtwork` draws flat-tint + SF Symbol artwork for tiles with no photograph (genres /
+  categories, and the panel shown while a still is in flight). Colour is FNV-hashed from the name so
+  a genre keeps its colour across launches — `String.hashValue` is seeded per process.
+
+### TVUIKit gallery
+
+- Rows were cropped because each lockup sat inside a hand-picked SwiftUI `.frame`. A `TVLockupView`
+  keeps laying its content out at its own `contentSize` when the outer control is stretched, so the
+  content ended up in a corner of an oversized box. Every representable now sets `contentSize` and
+  answers `sizeThatFits` from `systemLayoutSizeFitting`; the rows dropped their frames and turned
+  off scroll clipping so the focus lift is not sheared at the row edges.
+- The media-items section is the shipping `TVUIKitMediaItemRail`, one row per episode state (ready /
+  in progress / watched / not on kino.pub / upcoming), plus a genre-tile row on the same component.
+  The earlier A/B variants (tile scale, progress-on-focus, centred play glyph) are gone along with
+  the style knobs they compared — see above. Monogram cells were sized to the 160pt circle alone,
+  which clipped the two labels the system stacks under it.
+
+### Detail page
+
+- **Library sidebar (macOS + tvOS) no longer traps a title's detail page beside itself.**
+  `LibraryShellView`'s `NavigationStack` wrapped only the detail pane, a sibling of the permanent
+  sidebar in an `HStack` — every route pushed through it, including the full-bleed `MediaItemView`,
+  stayed confined to that pane's width forever. Every other tab wraps its whole content in one
+  `NavigationStack`, which is why detail pages cover the full tab there. The stack now wraps sidebar
+  + detail together; section switching is separate state (`LibraryModel.selection`), not a stack
+  push, so it is unaffected.
+- **tvOS hero title gets its own contrast, on top of the existing full-width scrim.** Rivulet's
+  diagonal bottom-leading → top-trailing scrim reads well for them because their hero text is one
+  narrow left-hand column; ours runs the full bottom edge (title + actions on the leading side,
+  synopsis / credits / metadata filling the trailing side), so a pure diagonal would starve the
+  right column of contrast. `titleScrim` adds diagonal weight only over the title block —
+  `bottomScrim` still holds the floor full-width for everything else.
+- tvOS scroll-progress scrub (`washProgress`) actually scrubs now — `MediaItemHeroView.effectiveWash`
+  returned `max(washProgress, 1)` (always 1), so the material veil was a binary flip on
+  `isHeroOnScreen` rather than continuous. Returns `washProgress` directly.
+- **Reverted same-day:** pulling the hero out of the scrolling `VStack` into a fixed `ZStack` layer
+  (meant to stop scroll jitter between Play / Watched / Watchlist). Broke tvOS focus outright on
+  device — stuck on Play, Down/Up dead ends, Menu closed the app instead of popping. Full account in
+  [detail-page-choreography](plans/detail-page-choreography.md).
+- **Root cause of the above, found and fixed same day:** six hero buttons (watchlist, bookmark,
+  watched, trailer, more, plus the non-tvOS plot branch) shared one `@FocusState` equals-value,
+  `MediaItemFocusTarget.heroOther`. Ambiguous — the engine could not resolve which view was actually
+  focused, so focus froze dead on Play (Right and Down both no-ops, on sparse *and*
+  fully-populated titles alike) and Menu popped past the tab's own grid straight to the system
+  Springboard instead of the detail page. One case per button now. Confirmed on-device: Down walks
+  hero → Ratings → Cast & Crew → Information cleanly, Up restores the sharp hero exactly, Menu pops
+  correctly.
+- tvOS shadows removed from cards, badges, and action chrome that render per-item in a scrolling
+  shelf or animate their radius with focus — real, measured cost, not just visual noise:
+  `MediaCardView` (watched/bookmark/editorial glyphs), `HomeBannerCardView`, `PosterStyle`,
+  `MediaActionButtonStyle` (hero Play pill + circle buttons), and `PortraitButtonStyle` (cast/crew
+  circles — this one's radius *animated* on every focus change, the worst of the set). Hero title
+  text shadow removed too, in favor of the `bottomScrim`/`titleScrim` contrast already in place —
+  confirmed synopsis text still reads over a bright backdrop without it.
+- Rating tiles (`RatingTile` / `AggregateRatingTile` / `ViewsRatingTile`) had **zero** tvOS focus
+  feedback — the custom button style only read `isPressed`. First attempt used
+  `.hoverEffect(.highlight)`, which was **wrong and had to be redone the same day**: the tvOS system
+  highlight attaches to the first `Image` in the label, so on an `icon + number + caption` tile it
+  scaled and shadowed the *logo alone* while the tile sat still (and it was the highlight, not the
+  asset, drawing those icon shadows). Now `DetailTileFocusChrome` — `scaleEffect` + `brightness` on
+  the whole label, via a `ButtonStyle` for the real buttons and `@FocusState` for the two focus-stop
+  tiles. That hand-rolled chrome was then **itself replaced the same day by `.buttonStyle(.card)`** —
+  the system card style — after the user pointed at Apple's `DestinationVideo` sample, which applies
+  `#if os(tvOS) .card #else .plain #endif` to every card and writes no focus code, fencing
+  `.hoverEffect()` to iOS/visionOS. All four controls now share `DetailTileStyle.buttonStyle`; the
+  two that were focus stops rather than actions became `Button {}`, which is how that sample makes
+  everything focusable too. **Rule in `focus-and-tvui.md`:** for a focusable container on tvOS reach
+  for `.card` first and write no focus code; `.hoverEffect(.highlight)` is only for controls whose
+  label *is* the image.
+- **`FeatureFlags.fakeSeasonsOnMovies` — temporary DEBUG diagnostic, delete on sight.** Synthesises
+  one season of six unplayable episodes onto titles that have none, to test whether the hero
+  blur/scroll choreography only behaves when a season rail sits under the hero. **It did:** movies
+  with a fabricated rail started blurring like series, which pinned the cause below.
+- **Detail hero wash is section state, not scroll offset.** `washProgress` was `scrollOffset / 600`,
+  and the page only scrolls as far as it must to reveal the next focusable thing — so a tall season
+  rail produced a full wash while a movie's short first section (ratings) produced almost none. The
+  blur was a function of content geometry, and arrived in uneven steps because every focus move
+  scrolled a different distance. It also wrote state on **every scroll frame**, re-running the
+  detail page's body and re-rendering every shelf below it (each `TVUIKitMediaCollection`'s
+  `updateUIViewController` included) — the likely source of the reported scroll lag, and a suspect
+  for the stranded multi-poster focus bug. `washProgress` and `onScrollGeometryChange` are gone:
+  `effectiveWash` is `isHeroOnScreen ? 0 : 1`, `chromeAlpha` is `isHeroOnScreen ? 1 : 0.35`, one
+  animation clock, written only by "focus entered a hero control" / "a section reported focus".
+- Every detail content section that lacked one now declares `.focusSection()` (vote, cast, awards,
+  photos, similar, both person shelves, info columns), so focus travels section-to-section rather
+  than creeping element-by-element. Ratings and `SeasonsRailView` already built their own.
+- Hero `titleScrim` was not missing, it was half-strength: ours shipped `0.5 → 0.18 → clear` where
+  Rivulet's `ScrimGradientView` is `0.92 → 0.55 → clear` (stops `0 / 0.45 / 1`, bottom-leading →
+  top-trailing). Over a bright backdrop that reads as no scrim at all. Matched to the reference
+  values.
+- Tab bar shown at rest on the detail page again (was unconditionally hidden there on tvOS/iOS);
+  iOS/iPad additionally opt out of the system's scroll-driven minimize
+  (`.tabBarMinimizeBehavior(.never)` — unavailable on tvOS/macOS in this SDK, so that half is
+  iOS-only). **Known follow-up bug, not fixed:** returning from the detail page can leave the tab
+  bar area blank instead of it reappearing; full account and a proposed direction (stop treating the
+  bar as chrome that independently hides/shows — Apple's own tvOS apps don't duplicate a bar layer
+  over content the way ours does) are in
+  [detail-page-choreography](plans/detail-page-choreography.md).
+- Fixed one of two writers racing `washProgress` on Up-back-to-hero: `MediaItemHeroView.chromeAlpha`
+  read the raw (possibly stale, scroll-overwritten) value directly, unlike
+  `MediaItemHeroBackdrop.effectiveWash`'s pre-existing `isHeroOnScreen` guard — so the backdrop
+  snapped sharp correctly while the title/button chrome kept re-dimming in step with the still-settling
+  scroll. Same guard added to `chromeAlpha`. Confirmed no navigation regression; the visual smoothness
+  itself needs eyes-on, not a screenshot, to confirm — see
+  [detail-page-choreography](plans/detail-page-choreography.md) phase 4.5.
+
+### Ratings
+
+- **Our combined score is behind `FeatureFlags.combinedRatingEnabled`, currently off** (the value
+  lives in `KinoPubUI.RatingFeature.combinedEnabled` because card chrome reads it inside the
+  package). Off hides the poster plaque, the hero pill, the detail "Rating" tile and the whole
+  card Rating placement / source settings section. IMDb and Kinopoisk show only under their own
+  logos — `MediaScoresView` in card captions and in the hero meta line.
+- `Rating` now averages **weighted by vote count**: 6.0 from 4,867 voters next to 1.0 from 7 is a
+  6.0 title, where the plain mean printed 3.5. A source that reports no count weighs as one vote,
+  so two countless sources still average evenly. Votes on an unrated source never enter the mean.
+- Tier boundaries match their own documentation again: `average` is 6.0–7.0, so 5.9 is `poor`
+  (the switch said `5..<7`, and `testTierBoundaries` had been failing against it).
+- Ratings tiles keep their natural width inside a horizontal scroll, like every other section.
+  Squeezing them into the page width had been wrapping "Кинопоиск" mid-word.
+- A source with voters but no published score (Kinopoisk counts votes long before it prints a
+  number) gets its own tile: an em-dash and "Not enough ratings yet", instead of vanishing.
+
+### One landscape card
+
+- Episodes now draw `MediaCardView` — the same landscape card as Continue Watching and History.
+  `SeasonsRailView`'s private `EpisodeRailCard` / `EpisodeCardButtonStyle` and the season grid's
+  `SeasonItemView` are gone.
+- `MediaCard(episode:in:title:episodeLabel:dateLabel:stillURL:primaryAction:)` in `KinoPubUI` is the
+  single mapping (ids, resume fraction, watched flag, runtime); callers pass only the strings the
+  payload cannot compose. `MediaCard(unavailableEpisodeID:…)` covers schedule-only episodes.
+- Caption never says the same thing twice: a name that is only the episode's own number — "Эпизод 1"
+  against `Episode 1`, in any UI language — counts as no name, and the card falls back to
+  "Episode 1" as the title with the date alone underneath. Named episodes keep
+  name / "Episode 3 · Jul 22, 2026".
+- Air dates carry the **year** (a rail spans seasons, so a bare "8 Jul" says nothing), and inside a
+  week either way they are relative instead — "in 3 days", "7 days ago", "tomorrow".
+- Rail metrics come from `ShelfMetrics.landscape` + `CardAspect.landscape` against the measured
+  rail width, so episode cards sit on the same grid as every other landscape shelf instead of a
+  fixed 480/300pt. Focus is the shelves' `.borderless` lift, not a bespoke plate.
+- The rail keeps `contentMargins` (not `padding`) for its inset: `scrollTo(anchor: .leading)` on a
+  season tab would otherwise park the first episode under the page inset.
+- Play affordance is one per platform, never two: iOS/iPadOS keep the play glyph inside the time
+  chip and draw **no** centre play chrome; tvOS/macOS keep the centre glyph on focus / hover and
+  the chip is bare time. The watched checkmark stays in the chip everywhere.
+
+### tvOS card size beside a sidebar
+
+- Sizing already read the **container** width, not the screen — every shelf and grid measures
+  itself with `onGeometryChange`. What was screen-shaped was the *rule*: `ShelfMetrics.posters`
+  gave TV six columns only from 1600pt up, and anything narrower fell into the handheld table. The
+  Library shell's 420pt tvOS sidebar leaves ~1500pt, which read as "wide tablet" — 8 columns, a
+  **150pt** poster where the full screen draws 290pt.
+- On tvOS the column count now comes from a target card width (`ShelfMetrics.tvCardWidth` 290,
+  `tvLandscapeCardWidth` 352) instead of the width table, so a narrower container gets fewer cards,
+  never smaller ones: 1920 → 6×290 / 5×352 (byte-identical to before), 1500 → 5×268 / 4×340.
+  Landscape stops being "posters minus one column", which overshot once the count got small.
+- Other platforms keep the width table unchanged — there a 1500pt canvas really is a wide window
+  at arm's length.
+
+### tvOS context menus on TVUIKit cards
+
+- Long-press-Select opens the card menu on the `TVUIKitPosterCell` / `TVUIKitContinueWatchingCell`
+  path again (Home rails, catalog grids, search results — everything behind
+  `FeatureFlags.tvUIKitPosters`). It had been silently dead: the `UIContextMenuInteraction` sat on
+  each cell's `contentView`, and tvOS delivers remote presses to the **focused** view and up its
+  responder chain, so an interaction on a descendant of the focus item never sees the gesture.
+- The menu now comes from `TVUIKitMediaCollectionController`'s
+  `collectionView(_:contextMenuConfigurationForItemsAt:point:)`, which is the hook UIKit wires to
+  the focus engine — and the only one that exists on tvOS: the single-indexPath variant is
+  `API_UNAVAILABLE(tvos)`, the `…ForItemsAtIndexPaths:` one is tvOS 17+. Entries still come from the
+  same `contextMenuProvider` and `TVUIKitContextMenuBuilder`, so SwiftUI and TVUIKit cards show the
+  same items.
+- Dismissing the menu resets the visible poster cells' focus appearance, the same
+  `resetStaleFocusAppearance()` workaround focus changes already need — `TVPosterView` can otherwise
+  stay stranded at its enlarged size after the preview hands the cell back.
+
+### iPad tab bar
+
+- Shaped like tvOS: Search glyph first, Settings **gear** last (icon-only, title kept as the
+  accessibility label), words in between. Search no longer uses `Tab(role: .search)` — that role
+  pinned it trailing next to Settings. iPhone keeps the role (bottom-bar HIG) and gets `gear` too.
+- Subscription-days badge is off the Settings tab (both iOS layouts); `subscriptionDaysBadge` is
+  gone with it. Days left still show inside Profile.
+
+### Detail — people shelves
+
+- "More from \<director\>" / "More with \<actor\>" rails under Similar on the item page. First
+  credited name only, `LibraryFilter.person` + Kinopoisk sort, skeleton while loading, hidden when
+  empty. Title taps push `PersonItemsView`. Actor queries send `cast=` (live API), not the docs'
+  `actor`.
+
+### Detail hero
+
+- Two columns on tvOS/macOS instead of three: **title + actions** (fixed width) | **synopsis,
+  credits, facts** (fills the rest). The "starring" column is gone; its lines moved under the plot.
+- Column order inside the written column is synopsis → genres · country / cast / director →
+  year · runtime + score + chips. Facts sit at the foot, not the head.
+- Actions are a vertical stack: Play pill, then one row of identical circles. `plus` follows the
+  series (`togglewatchlist`), `bookmark` opens folders, `checkmark` marks watched, `film` plays the
+  trailer. The first two used to be the same folder menu; `isInWatchlist` was never seeded from the
+  API, so the follow control always opened as "not following" and the first tap unfollowed.
+- Watched checkmark shows for films and series whenever anything is unwatched (was: only mid-title),
+  and hides once everything is watched. A series asks episode or season;
+  `MediaItemModel.toggleWatched(season:)` uses `/v1/watching/toggle` with a season and no video
+  number, then refetches — the bulk response carries no per-episode flags.
+- Aggregate `RatingBadgeView` (the poster badge) replaces the split IMDb/Kinopoisk scores.
+- Age-rating chip is **opt-in** (`MediaItemDisplayPreferences.showAgeRatingBadge`, Settings →
+  Details → Metadata). Still always listed in the information table.
+- Overflow moved from a hero circle to the navigation toolbar on iOS/macOS; tvOS keeps the circle.
+- No navigation bar on the item page (iOS/macOS): hidden toolbar background, empty title.
+- Ambient trailer is off on iOS pending a phone hero that gives the picture room.
+- macOS `TrailerLayerHostView` now uses `makeBackingLayer()` so the `AVPlayerLayer` *is* the backing
+  layer. It was a sublayer under a `layer` assigned after `wantsLayer`, which left the view
+  host-backed: `layout()` did not reliably fire and aspect-fill rendered at a stale frame size.
+
+### Typography
+
+- `TypeScale.detailBody` (`.body`) is the single running-text size on the item page — hero metadata,
+  synopsis, credit lines, rating vote counts, and every information-table row. They were four
+  hand-picked sizes between 12 and 15pt. Rule recorded in
+  [apple-native-design](../../AGENTS.md): always a Dynamic Type text style,
+  and when unifying sizes, unify **up**.
+
+### Documentation
+
+- Rebuilt agent constitution ([AGENTS.md](../../AGENTS.md)), Cursor rules, policies, feature-stage docs, and
+  English Apple-platform knowledge base.
+- README reduced to public overview + eight macro stages; minutiae moved to feature docs.
+- July 2026 research and notes export archived under [`docs/archive/`](./); duplicate
+  `research/en` + `research/ru` trees removed.
+- Continuity policy replaces the old absolute “no skeletons” rule: stale-first rendering first;
+  exact-layout skeletons only on true cold loads.
+
+## 2026-08 — Native UI remediation (historical)
+
+Agent-relevant facts from the remediation pass (verify in code before assuming still true):
+
+- Home: contained 16:9 banner shelf; Netflix `showsFeaturedPreview` path deleted.
+- Blur: private `CAFilter` `variableBlur` over static art; Metal progressive blur removed; no blur
+  over video on tvOS/macOS.
+- Hero CTAs: white Play pill + translucent secondaries (not Liquid Glass on hero).
+- Navigation: unified `Route` + `RouteDestination`; zoom transitions on iOS/tvOS.
+- Detail: single vertical `ScrollView` (offset slideshow removed).
+- Playback: app-scoped `PlaybackSession` (one `PlayerManager` at a time).
+- Shell: shared `.sidebarAdaptable` `TabView`; macOS profile via `tabViewSidebarBottomBar`.
+- Caching: `ContentStore` list-row cache for Home/Library summaries shipped; item-facts TTL and
+  paginated grid cache still open ([ROADMAP](../../ROADMAP.md#1--foundation-and-ui-stabilization)).
+
+## Earlier
+
+See git history and dated plans under [`docs/archive/plans/`](plans/) /
+[`docs/archive/plans/`](plans/) for pre-remediation modernization work.

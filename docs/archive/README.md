@@ -10,6 +10,7 @@ least one describes an architecture that was voided outright.
 
 | Path | Contents |
 | --- | --- |
+| [changelog-history.md](changelog-history.md) | Dated CHANGELOG entries moved out of [CHANGELOG.md](../../CHANGELOG.md) — do **not** open for routine work |
 | [plans/](plans/) | Dated implementation plans, 2026-07 → 2026-08 |
 | [research-2026-07/](research-2026-07/) | Russian research snapshot dated 2026-07-25 |
 | [kinoapi-v1.3-ru/](kinoapi-v1.3-ru/) | Russian kino.pub API v1.3 excerpts — prefer [kinoapi.com](https://kinoapi.com), and pin real JSON with decode tests when shapes matter |

@@ -53,9 +53,11 @@ were unreadable (Sasha, 2026-10-16).
 implementation notes, no ticket numbers, no "fixed a crash in X". A new bullet goes in a
 **new file** under `entries/` (see Source); within that file, newest text first.
 
-The implementation log stays in [CHANGELOG.md](../../CHANGELOG.md). TestFlight
-"What to Test" is the Russian bullets for the current marketing version (fragments
-first, then the legacy archive).
+The implementation log stays in [CHANGELOG.md](../../CHANGELOG.md) (short Unreleased
+only; dated history is [docs/archive/changelog-history.md](../archive/changelog-history.md)
+— do not open it for routine What's New work). TestFlight "What to Test" is the
+Russian bullets for the current marketing version (fragments first, then the legacy
+archive).
 
 ## Source
 

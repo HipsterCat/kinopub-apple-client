@@ -56,6 +56,7 @@ semantic component is fine; two components for one idea on one platform is a def
 | Measuring scroll / hitch / artwork | [docs/engineering/performance.md](docs/engineering/performance.md) |
 | TestFlight pipeline | [docs/testflight.md](docs/testflight.md) |
 | Community fork | [docs/community-fork.md](docs/community-fork.md) |
+| Shipped facts (append short Unreleased bullets only) | [CHANGELOG.md](CHANGELOG.md) — dated history is [docs/archive/changelog-history.md](docs/archive/changelog-history.md); do **not** open it for routine work |
 | Research and history — evidence, never law | [docs/research/](docs/research/README.md), [docs/archive/](docs/archive/) |
 
 ## Authority
@@ -63,7 +64,10 @@ semantic component is fine; two components for one idea on one platform is a def
 1. Sasha's explicit decision in the conversation.
 2. [CURRENT.md](CURRENT.md) on scope; this file on how things are built.
 3. [docs/product/](docs/product/) — accepted behavior.
-4. `docs/research/`, `docs/archive/`, CHANGELOG — evidence. **Never automatic requirements.**
+4. `docs/research/`, `docs/archive/`, and the slim [CHANGELOG.md](CHANGELOG.md) Unreleased
+   section — evidence. **Never automatic requirements.** Do not open
+   `docs/archive/changelog-history.md` or `Resources/whats-new.json` unless you are chasing a
+   specific past fact; never paste their contents into AGENTS, skills, or What's New entries.
 
 If sources conflict, stop only the disputed part and ask. Do not invent blockers, do not close open
 design questions with "Apple defaults", and do not rewrite docs to rationalize an implementation.
@@ -272,7 +276,7 @@ Deferred verification is allowed; silent "everything landed" claims are not.
 | Rows / per-item library | `KinoPubAppleClient/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
 | Network log (the only Pulse import) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
 | Routes / player / API | `KinoPubAppleClient/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |
-| In-app What's New | `KinoPubAppleClient/Resources/WhatsNew/entries/` (new); `Resources/whats-new.json` (legacy archive) |
+| In-app What's New | `KinoPubAppleClient/Resources/WhatsNew/entries/` only — never edit or re-read the frozen `Resources/whats-new.json` for routine work |
 
 ## Working agreement
 
@@ -292,11 +296,13 @@ Deferred verification is allowed; silent "everything landed" claims are not.
    research findings → an Asana subtask of the feature's task (mark it done with the commit); a
    decided product rule → `docs/product/`; an external source → `docs/providers/`; a durable
    engineering rule or trap → this file (short) or `docs/engineering/` (long); notable shipped
-   facts → `CHANGELOG.md`. Never a checklist in a `.md` file. **Keep this file short** — a new
-   rule replaces or shortens an old one, history goes to `docs/engineering/`.
+   facts → one short bullet under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) (append only —
+   do not re-read or paste the archive). Never a checklist in a `.md` file. **Keep this file
+   short** — a new rule replaces or shortens an old one; never dump changelog or What's New
+   history here.
 8. **If a viewer can see the change**, add **one new file**
    `KinoPubAppleClient/Resources/WhatsNew/entries/YYYY-MM-DD-short-slug.json` with ru + en
-   bullets (in-app What's New and TestFlight notes). Do **not** edit the legacy
+   bullets (in-app What's New and TestFlight notes). Do **not** edit or open the legacy
    `Resources/whats-new.json`. See `entries/README.md` and [docs/product/whats-new.md](docs/product/whats-new.md).
 9. One reviewable slice at a time; build every platform before calling it done.
 
