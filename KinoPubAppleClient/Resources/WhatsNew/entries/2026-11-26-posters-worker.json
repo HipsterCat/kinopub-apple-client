@@ -1,0 +1,12 @@
+{
+  "version": "1.0.1",
+  "date": "2026-11-26",
+  "ru": [
+    "Постеры и широкие карточки грузятся через наш сервер, пока CDN Кинопаба лежит: сначала TMDB, затем другие источники, без серых заглушек Кинопоиска; на Mac — по размеру карточки.",
+    "«Сменить изображения»: появилась вкладка «Постер»; пункт есть и в меню карточек на Главной."
+  ],
+  "en": [
+    "Posters and wide cards now load through our server while Kinopub's CDN is down: TMDB first, then other sources, with no grey Kinopoisk placeholders; on Mac they are sized to the card.",
+    "Change Images has a Poster tab, and Home card menus offer it too."
+  ]
+}

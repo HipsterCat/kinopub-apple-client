@@ -7,18 +7,27 @@ import XCTest
 @testable import KinoPub
 
 final class AppChangelogTests: XCTestCase {
-  func testBundledCatalogHasCurrentMarketingVersionWithBothLanguages() throws {
+  /// The bundled catalog loads, and every file under `WhatsNew/entries` decodes with a
+  /// version and both languages. A version bump needs no notes edit: "new" is per
+  /// bullet, and each PR adds its own file, so no shared entry to conflict on.
+  func testBundledCatalogAndEveryFragmentHaveBothLanguages() throws {
     let catalog = AppChangelog.load()
-    XCTAssertFalse(catalog.entries.isEmpty, "legacy whats-new.json must ship at least one version")
-    let current = Bundle.main.appVersionLong
-    let entry = try XCTUnwrap(
-      catalog.entry(for: current),
-      "catalog needs an entry for marketing version \(current)"
-    )
-    XCTAssertFalse(entry.ru.isEmpty, "ru bullets are required")
-    XCTAssertFalse(entry.en.isEmpty, "en bullets are required")
-    XCTAssertEqual(entry.bullets(languageCode: "ru"), entry.ru)
-    XCTAssertEqual(entry.bullets(languageCode: "en"), entry.en)
+    XCTAssertFalse(catalog.entries.isEmpty, "the catalog must ship at least one version")
+    for entry in catalog.entries {
+      XCTAssertFalse(entry.ru.isEmpty, "ru bullets are required for \(entry.version)")
+      XCTAssertFalse(entry.en.isEmpty, "en bullets are required for \(entry.version)")
+    }
+    let urls = Bundle.main.urls(forResourcesWithExtension: "json",
+                                subdirectory: AppChangelog.entriesSubdirectory) ?? []
+    XCTAssertFalse(urls.isEmpty, "WhatsNew/entries must be bundled as a folder reference")
+    for url in urls {
+      let name = url.lastPathComponent
+      let fragment = try AppChangelog.decodeFragment(
+        Data(contentsOf: url), fallbackID: url.deletingPathExtension().lastPathComponent)
+      XCTAssertFalse(fragment.ru.isEmpty, "\(name): ru bullets are required")
+      XCTAssertFalse(fragment.en.isEmpty, "\(name): en bullets are required")
+      XCTAssertNotNil(fragment.date, "\(name): date sorts the list")
+    }
   }
 
   func testFreshInstallMarksEverythingSeenAndDoesNotPrompt() throws {
