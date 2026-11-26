@@ -60,12 +60,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   var window: NSWindow?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    // No Safari-style tabs. AppKit merges new windows into the frontmost window's tab
-    // group by default, which swallowed the player: it opened as a tab of the library
-    // window, wearing that window's back button and title bar, and ⌘W then closed the
-    // whole app window instead of the film. A player is not a document you keep several
-    // of in one frame.
-    NSWindow.allowsAutomaticWindowTabbing = false
+    // Finder-style tabs on the library WindowGroup (KP-105). The player, Settings,
+    // About and Activity scenes set `tabbingMode = .disallowed` so they never join a
+    // library tab group — that merge used to swallow the player into the library
+    // window (back button + title bar of the wrong scene; ⌘W closed everything).
+    NSWindow.allowsAutomaticWindowTabbing = true
   }
 
   /// Recently played titles above the Dock menu's window list, as IINA has them.

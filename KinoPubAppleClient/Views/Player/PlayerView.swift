@@ -25,9 +25,9 @@ struct PlayerView: View {
   /// follows to the next episode instead of holding the finished one.
   @ObservedObject private var playbackSession = PlaybackSession.shared
 #endif
-#if os(tvOS) || os(iOS)
+  // All platforms: dismiss / next-episode restore onto the library stack. On macOS
+  // this is the window that pressed Play (KP-105), injected by `PlayerWindowContent`.
   @Environment(NavigationState.self) private var navigationState
-#endif
   @Environment(\.dismiss) private var dismiss
   @Environment(ErrorHandler.self) private var errorHandler
   @State private var showsFailureAlert = false
@@ -252,7 +252,8 @@ struct PlayerView: View {
           case .dismiss:
             closeAfterFailure()
           case .playNext(let episode):
-            PlaybackWindowState.shared.show(item: episode, mode: .media)
+            PlaybackWindowState.shared.show(item: episode, mode: .media,
+                                           from: navigationState)
           }
         }
         await playerManager.preparePlayback()
@@ -1084,6 +1085,7 @@ struct PlayerLink<Label: View>: View {
 
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
+  @Environment(NavigationState.self) private var navigationState
 #endif
 
   init(route: any Hashable,
@@ -1099,7 +1101,7 @@ struct PlayerLink<Label: View>: View {
   var body: some View {
 #if os(macOS)
     Button {
-      PlaybackWindowState.shared.show(item: item, mode: mode)
+      PlaybackWindowState.shared.show(item: item, mode: mode, from: navigationState)
       openWindow(id: PlaybackWindowState.windowID)
     } label: {
       label
@@ -1142,13 +1144,18 @@ final class PlaybackWindowState: ObservableObject {
   /// updates» on every swap in the window (2026-11-24).
   @Published private(set) var manager: PlayerManager?
 
+  /// Library navigation that pressed Play — so dismiss / next-episode restore land in
+  /// that window's stack when several Finder-style library tabs are open (KP-105).
+  /// Not `@Published`: `PlayerWindowContent` re-reads it when `manager` / `request` change.
+  weak var sourceNavigation: NavigationState?
+
   /// SwiftUI's window opener, for callers that are not views — the Dock menu, Open Recent
   /// after its fetch. Kept by the main window and the player window as they appear.
   var opener: OpenWindowAction?
 
   /// Put a film in the window and bring the window up.
-  func open(item: any PlayableItem, mode: WatchMode) {
-    show(item: item, mode: mode)
+  func open(item: any PlayableItem, mode: WatchMode, from navigation: NavigationState? = nil) {
+    show(item: item, mode: mode, from: navigation)
     guard let opener else {
       Logger.app.error("Player window: no window opener yet")
       return
@@ -1160,7 +1167,12 @@ final class PlaybackWindowState: ObservableObject {
   /// forward, not a new screen:** the request identifies the player's view (see
   /// `PlayerWindowContent`), so replacing it would tear the screen down and rebuild it on
   /// top of a stream that is already running.
-  func show(item: any PlayableItem, mode: WatchMode) {
+  func show(item: any PlayableItem, mode: WatchMode, from navigation: NavigationState? = nil) {
+    if let navigation {
+      sourceNavigation = navigation
+    } else if sourceNavigation == nil {
+      sourceNavigation = ShellRemount.shared.navigation
+    }
     RecentPlaybacks.shared.record(item, mode: mode)
     if manager != nil, let request, request.item.id == item.id, request.mode == mode { return }
     let context = AppContext.shared
@@ -1183,9 +1195,12 @@ struct PlayerWindowContent: View {
   @ObservedObject private var playback = PlaybackWindowState.shared
   @Environment(ErrorHandler.self) private var errorHandler
   @Environment(\.openWindow) private var openWindow
+  /// App-level fallback when Open Recent / Dock opened the film with no library origin.
+  var fallbackNavigation: NavigationState
 
   var body: some View {
     content
+      .environment(playback.sourceNavigation ?? fallbackNavigation)
       .onAppear { playback.opener = openWindow }
   }
 

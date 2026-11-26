@@ -23,6 +23,10 @@ enum WindowSize {
 @main
 struct KinoPubAppleClientApp: App {
   
+  /// Shared on iOS / tvOS (one scene). On macOS each library window owns its own
+  /// `NavigationState` via `MacLibraryNavigationHost` so Finder-style tabs stay
+  /// independent; this instance is only a fallback for the player window when no
+  /// library origin was recorded.
   @State var navigationState = NavigationState()
   @State private var errorHandler = ErrorHandler()
   @State private var appLanguage = AppLanguage.shared
@@ -33,6 +37,9 @@ struct KinoPubAppleClientApp: App {
   
 #if os(macOS)
   @State private var windowSettings = WindowSettings()
+  /// Finder / Photos style: icon + title in the unified toolbar; user can change
+  /// it from View ›. Bound so the choice sticks across launches (KP-105).
+  @AppStorage("ToolbarLabelStyle") private var toolbarLabelStyle: ToolbarLabelStyle = .titleAndIcon
 #endif
   
 #if os(iOS) || os(tvOS)
@@ -75,84 +82,13 @@ struct KinoPubAppleClientApp: App {
 
   var body: some Scene {
     WindowGroup {
-      RootView()
-        .capturesPageColorScheme()
-#if !os(tvOS)
-        // Monochrome accent for now (Sasha, 2026-10-30): black in light, white in dark —
-        // the selected tab, list glyphs, links — instead of the system blue.
-        .tint(.primary)
-#endif
-        .environment(\.appContext, AppContext.shared)
-        // Hover pictures on cards come from the worker the title page uses.
-        .environment(\.titleImageRoute, AppContext.shared.metadataService.images)
-        .environment(navigationState)
-        .environmentObject(authState)
-        .environment(errorHandler)
-        .environmentObject(networkMonitor)
 #if os(macOS)
-        .environment(windowSettings)
-#endif
-        .kinopubLaunchColorScheme()
-        .kinopubAppearancePreference()
-        .kinopubAppLanguage(appLanguage)
-        .onAppear { ShellRemount.shared.navigation = navigationState }
-#if os(tvOS)
-        // Top Shelf items open here (`TopShelfLink`).
-        .onOpenURL { url in
-          guard let link = TopShelfLink(url: url) else { return }
-          TopShelfRouter.open(link, navigation: navigationState)
-        }
-#endif
-#if DEBUG
-        // `-KINOPUBOpenItem <id>`: open on a title's page, for screenshots of a live
-        // detail page without walking there.
-        .task(id: authState.userState) {
-          guard authState.userState == .authorized,
-                let id = Int(UserDefaults.standard.string(forKey: "KINOPUBOpenItem") ?? "")
-          else { return }
-          navigationState.selectBrowseTab(.home)
-          navigationState.mainRoutes = [.detailsById(id)]
-        }
-        // `-KINOPUBPlayEpisode <item>:<season>:<episode>`: straight into the player on one
-        // episode, the way a Continue Watching card resolves it — for checking what the
-        // player decides (the `tracks ·` log lines) without walking there.
-        .task(id: authState.userState) {
-          guard authState.userState == .authorized,
-                let raw = UserDefaults.standard.string(forKey: "KINOPUBPlayEpisode") else { return }
-          let parts = raw.split(separator: ":").compactMap { Int($0) }
-          guard parts.count == 3 else { return }
-          do {
-            var item = try await AppContext.shared.contentService.fetchDetails(for: "\(parts[0])").item
-            item.stampSeasons()
-            AppContext.shared.localProgressStore.cacheItem(item)
-            guard let season = item.seasons?.first(where: { $0.number == parts[1] }),
-                  let episode = season.episodes.first(where: { $0.number == parts[2] }) else { return }
-            let stamped = episode.stamped(season: season.number, mediaId: item.id,
-                                          seriesTitle: episode.seriesTitle)
-            navigationState.push(.player(stamped, token: UUID()))
-          } catch {
-            Logger.app.error("KINOPUBPlayEpisode: \(error)")
-          }
-        }
-#endif
-        // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
-        // the kino.pub Devices list isn't "unknown / unknown" and streams match what
-        // AVPlayer can open. A launch that only revived a Keychain token sends nothing
-        // unless the profile itself changed (see DeviceProfileRegistry).
-        .task(id: authState.userState) {
-          guard authState.userState == .authorized else { return }
-          await AppContext.shared.deviceService.syncDeviceProfile(
-            activated: authState.didActivateDevice
-          )
-        }
-#if os(iOS)
-        .task {
-          await AppContext.shared.downloadNotificationManager.requestPermission()
-        }
-#endif
-#if os(macOS)
-        .frame(minWidth: WindowSize.macos.width, minHeight: WindowSize.macos.height)
-        .listedInWindowMenu()
+      // One NavigationState per library window / tab so Finder-style tabs stay independent.
+      MacLibraryNavigationHost { navigation in
+        libraryRoot(navigation: navigation)
+      }
+#else
+      libraryRoot(navigation: navigationState)
 #endif
     }
 #if os(macOS)
@@ -168,16 +104,18 @@ struct KinoPubAppleClientApp: App {
     // Unified toolbar with the page's title in it, as the TV app's: large beside Back,
     // inline once the page scrolls (`toolbarTitleDisplayMode(.inlineLarge)` per page).
     .windowToolbarStyle(.unified(showsTitle: true))
-    // No "New Window": a second library window would duplicate NavigationState,
-    // AuthState, etc. per-scene in ways the app doesn't support. The File menu holds
-    // Open Recent instead — the titles played last, as IINA lists its files.
+    // Icon + title by default (Filters, Sort, …), as Finder; View › can switch to
+    // icon-only. Listing Labels always carry a title so this style has something to show.
+    .windowToolbarLabelStyle($toolbarLabelStyle)
+    // New Window / new tab are system-owned again (each window has its own
+    // NavigationState). Open Recent stays under File, as IINA lists its files.
     .commands {
       AboutCommands()
       SettingsCommands()
 #if DEBUG
       UILabCommands()
 #endif
-      CommandGroup(replacing: .newItem) { OpenRecentMenu() }
+      CommandGroup(after: .newItem) { OpenRecentMenu() }
       // Keep for when `.sidebarAdaptable` returns — hide View → Hide Sidebar.
       // Harmless with classic `.tabBarOnly` (no sidebar chrome).
       CommandGroup(replacing: .sidebar) { }
@@ -192,10 +130,9 @@ struct KinoPubAppleClientApp: App {
     // where the film's name and the close button come from — a pushed player screen had
     // neither, and no way out once playback began.
     Window("Player", id: PlaybackWindowState.windowID) {
-      PlayerWindowContent()
-        .listedInWindowMenu()
+      PlayerWindowContent(fallbackNavigation: navigationState)
+        .listedInWindowMenu(disallowTabbing: true)
         .environment(\.appContext, AppContext.shared)
-        .environment(navigationState)
         .environmentObject(authState)
         .environment(errorHandler)
         .environmentObject(networkMonitor)
@@ -223,7 +160,7 @@ struct KinoPubAppleClientApp: App {
     // System Settings–style sidebar + toolbar. Opened via App menu / ⌘, / profile button.
     Window("Settings", id: SettingsWindow.id) {
       SettingsView()
-        .listedInWindowMenu()
+        .listedInWindowMenu(disallowTabbing: true)
         .environment(\.appContext, AppContext.shared)
         .environment(windowSettings)
         .environmentObject(authState)
@@ -238,6 +175,7 @@ struct KinoPubAppleClientApp: App {
     // pause and Simultaneous Downloads. The scene lists itself in the Window menu.
     Window("Activity", id: ActivityWindow.id) {
       DownloadsActivityView(center: AppContext.shared.downloadsCenter)
+        .listedInWindowMenu(disallowTabbing: true)
     }
     .keyboardShortcut("l", modifiers: [.command, .option])
     .defaultSize(width: 420, height: 420)
@@ -245,6 +183,7 @@ struct KinoPubAppleClientApp: App {
 
     Window("About Kinopub", id: AboutWindow.id) {
       AboutView()
+        .listedInWindowMenu(disallowTabbing: true)
 //        // .preferredColorScheme(.dark)
     }
     .windowResizability(.contentSize)
@@ -265,9 +204,104 @@ struct KinoPubAppleClientApp: App {
 #endif
 #endif
   }
+
+  /// Shared chrome around `RootView` for every library window. `navigation` is
+  /// per-window on macOS and the single app-owned instance elsewhere.
+  @ViewBuilder
+  private func libraryRoot(navigation: NavigationState) -> some View {
+    RootView()
+      .capturesPageColorScheme()
+#if !os(tvOS)
+      // Monochrome accent for now (Sasha, 2026-10-30): black in light, white in dark —
+      // the selected tab, list glyphs, links — instead of the system blue.
+      .tint(.primary)
+#endif
+      .environment(\.appContext, AppContext.shared)
+      // Hover pictures on cards come from the worker the title page uses.
+      .environment(\.titleImageRoute, AppContext.shared.metadataService.images)
+      .environment(navigation)
+      .environmentObject(authState)
+      .environment(errorHandler)
+      .environmentObject(networkMonitor)
+#if os(macOS)
+      .environment(windowSettings)
+#endif
+      .kinopubLaunchColorScheme()
+      .kinopubAppearancePreference()
+      .kinopubAppLanguage(appLanguage)
+      .onAppear { ShellRemount.shared.navigation = navigation }
+#if os(tvOS)
+      // Top Shelf items open here (`TopShelfLink`).
+      .onOpenURL { url in
+        guard let link = TopShelfLink(url: url) else { return }
+        TopShelfRouter.open(link, navigation: navigation)
+      }
+#endif
+#if DEBUG
+      // `-KINOPUBOpenItem <id>`: open on a title's page, for screenshots of a live
+      // detail page without walking there.
+      .task(id: authState.userState) {
+        guard authState.userState == .authorized,
+              let id = Int(UserDefaults.standard.string(forKey: "KINOPUBOpenItem") ?? "")
+        else { return }
+        navigation.selectBrowseTab(.home)
+        navigation.mainRoutes = [.detailsById(id)]
+      }
+      // `-KINOPUBPlayEpisode <item>:<season>:<episode>`: straight into the player on one
+      // episode, the way a Continue Watching card resolves it — for checking what the
+      // player decides (the `tracks ·` log lines) without walking there.
+      .task(id: authState.userState) {
+        guard authState.userState == .authorized,
+              let raw = UserDefaults.standard.string(forKey: "KINOPUBPlayEpisode") else { return }
+        let parts = raw.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 3 else { return }
+        do {
+          var item = try await AppContext.shared.contentService.fetchDetails(for: "\(parts[0])").item
+          item.stampSeasons()
+          AppContext.shared.localProgressStore.cacheItem(item)
+          guard let season = item.seasons?.first(where: { $0.number == parts[1] }),
+                let episode = season.episodes.first(where: { $0.number == parts[2] }) else { return }
+          let stamped = episode.stamped(season: season.number, mediaId: item.id,
+                                        seriesTitle: episode.seriesTitle)
+          navigation.push(.player(stamped, token: UUID()))
+        } catch {
+          Logger.app.error("KINOPUBPlayEpisode: \(error)")
+        }
+      }
+#endif
+      // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
+      // the kino.pub Devices list isn't "unknown / unknown" and streams match what
+      // AVPlayer can open. A launch that only revived a Keychain token sends nothing
+      // unless the profile itself changed (see DeviceProfileRegistry).
+      .task(id: authState.userState) {
+        guard authState.userState == .authorized else { return }
+        await AppContext.shared.deviceService.syncDeviceProfile(
+          activated: authState.didActivateDevice
+        )
+      }
+#if os(iOS)
+      .task {
+        await AppContext.shared.downloadNotificationManager.requestPermission()
+      }
+#endif
+#if os(macOS)
+      .frame(minWidth: WindowSize.macos.width, minHeight: WindowSize.macos.height)
+      .listedInWindowMenu()
+#endif
+  }
 }
 
 #if os(macOS)
+/// Owns one `NavigationState` per library `WindowGroup` instance (window or tab).
+private struct MacLibraryNavigationHost<Content: View>: View {
+  @State private var navigationState = NavigationState()
+  @ViewBuilder var content: (NavigationState) -> Content
+
+  var body: some View {
+    content(navigationState)
+  }
+}
+
 enum SettingsWindow {
   static let id = "settings"
 }

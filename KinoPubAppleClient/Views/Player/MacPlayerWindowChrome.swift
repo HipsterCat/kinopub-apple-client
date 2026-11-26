@@ -163,6 +163,9 @@ final class MacPlayerWindowChrome: NSObject, NSGestureRecognizerDelegate {
     if window.appearance?.name != .darkAqua { window.appearance = Self.dark }
     if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
     if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
+    // Never a tab of the library window — automatic tabbing is on for Finder-style
+    // library tabs (KP-105); a film is its own frame, not a document tab.
+    if window.tabbingMode != .disallowed { window.tabbingMode = .disallowed }
     // The green button is this window's full screen, not a «+» zoom.
     var behavior = window.collectionBehavior
     // SwiftUI opens this scene as `.auxiliary | .fullScreenAuxiliary` (logged on macOS 27.2,
@@ -324,8 +327,15 @@ import SwiftUI
 /// mark on the active one. `.commandsRemoved()` on a `Window` scene takes the window out of
 /// that list along with its menu item; the player and Settings windows are windows of
 /// their own and belong in it (Sasha, 2026-11-23).
+///
+/// `disallowTabbing` keeps utility / player windows out of the library's Finder-style
+/// tab group (KP-105).
 private struct WindowMenuListing: NSViewRepresentable {
+  var disallowTabbing: Bool
+
   final class Probe: NSView {
+    var disallowTabbing = false
+
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
       list()
@@ -341,6 +351,9 @@ private struct WindowMenuListing: NSViewRepresentable {
       behavior.remove([.auxiliary, .transient])
       behavior.insert([.managed, .participatesInCycle])
       if behavior != window.collectionBehavior { window.collectionBehavior = behavior }
+      if disallowTabbing, window.tabbingMode != .disallowed {
+        window.tabbingMode = .disallowed
+      }
       // The library window's title lives in its toolbar, so the window's own is empty —
       // and a window with no title has no line in the list. The app's name stands in.
       let title = window.title.isEmpty
@@ -353,18 +366,21 @@ private struct WindowMenuListing: NSViewRepresentable {
   func makeNSView(context: Context) -> Probe {
     let view = Probe()
     view.isHidden = true
+    view.disallowTabbing = disallowTabbing
     return view
   }
 
   func updateNSView(_ nsView: Probe, context: Context) {
+    nsView.disallowTabbing = disallowTabbing
     nsView.list()
   }
 }
 
 extension View {
-  /// See `WindowMenuListing`.
-  func listedInWindowMenu() -> some View {
-    background(WindowMenuListing())
+  /// See `WindowMenuListing`. Library windows keep default tabbing; pass
+  /// `disallowTabbing: true` for player / Settings / About / Activity.
+  func listedInWindowMenu(disallowTabbing: Bool = false) -> some View {
+    background(WindowMenuListing(disallowTabbing: disallowTabbing))
   }
 }
 #endif

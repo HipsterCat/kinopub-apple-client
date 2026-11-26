@@ -355,15 +355,15 @@ final class NavigationState {
 #if os(macOS)
     switch route {
     case .player(let item, _):
-      PlaybackWindowState.shared.show(item: item, mode: .media)
+      PlaybackWindowState.shared.show(item: item, mode: .media, from: self)
       playerWindowRequestID = UUID()
       return
     case .trailerPlayer(let item, _):
-      PlaybackWindowState.shared.show(item: item, mode: .trailer)
+      PlaybackWindowState.shared.show(item: item, mode: .trailer, from: self)
       playerWindowRequestID = UUID()
       return
     case .livePlayer(let channel, _):
-      PlaybackWindowState.shared.show(item: channel, mode: .live)
+      PlaybackWindowState.shared.show(item: channel, mode: .live, from: self)
       playerWindowRequestID = UUID()
       return
     default:
