@@ -98,7 +98,8 @@ public enum CoverArtwork {
     guard let landscape = card.landscapeImageURL, landscape.contains("/item/wide/"),
           let worker = worker.withLock({ $0 }), card.itemID > 0 else { return nil }
     let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
-    return route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, width: worker.widePixelWidth,
+    return route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
+                          width: worker.widePixelWidth,
                           kinopubWide: landscape)?.absoluteString
   }
 

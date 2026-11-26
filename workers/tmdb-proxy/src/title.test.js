@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { ensureKinopoiskId, handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
+import { ARTWORK_RECHECK_MS, ARTWORK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -1130,6 +1130,86 @@ test("stamped Russian poster: TMDB, then tvoe, then Kinopoisk", async () => {
     fetched.length = 0;
     await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), noTmdb, ctxSpy());
     assert.ok(fetched[0].includes("static.cdn.tvoe.live"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("a missing Russian cover or poster is rechecked after a day, every document after a week", () => {
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  const at = (ms) => new Date(now - ms).toISOString();
+  const enOnly = (built) => ({
+    built_at: built,
+    artwork: {
+      poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }],
+      backdrop: [{ source: "tmdb", url: TMDB_TITLED, lang: "en", width: 1920, height: 1080 }],
+    },
+  });
+  assert.equal(artworkRecheckDue(enOnly(at(60_000)), "cover", "ru", now), false);
+  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "cover", "ru", now), true);
+  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "poster", "ru", now), true);
+  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_RECHECK_MS)), "poster", "en", now), false);
+  assert.equal(artworkRecheckDue(enOnly(at(ARTWORK_STALE_MS)), "poster", "en", now), true);
+  assert.equal(artworkRecheckDue({ ...enOnly(at(ARTWORK_STALE_MS)), pending: true }, "poster", "en", now), false);
+});
+
+test("a due recheck with a fallback on hand serves it and refreshes behind the response", async () => {
+  const ctx = ctxSpy();
+  const env = kvEnv({
+    "title:kinopub:82853": {
+      built_at: new Date(Date.now() - ARTWORK_STALE_MS - 1000).toISOString(),
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" }] },
+    },
+  });
+  const response = await handleImage(imageRequest("poster", { id: "82853", query: "lang=ru" }), env, ctx);
+  assert.equal(response.status, 302);
+  assert.match(response.headers.get("location"), /\/ru\/poster\.jpg/);
+  assert.equal(ctx.pending.length, 1);
+});
+
+test("a cover TMDB lacks in Russian comes from the D1 card covers", async () => {
+  const kp = "https://avatars.mds.yandex.net/get-ott/cover-ru.jpg";
+  const env = {
+    ...kvEnv({ "title:kinopub:82852": { built_at: new Date().toISOString(), artwork: {} } }),
+    CATALOG: {
+      prepare() {
+        return { bind() { return { async all() { return { results: [{ lang: "ru", url: kp, width: 1920, height: 1080 }] }; } }; } };
+      },
+    },
+  };
+  const response = await handleImage(imageRequest("cover", { query: "w=780&lang=ru" }), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.match(response.headers.get("location"), /\/ru\/cover\.jpg\?w=780/);
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const stamped = await handleImage(new Request("https://example.test/img/cover/by/kinopub/82852/ru/cover.jpg?w=780"), env, ctxSpy());
+    assert.equal(stamped.status, 200);
+    assert.ok(fetched[0].includes(encodeURIComponent(kp)), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("the stamped poster keeps the Kinopoisk hint so its rung comes before kino.pub", async () => {
+  const src = encodeURIComponent("https://m.staticpop.net/poster/item/medium/82852.jpg");
+  const env = kvEnv({ "title:kinopub:82852": { built_at: new Date().toISOString(), artwork: { poster: [] } } });
+  const first = await handleImage(imageRequest("poster", { query: `w=780&lang=ru&kinopoisk=4915923&src=${src}` }), env, ctxSpy());
+  const location = first.headers.get("location");
+  assert.match(location, /kinopoisk=4915923/);
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    await handleImage(new Request(location), env, ctxSpy());
+    assert.ok(fetched[0].includes("kinopoiskapiunofficial.tech"), fetched[0]);
   } finally {
     globalThis.fetch = restore;
   }

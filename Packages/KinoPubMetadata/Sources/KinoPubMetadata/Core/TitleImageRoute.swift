@@ -189,8 +189,10 @@ public struct TitleImageRoute: Sendable, Hashable {
   /// A wide title card, drawn at `width` pixels: with `kinopubWide` the worker walks the
   /// cover in the language → textless backdrop → kino.pub's wide, WebP through wsrv.nl
   /// (Sasha, 2026-11-26). Without it, a plain ``cover(kinopubID:imdb:width:)``.
-  public func wideCard(kinopubID: Int, imdb: Int?, width: Int?, kinopubWide: String?) -> URL? {
-    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width, kinopubThumb: kinopubWide)
+  public func wideCard(kinopubID: Int, imdb: Int?, kinopoisk: Int? = nil, width: Int?,
+                       kinopubWide: String?) -> URL? {
+    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width, kinopubThumb: kinopubWide,
+        kinopoisk: kinopoisk)
   }
 
   /// Title logo, drawn at `width` pixels.

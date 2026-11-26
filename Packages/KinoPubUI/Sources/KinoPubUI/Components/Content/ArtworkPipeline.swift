@@ -197,7 +197,7 @@ public enum Artwork {
   }
 
   private static func makeRequest(_ url: URL, size: CGSize, mode: ResizeMode) -> ImageRequest {
-    let url = WideArtwork.sized(url, forPoints: size)
+    let url = WorkerArtwork.daily(WideArtwork.sized(url, forPoints: size))
     guard size != .zero else { return ImageRequest(url: url) }
     // Nuke's `unit: .points` multiplies by `Screen.scale`. On iOS/tvOS that is the
     // display scale; on **macOS Nuke hardcodes scale to 1** (see Nuke `Graphics.swift`
@@ -917,6 +917,26 @@ extension Image {
 /// 500 px. Only kino.pub's wide path is rewritten; the worker's own `/img` answers are
 /// already sized and served through wsrv by the worker (KP-68).
 ///
+/// The worker's image route answers with whatever it picks today: a Russian cover that
+/// appeared on TMDB, a pin from the picture sheet. The disk cache keeps a file as long as
+/// it is looked at, so a title on Home kept its first answer for good (Sasha,
+/// 2026-11-26). A discovery URL (`/img/{kind}/by/kinopub/{id}`) carries the day, so each
+/// title is asked again once a day; the worker ignores `d`, and its stamped files stay
+/// edge-cached, so a re-ask with no change is one redirect and a cached file.
+enum WorkerArtwork {
+  static let refreshInterval: TimeInterval = 24 * 60 * 60
+
+  static func daily(_ url: URL, now: Date = Date()) -> URL {
+    let parts = url.path.split(separator: "/")
+    guard parts.count == 5, parts[0] == "img", parts[2] == "by", parts[3] == "kinopub",
+          var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          components.queryItems?.contains(where: { $0.name == "d" }) != true else { return url }
+    let day = Int(now.timeIntervalSince1970 / refreshInterval)
+    components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "d", value: String(day))]
+    return components.url ?? url
+  }
+}
+
 /// `-KINOPUBWideOriginal YES` loads the originals, to compare.
 enum WideArtwork {
   /// Widths are rounded up to this step so a few card sizes share one file.
