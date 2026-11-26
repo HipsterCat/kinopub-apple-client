@@ -9,7 +9,7 @@
 import XCTest
 import KinoPubBackend
 import KinoPubMetadata
-@testable import KinoPubAppleClient
+@testable import KinoPub
 
 final class PersonFilmographyTests: XCTestCase {
 
