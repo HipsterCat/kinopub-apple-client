@@ -1373,8 +1373,10 @@ struct MediaItemHeroView: View {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
       if !backdropCandidates.isEmpty {
         FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill, size: decode,
+                            resizeMode: .fillTop,
                             onLoaded: { noteBackdrop(loaded: true) },
                             onFailed: { noteBackdrop(loaded: false) })
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
           .offset(x: cropOffset)
           .id(localCacheEpoch)
           .onAppear {

@@ -151,10 +151,15 @@ public enum Artwork {
 
   /// How a decode fills its target box. Still / landscape cells need a centre crop so
   /// a 2:3 poster handed to a 16:9 tile does not letterbox; `TVPosterView` lockups must
-  /// **not** crop — cover lettering has to stay readable (Sasha, 2026-10-02).
+  /// **not** crop — cover lettering has to stay readable (Sasha, 2026-10-02). Heroes
+  /// use ``fillTop`` so opening a title does not jump — the top of the still stays put
+  /// (Sasha, 2026-11-26).
   public enum ResizeMode: Sendable, Hashable {
     /// Centre-crop to the box (stills, wide cards, SwiftUI tiles).
     case fill
+    /// Aspect-fill, crop from the **top** (heroes / banners). Nuke's `.fill` always
+    /// centre-crops; a top-aligned SwiftUI frame cannot undo that.
+    case fillTop
     /// Scale to fit inside the box, no crop — poster lockups.
     case fit
   }
@@ -174,7 +179,7 @@ public enum Artwork {
   }
 
   /// Longer side we will decode to, in pixels. Matches TMDB's last non-original
-  /// token: 1280 for `.fit` (logos / posters), 1920 for `.fill` (backdrops / stills).
+  /// token: 1280 for `.fit` (logos / posters), 1920 for `.fill` / `.fillTop` (backdrops).
   public static func maxDecodePixels(for mode: ResizeMode) -> CGFloat {
     mode == .fit ? 1280 : 1920
   }
@@ -183,8 +188,9 @@ public enum Artwork {
   ///   down to it, and the size is part of the cache key — the same still in a rail and
   ///   in a grid is a different decode, and handing one out for the other is either
   ///   blurry or wasteful. `.zero` keeps full resolution and should be rare.
-  /// - Parameter mode: `.fill` (default) centre-crops; `.fit` preserves the whole cover
-  ///   for `TVPosterView` and title logos (see `ResizeMode`).
+  /// - Parameter mode: `.fill` (default) centre-crops; `.fillTop` aspect-fills and crops
+  ///   from the top (heroes); `.fit` preserves the whole cover for `TVPosterView` and
+  ///   title logos (see `ResizeMode`).
   public static func request(_ url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) -> ImageRequest {
     noteSeen(url, size: size, mode: mode)
     return makeRequest(url, size: size, mode: mode)
@@ -201,14 +207,19 @@ public enum Artwork {
     let target = macOSPixelSize(forPoints: size)
     let unit: ImageProcessingOptions.Unit = target.unit
     let box = cappedSize(target.size, unit: unit, mode: mode)
-    let processor: ImageProcessors.Resize
+    let processors: [any ImageProcessing]
     switch mode {
     case .fill:
-      processor = ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFill, crop: true)
+      processors = [ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFill, crop: true)]
+    case .fillTop:
+      // Exact pixel box, top-aligned — SwiftUI `.top` cannot undo Nuke's centre crop.
+      let pixels = pixelDimensions(box, unit: unit)
+      processors = [TopAlignedFillProcessor(pixelSize: CGSize(width: pixels.width.rounded(),
+                                                              height: pixels.height.rounded()))]
     case .fit:
-      processor = ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFit, crop: false)
+      processors = [ImageProcessors.Resize(size: box, unit: unit, contentMode: .aspectFit, crop: false)]
     }
-    var request = ImageRequest(url: url, processors: [processor])
+    var request = ImageRequest(url: url, processors: processors)
     let pixels = pixelDimensions(box, unit: unit)
     let maxPixel = max(pixels.width, pixels.height)
     if maxPixel > 0 {
@@ -807,6 +818,50 @@ private final class ActivityReportCancellable: Cancellable, Sendable {
     }
     guard isFirst else { return }
     NetworkActivity.end(token, holdMinimum: holdMinimum)
+  }
+}
+
+/// Aspect-fills `pixelSize`, then crops from the **top** (horizontally centred). Nuke's
+/// `Resize(crop: true)` always centres vertically, which cuts hero heads and jumps when
+/// the title page opens top-aligned (Sasha, 2026-11-26).
+private struct TopAlignedFillProcessor: ImageProcessing, Sendable {
+  let pixelSize: CGSize
+
+  var identifier: String {
+    "com.kinopub.artwork.topfill/\(Int(pixelSize.width))x\(Int(pixelSize.height))"
+  }
+
+  func process(_ image: PlatformImage) -> PlatformImage? {
+    let target = CGSize(width: max(1, pixelSize.width.rounded()),
+                        height: max(1, pixelSize.height.rounded()))
+#if os(macOS)
+    let src = image.size
+    guard src.width > 0, src.height > 0 else { return image }
+    let scale = max(target.width / src.width, target.height / src.height)
+    let draw = CGRect(x: (target.width - src.width * scale) / 2,
+                      y: target.height - src.height * scale, // AppKit origin is bottom-left; top align
+                      width: src.width * scale,
+                      height: src.height * scale)
+    let out = NSImage(size: target)
+    out.lockFocus()
+    image.draw(in: draw, from: .zero, operation: .copy, fraction: 1)
+    out.unlockFocus()
+    return out
+#else
+    let src = image.size
+    guard src.width > 0, src.height > 0 else { return image }
+    let scale = max(target.width / src.width, target.height / src.height)
+    let draw = CGRect(x: (target.width - src.width * scale) / 2,
+                      y: 0, // top
+                      width: src.width * scale,
+                      height: src.height * scale)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = false
+    return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+      image.draw(in: draw)
+    }
+#endif
   }
 }
 

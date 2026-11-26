@@ -136,8 +136,10 @@ public struct HomeHeroCarousel: View {
   /// screen. iPad with an overlaying sidebar (`contentWidth` noticeably narrower than
   /// `width`): a tighter 4:3 of the content column — Apple TV app framing, so the
   /// subject stays in the visible column instead of a soft full-bleed crop under the
-  /// sidebar (Sasha, 2026-11-26). Phone: a 16:10 still under the bars and room under it
-  /// for the words, at most 70% of the screen.
+  /// sidebar (Sasha, 2026-11-26). Phone portrait: a 16:10 still under the bars and room
+  /// under it for the words, at most 70% of the screen. Phone landscape: fill the short
+  /// edge (whole height) — a wide 16:10 strip was too short and centre-cropped heads
+  /// (Sasha, 2026-11-26).
   public static func height(width: CGFloat, topBleed: CGFloat, screen: CGFloat,
                             isCompact: Bool, contentWidth: CGFloat? = nil) -> CGFloat {
 #if os(macOS)
@@ -145,7 +147,12 @@ public struct HomeHeroCarousel: View {
 #else
     let picture: CGFloat
     if isCompact {
-      picture = min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
+      if width >= screen {
+        // Landscape: the banner is the phone's height, top-cropped (not a short strip).
+        picture = screen
+      } else {
+        picture = min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
+      }
     } else if let contentWidth,
               contentWidth > 0,
               width - contentWidth >= Metrics.sidebarOverlayThreshold {
@@ -844,7 +851,8 @@ private struct HeroPagePicture: View {
 
   private func croppedPicture(width: CGFloat) -> some View {
     FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill,
-                        size: CGSize(width: width, height: height))
+                        size: CGSize(width: width, height: height),
+                        resizeMode: .fillTop)
       .frame(width: width, height: height, alignment: .top)
       .offset(x: contentCropOffset)
       .frame(width: self.width, height: height)

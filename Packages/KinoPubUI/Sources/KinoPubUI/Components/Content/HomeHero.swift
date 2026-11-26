@@ -197,7 +197,8 @@ public enum HomeHeroWarmup {
       let feature = features[at]
       if let logo = feature.logoURL { load(logo, size: Artwork.logoDecodeSize, mode: .fit) }
       if let backdropSize, let backdrop = feature.backdropCandidates.first {
-        load(backdrop, size: backdropSize, mode: .fill)
+        // Same key as the hero paint (`.fillTop`) — centre `.fill` would miss the cache.
+        load(backdrop, size: backdropSize, mode: .fillTop)
       }
     }
   }

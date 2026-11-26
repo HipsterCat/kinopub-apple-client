@@ -13,8 +13,8 @@ import SwiftUI
 /// status bar) and below it (under the words) by the system's background extension —
 /// that whole layer blurred into glass, with the sharp still over it fading out toward
 /// both edges, so it melts into the glass instead of stopping on a line (Sasha,
-/// 2026-10-30). Cropped, the still keeps its middle; the layer is `height` tall from
-/// the top of the screen.
+/// 2026-10-30). Cropped from the **top** (not the middle) so opening a title does not
+/// jump; the layer is `height` tall from the top of the screen (Sasha, 2026-11-26).
 public struct CompactHeroPicture: View {
   private let urls: [URL]
   private let width: CGFloat
@@ -62,16 +62,18 @@ public struct CompactHeroPicture: View {
     let below = max(height - picture, 0)
     return ZStack(alignment: .top) {
       FallbackRemoteImage(urls: urls, contentMode: .fill,
-                          size: CGSize(width: pictureWidth, height: picture))
-        .frame(width: pictureWidth, height: picture)
+                          size: CGSize(width: pictureWidth, height: picture),
+                          resizeMode: .fillTop)
+        .frame(width: pictureWidth, height: picture, alignment: .top)
         .clipped()
         .backgroundExtensionEffect()
         .safeAreaPadding(.bottom, below)
         .blur(radius: width * 0.06, opaque: true)
       FallbackRemoteImage(urls: urls, contentMode: .fill,
                           size: CGSize(width: pictureWidth, height: picture),
+                          resizeMode: .fillTop,
                           onLoaded: onLoaded, onFailed: onFailed)
-        .frame(width: pictureWidth, height: picture)
+        .frame(width: pictureWidth, height: picture, alignment: .top)
         .clipped()
         .mask {
           LinearGradient(stops: [
@@ -89,8 +91,9 @@ public struct CompactHeroPicture: View {
     let below = max(height - topBleed - still, 0)
     return ZStack(alignment: .top) {
       FallbackRemoteImage(urls: urls, contentMode: .fill,
-                          size: CGSize(width: pictureWidth, height: still))
-        .frame(width: pictureWidth, height: still)
+                          size: CGSize(width: pictureWidth, height: still),
+                          resizeMode: .fillTop)
+        .frame(width: pictureWidth, height: still, alignment: .top)
         .clipped()
         .backgroundExtensionEffect()
         .safeAreaPadding(.top, topBleed)
@@ -98,8 +101,9 @@ public struct CompactHeroPicture: View {
         .blur(radius: width * 0.06, opaque: true)
       FallbackRemoteImage(urls: urls, contentMode: .fill,
                           size: CGSize(width: pictureWidth, height: still),
+                          resizeMode: .fillTop,
                           onLoaded: onLoaded, onFailed: onFailed)
-        .frame(width: pictureWidth, height: still)
+        .frame(width: pictureWidth, height: still, alignment: .top)
         .clipped()
         .mask {
           LinearGradient(stops: [

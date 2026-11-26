@@ -21,6 +21,9 @@ public struct FallbackRemoteImage: View {
   /// Drawn box in points. `.zero` waits for a layout measurement so a hero that
   /// did not pass a size still decodes at the frame, not at full source.
   private let size: CGSize
+  /// Decode crop. Heroes pass ``Artwork/ResizeMode/fillTop`` so the still keeps its
+  /// top (Sasha, 2026-11-26); shelves keep the default centre ``fill``.
+  private let resizeMode: Artwork.ResizeMode
   private let onLoaded: (() -> Void)?
   private let onFailed: (() -> Void)?
   @State private var image: Image?
@@ -30,10 +33,12 @@ public struct FallbackRemoteImage: View {
   /// `onFailed`: every candidate failed, or there was none.
   public init(urls: [URL], contentMode: ContentMode = .fill,
               size: CGSize = .zero,
+              resizeMode: Artwork.ResizeMode = .fill,
               onLoaded: (() -> Void)? = nil, onFailed: (() -> Void)? = nil) {
     self.urls = urls
     self.contentMode = contentMode
     self.size = size
+    self.resizeMode = resizeMode
     self.onLoaded = onLoaded
     self.onFailed = onFailed
   }
@@ -69,7 +74,7 @@ public struct FallbackRemoteImage: View {
   private var decodeSize: CGSize { size != .zero ? size : measured }
 
   private var taskKey: String {
-    "\(listKey)#\(Int(decodeSize.width))x\(Int(decodeSize.height))"
+    "\(listKey)#\(Int(decodeSize.width))x\(Int(decodeSize.height))#\(resizeMode)"
   }
 
   /// How a picture that had to be fetched comes in. One from the memory cache paints on
@@ -89,7 +94,7 @@ public struct FallbackRemoteImage: View {
     guard box.width > 1, box.height > 1 else { return }
     let key = listKey
     let known = Self.winners[key] ?? urls.first
-    if let known, let cached = Artwork.cachedImage(for: known, size: box, mode: .fill) {
+    if let known, let cached = Artwork.cachedImage(for: known, size: box, mode: resizeMode) {
       Artwork.noteDisplayed(cached, url: known, size: box)
       image = Image(platformImage: cached)
       loading = false
@@ -109,7 +114,7 @@ public struct FallbackRemoteImage: View {
     for url in urls {
       if Task.isCancelled { return }
       do {
-        let loaded = try await Artwork.image(for: url, size: box, mode: .fill)
+        let loaded = try await Artwork.image(for: url, size: box, mode: resizeMode)
         Artwork.noteDisplayed(loaded, url: url, size: box)
         // `.transition(.opacity)` only plays inside an animated change.
         withAnimation(Self.fadeIn) { image = Image(platformImage: loaded) }
