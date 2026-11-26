@@ -6,6 +6,7 @@
 import Foundation
 import SwiftUI
 import KinoPubLogging
+import KinoPubMetadata
 
 /// One titled, horizontally scrolling row of cards.
 public struct MediaRow: Identifiable {
