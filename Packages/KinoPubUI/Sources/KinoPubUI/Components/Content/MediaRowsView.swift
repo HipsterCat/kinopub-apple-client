@@ -359,7 +359,8 @@ public struct MediaRowsView: View {
   /// The hero takes the page's width and a share of the screen's height, the bars'
   /// strip above it included (the picture runs on under them), and the rows below peek
   /// in under it as they do under the Apple TV app's (`HomeHeroCarousel.height`). The
-  /// returned height is the part below the bars.
+  /// returned height is the part below the bars. When an iPad sidebar overlays the
+  /// leading edge, height is framed to `pageMargins.contentWidth` at a tighter aspect.
   private var heroSize: CGSize {
 #if os(tvOS)
     CGSize(width: containerWidth, height: 0)
@@ -369,7 +370,8 @@ public struct MediaRowsView: View {
     let width = containerWidth
     return CGSize(width: width,
                   height: HomeHeroCarousel.height(width: width, topBleed: barInsets.top,
-                                                  screen: screen, isCompact: heroIsCompact))
+                                                  screen: screen, isCompact: heroIsCompact,
+                                                  contentWidth: pageMargins?.contentWidth))
 #endif
   }
 

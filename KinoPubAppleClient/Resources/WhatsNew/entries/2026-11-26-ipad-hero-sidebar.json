@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "iPad: баннер дома и на странице тайтла рядом с боковой панелью кадрируется плотнее, как в приложении Apple TV — объект остаётся в колонке контента.",
+    "iPhone в альбоме: баннер на всю высоту экрана, обрезка сверху (без прыжка при открытии тайтла).",
+    "Кнопка «Смотреть» на баннере дома и на странице тайтла — белая капсула с тёмной подписью."
+  ],
+  "en": [
+    "iPad: Home and title banners beside the sidebar use a tighter crop, like the Apple TV app, so the subject stays framed in the content column.",
+    "iPhone landscape: the banner fills the screen height and crops from the top (no jump when opening a title).",
+    "Play / Watch on the Home banner and title page is a white pill with a dark label."
+  ]
+}

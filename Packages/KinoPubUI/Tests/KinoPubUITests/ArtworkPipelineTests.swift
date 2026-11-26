@@ -80,6 +80,7 @@ final class ArtworkPipelineTests: XCTestCase {
 #endif
     XCTAssertEqual(Artwork.maxDecodePixels(for: .fit), 1280)
     XCTAssertEqual(Artwork.maxDecodePixels(for: .fill), 1920)
+    XCTAssertEqual(Artwork.maxDecodePixels(for: .fillTop), 1920)
   }
 
   func testPixelSizeCapsFillAt1920() {

@@ -873,10 +873,31 @@ struct MediaItemHeroView: View {
   /// The band at its aspect, whatever the words grew it to — the poster's size and
   /// column are measured against this, so a taller band does not grow the poster.
   private var heroBaseBandSize: CGSize {
-    CGSize(width: heroBandSize.width, height: heroBandSize.width / Self.bandAspect)
+    CGSize(width: heroBandSize.width, height: heroBandSize.width / resolvedBandAspect)
   }
 
+  /// Full-bleed / phone-closed: 16:11. With an overlaying iPad sidebar, the band's
+  /// height matches a 4:3 of the content column (Apple TV app shrink) so the subject
+  /// stays framed beside the glass (Sasha, 2026-11-26).
   static let bandAspect: CGFloat = 16 / 11
+  static let sidebarBandAspect: CGFloat = 4 / 3
+  static let sidebarOverlayThreshold: CGFloat = 40
+
+  private var resolvedBandAspect: CGFloat {
+#if os(iOS)
+    let covered = pageMargins?.coveredLeading ?? 0
+    guard covered >= Self.sidebarOverlayThreshold,
+          let margins = pageMargins, margins.contentWidth > 0 else {
+      return Self.bandAspect
+    }
+    // Layout width is still full-bleed; pick aspect so min height = contentWidth ÷ 4:3.
+    let full = margins.contentWidth + margins.coveredLeading + margins.coveredTrailing
+    let targetHeight = margins.contentWidth / Self.sidebarBandAspect
+    return full / max(targetHeight, 1)
+#else
+    Self.bandAspect
+#endif
+  }
 
   /// 16:9 band — backdrop or clear fill, portrait poster top-trailing, chrome at the bottom.
   private var heroCanvas: some View {
@@ -888,7 +909,7 @@ struct MediaItemHeroView: View {
       } else {
         // At least the band's aspect, taller when the words need it — the poster hero
         // shows its whole synopsis, and nothing may run off the top (Sasha, 2026-11-08).
-        HeroBandLayout(aspect: Self.bandAspect) {
+        HeroBandLayout(aspect: resolvedBandAspect) {
           // The picture runs under the toolbar; the title starts below it.
           content
             .padding(.top, phase.topChromeInset)
@@ -1332,15 +1353,31 @@ struct MediaItemHeroView: View {
   /// worker has for a title kino.pub sent no `wide` for still arrives and takes over.
   /// Under it the page's blurred poster, unwashed: the plain page under a picture still on
   /// its way read as a grey slab (Sasha, 2026-10-30). Over both, the poster hero's plate
-  /// while there is no picture.
+  /// while there is no picture. Decode at the measured band so Retina pixels match what
+  /// is drawn; with an iPad sidebar open, shift the fill so the subject sits in the
+  /// content column (Sasha, 2026-11-26).
   @ViewBuilder
   private var scrollingBackdrop: some View {
+    let decode = heroBandSize.width > 1
+      ? CGSize(width: (heroBandSize.width * 1.24).rounded(), height: heroBandSize.height)
+      : CGSize.zero
+    let cropOffset: CGFloat = {
+#if os(iOS)
+      let covered = pageMargins?.coveredLeading ?? 0
+      return covered >= Self.sidebarOverlayThreshold ? (covered / 2).rounded() : 0
+#else
+      0
+#endif
+    }()
     ZStack {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
       if !backdropCandidates.isEmpty {
-        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill,
+        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill, size: decode,
+                            resizeMode: .fillTop,
                             onLoaded: { noteBackdrop(loaded: true) },
                             onFailed: { noteBackdrop(loaded: false) })
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .offset(x: cropOffset)
           .id(localCacheEpoch)
           .onAppear {
 #if DEBUG
