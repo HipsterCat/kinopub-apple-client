@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": ["Оценки MyAnimeList на странице тайтла берутся из официального API — свежее число голосов."],
+  "en": ["MyAnimeList scores on the title page now come from the official API, so vote counts stay fresh."]
+}

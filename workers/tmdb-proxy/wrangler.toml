@@ -4,6 +4,9 @@
 #   DOUBAN_API_KEY         wrangler secret put — Douban Frodo app key (src/douban.js)
 #   DOUBAN_API_SECRET      wrangler secret put — Douban Frodo app secret
 #   ADMIN_TOKEN            wrangler secret put — Bearer token for /admin/kinopub/…
+#   MAL_CLIENT_ID          optional later — app holds ratings Client ID today via Info.plist / env
+#   SHIKIMORI_CLIENT_ID    optional later — OAuth Client ID (never commit the value)
+#   SHIKIMORI_CLIENT_SECRET optional later — OAuth secret (worker/Keychain only, never Info.plist)
 #   CLOUDFLARE_API_TOKEN   GitHub Actions secret (deploy)
 #   CLOUDFLARE_ACCOUNT_ID  GitHub Actions secret (deploy) — do not add account_id here
 name = "kinopub-tmdb-proxy"

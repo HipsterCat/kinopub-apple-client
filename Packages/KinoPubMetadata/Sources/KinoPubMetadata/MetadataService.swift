@@ -37,19 +37,23 @@ public actor MetadataService {
       return missing
     }
     let proxy = sources.compactMap { $0 as? KinopoiskProxySource }.first
-    // Trakt asks by IMDb id, which the kino.pub item already has: it runs beside both.
+    // Trakt / Wikidata / MAL: Trakt and Wikidata can hand MAL an anime id; official MAL
+    // then refreshes mean + num_scoring_users (12–24h cache) over Trakt's relayed copy.
     async let traktPart = fetchTrakt(identity: identity)
     async let omdbPart = fetchOMDb(identity: identity)
     async let doubanPart = fetchDouban(identity: identity)
     async let wikidataPart = fetchWikidata(identity: identity)
     async let myShowsPart = fetchMyShows(identity: identity)
     async let plexPart = fetchPlex(identity: identity)
+    async let malPart = fetchMyAnimeList(identity: identity)
     if let kinopoisk = identity.kinopoisk, kinopoisk > 0 {
       async let cardPart = fetchTitleCard(titleCard, identity: identity)
       async let proxyPart = fetchProxy(proxy, identity: identity)
-      return mergeTitleCard(await cardPart, proxy: await proxyPart, trakt: await traktPart, omdb: await omdbPart,
-                            douban: await doubanPart,
-                          myShows: await myShowsPart, plex: await plexPart, wikidata: await wikidataPart)
+      let (card, proxyMeta, trakt, omdb, douban, myShows, plex, wikidata, mal) =
+        await (cardPart, proxyPart, traktPart, omdbPart, doubanPart, myShowsPart, plexPart, wikidataPart, malPart)
+      let officialMAL = await resolvedMyAnimeList(identity: identity, direct: mal, trakt: trakt, wikidata: wikidata)
+      return mergeTitleCard(card, proxy: proxyMeta, trakt: trakt, omdb: omdb, douban: douban,
+                            myShows: myShows, plex: plex, wikidata: wikidata, myAnimeList: officialMAL)
     }
     let cardPart = await fetchTitleCard(titleCard, identity: identity)
     let asking: MediaIdentity
@@ -59,9 +63,11 @@ public actor MetadataService {
       asking = identity
     }
     let proxyPart = await fetchProxy(proxy, identity: asking)
-    return mergeTitleCard(cardPart, proxy: proxyPart, trakt: await traktPart, omdb: await omdbPart,
-                          douban: await doubanPart,
-                          myShows: await myShowsPart, plex: await plexPart, wikidata: await wikidataPart)
+    let (trakt, omdb, douban, myShows, plex, wikidata, mal) =
+      await (traktPart, omdbPart, doubanPart, myShowsPart, plexPart, wikidataPart, malPart)
+    let officialMAL = await resolvedMyAnimeList(identity: identity, direct: mal, trakt: trakt, wikidata: wikidata)
+    return mergeTitleCard(cardPart, proxy: proxyPart, trakt: trakt, omdb: omdb, douban: douban,
+                          myShows: myShows, plex: plex, wikidata: wikidata, myAnimeList: officialMAL)
   }
 
   /// `identity` with the ids linked in the worker, or nil when it holds no TMDB or IMDb
@@ -134,6 +140,35 @@ public actor MetadataService {
     }
   }
 
+  private func fetchMyAnimeList(identity: MediaIdentity) async -> TitleMetadata? {
+    guard let mal = sources.compactMap({ $0 as? MyAnimeListSource }).first, mal.isConfigured else { return nil }
+    do {
+      return try await mal.titleMetadata(for: identity)
+    } catch {
+      Logger.metadata.error("MyAnimeList failed: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  /// Prefer the parallel MAL answer; if it missed and Trakt/Wikidata handed an anime id,
+  /// ask MAL once more by that id so vote counts stay official.
+  private func resolvedMyAnimeList(identity: MediaIdentity,
+                                   direct: TitleMetadata?,
+                                   trakt: TitleMetadata?,
+                                   wikidata: TitleMetadata?) async -> TitleMetadata? {
+    let hasFresh = direct?.externalRatings.contains {
+      $0.kind == .myAnimeList && ($0.votes ?? 0) > 0
+    } == true
+    if hasFresh { return direct }
+    let hint = identity.mal
+      ?? wikidata?.malID
+      ?? direct?.malID
+      ?? MyAnimeListSource.animeID(from: trakt?.externalRatings.first { $0.kind == .myAnimeList }?.url)
+      ?? MyAnimeListSource.animeID(from: wikidata?.externalLinks.first { $0.site == .myAnimeList }?.url)
+    guard let hint else { return direct }
+    return await fetchMyAnimeList(identity: identity.withMAL(hint)) ?? direct
+  }
+
   private func fetchTitleCard(_ source: TitleCardSource, identity: MediaIdentity) async -> TitleMetadata? {
     do {
       return try await source.titleMetadata(for: identity)
@@ -156,7 +191,8 @@ public actor MetadataService {
   private func mergeTitleCard(_ card: TitleMetadata?, proxy: TitleMetadata?,
                               trakt: TitleMetadata? = nil, omdb: TitleMetadata? = nil,
                               douban: TitleMetadata? = nil, myShows: TitleMetadata? = nil,
-                              plex: TitleMetadata? = nil, wikidata: TitleMetadata? = nil) -> TitleMetadata {
+                              plex: TitleMetadata? = nil, wikidata: TitleMetadata? = nil,
+                              myAnimeList: TitleMetadata? = nil) -> TitleMetadata {
     var result = TitleMetadata()
     if let card {
       result.merge(card)
@@ -169,6 +205,12 @@ public actor MetadataService {
     if let trakt {
       result.merge(trakt)
       result.parts[.trakt] = trakt
+    }
+    // After Trakt: official MAL mean + num_scoring_users replace Trakt's relayed MAL
+    // when the vote count is higher (`mergeExternalRating`).
+    if let myAnimeList {
+      result.merge(myAnimeList)
+      result.parts[.myAnimeList] = myAnimeList
     }
     if let omdb {
       result.merge(omdb)

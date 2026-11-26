@@ -168,7 +168,10 @@ struct AppContext: AppContextProtocol {
       // Staff stays on this path. The v2 comparison calls the same source with it off.
       KinopoiskProxySource(includeStaff: true),
       // Ratings it relays (Rotten Tomatoes, Metacritic, Letterboxd…) and its reviews.
+      // MAL votes here are a fallback — MyAnimeListSource refreshes them from the official API.
       TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru"),
+      // Official MAL mean + num_scoring_users (`X-MAL-CLIENT-ID`), 18h cache.
+      MyAnimeListSource(access: MyAnimeListMetadataAccess()),
       // The viewer's own OMDb key: box office, awards, and the scores Trakt did not have.
       // After Trakt, which outranks it where both answer.
       OMDbSource(keys: IntegrationKeyProvider.omdb),

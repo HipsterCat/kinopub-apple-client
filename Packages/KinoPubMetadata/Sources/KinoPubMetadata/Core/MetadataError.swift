@@ -11,6 +11,10 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case wikidata
   /// MyShows.me's public JSON-RPC API. Series only.
   case myShows
+  /// Official MyAnimeList API v2 (`X-MAL-CLIENT-ID`). Anime ratings.
+  case myAnimeList
+  /// Shikimori (OAuth + GraphQL). Prepared for `user_rates`; not a live source yet.
+  case shikimori
   /// Plex's cloud catalogue (Discover), with the viewer's Plex account.
   case plex
   case kinopoisk

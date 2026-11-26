@@ -200,9 +200,9 @@ enum DetailsEnrichmentSource {
     Integration.available.filter { integration in
       switch integration {
       case .kinopoisk, .tmdb, .omdb, .trakt, .douban, .myShows, .wikidata,
-           .skipDB, .theIntroDB:
+           .skipDB, .theIntroDB, .myAnimeList:
         return true
-      case .plex, .simkl, .anilist, .myAnimeList:
+      case .plex, .simkl, .anilist, .shikimori:
         return false
       }
     }

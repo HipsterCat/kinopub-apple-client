@@ -18,6 +18,11 @@ public struct MediaIdentity: Hashable, Sendable {
   /// The TMDB id an admin linked in the worker, `tv/343022` or `movie/550`. Looked up
   /// directly; nil means the title is found by its IMDb id.
   public let linkedTMDB: String?
+  /// MyAnimeList anime id when already known (Wikidata / Trakt link / prior resolve).
+  public let mal: Int?
+  /// From `MediaPresentationProfile.isAnime` — gates MAL search so non-anime titles
+  /// do not burn Client ID quota on fuzzy title lookups.
+  public let isAnime: Bool
 
   public init(
     kinopubId: Int,
@@ -28,7 +33,9 @@ public struct MediaIdentity: Hashable, Sendable {
     year: Int,
     isSeries: Bool,
     runtimeMinutes: Int? = nil,
-    linkedTMDB: String? = nil
+    linkedTMDB: String? = nil,
+    mal: Int? = nil,
+    isAnime: Bool = false
   ) {
     self.kinopubId = kinopubId
     self.imdb = imdb
@@ -39,6 +46,8 @@ public struct MediaIdentity: Hashable, Sendable {
     self.isSeries = isSeries
     self.runtimeMinutes = runtimeMinutes
     self.linkedTMDB = linkedTMDB
+    self.mal = mal
+    self.isAnime = isAnime
   }
 
   /// The same title with the ids the worker holds: its TMDB id, and its IMDb id where
@@ -53,7 +62,9 @@ public struct MediaIdentity: Hashable, Sendable {
       year: year,
       isSeries: isSeries,
       runtimeMinutes: runtimeMinutes,
-      linkedTMDB: tmdb ?? linkedTMDB
+      linkedTMDB: tmdb ?? linkedTMDB,
+      mal: mal,
+      isAnime: isAnime
     )
   }
 
@@ -68,7 +79,27 @@ public struct MediaIdentity: Hashable, Sendable {
       year: year,
       isSeries: isSeries,
       runtimeMinutes: runtimeMinutes,
-      linkedTMDB: linkedTMDB
+      linkedTMDB: linkedTMDB,
+      mal: mal,
+      isAnime: isAnime
+    )
+  }
+
+  /// The same title with a MyAnimeList anime id from Wikidata / Trakt / a prior resolve.
+  public func withMAL(_ id: Int?) -> MediaIdentity {
+    guard let id, id > 0 else { return self }
+    return MediaIdentity(
+      kinopubId: kinopubId,
+      imdb: imdb,
+      kinopoisk: kinopoisk,
+      title: title,
+      originalTitle: originalTitle,
+      year: year,
+      isSeries: isSeries,
+      runtimeMinutes: runtimeMinutes,
+      linkedTMDB: linkedTMDB,
+      mal: mal ?? id,
+      isAnime: isAnime || true
     )
   }
 }

@@ -14,6 +14,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>kinopub</string>
+				<string>piratic</string>
 			</array>
 		</dict>
 	</array>
@@ -29,6 +30,11 @@
 	</array>
 	<key>TraktClientID</key>
 	<string>NcFQSj5-a_WcWoNmNDGyIfgQrIH4TRRWE-cG4ay21bE</string>
+	<!-- Values via build setting / CI env — never commit real Client IDs or secrets. -->
+	<key>MALClientID</key>
+	<string>$(MAL_CLIENT_ID)</string>
+	<key>ShikimoriClientID</key>
+	<string>$(SHIKIMORI_CLIENT_ID)</string>
 	<key>TMDBProxyBaseURL</key>
 	<string>https://kinopub-tmdb-proxy.traneblow1nd.workers.dev</string>
 </dict>

@@ -29,12 +29,13 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
+  @AppStorage(MyAnimeListMetadataAccess.enabledDefaultsKey) private var myAnimeListData = true
   @AppStorage(SkipTimesMetadataAccess.skipDBDefaultsKey) private var skipDBData = true
   @AppStorage(SkipTimesMetadataAccess.theIntroDBDefaultsKey) private var theIntroDBData = true
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData,
+             traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData, myAnimeListData,
          skipDBData, theIntroDBData)
     Form {
       Section {
@@ -107,6 +108,7 @@ struct IntegrationDetailView: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
+  @AppStorage(MyAnimeListMetadataAccess.enabledDefaultsKey) private var myAnimeListData = true
   @AppStorage(SkipTimesMetadataAccess.skipDBDefaultsKey) private var skipDBData = true
   @AppStorage(SkipTimesMetadataAccess.theIntroDBDefaultsKey) private var theIntroDBData = true
   @ScaledMetric(relativeTo: .title) private var iconSize: CGFloat = 64
@@ -129,7 +131,7 @@ struct IntegrationDetailView: View {
 
   private var status: Integration.Status {
     _ = (keyValidated, keyEnabled, traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData,
-         skipDBData, theIntroDBData)
+         myAnimeListData, skipDBData, theIntroDBData)
     return integration.status
   }
 
@@ -234,12 +236,13 @@ struct IntegrationDetailView: View {
     }
   }
 
-  /// The page's own data switch: Trakt's, Douban's or Wikidata's.
+  /// The page's own data switch: Trakt's, Douban's, Wikidata's, MyShows', or MAL's.
   private var dataSwitch: Binding<Bool> {
     switch integration {
     case .douban: $doubanData
     case .wikidata: $wikidataData
     case .myShows: $myShowsData
+    case .myAnimeList: $myAnimeListData
     case .skipDB: $skipDBData
     case .theIntroDB: $theIntroDBData
     default: $traktData

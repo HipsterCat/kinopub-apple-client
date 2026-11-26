@@ -33,6 +33,21 @@ struct TraktMetadataAccess: TraktAccessProviding {
   }
 }
 
+/// Official MyAnimeList ratings (`MyAnimeListSource`): the Client ID while the viewer
+/// keeps «Оценки» on in Settings › Integrations › MyAnimeList. On by default.
+/// Value from `MAL_CLIENT_ID` / Info.plist placeholder — never hard-coded.
+struct MyAnimeListMetadataAccess: MyAnimeListAccessProviding {
+  static let enabledDefaultsKey = "myAnimeListMetadataEnabled"
+
+  static var isEnabled: Bool {
+    UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
+  }
+
+  func malClientID() -> String? {
+    Self.isEnabled ? MyAnimeListCredentials.clientID() : nil
+  }
+}
+
 /// Douban's scores through our worker (`DoubanSource`), while the viewer keeps «Оценки»
 /// on in Settings › Integrations › Douban. On by default; nothing to connect.
 struct DoubanMetadataAccess: DoubanAccessProviding {

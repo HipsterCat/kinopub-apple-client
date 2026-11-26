@@ -11,6 +11,7 @@
 
 import SwiftUI
 import KinoPubUI
+import KinoPubMetadata
 
 /// An outside source of metadata or sync. Brand names stay as their owners write them.
 enum Integration: String, CaseIterable, Identifiable, Hashable {
@@ -27,6 +28,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   case simkl
   case anilist
   case myAnimeList
+  case shikimori
 
   var id: String { rawValue }
 
@@ -45,17 +47,19 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt, .plex, .omdb, .douban, .myShows, .wikidata, .skipDB, .theIntroDB: true
-    case .simkl, .anilist, .myAnimeList: false
+    case .kinopoisk, .tmdb, .trakt, .plex, .omdb, .douban, .myShows, .wikidata, .skipDB, .theIntroDB, .myAnimeList: true
+    case .simkl, .anilist, .shikimori: false
     }
   }
 
   /// Works without anything from the viewer. Trakt's ratings and reviews are public
-  /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09).
+  /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09). MyAnimeList
+  /// scores likewise need only `X-MAL-CLIENT-ID`.
   var worksByDefault: Bool {
     switch self {
     case .kinopoisk, .tmdb, .douban, .myShows, .wikidata, .skipDB, .theIntroDB: true
     case .trakt: TraktAccount.clientID != nil
+    case .myAnimeList: MyAnimeListCredentials.clientID() != nil
     default: false
     }
   }
@@ -71,6 +75,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: DoubanMetadataAccess.enabledDefaultsKey
     case .wikidata: WikidataMetadataAccess.enabledDefaultsKey
     case .myShows: MyShowsMetadataAccess.enabledDefaultsKey
+    case .myAnimeList: MyAnimeListMetadataAccess.enabledDefaultsKey
     case .skipDB: SkipTimesMetadataAccess.skipDBDefaultsKey
     case .theIntroDB: SkipTimesMetadataAccess.theIntroDBDefaultsKey
     default: nil
@@ -82,6 +87,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_DataToggle"
     case .wikidata: "Integration_Wikidata_DataToggle"
     case .myShows: "Integration_MyShows_DataToggle"
+    case .myAnimeList: "Integration_MyAnimeList_DataToggle"
     case .skipDB, .theIntroDB: "Integration_SkipTimes_DataToggle"
     default: "Integration_Trakt_DataToggle"
     }
@@ -92,6 +98,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_DataFooter"
     case .wikidata: "Integration_Wikidata_DataFooter"
     case .myShows: "Integration_MyShows_DataFooter"
+    case .myAnimeList: "Integration_MyAnimeList_DataFooter"
     case .skipDB, .theIntroDB: "Integration_SkipTimes_DataFooter"
     default: "Integration_Trakt_DataFooter"
     }
@@ -132,8 +139,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   var connection: Connection {
     switch self {
     case .kinopoisk, .tmdb, .omdb: .apiKey
-    case .trakt, .plex, .simkl, .anilist, .myAnimeList: .account
-    case .douban, .myShows, .wikidata, .skipDB, .theIntroDB: .builtIn
+    case .trakt, .plex, .simkl, .anilist, .shikimori: .account
+    // Ratings use the Client ID alone today; account OAuth (`piratic://myanimelist`) is prepared.
+    case .myAnimeList, .douban, .myShows, .wikidata, .skipDB, .theIntroDB: .builtIn
     }
   }
 
@@ -152,6 +160,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: "Simkl"
     case .anilist: "AniList"
     case .myAnimeList: "MyAnimeList"
+    case .shikimori: "Shikimori"
     }
   }
 
@@ -171,6 +180,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: "Integration_Simkl_About".localized
     case .anilist: "Integration_AniList_About".localized
     case .myAnimeList: "Integration_MyAnimeList_About".localized
+    case .shikimori: "Integration_Shikimori_About".localized
     }
   }
 
@@ -186,7 +196,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .myShows: "Integration_MyShows_Help".localized
     case .wikidata: "Integration_Wikidata_Help".localized
     case .skipDB, .theIntroDB: "Integration_SkipTimes_Help".localized
-    case .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
+    case .simkl, .anilist, .myAnimeList, .shikimori: "Integration_Account_Help".localized
     }
   }
 
@@ -206,6 +216,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: URL(string: "https://simkl.com")!
     case .anilist: URL(string: "https://anilist.co")!
     case .myAnimeList: URL(string: "https://myanimelist.net")!
+    case .shikimori: URL(string: "https://shikimori.one")!
     }
   }
 
@@ -263,7 +274,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: "simkl"
     case .anilist: "anilist"
     case .myAnimeList: "myanimelist"
-    case .omdb, .skipDB, .theIntroDB: nil
+    case .omdb, .skipDB, .theIntroDB, .shikimori: nil
     }
   }
 
@@ -337,7 +348,10 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
       return [Provided(titleKey: "Integration_Provides_SkipIntro", symbol: "forward.end.fill", color: .indigo),
               Provided(titleKey: "Integration_Provides_SkipRecap", symbol: "arrow.counterclockwise", color: .gray),
               Provided(titleKey: "Integration_Provides_SkipCredits", symbol: "text.line.last.and.arrowtriangle.forward", color: .purple)]
-    case .simkl, .anilist, .myAnimeList:
+    case .myAnimeList:
+      return [Provided(titleKey: "Integration_Provides_MyAnimeList", mark: "myanimelist"),
+              Provided(titleKey: "Integration_Provides_Audience", symbol: "person.2.fill", color: .teal)]
+    case .simkl, .anilist, .shikimori:
       return []
     }
   }
@@ -357,6 +371,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: Color(red: 0.10, green: 0.10, blue: 0.12)
     case .anilist: Color(red: 0.01, green: 0.66, blue: 1.00)
     case .myAnimeList: Color(red: 0.18, green: 0.32, blue: 0.64)
+    case .shikimori: Color(red: 0.20, green: 0.55, blue: 0.35)
     }
   }
 
@@ -402,7 +417,11 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     if self == .plex {
       return PlexAccount.storedUsername.map(Status.account) ?? .notConnected
     }
-    if connection == .builtIn { return isDataSwitchOn ? .byDefault : .notConnected }
+    if connection == .builtIn {
+      // MyAnimeList also needs a Client ID in the build before the switch does anything.
+      if self == .myAnimeList, !worksByDefault { return .notConnected }
+      return isDataSwitchOn ? .byDefault : .notConnected
+    }
     // OMDb has no default path: without the viewer's key it is not connected.
     guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else {
       return worksByDefault ? .byDefault : .notConnected
