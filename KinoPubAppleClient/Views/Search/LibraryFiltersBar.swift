@@ -531,18 +531,25 @@ private struct CatalogGridChrome: ViewModifier {
   @State private var showsLabels = false
 
   /// The page's width past which the toolbar shows «Фильтры» beside its glyph;
-  /// below it, the glyph alone.
+  /// below it, the glyph alone. Unused on macOS — the window's
+  /// `windowToolbarLabelStyle` decides icon vs title (KP-105).
   nonisolated private static let labelledToolbarWidth: CGFloat = 760
 
   func body(content: Content) -> some View {
     content
       .environment(\.mediaGridLayout, MediaGridLayout.resolved(from: layoutRaw))
+#if os(macOS)
+      // Always put a title on the Label; `.windowToolbarLabelStyle` (and View ›)
+      // choose whether the system shows it beside the glyph.
+      .environment(\.toolbarShowsLabels, true)
+#else
       .onGeometryChange(for: Bool.self) { proxy in
         proxy.size.width >= Self.labelledToolbarWidth
       } action: { fits in
         showsLabels = fits
       }
       .environment(\.toolbarShowsLabels, showsLabels)
+#endif
   }
 }
 #endif

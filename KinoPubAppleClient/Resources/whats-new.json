@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Mac: в тулбаре библиотеки — подписи к иконкам (Фильтры, Сортировка), как в Finder; вид можно сменить в меню Вид. Окна библиотеки снова можно открывать и склеивать во вкладки, пока хватает места; плеер и Настройки в эти вкладки не попадают.",
         "iPad, iPhone и Mac: в Каталоге и Поиске — меню сетка/список, «Фильтры» (три полоски, fill в круге когда выбрано) и отдельно сортировка стрелками справа; счётчик снова в подзаголовке. На Mac шестерёнка настроек убрана из тулбара страницы; лист фильтров — Close/Done текстом снизу. 4K в бейдже больше не считается дважды. В Поиске — области «Везде / Названия / Люди» под полем.",
         "Актёры: поиск и фильмография больше не ломаются на локализованном имени TMDB; тайтл, с которого открыли человека, остаётся в списке; фильмы только на TMDB показываются затемнёнными («Нет на Кинопабе»); пустая/офлайн-страница не перекрывает фильтры; поиск по имени актёра меньше шумит чужими тайтлами.",
         "Настройки › Уведомления: бейдж на иконке. Настройки › Детали: вкладки на всю ширину, иконки в один ряд, Инфо как на странице тайтла, бейдж возраста и значки верхней полоски; у каждой строки с шевроном — Вкл./Выкл.",
@@ -149,6 +150,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Mac: library toolbar shows icon labels (Filters, Sort) like Finder; change the style in the View menu. Library windows can open and merge into tabs while they fit; the player and Settings stay out of those tabs.",
         "iPad, iPhone and Mac: Catalog and Search use a grid/list Menu, Filters (plain bars, filled circle when active) and a separate sort control with arrows on the right; the title count is back. Mac drops the page-toolbar Settings gear; the filter sheet uses text Close/Done at the bottom. 4K no longer double-counts in the badge. Search keeps Everywhere / Titles / People scopes under the centered field.",
         "Actors: search and filmography no longer break on a TMDB-localized name; the title you opened the person from stays in the list; titles only on TMDB show dimmed (“Not on Kinopub”); empty/offline pages no longer cover the filters; person-name search is less noisy with unrelated titles.",
         "Settings › Notifications: Home Screen badge. Settings › Details: full-width tabs, equal-width icons, Info ordered like the title page, age-rating and upper-strip badges; every chevron row shows On/Off.",

@@ -142,6 +142,9 @@ struct VersionPickerSheet: View {
 
   @Environment(\.dismiss) private var dismiss
   @Environment(\.mediaNavigation) private var mediaNavigation
+#if os(macOS)
+  @Environment(NavigationState.self) private var navigationState
+#endif
 #if os(tvOS)
   @FocusState private var focusedID: Int?
 #endif
@@ -301,7 +304,7 @@ struct VersionPickerSheet: View {
   private func play(_ variant: PlaybackVariant) {
     dismiss()
 #if os(macOS)
-    PlaybackWindowState.shared.show(item: variant, mode: .media)
+    PlaybackWindowState.shared.show(item: variant, mode: .media, from: navigationState)
 #else
     mediaNavigation?(linkProvider.player(for: variant))
 #endif

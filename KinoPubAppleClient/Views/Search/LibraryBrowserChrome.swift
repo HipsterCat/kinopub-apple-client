@@ -195,6 +195,8 @@ struct LibraryFiltersButton: View {
     Button(action: action) {
       if showsTitle {
         Label("Filters", systemImage: symbol)
+          .labelStyle(.titleAndIcon)
+          .lineLimit(1)
       } else {
         Label("Filters", systemImage: symbol)
           .labelStyle(.iconOnly)

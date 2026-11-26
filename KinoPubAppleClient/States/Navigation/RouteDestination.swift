@@ -213,12 +213,13 @@ private struct MacPlayerRouteGuard: View {
 
   @Environment(\.openWindow) private var openWindow
   @Environment(\.dismiss) private var dismiss
+  @Environment(NavigationState.self) private var navigationState
 
   var body: some View {
     Color.clear
       .onAppear {
         assertionFailure("'.player'/'.trailerPlayer' reached the main stack on macOS — route through PlayerLink instead")
-        PlaybackWindowState.shared.show(item: item, mode: mode)
+        PlaybackWindowState.shared.show(item: item, mode: mode, from: navigationState)
         openWindow(id: PlaybackWindowState.windowID)
         dismiss()
       }
