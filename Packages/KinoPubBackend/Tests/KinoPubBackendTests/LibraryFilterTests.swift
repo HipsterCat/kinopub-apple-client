@@ -43,6 +43,16 @@ final class LibraryFilterTests: XCTestCase {
     XCTAssertEqual(LibraryFilter(contentType: .movie, want4K: true).activeFilterCount, 2)
   }
 
+  func testActiveFilterCountTreats4KAsOneQualityGroup() {
+    var both = LibraryFilter(want4K: true)
+    both.minimumQuality = .uhd4K
+    XCTAssertEqual(both.activeFilterCount, 1)
+    XCTAssertEqual(LibraryFilter(want4K: true).activeFilterCount, 1)
+    var hdAnd4K = LibraryFilter(wantHD: true, want4K: true)
+    hdAnd4K.minimumQuality = .uhd4K
+    XCTAssertEqual(hdAnd4K.activeFilterCount, 1)
+  }
+
   /// Undocumented, but the service accepts both and orders correctly — checked
   /// against live responses before they were offered in the UI.
   func testRatingSortsUseTheUndocumentedFields() {

@@ -28,6 +28,14 @@ struct CollectionDetailView: View {
     content
       .platformNavigationTitle(model.title)
 #if !os(tvOS)
+      .navigationSubtitle(
+        LibraryBrowserSubtitle.text(
+          resultCount: model.isLoading && model.items.isEmpty ? nil : model.items.count,
+          isLoading: model.isLoading && model.items.isEmpty,
+          isSearching: false,
+          activeFilterCount: 0
+        )
+      )
       .toolbar {
         LibraryFiltersToolbar(catalog: model, chrome: .sort, showingFilters: $showingFilters)
       }

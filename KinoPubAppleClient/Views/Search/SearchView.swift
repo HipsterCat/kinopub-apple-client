@@ -45,6 +45,8 @@ struct SearchView: View {
   @State private var navigationTitleText: String = "Search".localized
 #if !os(tvOS)
   @State private var showingFilters = false
+  /// Native search-scope bar (Everywhere / Titles / People) — mirrors `catalog.searchField`.
+  @State private var searchScope: LibrarySearchScope = .everywhere
 #endif
 
   @Environment(\.openURL) private var openURL
@@ -528,11 +530,13 @@ struct SearchView: View {
 #if os(macOS)
       // Finder/Photos: compact trailing toolbar field + suggestion menu; not under-tab chrome.
       .macToolbarSearch()
+      .librarySearchScopes($searchScope)
       .navigationTitle("Search")
 #elseif os(iOS)
       // App Store / Music / TV Search: field always under the large title — not pull-to-reveal
       // (`.automatic`), which on iPhone with `.inlineLarge` often painted a dead, non-tappable
       // drawer (KP-53). `navigationBarDrawer` is iOS-only; tvOS keeps `.automatic` below.
+      // Centered drawer stays — do not move to trailing `.toolbar` / Photos minimize.
       .searchable(text: $searchFieldText,
                   placement: .navigationBarDrawer(displayMode: .always),
                   prompt: Text("Search"))
@@ -547,6 +551,7 @@ struct SearchView: View {
           }
         }
       }
+      .librarySearchScopes($searchScope)
       .platformNavigationTitle(navigationTitleText)
 #else
       .searchable(text: $searchFieldText, placement: .automatic)
@@ -562,14 +567,22 @@ struct SearchView: View {
       .platformNavigationTitle(navigationTitleText)
 #endif
 #if !os(tvOS)
-      // No «Всего N» under Search — native Search tabs leave the title alone (KP-53).
-      // Catalog / category screens still use `LibraryBrowserSubtitle` where a count helps.
+      // Notes-style count under the title (Всего / Найдено) — restored on Mac + iPad
+      // (Sasha, 2026-11-26). Search scopes stay under the centered field.
+      .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
       .toolbar {
         LibraryFiltersToolbar(catalog: catalog,
                               chrome: .full,
                               showingFilters: $showingFilters)
       }
       .catalogGridChrome()
+      .onChange(of: searchScope) { _, scope in
+        catalog.updateSearchField(scope.field)
+      }
+      .onChange(of: catalog.searchField) { _, field in
+        let mapped = LibrarySearchScope.from(field)
+        if searchScope != mapped { searchScope = mapped }
+      }
       .sheet(isPresented: $showingFilters) {
         LibraryFilterSheet(catalog: catalog)
 #if os(macOS)

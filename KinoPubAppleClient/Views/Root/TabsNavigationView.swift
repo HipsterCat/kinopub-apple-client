@@ -62,9 +62,6 @@ struct TabsNavigationView: View {
   @State private var sidebarSyncedAt: Date?
   @Environment(\.scenePhase) private var scenePhase
   private static let sidebarSyncTTL: TimeInterval = 120
-#if os(macOS)
-  @Environment(\.openWindow) private var openWindow
-#endif
 
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
   /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
@@ -456,27 +453,8 @@ struct TabsNavigationView: View {
         // Every page under the same window toolbar, as the TV app's: with nothing in it a
         // page had none, and switching between pages moved everything up and down by the
         // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
-        //
-        // Settings at the trailing end of it on every page, as iOS has it over Home; the
-        // account at the foot of the sidebar opens the same window.
-        .toolbar {
-          ToolbarSpacer(.flexible)
-          ToolbarItem(placement: .primaryAction) {
-            Button {
-              // The app's Settings is a `Window`, not a `Settings` scene: `openSettings`
-              // failed with «No Settings scene is defined» (Sasha, 2026-11-08). The same
-              // window ⌘, and the app menu open.
-              openWindow(id: SettingsWindow.id)
-            } label: {
-              Image(systemName: "gear")
-            }
-            .accessibilityLabel(Text("Settings".localized))
-            .help(Text("Settings".localized))
-          }
-          // A page's own items (sort, filters) come after it: a capsule of their own,
-          // not one group with Settings.
-          ToolbarSpacer(.fixed)
-        }
+        // Settings lives in the app menu / ⌘, / the account at the foot of the sidebar —
+        // not a gear in this trailing cluster (Sasha, 2026-11-26).
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
         // page never held the keyboard and the arrows did not reach it.

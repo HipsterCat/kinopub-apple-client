@@ -16818,6 +16818,60 @@
     "Scanning…" : {
 
     },
+    "Scope_Bar_Everywhere" : {
+      "comment" : "Compact searchScopes bar: all fields",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everywhere"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Везде"
+          }
+        }
+      }
+    },
+    "Scope_Bar_People" : {
+      "comment" : "Compact searchScopes bar: cast / people names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "People"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Люди"
+          }
+        }
+      }
+    },
+    "Scope_Bar_Titles" : {
+      "comment" : "Compact searchScopes bar: titles only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Названия"
+          }
+        }
+      }
+    },
     "Scope_Everywhere" : {
       "comment" : "Search scope menu: all fields (the default)",
       "extractionState" : "manual",

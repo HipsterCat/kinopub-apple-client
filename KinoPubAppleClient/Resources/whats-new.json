@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "iPad, iPhone и Mac: в Каталоге и Поиске — меню сетка/список, «Фильтры» (три полоски, fill в круге когда выбрано) и отдельно сортировка стрелками справа; счётчик снова в подзаголовке. На Mac шестерёнка настроек убрана из тулбара страницы; лист фильтров — Close/Done текстом снизу. 4K в бейдже больше не считается дважды. В Поиске — области «Везде / Названия / Люди» под полем.",
         "Актёры: поиск и фильмография больше не ломаются на локализованном имени TMDB; тайтл, с которого открыли человека, остаётся в списке; фильмы только на TMDB показываются затемнёнными («Нет на Кинопабе»); пустая/офлайн-страница не перекрывает фильтры; поиск по имени актёра меньше шумит чужими тайтлами.",
         "Настройки › Уведомления: бейдж на иконке. Настройки › Детали: вкладки на всю ширину, иконки в один ряд, Инфо как на странице тайтла, бейдж возраста и значки верхней полоски; у каждой строки с шевроном — Вкл./Выкл.",
         "Долгое нажатие на постер или серию: sneak peek как в Apple TV — картинка в своём соотношении (постер / широкий кадр), название и строка год · жанр (или серия / длительность); «Не отслеживать» сразу становится «Отслеживать» (и тост); «Просмотрено» у сериала — подменю как в «…».",
@@ -148,6 +149,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "iPad, iPhone and Mac: Catalog and Search use a grid/list Menu, Filters (plain bars, filled circle when active) and a separate sort control with arrows on the right; the title count is back. Mac drops the page-toolbar Settings gear; the filter sheet uses text Close/Done at the bottom. 4K no longer double-counts in the badge. Search keeps Everywhere / Titles / People scopes under the centered field.",
         "Actors: search and filmography no longer break on a TMDB-localized name; the title you opened the person from stays in the list; titles only on TMDB show dimmed (“Not on Kinopub”); empty/offline pages no longer cover the filters; person-name search is less noisy with unrelated titles.",
         "Settings › Notifications: Home Screen badge. Settings › Details: full-width tabs, equal-width icons, Info ordered like the title page, age-rating and upper-strip badges; every chevron row shows On/Off.",
         "Long-press on a poster or episode: Apple TV–style sneak peek — art in its real ratio (poster / wide), title plus year · genre (or episode / duration); Unfollow flips to Follow immediately (with a toast); Watched on a series is a submenu like More.",
