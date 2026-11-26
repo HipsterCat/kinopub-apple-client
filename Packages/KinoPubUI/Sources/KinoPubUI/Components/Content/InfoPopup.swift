@@ -13,8 +13,8 @@
 //
 //  Presentation is the system's, per platform: a sheet everywhere, drawn as a centred
 //  panel over a scrim on tvOS (where Menu dismisses it for free), large +
-//  `.presentationSizing(.page)` on iPhone/iPad (What's New and detail info), and a
-//  page-hosted panel on macOS. A UIKit screen presents the same view through
+//  `.presentationSizing(.page)` with a navigation bar (title, subtitle, close button)
+//  on iPhone/iPad, and a page-hosted panel on macOS. A UIKit screen presents the same view through
 //  `InfoPopupPresenter`. What's New, the changelog and the licences use it too.
 //  `.claude/skills/tvos-surface/SKILL.md` — `description handlesOverflow` is a popup,
 //  and there is exactly one of it.
@@ -116,9 +116,11 @@ private struct TVHeroSheetChrome: ViewModifier {
 ///
 /// `confirmTitle` adds a real button under the content: on tvOS What's New's «Готово»
 /// (entry focus; without it Menu alone dismisses); on iPhone / iPad / Mac
-/// «Продолжить» / Continue at the bottom, with the same leading cross as detail info.
-/// Short content hugs the panel on Mac (`ViewThatFits`); long content scrolls inside a
-/// 560pt cap with a visible scrollbar. Phone / pad keep the large sheet top-aligned.
+/// «Продолжить» / Continue in the system's prominent style at the bottom.
+/// iPhone / iPad: a navigation stack — inline title + `navigationSubtitle`, the system
+/// close button (`Button(role: .close)`), Continue in a bottom `safeAreaBar`.
+/// Mac: the same parts in the page-hosted panel; the body takes its own height and
+/// scrolls once the window has no more room.
 public struct InfoPopupView<Content: View>: View {
   let title: Text
   let subtitle: Text?
@@ -133,7 +135,7 @@ public struct InfoPopupView<Content: View>: View {
   @State private var scrollGeometry = ScrollPage.Geometry()
 #endif
 #if !os(tvOS)
-  @State private var isScrolled = false
+  @Environment(\.colorScheme) private var colorScheme
 #endif
 
   /// `onDismiss` closes a popup presented outside SwiftUI (`InfoPopupPresenter`); a
@@ -191,135 +193,121 @@ public struct InfoPopupView<Content: View>: View {
     // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
     .onExitCommand(perform: close)
 #else
-    // What's New and film info share one chrome: material toolbar + hierarchical X,
-    // top-aligned body, optional Continue footer (Sasha, 2026-11-21).
-    phonePadMacPanel
+    // System chrome on iPhone / iPad (navigation bar title + subtitle, close button,
+    // Continue in a bottom bar); the same pieces drawn in the Mac panel (Sasha, 2026-11-26).
+    systemPanel
 #endif
   }
 
-#if !os(tvOS)
-  private var phonePadMacPanel: some View {
-#if os(macOS)
-    // Hug short notes; when the body is taller than the cap, ViewThatFits picks the
-    // scrolling panel. `.fixedSize` + ScrollView was wrong: the scroll view grew to
-    // its ideal height, the maxHeight clipped it, and nothing ever scrolled (Sasha,
-    // 2026-11-26 — no chrome fade, no scrollbar).
-    ViewThatFits(in: .vertical) {
-      macColumn(scrolling: false)
-      macColumn(scrolling: true)
-    }
-    .frame(maxHeight: 560)
-#else
-    VStack(spacing: 0) {
-      toolbarHeader
+#if os(iOS)
+  /// A navigation stack, so the title, the subtitle («Версия 1.0 · Сборка 1», the
+  /// original title) and the close button are the system's own bar — as the TV app's
+  /// info sheet and TestFlight draw them. Continue rides in a bottom safe-area bar, over
+  /// the scroll edge effect.
+  private var systemPanel: some View {
+    NavigationStack {
       ScrollView(.vertical) {
         panelBody
       }
       .scrollBounceBehavior(.basedOnSize)
-      .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
-        isScrolled = scrolled
+      .navigationTitle(title)
+      .modifier(OptionalNavigationSubtitle(subtitle: subtitle))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button(role: .close, action: close)
+        }
       }
-      if let confirmTitle {
-        continueButton(confirmTitle)
+      .safeAreaBar(edge: .bottom) {
+        if let confirmTitle {
+          continueButton(confirmTitle)
+            .padding(.horizontal, InfoPopupMetrics.padding)
+            .padding(.vertical, 12)
+        }
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-#endif
   }
+#endif
 
 #if os(macOS)
-  /// Shared Mac column: natural height when `scrolling` is false, capped ScrollView
-  /// with a visible scrollbar when true.
-  private func macColumn(scrolling: Bool) -> some View {
+  @State private var macContentHeight: CGFloat = 0
+
+  /// No navigation stack here: inside the page-hosted panel its toolbar would land in the
+  /// window's toolbar. The same parts instead — a centred title over its subtitle, the
+  /// system close button, the body at its own height up to what the window leaves, then
+  /// a scroll view with its scroller.
+  private var systemPanel: some View {
     VStack(spacing: 0) {
-      toolbarHeader
-      if scrolling {
-        ScrollView(.vertical) {
-          panelBody
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.visible)
-        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 4 } action: { _, scrolled in
-          isScrolled = scrolled
-        }
-      } else {
+      macHeader
+      ScrollView(.vertical) {
         panelBody
       }
+      .scrollBounceBehavior(.basedOnSize)
+      .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, height in
+        macContentHeight = height
+      }
+      // Ideal height too: a plain `.sheet` (no page host, e.g. Settings › About) sizes
+      // itself from it.
+      .frame(idealHeight: macContentHeight, maxHeight: macContentHeight)
       if let confirmTitle {
         continueButton(confirmTitle)
+          .padding(.horizontal, InfoPopupMetrics.padding)
+          .padding(.top, 8)
+          .padding(.bottom, InfoPopupMetrics.padding * 0.75)
       }
     }
     .frame(maxWidth: InfoPopupMetrics.maxWidth)
   }
+
+  private var macHeader: some View {
+    ZStack(alignment: .topLeading) {
+      VStack(spacing: 2) {
+        title
+          .font(.headline)
+        if let subtitle {
+          subtitle
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .multilineTextAlignment(.center)
+      .frame(maxWidth: .infinity)
+      .padding(.horizontal, 48)
+      .padding(.top, 4)
+      Button(role: .close, action: close)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+        .keyboardShortcut(.cancelAction)
+    }
+    .padding(.horizontal, 14)
+    .padding(.top, 14)
+    .padding(.bottom, 8)
+  }
 #endif
 
+#if !os(tvOS)
   private var panelBody: some View {
-    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
-      if let subtitle {
-        subtitle
-          .font(.subheadline)
-          .foregroundStyle(Color.KinoPub.subtitle)
-          .multilineTextAlignment(.center)
-          .frame(maxWidth: .infinity)
-          .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
-      }
-      content()
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .padding(.horizontal, InfoPopupMetrics.padding)
-    .padding(.top, InfoPopupMetrics.padding * 0.35)
-    .padding(.bottom, InfoPopupMetrics.padding)
+    content()
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, InfoPopupMetrics.padding)
+      .padding(.top, InfoPopupMetrics.padding * 0.5)
+      .padding(.bottom, InfoPopupMetrics.padding)
   }
 
-  /// Centred title with the version-settings cross; material bar fades in as you scroll
-  /// (same language as Settings / the title page toolbar).
-  private var toolbarHeader: some View {
-    ZStack {
-      title
-        .font(.headline)
-        .foregroundStyle(Color.KinoPub.text)
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
-      HStack {
-        SheetCloseButton(action: close)
-          .padding(.leading, SheetCloseButton.inset)
-        Spacer(minLength: 0)
-      }
-    }
-    .frame(minHeight: SheetCloseButton.side + 12)
-    .padding(.top, SheetCloseButton.inset)
-    .padding(.bottom, 10)
-    .background {
-      Rectangle()
-        .fill(.bar)
-        .opacity(isScrolled ? 1 : 0)
-        .animation(.easeOut(duration: 0.2), value: isScrolled)
-        .ignoresSafeArea(edges: .top)
-    }
-  }
-
-  /// `.borderedProminent` + `Color.primary` tint: readable in light and dark.
-  /// `.glassProminent` was black-on-black on Mac and white-on-white on iPhone dark.
+  /// The system's prominent button in the monochrome tint the app's main Play wears:
+  /// black with a white label in light, white with a dark label in dark. The app-wide
+  /// `.tint(.primary)` left a white label on a white fill in dark.
   private func continueButton(_ title: Text) -> some View {
     Button(action: close) {
       title
-        .font(.body.weight(.semibold))
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.borderedProminent)
-    .tint(Color.primary)
-    .controlSize(.large)
+    .buttonBorderShape(.capsule)
+    .controlSize(.extraLarge)
+    .tint(colorScheme == .dark ? Color.white : Color.black)
     .keyboardShortcut(.defaultAction)
-    .padding(.horizontal, InfoPopupMetrics.padding)
-#if os(macOS)
-    .padding(.top, 16)
-    .padding(.bottom, InfoPopupMetrics.padding)
-#else
-    // Extra air above Continue on phone — the button was flush under short copy.
-    .padding(.top, 28)
-    .padding(.bottom, InfoPopupMetrics.padding)
-#endif
   }
 #endif
 
@@ -559,7 +547,7 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
       content
         .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
           panel
-            .macSheetFrame(width: 520, height: usesConfirmLayout ? 480 : 560)
+            .frame(idealWidth: 520)
         }
     }
 #else
@@ -569,7 +557,6 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
         // (Sasha, 2026-11-21).
         panel
           .presentationDetents([.large])
-          .presentationDragIndicator(.visible)
           .presentationSizing(.page)
       }
 #endif
@@ -680,6 +667,21 @@ public enum InfoPopupTriggerChrome: Sendable {
 /// `.card` on tvOS, `.plain` elsewhere — the same pairing Apple's own `DestinationVideo`
 /// sample applies to every card in the app, and the one this project already settled on
 /// after a hand-rolled focus style read as non-native.
+#if os(iOS)
+/// `navigationSubtitle` only when there is one: an empty subtitle still takes the line.
+private struct OptionalNavigationSubtitle: ViewModifier {
+  let subtitle: Text?
+
+  func body(content: Content) -> some View {
+    if let subtitle {
+      content.navigationSubtitle(subtitle)
+    } else {
+      content
+    }
+  }
+}
+#endif
+
 public enum InfoPopupTriggerStyle {
   @MainActor
   public static var buttonStyle: some PrimitiveButtonStyle {
