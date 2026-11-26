@@ -1194,3 +1194,23 @@ test("a cover TMDB lacks in Russian comes from the D1 card covers", async () => 
     globalThis.fetch = restore;
   }
 });
+
+test("the stamped poster keeps the Kinopoisk hint so its rung comes before kino.pub", async () => {
+  const src = encodeURIComponent("https://m.staticpop.net/poster/item/medium/82852.jpg");
+  const env = kvEnv({ "title:kinopub:82852": { built_at: new Date().toISOString(), artwork: { poster: [] } } });
+  const first = await handleImage(imageRequest("poster", { query: `w=780&lang=ru&kinopoisk=4915923&src=${src}` }), env, ctxSpy());
+  const location = first.headers.get("location");
+  assert.match(location, /kinopoisk=4915923/);
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    await handleImage(new Request(location), env, ctxSpy());
+    assert.ok(fetched[0].includes("kinopoiskapiunofficial.tech"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});

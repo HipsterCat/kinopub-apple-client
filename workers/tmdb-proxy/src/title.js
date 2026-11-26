@@ -464,7 +464,8 @@ async function handleImageQuery(request, url, env, ctx, route) {
     const stickyMiss = imageRequest.kind !== "logo" && imageRequest.kind !== "thumbnail";
     return imageNotFound(missHint(imageRequest), vary, { store: stickyMiss });
   }
-  const location = stampedURL(url, imageRequest, asset, stored?.art_rev);
+  const location = stampedURL(url, { ...imageRequest, kinopoisk: numericId(hints.kinopoisk || "") },
+    asset, stored?.art_rev);
   if (!location) return imageNotFound(missHint(imageRequest), vary);
   return redirect(location, vary, langTag(asset.lang));
 }
@@ -1200,6 +1201,8 @@ function stampedURL(url, imageRequest, asset, rev) {
   if (imageRequest.format) params.set("format", imageRequest.format);
   if (rev) params.set("v", String(rev));
   if (imageRequest.src) params.set("src", imageRequest.src);
+  // The Kinopoisk rung needs the id even when the document never stored it.
+  if (imageRequest.kinopoisk && imageRequest.src) params.set("kinopoisk", imageRequest.kinopoisk);
   const qs = params.toString();
   return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
 }
