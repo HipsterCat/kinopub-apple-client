@@ -112,12 +112,14 @@ public struct TitleImageRoute: Sendable, Hashable {
   ///   - season: with `.poster`, that season's poster; with `.thumbnail`, required.
   ///   - episode: with `.thumbnail`, the episode whose still is asked for.
   ///   - kinopubThumb: with `.thumbnail`, optional `https://…staticpop.net/…` URL the
-  ///     worker may seed and resize via wsrv.nl when TMDB has no still yet. With a title
-  ///     `.poster` (no season), kino.pub's own poster: one rung of the worker's chain.
+  ///     worker may seed and resize via wsrv.nl when TMDB has no still yet.
   ///   - kinopoisk: Kinopoisk id, so a cold title still has its Kinopoisk poster rung.
+  ///   - wideChain: with `.cover`, `wide=1`: cover › textless backdrop › kino.pub's wide
+  ///     (the worker builds kino.pub's file from the id).
   public func url(_ kind: Kind, kinopubID: Int, imdb: Int?, width: Int?,
                   season: Int? = nil, episode: Int? = nil,
-                  kinopubThumb: String? = nil, kinopoisk: Int? = nil) -> URL? {
+                  kinopubThumb: String? = nil, kinopoisk: Int? = nil,
+                  wideChain: Bool = false) -> URL? {
     guard let baseURL, kinopubID > 0 else { return nil }
     var components = URLComponents(
       url: baseURL.appendingPathComponent("img/\(kind.rawValue)/by/kinopub/\(kinopubID)"),
@@ -143,9 +145,11 @@ public struct TitleImageRoute: Sendable, Hashable {
     if let language {
       query.append(URLQueryItem(name: "lang", value: language))
     }
-    let takesSource = kind == .thumbnail || ((kind == .poster || kind == .cover) && season == nil)
-    if takesSource, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
+    if kind == .thumbnail, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
       query.append(URLQueryItem(name: "src", value: kinopubThumb))
+    }
+    if kind == .cover, wideChain {
+      query.append(URLQueryItem(name: "wide", value: "1"))
     }
     components?.queryItems = query.isEmpty ? nil : query
     return components?.url
@@ -176,23 +180,20 @@ public struct TitleImageRoute: Sendable, Hashable {
     return host == "staticpop.net" || host.hasSuffix(".staticpop.net")
   }
 
-  /// Title poster, drawn at `width` pixels: the worker's chain is TMDB in the asked
-  /// language, then kino.pub's own file (`kinopubPoster`), then Kinopoisk, then another
-  /// language; WebP through wsrv.nl. Every vertical cover in the app comes from here, so
-  /// kino.pub's CDN being down no longer blanks the grid (Sasha, 2026-11-26).
-  public func poster(kinopubID: Int, imdb: Int?, kinopoisk: Int?, width: Int?,
-                     kinopubPoster: String?) -> URL? {
-    url(.poster, kinopubID: kinopubID, imdb: imdb, width: width,
-        kinopubThumb: kinopubPoster, kinopoisk: kinopoisk)
+  /// Title poster, drawn at `width` pixels: the worker's chain is TMDB, tvoe, Kinopoisk,
+  /// kino.pub's own file (built from the id), then another language; WebP through
+  /// wsrv.nl. Every vertical cover in the app comes from here, so kino.pub's CDN being
+  /// down no longer blanks the grid (Sasha, 2026-11-26).
+  public func poster(kinopubID: Int, imdb: Int?, kinopoisk: Int?, width: Int?) -> URL? {
+    url(.poster, kinopubID: kinopubID, imdb: imdb, width: width, kinopoisk: kinopoisk)
   }
 
-  /// A wide title card, drawn at `width` pixels: with `kinopubWide` the worker walks the
-  /// cover in the language → textless backdrop → kino.pub's wide, WebP through wsrv.nl
-  /// (Sasha, 2026-11-26). Without it, a plain ``cover(kinopubID:imdb:width:)``.
-  public func wideCard(kinopubID: Int, imdb: Int?, kinopoisk: Int? = nil, width: Int?,
-                       kinopubWide: String?) -> URL? {
-    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width, kinopubThumb: kinopubWide,
-        kinopoisk: kinopoisk)
+  /// A wide title card, drawn at `width` pixels: the worker walks the cover in the
+  /// language → textless backdrop → kino.pub's wide, WebP through wsrv.nl (Sasha,
+  /// 2026-11-26). A plain ``cover(kinopubID:imdb:width:)`` stays strict.
+  public func wideCard(kinopubID: Int, imdb: Int?, kinopoisk: Int? = nil, width: Int?) -> URL? {
+    url(.cover, kinopubID: kinopubID, imdb: imdb, width: width, kinopoisk: kinopoisk,
+        wideChain: true)
   }
 
   /// Title logo, drawn at `width` pixels.

@@ -357,8 +357,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
     e: readIndex(url, "e"),
     format: readFormatQuery(url),
     // Title poster / cover only: kino.pub's own file, the last rung of the chain.
-    src: (route.kind === "poster" || route.kind === "cover") && readIndex(url, "s") == null
-      ? readKinopubThumbSrc(url) : null,
+    src: readIndex(url, "s") == null ? chainSource(url, route.kind, id) : null,
   };
   if (imageRequest.kind === "thumbnail" && (imageRequest.s == null || imageRequest.e == null)) {
     return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
@@ -848,6 +847,10 @@ function mergeTMDB(base, mediaType, tmdbId, details, method = "find:imdb") {
     pending: false,
     built_at: new Date().toISOString(),
     logo_checked_at: new Date().toISOString(),
+    // Drives how often the artwork is reread (artworkRecheckDue). A show's
+    // latest air date counts as a release: a new season is news too.
+    released_at: details.last_air_date || details.release_date || details.first_air_date
+      || base.released_at || null,
   };
   const tmdbValue = `${mediaType}/${tmdbId}`;
   const previousTmdb = base.ids?.tmdb;
@@ -1123,19 +1126,6 @@ function langTag(lang) {
   return "und";
 }
 
-/** A locale with no logo is rechecked on the next request, after this quiet period. */
-export const LOGO_RECHECK_MS = 6 * 60 * 60 * 1000;
-
-export function logoRecheckDue(stored, lang, now = Date.now()) {
-  if (!stored || stored.pending === true) return false;
-  const logos = Array.isArray(stored.artwork?.logo) ? stored.artwork.logo : [];
-  const want = langTag(lang);
-  if (logos.some((item) => langTag(item?.lang) === want)) return false;
-  const built = Date.parse(stored.logo_checked_at || stored.built_at || "");
-  if (!Number.isFinite(built)) return true;
-  return now - built >= LOGO_RECHECK_MS;
-}
-
 function extensionOf(raw) {
   const match = String(raw || "").split("?")[0].match(/\.([a-z0-9]+)$/i);
   return (match?.[1] || "").toLowerCase();
@@ -1200,9 +1190,15 @@ function stampedURL(url, imageRequest, asset, rev) {
   // Optional override; stamped proxy defaults to WebP via weserv when omitted.
   if (imageRequest.format) params.set("format", imageRequest.format);
   if (rev) params.set("v", String(rev));
-  if (imageRequest.src) params.set("src", imageRequest.src);
+  // Only an explicit src rides along (older clients); one derived from the id
+  // is derived again on the stamped side. `wide` keeps the wide-card chain.
+  const explicitSrc = readKinopubThumbSrc(url);
+  if (imageRequest.src && explicitSrc) params.set("src", explicitSrc);
+  if (imageRequest.kind === "cover" && url.searchParams.has("wide")) params.set("wide", "1");
   // The Kinopoisk rung needs the id even when the document never stored it.
-  if (imageRequest.kinopoisk && imageRequest.src) params.set("kinopoisk", imageRequest.kinopoisk);
+  if (imageRequest.kinopoisk && (imageRequest.kind === "poster" || imageRequest.kind === "cover")) {
+    params.set("kinopoisk", imageRequest.kinopoisk);
+  }
   const qs = params.toString();
   return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
 }
@@ -1243,7 +1239,7 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   };
   const hints = readHints(url);
   const format = readOutputFormat(url, stamp.kind);
-  const chainSrc = readKinopubThumbSrc(url);
+  const chainSrc = imageRequest.s == null ? chainSource(url, stamp.kind, id) : null;
   const chainKind = stamp.kind === "poster" && imageRequest.s == null ? "poster"
     : stamp.kind === "cover" && chainSrc ? "cover" : null;
   if (chainKind) {
@@ -1339,27 +1335,39 @@ function posterChain(document, hints, lang, kinopubSrc) {
   return chain;
 }
 
-export const ARTWORK_RECHECK_MS = 24 * 60 * 60 * 1000;
-export const ARTWORK_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** A title is new for two weeks after its release (or its latest air date). */
+export const NEW_TITLE_MS = 14 * DAY_MS;
+/** Missing language: new title daily, older weekly. Whole document: daily / monthly. */
+export const RECHECK_NEW_MS = DAY_MS;
+export const RECHECK_MISSING_MS = 7 * DAY_MS;
+export const RECHECK_STALE_MS = 30 * DAY_MS;
 
 /**
- * Whether this request should re-read TMDB for the title. Logos keep their
- * six-hour per-locale rule. A title poster or cover with nothing in the asked
- * language is due a day after the last build; any document a week after it.
+ * Whether this request should re-read TMDB for the title (Sasha 2026-11-26:
+ * a logo, poster or cover missing in the asked language used to stick for
+ * the document's 30 days). A new title (released in the last two weeks) is
+ * reread a day after the last build. An older one is reread after a week when
+ * the asked language has no logo / poster / cover, and after a month anyway.
  */
 export function artworkRecheckDue(stored, kind, lang, now = Date.now()) {
   if (!stored || stored.pending === true) return false;
-  if (kind === "logo" && logoRecheckDue(stored, lang, now)) return true;
   const built = Date.parse(stored.built_at || "");
-  if (!Number.isFinite(built)) return kind === "poster" || kind === "cover";
+  if (!Number.isFinite(built)) return kind === "poster" || kind === "cover" || kind === "logo";
   const age = now - built;
-  if (age >= ARTWORK_STALE_MS) return true;
-  if (age < ARTWORK_RECHECK_MS || !lang) return false;
+  const released = Date.parse(stored.released_at || "");
+  const isNew = Number.isFinite(released) && now - released < NEW_TITLE_MS && now >= released - NEW_TITLE_MS;
+  if (age >= (isNew ? RECHECK_NEW_MS : RECHECK_STALE_MS)) return true;
+  if (age < RECHECK_MISSING_MS || !lang) return false;
+  return missingInLanguage(stored, kind, lang);
+}
+
+function missingInLanguage(stored, kind, lang) {
   if (kind === "cover") return coverCandidates(stored, lang).length === 0;
-  if (kind === "poster") {
-    return !(stored.artwork?.poster || []).some((item) => {
+  if (kind === "poster" || kind === "logo") {
+    return !(stored.artwork?.[kind] || []).some((item) => {
       const asset = normalizeAsset(item);
-      return asset && langTag(asset.lang) === lang && (asset.source === "tmdb" || asset.source === "tvoe");
+      return asset && langTag(asset.lang) === lang && asset.source !== "kinopub" && asset.source !== "kinopoisk";
     });
   }
   return false;
@@ -1889,6 +1897,22 @@ function episodeAsset(document, seasonNumber, episodeNumber) {
  * Optional `src=` on `/img/thumbnail` — the episode's kino.pub CDN thumb the
  * client already holds. Only `*.staticpop.net` (and http/https) are accepted.
  */
+/**
+ * kino.pub's own file, the last rung of a title poster / wide-card chain. The
+ * file is addressed by the kino.pub id (Sasha 2026-11-26: no need for the
+ * client to send it): poster `big`, wide card `wide` (asked with `?wide=1`).
+ * An explicit `src=` from an older client still wins.
+ */
+function chainSource(url, kind, id) {
+  if (kind !== "poster" && kind !== "cover") return null;
+  const explicit = readKinopubThumbSrc(url);
+  if (explicit) return explicit;
+  if (kind === "poster") return `${KINOPUB_POSTER_BASE}/big/${id}.jpg`;
+  return url.searchParams.has("wide") ? `${KINOPUB_POSTER_BASE}/wide/${id}.jpg` : null;
+}
+
+const KINOPUB_POSTER_BASE = "https://m.staticpop.net/poster/item";
+
 function readKinopubThumbSrc(url) {
   const raw = (url.searchParams.get("src") || "").trim();
   if (!raw) return null;

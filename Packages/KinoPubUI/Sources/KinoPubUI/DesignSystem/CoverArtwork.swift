@@ -99,8 +99,7 @@ public enum CoverArtwork {
           let worker = worker.withLock({ $0 }), card.itemID > 0 else { return nil }
     let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
     return route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
-                          width: worker.widePixelWidth,
-                          kinopubWide: landscape)?.absoluteString
+                          width: worker.widePixelWidth)?.absoluteString
   }
 
   private static var coverLanguageCode: String {
@@ -114,7 +113,7 @@ public enum CoverArtwork {
           tier(ofKinopubPoster: card.posterURL) != nil else { return nil }
     let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
     return route.poster(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
-                        width: worker.pixelWidth, kinopubPoster: card.posterURL)?.absoluteString
+                        width: worker.pixelWidth)?.absoluteString
   }
 
   /// The Kinopoisk one-sheet for a kino.pub vertical cover, when Russian covers
