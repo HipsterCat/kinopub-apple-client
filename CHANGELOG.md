@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **What's New on Mac:** long notes scroll inside the panel again (visible
+  scrollbar); short notes still hug. The dimmed host no longer swallows scroll
+  wheels over the panel itself — only outside it, so the page behind stays still.
 - **App display name:** home screen and About title is **Piratic**
   (`CFBundleDisplayName`). Swift module / `PRODUCT_NAME` stays `KinoPub` for now.
 - **What's New contributions:** new visible-change notes go in isolated files under
