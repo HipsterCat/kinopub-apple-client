@@ -140,6 +140,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+- **What's New + film info on iPhone / iPad / Mac:** large / page sheet; hierarchical
+  `xmark.circle.fill` close (same as Choose a Version); material toolbar that fades in
+  on scroll; «Продолжить» via `.borderedProminent` + `Color.primary` (not `.glassProminent`);
+  Mac panel hugs content and blocks scroll behind when dimmed; previous marketing versions
+  under the new bullets when present. tvOS keeps the restored wide info / What's New sheet
+  from #122 (Choose a Version stays the compact card).
+
 - **Multi-version films: one Play → Choose a Version.** A `subtype: multi` film no longer
   gets a play pill per edition in the hero. One «Смотреть фильм» (or Continue / Play Again)
   opens an Apple TV-style sheet — thumb + name + runtime / quality / audio / subs when

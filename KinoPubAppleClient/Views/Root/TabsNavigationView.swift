@@ -133,6 +133,11 @@ struct TabsNavigationView: View {
                          live: navigationState.backdropLiveKeys)
 #endif
       .presentsWhatsNew(isSignedIn: authState.phase == .signedIn)
+#if os(macOS)
+      // Outside the What's New modifier so `InfoPopupHost` is in its environment:
+      // click outside or Escape dismisses, matching detail info sheets.
+      .hostsInfoPopups()
+#endif
       .environment(navigationState)
       .environment(errorHandler)
       .environment(\.usesTVUIKitPosters, FeatureFlags.tvUIKitPosters)
