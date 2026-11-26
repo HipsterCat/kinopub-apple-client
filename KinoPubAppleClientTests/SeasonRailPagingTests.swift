@@ -71,6 +71,50 @@ final class SeasonRailPagingTests: XCTestCase {
     XCTAssertEqual(after, [seasons[1].id, seasons[2].id, seasons[3].id])
   }
 
+  func testFarSeasonJumpDoesNotAnimate() {
+    XCTAssertFalse(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 6, landingVisible: false, targetSeasonVisible: false))
+    XCTAssertFalse(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 2, landingVisible: true, targetSeasonVisible: true))
+  }
+
+  func testNeighborOffScreenDoesNotAnimate() {
+    XCTAssertFalse(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 1, landingVisible: false, targetSeasonVisible: false))
+  }
+
+  func testNeighborAlreadyOnScreenAnimates() {
+    XCTAssertTrue(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 1, landingVisible: false, targetSeasonVisible: true))
+    XCTAssertTrue(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 1, landingVisible: true, targetSeasonVisible: true))
+  }
+
+  func testSameSeasonAnimatesOnlyWhenLandingIsVisible() {
+    XCTAssertTrue(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 0, landingVisible: true, targetSeasonVisible: true))
+    XCTAssertFalse(SeasonsRailView.animatesSeasonJump(
+      tabDistance: 0, landingVisible: false, targetSeasonVisible: true))
+  }
+
+  func testMissingCurrentTabDoesNotAnimate() {
+    XCTAssertFalse(SeasonsRailView.animatesSeasonJump(
+      tabDistance: nil, landingVisible: true, targetSeasonVisible: true))
+  }
+
+  func testTabDistanceCountsStripStops() {
+    let tabs = [
+      SeasonTab(id: 15, first: 15, last: 15, status: .available),
+      SeasonTab(id: 16, first: 16, last: 16, status: .available),
+      SeasonTab(id: 21, first: 21, last: 21, status: .available),
+    ]
+    XCTAssertEqual(SeasonsRailView.tabDistance(from: 15, to: 21, in: tabs), 2)
+    XCTAssertEqual(SeasonsRailView.tabDistance(from: 15, to: 16, in: tabs), 1)
+    XCTAssertEqual(SeasonsRailView.tabDistance(from: 16, to: 16, in: tabs), 0)
+    XCTAssertNil(SeasonsRailView.tabDistance(from: nil, to: 16, in: tabs))
+    XCTAssertNil(SeasonsRailView.tabDistance(from: 15, to: 99, in: tabs))
+  }
+
   func testNeighborRadiusAtEdgesDoesNotInventSeasons() {
     let seasons = seasons([1, 1, 1])
     XCTAssertEqual(

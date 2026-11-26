@@ -269,6 +269,11 @@ struct SeasonsRailView: View {
   /// back on each change dragged a season pill's scroll back to wherever the rail stood
   /// mid-flight — S1 pressed, the rail jerked and stopped on S1E7 (Sasha, 2026-11-26).
   @State private var didRestorePosition = false
+  /// Season plates and episode cards at least half on screen. A pill animates the
+  /// rail only when the season it is moving to is already in this set.
+  @State private var visibleRailAnchors: Set<String> = []
+  /// Bumps on every pill scroll so an older jump cannot scroll back over a newer one.
+  @State private var tabScrollGeneration = 0
   /// The season whose «Подробности» are up.
   @State private var seasonDetails: SeasonCardInfo?
   /// The season whose TMDB posters are being looked through.
@@ -1585,8 +1590,16 @@ struct SeasonsRailView: View {
         return entry.map { (anchor, index, $0) }
       }
       guard let leading = visible.min(by: { $0.index < $1.index }) else { return }
-      // A pill's scroll in flight: the cards it passes are not where the rail stands.
-      // `selectTab` has already written its target into the memory.
+      // A pill's scroll in flight passes seasons that are not the destination.
+      // Recording those would make the next hop look like a short one. The set
+      // updates once the destination is what is actually leading.
+      let showsDestination = !isScrollingFromTab || leading.entry.tabID == selectedTabID
+      if showsDestination {
+        visibleRailAnchors = Set(visible.map(\.anchor))
+      }
+      // Hydrating a passed season would build every season between here and the
+      // target, and adopting its tab would step the selection. `selectTab` already
+      // wrote the target into the memory.
       guard !isScrollingFromTab else { return }
       let entry = leading.entry
       rail.leadingEntryID = entry.id
@@ -1688,8 +1701,40 @@ struct SeasonsRailView: View {
         .overlay {
           MediaCardView(card: .placeholder(id: episode.id), caption: .always)
         }
-        .onAppear { hydrate(around: season.id) }
+        .onAppear {
+          // A jump past the viewport can still materialise the placeholders it
+          // crosses. Hydrating those opens every season in between. The destination
+          // window was already opened in `selectTab`.
+          guard !isScrollingFromTab else { return }
+          hydrate(around: season.id)
+        }
     }
+  }
+
+  /// A pill scroll animates only when it is a short move onto content already on
+  /// screen: the same season's landing card, or a neighboring season that is already
+  /// in the viewport. Skipping a season, or jumping to one that is off screen, cuts
+  /// straight there so the lazy row does not build every season the animation would
+  /// pass (Sasha, 2026-11-26).
+  ///
+  /// `targetSeasonVisible` includes the landing card. `landingVisible` is that card
+  /// alone — a same-season return to the start stays instant when the start is off screen.
+  static func animatesSeasonJump(
+    tabDistance: Int?,
+    landingVisible: Bool,
+    targetSeasonVisible: Bool
+  ) -> Bool {
+    guard let tabDistance, tabDistance <= 1 else { return false }
+    if tabDistance == 1 { return targetSeasonVisible }
+    return landingVisible
+  }
+
+  /// How many stops apart two pills are. Nil when either id is not on the strip.
+  static func tabDistance(from: Int?, to: Int, in tabs: [SeasonTab]) -> Int? {
+    guard let from,
+          let fromIndex = tabs.firstIndex(where: { $0.id == from }),
+          let toIndex = tabs.firstIndex(where: { $0.id == to }) else { return nil }
+    return abs(toIndex - fromIndex)
   }
 
   /// Selects a tab and scrolls the rail to its first item: a season's first episode, or
@@ -1701,8 +1746,10 @@ struct SeasonsRailView: View {
   ///   initial resume jump (`scrollToFirstUnseen`) passes a specific target here.
   private func selectTab(_ tabID: Int, entryEpisodeID: Int? = nil, proxy: ScrollViewProxy, animated: Bool) {
     guard tabs.contains(where: { $0.id == tabID }) else { return }
+    let previousTabID = selectedTabID
     // Hydrate first so the destination season has cards (or stable-id placeholders) to
     // scroll to — a far tab used to land on an empty rail when only one season was built.
+    // Radius 1 only: the seasons in between stay placeholders until the jump has settled.
     if seasons.contains(where: { $0.id == tabID }) {
       hydrate(around: tabID)
     }
@@ -1739,28 +1786,62 @@ struct SeasonsRailView: View {
     // card the scroll passed on the way.
     rail.leadingEntryID = target.id
     rail.leadingAnchor = anchor
+    tabScrollGeneration += 1
+    let generation = tabScrollGeneration
+    let distance = Self.tabDistance(from: previousTabID, to: tabID, in: tabs)
+    let landingVisible = visibleRailAnchors.contains(anchor)
+    let shown = entries
+    let targetSeasonVisible = visibleRailAnchors.contains { candidate in
+      Self.anchor(candidate, belongsTo: tabID, entries: shown)
+    }
+    // The caller may ask for the short animation. A far jump never takes it: animating
+    // `scrollTo` walks the lazy row through every season in between.
+    let railAnimated = animated && Self.animatesSeasonJump(
+      tabDistance: distance,
+      landingVisible: landingVisible,
+      targetSeasonVisible: targetSeasonVisible)
     // The rail's own position, not the reader's proxy: `proxy.scrollTo(_, anchor: .leading)`
     // also scrolls the page so the rail sits mid-height — the page jerked on every pill
     // press. And an id position stays on its card while cards before it change (a hydrated
     // season's holes), where a one-off offset jump is left behind.
-    if animated {
-      withAnimation(.easeOut(duration: 0.2)) {
-        railPosition.scrollTo(id: anchor, anchor: .leading)
-      }
-    } else {
-      railPosition.scrollTo(id: anchor, anchor: .leading)
-    }
+    scrollRail(to: anchor, animated: railAnimated)
     Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(250))
+      guard generation == tabScrollGeneration else { return }
       // Again, once the lazy row has laid out the cards around the target: a jump from
       // far away landed on an estimate and left the season's first card short of the
-      // edge (Sasha, 2026-10-30).
-      railPosition.scrollTo(id: anchor, anchor: .leading)
+      // edge (Sasha, 2026-10-30). Never animated — this correction must not sweep.
+      scrollRail(to: anchor, animated: false)
       try? await Task.sleep(for: .milliseconds(100))
+      guard generation == tabScrollGeneration else { return }
       isScrollingFromTab = false
     }
 #endif
   }
+
+#if !os(tvOS)
+  /// `candidate` is a visible rail anchor (`season-` / `episode-`).
+  private static func anchor(_ candidate: String, belongsTo tabID: Int, entries: [RailEntry]) -> Bool {
+    if candidate == seasonAnchor(tabID) { return true }
+    guard let id = episodeID(from: candidate) else { return false }
+    return entries.first(where: { $0.id == id })?.tabID == tabID
+  }
+
+  /// The rail's own position. A far jump disables the implicit animation so the offset
+  /// is not interpolated across the seasons in between.
+  private func scrollRail(to anchor: String, animated: Bool) {
+    let scroll = {
+      railPosition.scrollTo(id: anchor, anchor: .leading)
+    }
+    if animated {
+      withAnimation(.easeOut(duration: 0.2)) { scroll() }
+    } else {
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction) { scroll() }
+    }
+  }
+#endif
 
   /// Where the rail stands and Down from the hero lands: the episode the hero's main
   /// button plays. With everything kino.pub has watched and the next episode dated, the
