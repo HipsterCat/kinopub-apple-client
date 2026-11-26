@@ -64,7 +64,7 @@ final class MyAnimeListSourceTests: XCTestCase {
       5114)
   }
 
-  func testMergePrefersFresherMALVotes() {
+  func testMergePrefersFresherMALVotes() throws {
     var base = TitleMetadata()
     base.externalRatings = [
       ExternalRating(kind: .myAnimeList, value: 8.5, votes: 46_305,
@@ -77,7 +77,7 @@ final class MyAnimeListSourceTests: XCTestCase {
     ]
     base.merge(official)
     XCTAssertEqual(base.externalRatings.first?.votes, 64_129)
-    XCTAssertEqual(base.externalRatings.first?.value, 8.6, accuracy: 0.001)
+    XCTAssertEqual(try XCTUnwrap(base.externalRatings.first?.value), 8.6, accuracy: 0.001)
   }
 
   func testCredentialsRejectPlaceholders() {
