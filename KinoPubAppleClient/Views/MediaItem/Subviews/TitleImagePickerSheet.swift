@@ -19,8 +19,15 @@ struct TitleImagePickerTarget: Identifiable, Hashable {
   let kinopubID: Int
   let imdb: Int?
   let title: String
+  /// The segment the sheet opens on: a poster card's menu opens Poster (Sasha, 2026-11-26).
+  var initialKind: WorkerImageAdminKind = .logo
 
   var id: Int { kinopubID }
+}
+
+extension WorkerImageAdminKind {
+  /// Logos, covers and posters are pinned one per language; a backdrop is one per title.
+  var picksPerLanguage: Bool { self != .backdrop }
 }
 
 /// Opens on a Logo / Cover / Backdrop segment. Logos and covers take one pick per
@@ -67,6 +74,7 @@ struct TitleImagePickerSheet: View {
           HStack(spacing: 12) {
             Picker("Image Kind", selection: $kind) {
               Text("Logo").tag(WorkerImageAdminKind.logo)
+              Text("Poster").tag(WorkerImageAdminKind.poster)
               Text("Cover").tag(WorkerImageAdminKind.cover)
               Text("Backdrop").tag(WorkerImageAdminKind.backdrop)
             }
@@ -111,7 +119,7 @@ struct TitleImagePickerSheet: View {
         .textInputAutocapitalization(.never)
 #endif
         .autocorrectionDisabled()
-      if kind == .logo || kind == .cover {
+      if kind.picksPerLanguage {
         ForEach(model.languageOrder(for: kind), id: \.self) { language in
           Button(language.pickerTitle) { pinLink(language: language) }
         }
@@ -142,7 +150,8 @@ struct TitleImagePickerSheet: View {
     switch kind {
     case .logo: "Logo by Link"
     case .cover: "Cover by Link"
-    case .backdrop, .poster: "Backdrop by Link"
+    case .poster: "Poster by Link"
+    case .backdrop: "Backdrop by Link"
     }
   }
 
@@ -150,7 +159,8 @@ struct TitleImagePickerSheet: View {
     switch kind {
     case .logo: "Replaces the logo of the language you choose."
     case .cover: "Replaces the cover of the language you choose."
-    case .backdrop, .poster: "Replaces the title's backdrop."
+    case .poster: "Replaces the poster of the language you choose."
+    case .backdrop: "Replaces the title's backdrop."
     }
   }
 
@@ -349,8 +359,8 @@ private struct TitleImageTile<Caption: View>: View {
   let kind: WorkerImageAdminKind
   let previewURL: URL?
   let isSelected: Bool
-  /// The box the picture fills or fits; a season's poster is 2:3.
-  var boxAspectRatio: CGFloat = 16 / 9
+  /// The box the picture fills or fits; posters (title and season) are 2:3.
+  var boxAspectRatio: CGFloat? = nil
   @ViewBuilder let caption: () -> Caption
 
   private var shape: RoundedRectangle {
@@ -360,7 +370,8 @@ private struct TitleImageTile<Caption: View>: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       Color.clear
-        .aspectRatio(boxAspectRatio, contentMode: .fit)
+        .aspectRatio(boxAspectRatio ?? (kind == .poster ? CardAspect.poster.ratio : 16 / 9),
+                     contentMode: .fit)
         .overlay {
           if kind == .logo {
             // Logos are drawn over the hero's forced-dark picture, so they are judged
@@ -446,8 +457,8 @@ private enum TitleImagePickerMetrics {
   static let gridSpacing: CGFloat = 40
   static let cornerRadius: CGFloat = 12
   static let logoInset: CGFloat = 24
-  static func minTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { 360 }
-  static func maxTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { 460 }
+  static func minTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .poster ? 220 : 360 }
+  static func maxTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .poster ? 300 : 460 }
 #else
   static let horizontalPadding: CGFloat = 16
   static let maxContentWidth: CGFloat = 1_100
@@ -456,8 +467,8 @@ private enum TitleImagePickerMetrics {
   static let gridSpacing: CGFloat = 14
   static let cornerRadius: CGFloat = 10
   static let logoInset: CGFloat = 14
-  static func minTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo ? 150 : 200 }
-  static func maxTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo ? 260 : 320 }
+  static func minTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo || kind == .poster ? 150 : 200 }
+  static func maxTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo || kind == .poster ? 220 : 320 }
 #endif
   /// A season poster's tile in `SeasonImageBrowserSheet`.
   static let minPosterWidth: CGFloat = 120
@@ -639,8 +650,8 @@ final class TitleImagePickerModel {
   func languageOrder(for kind: WorkerImageAdminKind) -> [WorkerArtworkLanguageTag] {
     switch kind {
     case .logo: userLanguage == .en ? [.en, .ru, .und] : [.ru, .en, .und]
-    case .cover: userLanguage == .en ? [.en, .ru] : [.ru, .en]
-    case .backdrop, .poster: [.und, .en, .ru]
+    case .cover, .poster: userLanguage == .en ? [.en, .ru] : [.ru, .en]
+    case .backdrop: [.und, .en, .ru]
     }
   }
 
@@ -671,7 +682,7 @@ final class TitleImagePickerModel {
               language: WorkerArtworkLanguageTag,
               kind: WorkerImageAdminKind) {
     saveError = nil
-    if kind == .logo || kind == .cover {
+    if kind.picksPerLanguage {
       selection[kind, default: [:]][language] = file.url
     } else {
       // One backdrop per title in the worker: a pick anywhere replaces the last one.
@@ -705,7 +716,7 @@ final class TitleImagePickerModel {
     saveError = nil
     defer { isSaving = false }
     do {
-      for kind in [WorkerImageAdminKind.logo, .cover, .backdrop] {
+      for kind in [WorkerImageAdminKind.logo, .poster, .cover, .backdrop] {
         let selected = selection[kind] ?? [:]
         guard !selected.isEmpty, selected != (pinned[kind] ?? [:]) else { continue }
         for language in languageOrder(for: kind) {
@@ -713,7 +724,7 @@ final class TitleImagePickerModel {
           let file = catalogs[kind].flatMap { catalog in
             languageOrder(for: kind).lazy.flatMap { catalog.bucket($0) }.first { $0.url == url }
           }
-          let pinLanguage: WorkerArtworkLanguageTag? = (kind == .logo || kind == .cover) ? language : nil
+          let pinLanguage: WorkerArtworkLanguageTag? = (kind.picksPerLanguage) ? language : nil
           _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
                                     language: pinLanguage,
                                     width: file?.width, height: file?.height)
@@ -740,7 +751,7 @@ final class TitleImagePickerModel {
     saveError = nil
     defer { isSaving = false }
     do {
-      let pinLanguage: WorkerArtworkLanguageTag? = (kind == .logo || kind == .cover) ? language : nil
+      let pinLanguage: WorkerArtworkLanguageTag? = (kind.picksPerLanguage) ? language : nil
       _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
                                 language: pinLanguage)
       Artwork.clearCaches()
@@ -789,7 +800,7 @@ final class TitleImagePickerModel {
     // Covers: per-language pins in artwork.cover; automatic files still come from the
     // catalog buckets (lang-tagged TMDB backdrops).
     var now: [TitleImagePickerCurrent] = []
-    if kind == .logo || kind == .cover {
+    if kind.picksPerLanguage {
       for language in order {
         let mine = stored.filter { tag($0.lang) == language }
         if let asset = mine.first(where: { $0.pinned == true }) ?? mine.first {
@@ -809,7 +820,7 @@ final class TitleImagePickerModel {
     var served: [WorkerArtworkLanguageTag: String] = [:]
     for item in now {
       guard let match = fileFor[Self.fileKey(item.url)] else { continue }
-      let language = (kind == .logo || kind == .cover) ? item.language : match.language
+      let language = (kind.picksPerLanguage) ? item.language : match.language
       if item.isPinned { pins[language] = match.url }
       served[language] = match.url
     }
@@ -818,7 +829,7 @@ final class TitleImagePickerModel {
     // Start on what is on the title now; a language with nothing stored starts on its
     // most-voted file.
     var chosen = served
-    if kind == .logo || kind == .cover {
+    if kind.picksPerLanguage {
       for language in order where chosen[language] == nil {
         chosen[language] = Self.ranked(catalog.bucket(language)).first?.url
       }
@@ -980,6 +991,9 @@ struct TitleImageAdminMenuItems: View {
       Button { actions.refresh(.logo) } label: {
         Label("Refresh Logo", systemImage: "arrow.clockwise")
       }
+      Button { actions.refresh(.poster) } label: {
+        Label("Refresh Poster", systemImage: "arrow.clockwise")
+      }
       Button { actions.refresh(.cover) } label: {
         Label("Refresh Cover", systemImage: "arrow.clockwise")
       }
@@ -989,6 +1003,9 @@ struct TitleImageAdminMenuItems: View {
       Divider()
       Button(role: .destructive) { actions.forget(.logo) } label: {
         Label("Forget Logo", systemImage: "trash")
+      }
+      Button(role: .destructive) { actions.forget(.poster) } label: {
+        Label("Forget Poster", systemImage: "trash")
       }
       Button(role: .destructive) { actions.forget(.cover) } label: {
         Label("Forget Cover", systemImage: "trash")

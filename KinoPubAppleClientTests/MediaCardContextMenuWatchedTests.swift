@@ -180,10 +180,13 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     let card = posterCard()
     let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf)
     XCTAssertEqual(spec.aspect, .poster)
-    XCTAssertEqual(
-      spec.url?.absoluteString,
-      CoverArtwork.kinopoiskURL(id: 322, tier: .regular)
-    )
+    // The peek draws what the card draws: the worker poster in Russian (#176),
+    // the Kinopoisk file as the direct rung.
+    XCTAssertEqual(spec.url?.absoluteString, card.coverURL)
+    XCTAssertEqual(card.directCoverURL, CoverArtwork.kinopoiskURL(id: 322, tier: .regular))
+    if card.coverURL.contains("/img/poster/") {
+      XCTAssertTrue(card.coverURL.contains("lang=ru"), card.coverURL)
+    }
   }
 
   func testSeriesPeekPrefersWorkerEpisodeStill() {
@@ -203,7 +206,8 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     CoverArtworkPreferences.set(.english)
     let spec = MediaCardContextPreviewSpec.from(card: posterCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .poster)
-    XCTAssertEqual(spec.url?.absoluteString, "https://m.staticpop.net/poster/item/big/7.jpg")
+    XCTAssertEqual(spec.url?.absoluteString, posterCard().coverURL)
+    XCTAssertEqual(posterCard().directCoverURL, "https://m.staticpop.net/poster/item/big/7.jpg")
     XCTAssertEqual(spec.title, "Декстер: Воскрешение")
     // Language follows the process locale; accept either localisation of Drama.
     XCTAssertTrue(

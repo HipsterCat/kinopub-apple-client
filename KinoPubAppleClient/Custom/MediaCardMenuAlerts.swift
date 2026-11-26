@@ -15,7 +15,8 @@ extension View {
     .sheet(item: Binding(get: { menu.imagePickerTarget }, set: { menu.imagePickerTarget = $0 })) { target in
       TitleImagePickerSheet(target: target,
                             images: AppContext.shared.metadataService.images,
-                            onSaved: {})
+                            onSaved: {},
+                            initialKind: target.initialKind)
     }
     .alert("New Folder", isPresented: Binding(
       get: { menu.newFolderItemID != nil },
