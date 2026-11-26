@@ -317,9 +317,9 @@ const SOURCE_ORDER = {
   cover: ["tmdb"],
   // kinopub sits between TMDB and Kinopoisk (Sasha, 2026-11-26) but only
   // ever arrives as the client's `src=`; see posterChain.
-  // tvoe last: its posters often carry an «Эксклюзивно на TVOE» badge (Sasha,
-  // 2026-11-26).
-  poster: ["tmdb", "kinopub", "kinopoisk", "tvoe"],
+  // Sasha 2026-11-26: TMDB, tvoe, Kinopoisk, kino.pub. tvoe sits behind TMDB
+  // because its posters often carry an «Эксклюзивно на TVOE» badge.
+  poster: ["tmdb", "tvoe", "kinopoisk", "kinopub"],
   // kinopub last: real stills beat a catalogue thumb, but a catalogue thumb
   // beats a 404 that forces the client to download a giant staticpop JPEG.
   thumbnail: ["tvoe", "tmdb", "kinopub"],
@@ -1299,8 +1299,8 @@ async function proxyStamped(request, url, env, ctx, stamp) {
 }
 
 /**
- * Title poster fallback chain for one language: pin → TMDB → kino.pub (`src`)
- * → Kinopoisk → tvoe (badged) → a poster in another language. Sasha 2026-11-26: TMDB
+ * Title poster fallback chain for one language: pin → TMDB → tvoe → Kinopoisk
+ * → kino.pub (`src`) → a poster in another language (Sasha, 2026-11-26). Sasha 2026-11-26: TMDB
  * first, then kino.pub, then Kinopoisk; kino.pub's CDN going down must not
  * leave a tile blank.
  */
@@ -1314,9 +1314,9 @@ function posterChain(document, hints, lang, kinopubSrc) {
   const from = (source) => inLang.filter((a) => (source === "tmdb"
     ? a.source !== "kinopoisk" && a.source !== "tvoe" : a.source === source));
   push(bestAsset(from("tmdb"), "poster", lang, { strict: true }));
-  if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang, width: null, height: null });
-  push(bestAsset(from("kinopoisk"), "poster", lang, { strict: true }));
   push(bestAsset(from("tvoe"), "poster", lang, { strict: true }));
+  push(bestAsset(from("kinopoisk"), "poster", lang, { strict: true }));
+  if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang, width: null, height: null });
   const others = (document?.artwork?.poster || [])
     .map(normalizeAsset)
     .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url) && (a.lang ?? null) !== lang);

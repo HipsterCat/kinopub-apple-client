@@ -399,7 +399,7 @@ test("Russian poster with nothing Russian falls back to an English one", async (
 
 const KINOPUB_POSTER = "https://m.staticpop.net/poster/item/big/82852.jpg";
 
-test("Russian poster: kino.pub src comes after TMDB ru and before Kinopoisk", async () => {
+test("Russian poster: kino.pub src is the last rung in the language", async () => {
   const src = `src=${encodeURIComponent(KINOPUB_POSTER)}`;
   const withRu = kvEnv({
     "title:kinopub:82852": {
@@ -421,7 +421,6 @@ test("Russian poster: kino.pub src comes after TMDB ru and before Kinopoisk", as
   try {
     const noRu = kvEnv({
       "title:kinopub:82852": {
-        ids: { kinopoisk: { value: "326" } },
         artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }] },
       },
     });
@@ -438,13 +437,13 @@ test("Russian poster: kino.pub src comes after TMDB ru and before Kinopoisk", as
   }
 });
 
-test("stamped poster walks past a dead kino.pub CDN to Kinopoisk", async () => {
+test("stamped poster walks past a dead Kinopoisk file to kino.pub", async () => {
   const fetched = [];
   const restore = globalThis.fetch;
   globalThis.fetch = async (target) => {
     const url = String(target);
     fetched.push(url);
-    if (url.includes("staticpop")) return new Response("down", { status: 502 });
+    if (url.includes("kinopoiskapiunofficial")) return new Response("down", { status: 502 });
     return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
   };
   try {
@@ -456,8 +455,9 @@ test("stamped poster walks past a dead kino.pub CDN to Kinopoisk", async () => {
     );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-language"), "ru");
-    assert.equal(fetched.length, 2);
-    assert.ok(fetched[1].includes("kinopoiskapiunofficial.tech"), fetched[1]);
+    // Kinopoisk through weserv, then Kinopoisk direct, then kino.pub.
+    assert.equal(fetched.length, 3);
+    assert.ok(fetched[2].includes("staticpop"), fetched[2]);
   } finally {
     globalThis.fetch = restore;
   }
@@ -1102,7 +1102,7 @@ test("wide card cover with src: language cover, then textless backdrop, then kin
   }
 });
 
-test("stamped Russian poster takes TMDB, kino.pub and Kinopoisk before a badged tvoe file", async () => {
+test("stamped Russian poster: TMDB, then tvoe, then Kinopoisk", async () => {
   const fetched = [];
   const restore = globalThis.fetch;
   globalThis.fetch = async (target) => {
@@ -1129,7 +1129,7 @@ test("stamped Russian poster takes TMDB, kino.pub and Kinopoisk before a badged 
     });
     fetched.length = 0;
     await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), noTmdb, ctxSpy());
-    assert.ok(fetched[0].includes("kinopoiskapiunofficial.tech"), fetched[0]);
+    assert.ok(fetched[0].includes("static.cdn.tvoe.live"), fetched[0]);
   } finally {
     globalThis.fetch = restore;
   }
