@@ -1101,3 +1101,36 @@ test("wide card cover with src: language cover, then textless backdrop, then kin
     globalThis.fetch = restore;
   }
 });
+
+test("stamped Russian poster takes TMDB, kino.pub and Kinopoisk before a badged tvoe file", async () => {
+  const fetched = [];
+  const restore = globalThis.fetch;
+  globalThis.fetch = async (target) => {
+    fetched.push(String(target));
+    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+  };
+  try {
+    const env = kvEnv({
+      "title:kinopub:82852": {
+        ids: { kinopoisk: { value: "326" } },
+        artwork: { poster: [
+          { source: "tvoe", url: TVOE_POSTER, lang: "ru" },
+          { source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" },
+        ] },
+      },
+    });
+    await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), env, ctxSpy());
+    assert.ok(fetched[0].includes("poster-ru.jpg"), fetched[0]);
+    const noTmdb = kvEnv({
+      "title:kinopub:82852": {
+        ids: { kinopoisk: { value: "326" } },
+        artwork: { poster: [{ source: "tvoe", url: TVOE_POSTER, lang: "ru" }] },
+      },
+    });
+    fetched.length = 0;
+    await handleImage(new Request("https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=600"), noTmdb, ctxSpy());
+    assert.ok(fetched[0].includes("kinopoiskapiunofficial.tech"), fetched[0]);
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
