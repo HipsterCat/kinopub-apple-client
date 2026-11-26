@@ -131,8 +131,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let country: String?
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
-  /// A lock and these words on top of a landscape still: an episode that has aired and is
-  /// not on kino.pub («Нет на Кинопабе»). Not encoded — the rail builds it every time.
+  /// Lock chip copy for content not on kino.pub («Нет на Кинопабе»). Landscape episode
+  /// stills keep full opacity (chip only); poster filmography cards dim. Not encoded —
+  /// the rail / person page builds it every time.
   public var unavailableNotice: String? = nil
   /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
   /// own thumbnail. Not encoded; the rail sets it every time.
@@ -727,9 +728,12 @@ public struct MediaCardView: View {
   /// A watched card's artwork sits dimmed, and on macOS hovering it restores it to full.
   /// `isHovered` only exists there — there is no pointer on tvOS or iOS — so the dim is
   /// simply constant off macOS rather than reading a state that does not compile.
-  /// Titles not on Kinopub (`unavailableNotice`) stay dimmed the same way.
+  /// Poster titles not on Kinopub (TMDB-only filmography) dim the same way. Landscape
+  /// episode stills with a lock chip stay at full opacity — a washed-out thumb reads as
+  /// broken (Sasha, 2026-10-30; restored after #151 applied the filmography dim to every
+  /// `unavailableNotice` card).
   private var watchedArtworkOpacity: Double {
-    if card.unavailableNotice != nil { return 0.55 }
+    if card.unavailableNotice != nil, !card.isLandscape { return 0.55 }
     guard dimsWatchedArtwork else { return 1 }
 #if os(macOS)
     return isHovered ? 1 : 0.5
