@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "date": "2026-11-26",
+  "ru": [
+    "iPhone Duo: открытие тайтла с баннера на главной больше не падает при сложенном экране.",
+    "После складывания/раскладывания страница тайтла заново подстраивает рейтинги и ширину контента под колонку и боковую вкладку."
+  ],
+  "en": [
+    "iPhone Duo: opening a title from the Home banner no longer crashes when the device is folded.",
+    "Folding or unfolding reflows the title page ratings and content width to the content column and side tab bar."
+  ]
+}

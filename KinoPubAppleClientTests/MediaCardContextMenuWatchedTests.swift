@@ -143,7 +143,10 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
   func testPreviewSpecUsesLandscapeForWideCardWithoutEpisodeLine() {
     let spec = MediaCardContextPreviewSpec.from(card: seriesCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .landscape)
-    XCTAssertEqual(spec.url?.absoluteString, "https://example.com/wide.jpg")
+    // Series CW peek uses the episode still (`hoverStillURL` / pointerArtwork), same
+    // as macOS hover — not the tile's wide cover (#165).
+    XCTAssertEqual(spec.url?.absoluteString,
+                   "https://m.staticpop.net/poster/episode/thumb/42.jpg")
     XCTAssertEqual(spec.title, "Альтруисты")
     // Title-level CW peek: genre / year · genre — never «S1, E3» / «Ep. 1».
     XCTAssertTrue(

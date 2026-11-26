@@ -549,6 +549,9 @@ public enum Artwork {
   @MainActor
   private enum DisplayScaleObserver {
     static var token: (any NSObjectProtocol)?
+#if os(iOS)
+    static var sceneToken: (any NSObjectProtocol)?
+#endif
   }
 
   @MainActor
@@ -615,6 +618,17 @@ public enum Artwork {
     ) { _ in
       MainActor.assumeIsolated { rememberDisplayScale() }
     }
+#if os(iOS)
+    // Foldable / multi-scene: screen mode often does not change when the window
+    // geometry does (iPhone Duo). Re-read scale when a scene activates.
+    DisplayScaleObserver.sceneToken = NotificationCenter.default.addObserver(
+      forName: UIScene.didActivateNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { rememberDisplayScale() }
+    }
+#endif
 #endif
   }
 
@@ -824,6 +838,10 @@ private final class ActivityReportCancellable: Cancellable, Sendable {
 /// Aspect-fills `pixelSize`, then crops from the **top** (horizontally centred). Nuke's
 /// `Resize(crop: true)` always centres vertically, which cuts hero heads and jumps when
 /// the title page opens top-aligned (Sasha, 2026-11-26).
+///
+/// Output is **opaque 32BGRA-compatible** (not RGBA). SwiftUI `.blur` / zoom /
+/// `drawingGroup` build `CVPixelBuffer`s; RGBA returns `kCVReturnInvalidPixelFormat`
+/// (-6680) — seen on iPhone Duo opening a title from the Home banner.
 private struct TopAlignedFillProcessor: ImageProcessing, Sendable {
   let pixelSize: CGSize
 
@@ -832,8 +850,13 @@ private struct TopAlignedFillProcessor: ImageProcessing, Sendable {
   }
 
   func process(_ image: PlatformImage) -> PlatformImage? {
-    let target = CGSize(width: max(1, pixelSize.width.rounded()),
-                        height: max(1, pixelSize.height.rounded()))
+    // Multiple of 4 so BGRA `bytesPerRow = width×4` is 16-byte aligned for Core Video.
+    let width = Self.align(pixelSize.width)
+    let height = Self.align(pixelSize.height)
+    let target = CGSize(width: width, height: height)
+    guard target.width.isFinite, target.height.isFinite,
+          target.width >= 4, target.height >= 4,
+          target.width <= 8192, target.height <= 8192 else { return image }
 #if os(macOS)
     let src = image.size
     guard src.width > 0, src.height > 0 else { return image }
@@ -844,6 +867,8 @@ private struct TopAlignedFillProcessor: ImageProcessing, Sendable {
                       height: src.height * scale)
     let out = NSImage(size: target)
     out.lockFocus()
+    NSColor.black.setFill()
+    NSRect(origin: .zero, size: target).fill()
     image.draw(in: draw, from: .zero, operation: .copy, fraction: 1)
     out.unlockFocus()
     return out
@@ -855,13 +880,22 @@ private struct TopAlignedFillProcessor: ImageProcessing, Sendable {
                       y: 0, // top
                       width: src.width * scale,
                       height: src.height * scale)
+    // Opaque → Metal-friendly BGRA, not RGBA (CVPixelBufferCreate -6680 on Duo).
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
-    format.opaque = false
-    return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+    format.opaque = true
+    return UIGraphicsImageRenderer(size: target, format: format).image { ctx in
+      UIColor.black.setFill()
+      ctx.fill(CGRect(origin: .zero, size: target))
       image.draw(in: draw)
     }
 #endif
+  }
+
+  /// Round up to a multiple of 4 (BGRA row alignment). Rejects non-finite / empty sizes.
+  private static func align(_ value: CGFloat) -> CGFloat {
+    guard value.isFinite, value > 0 else { return 4 }
+    return max(4, (value / 4).rounded(.up) * 4)
   }
 }
 

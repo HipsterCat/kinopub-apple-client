@@ -39,6 +39,12 @@ struct RootView: View {
       .onChange(of: displayScale) { _, _ in
         Artwork.rememberDisplayScale()
       }
+#if os(iOS)
+      // Window geometry (fold / unfold / Stage Manager) — refresh decode scale.
+      .onGeometryChange(for: CGSize.self, of: \.size) { _ in
+        Artwork.rememberDisplayScale()
+      }
+#endif
       .networkActivityOverlay(isEnabled: showsActivityOverlay)
 #if os(tvOS)
       .focusDebugOverlay(isEnabled: showsFocusOverlay)

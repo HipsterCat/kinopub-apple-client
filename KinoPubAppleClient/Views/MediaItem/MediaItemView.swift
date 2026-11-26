@@ -1356,6 +1356,10 @@ struct MediaItemView_Previews: PreviewProvider {
 /// blurred opaque there and scaled up, so the blur costs a 160×90 pass, not a
 /// screen-sized one. Behind the page (`ambientBackground`) and under the hero's picture
 /// until it arrives — or when it never does (`MediaItemHeroView.scrollingBackdrop`).
+///
+/// No `drawingGroup()`: compositing the blur into a Metal offscreen buffer asked for
+/// RGBA on iPhone Duo and crashed with `CVPixelBufferCreate … -6680` when opening a
+/// title from the Home banner (Sasha, 2026-11-26). GPU scales the small blurred still.
 struct MediaItemPosterWash: View {
   let url: URL?
   /// Whether the poster drew: the hero dims it and darkens its chrome only once it has —
@@ -1375,7 +1379,6 @@ struct MediaItemPosterWash: View {
           .clipped()
           .blur(radius: Self.blur, opaque: true)
           .saturation(1.6)
-          .drawingGroup()
           .scaleEffect(Self.scale)
       }
       .clipped()

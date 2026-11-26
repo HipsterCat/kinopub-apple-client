@@ -854,6 +854,10 @@ struct MediaItemHeroView: View {
 
 #if !os(tvOS)
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#if os(iOS)
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
+  @Environment(\.scenePhase) private var scenePhase
+#endif
   /// The page's side margins on a bleeding page (`PageMargins`), iOS only.
   @Environment(\.pageMargins) private var pageMargins
   /// The room between the margins at which the people's column did not fit.
@@ -862,9 +866,14 @@ struct MediaItemHeroView: View {
   /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
   /// all of that into one short strip, and none of it was further up the scroll.
   /// Wider canvases keep the 16:9 floor.
+  ///
+  /// Also when the **content column** is phone-narrow while size class stays
+  /// `.regular` — iPhone Duo folded, Split View, Stage Manager (Sasha, 2026-11-26).
   private var phoneHeroGrows: Bool {
 #if os(iOS)
-    horizontalSizeClass == .compact
+    if horizontalSizeClass == .compact { return true }
+    if let width = pageMargins?.contentWidth, width > 0, width < 520 { return true }
+    return false
 #else
     false
 #endif
@@ -939,7 +948,26 @@ struct MediaItemHeroView: View {
         .animation(Self.heroStateChange, value: showsPicture)
       }
     }
+#if os(iOS)
+    // Fold / unfold / Split View: size classes and the content column change; drop
+    // stale band and credits measurements so ratings and columns reflow (Duo).
+    .onChange(of: horizontalSizeClass) { _, _ in resetHeroGeometryCaches() }
+    .onChange(of: verticalSizeClass) { _, _ in resetHeroGeometryCaches() }
+    .onChange(of: pageMargins?.contentWidth) { _, _ in resetHeroGeometryCaches() }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active {
+        Artwork.rememberDisplayScale()
+        resetHeroGeometryCaches()
+      }
+    }
+#endif
   }
+
+#if os(iOS)
+  private func resetHeroGeometryCaches() {
+    creditsOverflowWidth = nil
+  }
+#endif
 #endif
 
 #if os(iOS)
@@ -1869,8 +1897,12 @@ struct MediaItemHeroView: View {
   /// first, then the views, then the sources with under a tenth of the votes and the
   /// Popcornmeter, then the smallest of what is left. Tomatometer and Metascore stay
   /// at the end throughout.
+  ///
+  /// Proposed width is the band between page margins so `ViewThatFits` sees the real
+  /// column after a fold — not a stale full-window width under a vertical tab bar.
   @ViewBuilder
   private var scoresLine: some View {
+    let maxWidth = scoresLineMaxWidth
     // Views alone are no line of their own: they close the playback line (Sasha, 2026-11-16).
     if centersColumn, lineScores.hasDisplayableScore || mediaItem.views > 0 {
       // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
@@ -1892,6 +1924,7 @@ struct MediaItemHeroView: View {
       }
       .font(Self.phoneMetaFont)
       .foregroundStyle(heroMetaForeground)
+      .frame(maxWidth: maxWidth, alignment: .center)
     } else if lineScores.hasDisplayableScore {
       ViewThatFits(in: .horizontal) {
         scoresRow(votes: true, views: true)
@@ -1903,7 +1936,18 @@ struct MediaItemHeroView: View {
       }
       .font(Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
+      .frame(maxWidth: maxWidth, alignment: centersColumn ? .center : .leading)
     }
+  }
+
+  /// Content column width for scores / meta — page margins when known, else the band.
+  private var scoresLineMaxWidth: CGFloat {
+#if !os(tvOS)
+    if let width = pageMargins?.contentWidth, width > 0 { return width }
+    let between = bandWidthBetweenMargins
+    if between > 0 { return between }
+#endif
+    return .infinity
   }
 
   private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true,
