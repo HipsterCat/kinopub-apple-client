@@ -838,6 +838,7 @@ public struct MediaCardView: View {
   private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
   @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
   @Environment(\.mediaCardTitleFont) private var titleFont
+  @Environment(\.locale) private var locale
   @Environment(\.titleImageRoute) private var titleImageRoute
   @AppStorage(MediaCardDisplayPreferences.showCountryKey)
   private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
@@ -1602,7 +1603,7 @@ public struct MediaCardView: View {
       // the original-title rule below deliberately excludes — a history row without a
       // date is the one thing this caption exists to say.
       if let watchedAt = card.watchedAt {
-        Text(watchedAt.formatted(date: .abbreviated, time: .shortened))
+        Text(watchedAt.formattedForDisplay(.init(date: .abbreviated, time: .shortened, locale: locale)))
           .font(TypeScale.cardMeta)
           .foregroundStyle(Color.Piratic.subtitle)
           .lineLimit(1)

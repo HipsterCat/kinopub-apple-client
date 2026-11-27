@@ -7,6 +7,7 @@ import SwiftUI
 import KinoPubUI
 import KinoPubMetadata
 import KinoPubBackend
+import KinoPubMedia
 
 #if !os(tvOS)
 struct AdvancedSettingsPane: View {
@@ -141,7 +142,7 @@ enum APIHostStatusText {
   static func footer(_ snapshot: APIHostPool.Snapshot) -> String {
     let rule = String(localized: "Requests go to the checked server. When it cannot be reached or answers 502–504, the request moves to the next one, and the server that answers stays in use, after a relaunch too.")
     guard let last = snapshot.lastSwitch else { return rule }
-    let time = last.date.formatted(date: .abbreviated, time: .shortened)
+    let time = last.date.formattedForDisplay(.init(date: .abbreviated, time: .shortened, locale: AppLanguage.lookupLocale))
     return rule + "\n" + String(localized: "Last switch: \(last.from) → \(last.to) (\(last.reason)), \(time).")
   }
 }

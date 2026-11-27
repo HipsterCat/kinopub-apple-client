@@ -8,6 +8,7 @@
 import Foundation
 import KinoPubBackend
 import KinoPubLogging
+import KinoPubMedia
 import OSLog
 
 @MainActor
@@ -56,23 +57,23 @@ class ProfileModel {
 }
 
 extension UserData.Subscription {
-  /// When it ends, and how much is left: "Подписка до 12 дек. 2026 г. · ещё 32 дня". The
+  /// When it ends, and how much is left: "Подписка до 12 дек. 2026 · ещё 32 дня". The
   /// bare "32.1 days" said neither (Sasha, 2026-11-10).
   var summary: String {
     // Nothing loaded yet: no line rather than a wrong one.
     guard let end = endDate else { return "" }
     guard end > Date() else { return "Profile_SubscriptionEnded".localized }
     return String(format: "Profile_SubscriptionUntil %@".localized,
-                  end.formatted(date: .abbreviated, time: .omitted)) + " · " + daysLeft
+                  end.formattedForDisplay(.init(date: .abbreviated, time: .omitted, locale: AppLanguage.lookupLocale))) + " · " + daysLeft
   }
 
-  /// The value beside "User Subscription": "до 12 дек. 2026 г. (ещё 32 дня)".
+  /// The value beside "User Subscription": "до 12 дек. 2026 (ещё 32 дня)".
   var settingsValue: String {
     // Nothing loaded yet: no line rather than a wrong one.
     guard let end = endDate else { return "" }
     guard end > Date() else { return "Profile_SubscriptionEnded".localized }
     return String(format: "Profile_SubscriptionUntilShort %@".localized,
-                  end.formatted(date: .abbreviated, time: .omitted)) + " (" + daysLeft + ")"
+                  end.formattedForDisplay(.init(date: .abbreviated, time: .omitted, locale: AppLanguage.lookupLocale))) + " (" + daysLeft + ")"
   }
 
   private var endDate: Date? {

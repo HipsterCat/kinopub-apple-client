@@ -2103,12 +2103,9 @@ struct SeasonsRailView: View {
                               locale: Locale = .current,
                               calendar: Calendar = .current) -> String {
     let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-    let formatter = DateFormatter()
-    formatter.locale = locale
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.setLocalizedDateFormatFromTemplate(sameYear ? "d MMM" : "d MMM yyyy")
-    return formatter.string(from: date)
+    let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+      .day().month(.abbreviated)
+    return date.formattedForDisplay(sameYear ? style : style.year())
   }
 
   /// Whole local calendar days from `now` to `date`; negative in the past.
@@ -2295,9 +2292,8 @@ private struct UpcomingSeasonCard: View {
   private var premiereText: String {
     let calendar = Calendar.current
     let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: Date())
-    let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate(sameYear ? "d MMMM" : "d MMMM yyyy")
-    return formatter.string(from: date)
+    let style = Date.FormatStyle(locale: AppLanguage.lookupLocale).day().month(.wide)
+    return date.formattedForDisplay(sameYear ? style : style.year())
   }
 
   private var countdown: String {

@@ -3517,14 +3517,8 @@ struct MediaItemInfoColumns: View {
     return "\(numbers.count) \(Self.unit(numbers.count, .season))" + episodesText
   }
 
-  private static let longDateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate("d MMMM yyyy")
-    return formatter
-  }()
-
   private static func longDate(_ date: Date) -> String {
-    longDateFormatter.string(from: date)
+    date.formattedForDisplay(.dateTime.day().month(.wide).year().locale(AppLanguage.lookupLocale))
   }
 
   /// "через 12 дней" / "in 12 days" — localized by the system, plural rules included.
@@ -3864,7 +3858,7 @@ struct MediaItemInfoColumns: View {
   private static func date(_ timestamp: Int) -> String {
     guard timestamp > 0 else { return "—" }
     return Date(timeIntervalSince1970: TimeInterval(timestamp))
-      .formatted(date: .abbreviated, time: .omitted)
+      .formattedForDisplay(.init(date: .abbreviated, time: .omitted, locale: AppLanguage.lookupLocale))
   }
 
   // MARK: Footer

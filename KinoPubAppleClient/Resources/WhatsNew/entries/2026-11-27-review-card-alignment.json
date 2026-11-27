@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": [
+    "Текст отзывов на Apple TV выровнен по верху, а значки реакций стали заметнее. Русские даты теперь без «г.» после года."
+  ],
+  "en": [
+    "Review text on Apple TV starts at the top of each card, with larger reaction icons. Russian dates display the year as a number."
+  ]
+}

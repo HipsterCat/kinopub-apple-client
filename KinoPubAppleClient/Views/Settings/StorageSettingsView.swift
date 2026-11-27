@@ -18,6 +18,7 @@ import SwiftUI
 import Foundation
 import KinoPubBackend
 import KinoPubKit
+import KinoPubMedia
 import KinoPubMetadata
 import KinoPubUI
 #if canImport(UIKit)
@@ -426,7 +427,9 @@ struct StorageSettingsView: View {
       LabeledContent("Requests", value: "\(model.log.requestCount)")
       LabeledContent("Messages", value: "\(model.log.messageCount)")
       if model.hasLog {
-        LabeledContent("Created", value: model.log.created.formatted(date: .abbreviated, time: .standard))
+        LabeledContent("Created",
+                       value: model.log.created.formattedForDisplay(.init(date: .abbreviated, time: .standard,
+                                                                          locale: AppLanguage.lookupLocale)))
       }
       openLogControl
       Button("Clear network log", role: .destructive) { pendingClear = .networkLog }

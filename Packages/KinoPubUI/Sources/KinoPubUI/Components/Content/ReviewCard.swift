@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubMedia
 import KinoPubMetadata
 import SwiftUI
 
@@ -83,7 +84,7 @@ public struct ReviewPresentation: Hashable, Sendable {
     sourceName = review.isFromTrakt ? "Trakt" : String(localized: "MediaItem_ReviewSourceKinopoisk", locale: locale)
     let counts: [(Counter.Kind, Int)] = review.isFromTrakt
       ? [(.replies, review.replyCount), (.likes, review.helpfulVotes)]
-      : [(.helpful, review.helpfulVotes), (.unhelpful, review.unhelpfulVotes)]
+      : [(.unhelpful, review.unhelpfulVotes), (.helpful, review.helpfulVotes)]
     counters = counts.compactMap { kind, count in
       guard count > 0 else { return nil }
       return Counter(kind: kind, value: count.formatted(.number.locale(locale)), label: kind.title(locale: locale))
@@ -98,14 +99,14 @@ public struct ReviewPresentation: Hashable, Sendable {
     return parsed
   }
 
-  /// A preview is a single button. Keep the emphasis on a tag while giving the sheet
-  /// the actual link. In the sheet only normal web links are actionable.
+  /// Only underline a tag where it opens a web link.
   func styled(_ text: AttributedString, linksEnabled: Bool) -> AttributedString {
     var styled = text
     for run in text.runs {
       guard let link = run.link else { continue }
-      styled[run.range].underlineStyle = .single
-      if !linksEnabled || !["http", "https"].contains(link.scheme?.lowercased() ?? "") || link.host == nil {
+      if linksEnabled, ["http", "https"].contains(link.scheme?.lowercased() ?? ""), link.host != nil {
+        styled[run.range].underlineStyle = .single
+      } else {
         styled[run.range].link = nil
       }
     }
@@ -117,7 +118,7 @@ public struct ReviewPresentation: Hashable, Sendable {
       let calendar = Calendar.current
       if calendar.isDateInToday(date) { return String(localized: "Today", locale: locale) }
       if calendar.isDateInYesterday(date) { return String(localized: "Yesterday", locale: locale) }
-      return date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale))
+      return date.formattedForDisplay(.dateTime.day().month(.abbreviated).year().locale(locale))
     }
     return review.date.map { String($0.prefix(10)) }
   }
@@ -224,7 +225,7 @@ private struct ReviewHeading: View {
           .monospacedDigit()
       }
       .foregroundStyle(Color.Piratic.text)
-      .font(TypeScale.detailBody.weight(.semibold))
+      .font(TypeScale.detailBody)
     } else if review.title != nil || review.tone != nil {
       HStack(alignment: .firstTextBaseline, spacing: 5) {
         if let tone = review.tone {
@@ -239,7 +240,7 @@ private struct ReviewHeading: View {
         }
         if let title = review.title {
           Text(verbatim: title)
-            .font(TypeScale.detailBody.weight(.semibold))
+            .font(TypeScale.detailBody)
             .foregroundStyle(Color.Piratic.text)
         }
       }
@@ -308,6 +309,7 @@ private struct ReviewFooter: View {
           Text(verbatim: counter.value)
             .monospacedDigit()
           Image(systemName: counter.kind.symbol)
+            .imageScale(.large)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: counter.label))
