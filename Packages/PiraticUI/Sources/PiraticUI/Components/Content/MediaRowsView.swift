@@ -485,45 +485,31 @@ private struct HeroUnderChrome: ViewModifier {
   @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
-    if isActive {
-      content
+    // Keep the scroll view and its shelves mounted when the hero arrives.
+    let showsArtworkUnderBar = isActive && heroUnderBar
 #if os(iOS)
-        .toolbar {
-          if let profile {
-            ToolbarItem(placement: .topBarTrailing) {
-              Button(action: profile.action) {
-                Image(systemName: "gear")
-              }
-              .accessibilityLabel(Text(profile.label))
-              // The bar's scheme on the item itself: the glyph kept the dark scheme's
-              // white over the light page otherwise. Not rebuilt with `.id` — a new
-              // item each time the picture left the bar tore its glass down and up
-              // in the frame the bar changed too (`glassEffect() tried to update
-              // multiple times per frame`).
-              .environment(\.colorScheme, heroUnderBar ? .dark : colorScheme)
+    content
+      .toolbar {
+        if isActive, let profile {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button(action: profile.action) {
+              Image(systemName: "gear")
             }
+            .accessibilityLabel(Text(profile.label))
+            .environment(\.colorScheme, showsArtworkUnderBar ? .dark : colorScheme)
           }
         }
-        // The bar takes a colour scheme only while it has a background: a clear one
-        // while the picture is under it. Back over the rows it is the system's bar
-        // material again, shown as the rows scroll under it — a clear one there left
-        // pushed pages' titles appearing over nothing (Sasha, 2026-10-30) — and the
-        // scheme is set back to the system's by value: `nil` left the bar dark.
-        .toolbarBackground(heroUnderBar ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.bar),
-                           for: .navigationBar)
-        .toolbarBackground(heroUnderBar ? .visible : .automatic, for: .navigationBar)
-        .toolbarColorScheme(heroUnderBar ? .dark : colorScheme, for: .navigationBar)
+      }
+      .toolbarBackground(showsArtworkUnderBar ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.bar),
+                         for: .navigationBar)
+      .toolbarBackground(showsArtworkUnderBar ? .visible : .automatic, for: .navigationBar)
+      .toolbarColorScheme(showsArtworkUnderBar ? .dark : (isActive ? colorScheme : nil),
+                          for: .navigationBar)
 #else
-        // Bare over the picture only; once rows are under it, the system's toolbar with
-        // its divider, as on every other page (the hero pages alone never had it).
-        .toolbarBackgroundVisibility(heroUnderBar ? .hidden : .automatic, for: .windowToolbar)
-        // `nil` off the picture, not the page's scheme by value: a scheme set on the window
-        // toolbar backs it across the whole window, over the sidebar too.
-        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .windowToolbar)
+    content
+      .toolbarBackgroundVisibility(showsArtworkUnderBar ? .hidden : .automatic, for: .windowToolbar)
+      .toolbarColorScheme(showsArtworkUnderBar ? .dark : nil, for: .windowToolbar)
 #endif
-    } else {
-      content
-    }
   }
 }
 #endif

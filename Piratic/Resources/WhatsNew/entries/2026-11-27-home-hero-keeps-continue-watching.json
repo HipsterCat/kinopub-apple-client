@@ -1,0 +1,6 @@
+{
+  "version": "1.0.1",
+  "date": "2026-11-27",
+  "ru": ["При загрузке баннера на главной ряд «Продолжить» сохраняет позицию. Тайтл может быть и в баннере, и в ряду."],
+  "en": ["Continue Watching keeps its scroll position when the Home hero loads. A title can appear in both places."]
+}

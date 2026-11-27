@@ -25,6 +25,9 @@ tile at rest, not only on focus.
 **prd** — On iPhone, iPad and Mac the rail scrolls freely during the gesture and aligns
 with a card when it settles. A fast swipe can pass multiple cards.
 
+**prd** — A title can appear in both the Home hero and Continue Watching. Loading or updating
+the hero keeps the Continue Watching rail and its scroll position.
+
 **prd** — The landscape still (screenshot) opens the **player**, not the title page — Home,
 Continue Watching, and Recently Watched, on Mac / iPad / iPhone / tvOS. The play chrome is
 there for that reason.

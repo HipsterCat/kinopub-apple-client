@@ -692,16 +692,7 @@ private struct HeroNavigationChrome: ViewModifier {
   let isPushedOverHero: Bool
 
   func body(content: Content) -> some View {
-    if isActive {
-      content
-        .toolbarTitleDisplayMode(.inlineLarge)
-
-    } else if isPushedOverHero {
-      content
-        .toolbarTitleDisplayMode(.inline)
-    } else {
-      content
-    }
+    content.toolbarTitleDisplayMode(isActive ? .inlineLarge : (isPushedOverHero ? .inline : .automatic))
   }
 }
 #endif
