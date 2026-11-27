@@ -272,36 +272,36 @@ extension View {
 private struct MediaReviewSheet: ViewModifier {
   @Binding var selection: Review?
   let item: MediaItem
-  @Environment(\.locale) private var locale
-
-  private var title: Text { Text("MediaItem_ReviewTitle") }
+  @Environment(\.appContext) private var appContext
 
   func body(content: Content) -> some View {
 #if os(tvOS)
-    content.infoPopup(title, isPresented: Binding(
-      get: { selection != nil },
-      set: { if !$0 { selection = nil } }
-    )) {
-      if let selection {
-        ReviewReadingContent(review: ReviewPresentation(selection, locale: locale))
-      }
+    content.fullScreenCover(item: $selection) { review in
+      reader(for: review)
+        .presentationBackground(.clear)
     }
 #else
     content.sheet(item: $selection) { review in
-      InfoPopupView(title: title) {
-        ReviewReadingContent(review: ReviewPresentation(review, locale: locale), sourceURL: sourceURL(for: review))
-      }
-      .pageColorScheme()
+      reader(for: review)
 #if os(iOS)
-      .presentationSizing(.page)
+        .presentationSizing(.page)
 #else
-      .frame(idealWidth: InfoPopupMetrics.maxWidth)
+        .frame(idealWidth: InfoPopupMetrics.maxWidth)
 #endif
     }
 #endif
   }
 
+  private func reader(for review: Review) -> some View {
+    MediaReviewReader(review: review, sourceURL: sourceURL(for: review),
+                      repliesService: appContext.traktRepliesService)
+      .pageColorScheme()
+  }
+
   private func sourceURL(for review: Review) -> URL? {
+#if os(tvOS)
+    return nil
+#else
     if review.isFromTrakt {
       return review.sourceId.flatMap { URL(string: "https://trakt.tv/comments/\($0)") }
     }
@@ -309,7 +309,89 @@ private struct MediaReviewSheet: ViewModifier {
     guard let id = item.kinopoisk, id > 0 else { return nil }
     let kind = item.isSeries ? "series" : "film"
     return URL(string: "https://www.kinopoisk.ru/\(kind)/\(id)/reviews/")
+#endif
   }
+}
+
+private struct MediaReviewReader: View {
+  let review: Review
+  let sourceURL: URL?
+  let repliesService: any TraktRepliesService
+
+  private enum Replies {
+    case loading
+    case loaded([TraktCommentReply])
+    case failed
+  }
+
+  @Environment(\.locale) private var locale
+  @State private var replies: Replies = .loading
+  @State private var attempt = 0
+
+  private var commentID: Int? {
+    guard review.isFromTrakt, review.replyCount > 0, let id = review.sourceId, id > 0 else { return nil }
+    return id
+  }
+
+  var body: some View {
+    let presentation = ReviewPresentation(review, locale: locale)
+    InfoPopupView(title: presentation.sheetTitle, showsToolbarTitle: review.authorRating != nil) {
+      VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+        ReviewReadingContent(review: presentation, sourceURL: sourceURL)
+        if commentID != nil {
+          Divider()
+          InfoPopupSection(Text("MediaItem_ReviewReplies")) { repliesContent }
+        }
+      }
+    }
+    // One task for the sheet, including when the TV popup switches to scrolling.
+    .task(id: attempt) { await loadReplies() }
+  }
+
+  @ViewBuilder
+  private var repliesContent: some View {
+    switch replies {
+    case .loading:
+      ProgressView()
+        .controlSize(.small)
+        .accessibilityLabel(Text("Loading"))
+    case .loaded(let replies) where !replies.isEmpty:
+      ReviewReplyList(replies: replies)
+    case .loaded:
+      Text("MediaItem_ReviewRepliesEmpty")
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(.secondary)
+    case .failed:
+      Text("MediaItem_ReviewRepliesFailed")
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(.secondary)
+      Button("Try Again") { attempt += 1 }
+        .buttonStyle(.bordered)
+    }
+  }
+
+  private func loadReplies() async {
+    guard let commentID else { return }
+    replies = .loading
+    do {
+      let loaded = try await repliesService.replies(to: commentID)
+      try Task.checkCancellation()
+      replies = .loaded(loaded)
+    } catch {
+      if !Task.isCancelled { replies = .failed }
+    }
+  }
+}
+
+#Preview("Trakt review with a reply") {
+  let date = Date(timeIntervalSince1970: 1_784_600_000)
+  let review = Review(author: "Lintandil", title: "", body: "The last shot was worth staying for.",
+                      postedAt: date, helpfulVotes: 14, sourceId: 1, source: .trakt,
+                      replyCount: 1, authorRating: 6)
+  let reply = TraktCommentReply(id: 2, author: "FrameByFrame", text: "That last shot stayed with me too.",
+                                postedAt: date.addingTimeInterval(86_400))
+  return MediaReviewReader(review: review, sourceURL: nil,
+                           repliesService: TraktRepliesServiceMock(repliesByComment: [1: [reply]]))
 }
 
 // MARK: - Trakt

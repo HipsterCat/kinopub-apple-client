@@ -97,6 +97,9 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(body.label.contains("Hunter Schafer"))
     XCTAssertTrue(body.label.contains("The silence at the end was worth staying for."))
     XCTAssertFalse(body.label.contains("https://app.trakt.tv"))
+    let reply = app.descendants(matching: .any)["piratic.review.reply.9902032"].firstMatch
+    XCTAssertTrue(reply.waitForExistence(timeout: 8))
+    XCTAssertEqual(reply.label, "That last shot stayed with me too.")
     try shoot("review-sheet")
 
     XCUIRemote.shared.press(.menu)

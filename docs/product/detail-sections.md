@@ -109,6 +109,9 @@ date sit at the bottom left. Replies and reactions sit at the bottom right, with
 votes to the right of negative votes. Selecting a review opens its full text with paragraph
 breaks in a scrollable sheet. A Trakt person tag reads as the person's name in the card and on
 tvOS. It becomes a link in the sheet on iOS, iPadOS and macOS. Russian dates show a bare year.
+The sheet takes its title from the review headline or displays the author's stars and score.
+The byline under the full text shows the source mark and name, the author and the posting
+date. Direct Trakt replies appear underneath when the comment has a reply count.
 
 **prd — Cast & Crew (Sasha, 2026-10-06; one row since 2026-10-11).** One heading, *Cast & Crew*, over
 **one row of people with no sections inside it**. Search's person card for everyone; **what each is to

@@ -444,7 +444,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
                """,
                sentiment: "NEUTRAL", date: "2026-07-20T12:57:52",
                postedAt: Date(timeIntervalSince1970: 1_784_600_000), helpfulVotes: 14,
-               source: .trakt, replyCount: 1, authorRating: 6),
+               sourceId: Self.traktReviewID, source: .trakt, replyCount: 1, authorRating: 6),
         Review(author: "Мария К.", title: "Ожидала большего",
                body: "После трейлеров ждала другого. Эмоциональные сцены не складываются, шутки повторяются, а злодей остаётся набором реплик без мотивации.",
                sentiment: "NEGATIVE", date: "2026-07-22T09:12:40",
@@ -482,6 +482,8 @@ enum DetailFixture: String, CaseIterable, Identifiable {
 
   // MARK: - Services
 
+  private static let traktReviewID = 9_902_031
+
   /// The app's context with the API, TMDB and the account actions swapped for local
   /// ones. Everything else — stores, player session, downloads — is the real thing.
   static func context(replacingServicesOf base: AppContext) -> AppContext {
@@ -517,6 +519,12 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     context.actionsService = UserActionsServiceMock()
     context.collectionsService = CollectionsServiceMock()
     context.metadataService = MetadataService(sources: [DetailFixtureMetadataSource()])
+    context.traktRepliesService = TraktRepliesServiceMock(repliesByComment: [
+      traktReviewID: [
+        TraktCommentReply(id: 9_902_032, author: "FrameByFrame", text: "That last shot stayed with me too.",
+                          postedAt: Date(timeIntervalSince1970: 1_784_686_400))
+      ]
+    ])
     return context
   }
 }

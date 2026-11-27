@@ -11958,6 +11958,27 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ответы" } }
       }
     },
+    "MediaItem_ReviewRepliesEmpty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No replies available" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нет доступных ответов" } }
+      }
+    },
+    "MediaItem_ReviewRepliesFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't load replies" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось загрузить ответы" } }
+      }
+    },
+    "MediaItem_ReviewReplySpoiler" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reply contains a spoiler" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ответ со спойлером" } }
+      }
+    },
     "MediaItem_ReviewSourceKinopoisk" : {
       "extractionState" : "manual",
       "localizations" : {

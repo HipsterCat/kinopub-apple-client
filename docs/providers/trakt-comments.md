@@ -28,3 +28,14 @@ title's comment list response.
 
 [Comment schema](https://github.com/trakt/trakt-api/blob/966ddfc9008519da717db79e1040a2c55c0db653/projects/api/src/contracts/_internal/response/commentResponseSchema.ts) ·
 [Reaction summary schema](https://github.com/trakt/trakt-api/blob/966ddfc9008519da717db79e1040a2c55c0db653/projects/api/src/contracts/_internal/response/reactionsResponseSchema.ts)
+
+## Replies
+
+`GET /comments/:id/replies` returns direct replies as an array of the comment records above.
+The app sends the Trakt client ID and API version 2. It reads `id`, `comment`, `created_at`,
+`spoiler`, and the author's display name or username. The sheet follows
+`X-Pagination-Page-Count` to read the pages in provider order. It starts the request when a
+review showing replies is opened. A flagged spoiler is represented by a spoiler label.
+
+[Replies contract](https://github.com/trakt/trakt-api/blob/966ddfc9008519da717db79e1040a2c55c0db653/projects/api/src/contracts/comments/index.ts#L183) ·
+[Pagination](https://github.com/trakt/trakt-api/blob/966ddfc9008519da717db79e1040a2c55c0db653/projects/developer/src/lib/guides/pagination.md)

@@ -61,7 +61,9 @@ protocol AppContextProtocol: AuthorizationServiceProvider
 & MediaLibraryProvider
 & ViewerStateProvider
 & TrackPreferencesProvider
-& DownloadsCenterProvider {}
+& DownloadsCenterProvider {
+  var traktRepliesService: any TraktRepliesService { get }
+}
 
 // MARK: - AppContext
 
@@ -84,6 +86,7 @@ struct AppContext: AppContextProtocol {
   var hlsDownloadManager: HLSAssetDownloadManager
   var actionsService: UserActionsService
   var metadataService: MetadataService
+  var traktRepliesService: any TraktRepliesService
   var kinopoiskKeyProvider: IntegrationKeyProvider
   var contentStore: ContentStore
   var collectionsService: CollectionsService
@@ -167,6 +170,7 @@ struct AppContext: AppContextProtocol {
                                  pixelWidth: ArtworkPixelWidth.poster,
                                  widePixelWidth: ArtworkPixelWidth.wideCard)
     let kinopoiskKeyProvider = IntegrationKeyProvider.kinopoisk
+    let traktAccess = TraktMetadataAccess()
     let metadataService = MetadataService(sources: [
       TMDBSource(configuration: metadataConfig, directAccess: IntegrationKeyProvider.tmdb),
       KinopoiskSource(keyProvider: kinopoiskKeyProvider),
@@ -174,7 +178,7 @@ struct AppContext: AppContextProtocol {
       KinopoiskProxySource(includeStaff: true),
       // Ratings it relays (Rotten Tomatoes, Metacritic, Letterboxd…) and its reviews.
       // MAL votes here are a fallback — MyAnimeListSource refreshes them from the official API.
-      TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru"),
+      TraktSource(access: traktAccess, language: Bundle.main.preferredLocalizations.first ?? "ru"),
       // Official MAL mean + num_scoring_users (`X-MAL-CLIENT-ID`), 18h cache.
       MyAnimeListSource(access: MyAnimeListMetadataAccess()),
       // The viewer's own OMDb key: box office, awards, and the scores Trakt did not have.
@@ -257,6 +261,7 @@ struct AppContext: AppContextProtocol {
       hlsDownloadManager: hlsDownloadManager,
       actionsService: UserActionsServiceImpl(apiClient: apiClient),
       metadataService: metadataService,
+      traktRepliesService: TraktRepliesServiceImpl(clientID: { traktAccess.traktClientID() }),
       kinopoiskKeyProvider: kinopoiskKeyProvider,
       contentStore: contentStore,
       collectionsService: CollectionsServiceImpl(apiClient: apiClient),

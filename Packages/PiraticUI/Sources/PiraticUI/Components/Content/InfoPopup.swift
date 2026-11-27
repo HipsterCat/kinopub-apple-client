@@ -127,6 +127,9 @@ public struct InfoPopupView<Content: View>: View {
   let confirmTitle: Text?
   let onDismiss: (() -> Void)?
   let content: () -> Content
+#if os(iOS)
+  private let showsToolbarTitle: Bool
+#endif
 
   @Environment(\.dismiss) private var environmentDismiss
 #if os(tvOS)
@@ -145,6 +148,7 @@ public struct InfoPopupView<Content: View>: View {
     subtitle: Text? = nil,
     confirmTitle: Text? = nil,
     onDismiss: (() -> Void)? = nil,
+    showsToolbarTitle: Bool = false,
     @ViewBuilder content: @escaping () -> Content
   ) {
     self.title = title
@@ -152,6 +156,9 @@ public struct InfoPopupView<Content: View>: View {
     self.confirmTitle = confirmTitle
     self.onDismiss = onDismiss
     self.content = content
+#if os(iOS)
+    self.showsToolbarTitle = showsToolbarTitle
+#endif
   }
 
   public var body: some View {
@@ -214,6 +221,11 @@ public struct InfoPopupView<Content: View>: View {
       .modifier(OptionalNavigationSubtitle(subtitle: subtitle))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        if showsToolbarTitle {
+          ToolbarItem(placement: .principal) {
+            title.font(.headline).lineLimit(1)
+          }
+        }
         ToolbarItem(placement: .cancellationAction) {
           Button(role: .close, action: close)
         }

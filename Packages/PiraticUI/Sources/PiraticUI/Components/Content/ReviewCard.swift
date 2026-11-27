@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubBackend
 import PiraticMedia
 import PiraticMetadata
 import SwiftUI
@@ -69,6 +70,15 @@ public struct ReviewPresentation: Hashable, Sendable {
 
   var body: AttributedString { Self.text(review.body, isMarkdown: review.isFromTrakt) }
 
+  @MainActor public var sheetTitle: Text {
+    if let title { return Text(verbatim: title) }
+    if let score, let scoreText {
+      let stars = (0..<5).map { Image(systemName: StarRatingRow.symbol(at: $0, rating: score)) }
+      return Text("\(stars[0])\(stars[1])\(stars[2])\(stars[3])\(stars[4]) \(scoreText)/5")
+    }
+    return Text("MediaItem_ReviewTitle")
+  }
+
   public init(_ review: Review, locale: Locale) {
     self.review = review
     let title = review.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -91,7 +101,7 @@ public struct ReviewPresentation: Hashable, Sendable {
     }
   }
 
-  private static func text(_ body: String, isMarkdown: Bool) -> AttributedString {
+  fileprivate static func text(_ body: String, isMarkdown: Bool) -> AttributedString {
     guard isMarkdown, let parsed = try? AttributedString(
       markdown: body,
       options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
@@ -100,7 +110,7 @@ public struct ReviewPresentation: Hashable, Sendable {
   }
 
   /// Only underline a tag where it opens a web link.
-  func styled(_ text: AttributedString, linksEnabled: Bool) -> AttributedString {
+  static func styled(_ text: AttributedString, linksEnabled: Bool) -> AttributedString {
     var styled = text
     for run in text.runs {
       guard let link = run.link else { continue }
@@ -145,7 +155,7 @@ public struct ReviewCard: View {
 
   public var body: some View {
     let presentation = ReviewPresentation(review, locale: locale)
-    let excerpt = presentation.styled(presentation.excerpt, linksEnabled: false)
+    let excerpt = ReviewPresentation.styled(presentation.excerpt, linksEnabled: false)
     BlockCard(.interactive(action: action), width: width, height: height, fillsHeight: true,
               tint: presentation.tone == .neutral ? nil : presentation.tone?.color) {
       VStack(alignment: .leading, spacing: 8) {
@@ -188,20 +198,59 @@ public struct ReviewReadingContent: View {
 
   public var body: some View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
-      ReviewHeading(review: review)
-        .fixedSize(horizontal: false, vertical: true)
-      Text(review.styled(review.body, linksEnabled: linksEnabled))
-        .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.Piratic.text)
-        .fixedSize(horizontal: false, vertical: true)
+      ReviewReadingText(text: review.body)
         .accessibilityIdentifier("piratic.review.sheet.body")
-      ReviewFooter(review: review, sourceURL: sourceURL)
-      if !review.review.author.isEmpty {
-        Text(verbatim: review.review.author)
-          .foregroundStyle(.secondary)
+      ReviewFooter(review: review, showsByline: true, sourceURL: sourceURL)
+    }
+  }
+}
+
+public struct ReviewReplyList: View {
+  let replies: [TraktCommentReply]
+  @Environment(\.locale) private var locale
+
+  public init(replies: [TraktCommentReply]) {
+    self.replies = replies
+  }
+
+  public var body: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      ForEach(replies) { reply in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            if let author = reply.author {
+              Text(verbatim: author)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.Piratic.text)
+            }
+            if let date = reply.postedAt {
+              Text(verbatim: date.formattedForDisplay(.dateTime.day().month(.wide).year().locale(locale)))
+                .foregroundStyle(.secondary)
+            }
+          }
           .font(InfoPopupMetrics.captionFont)
+          if reply.isSpoiler {
+            Text("MediaItem_ReviewReplySpoiler")
+              .font(InfoPopupMetrics.bodyFont)
+              .foregroundStyle(.secondary)
+          } else {
+            ReviewReadingText(text: ReviewPresentation.text(reply.text, isMarkdown: true))
+              .accessibilityIdentifier("piratic.review.reply.\(reply.id)")
+          }
+        }
       }
     }
+  }
+}
+
+private struct ReviewReadingText: View {
+  let text: AttributedString
+
+  var body: some View {
+    Text(ReviewPresentation.styled(text, linksEnabled: linksEnabled))
+      .font(InfoPopupMetrics.bodyFont)
+      .foregroundStyle(Color.Piratic.text)
+      .fixedSize(horizontal: false, vertical: true)
   }
 
   private var linksEnabled: Bool {
@@ -258,25 +307,28 @@ private struct ReviewHeading: View {
 
 private struct ReviewFooter: View {
   let review: ReviewPresentation
+  var showsByline = false
   var sourceURL: URL?
 
-  @ScaledMetric(relativeTo: .footnote) private var markHeight: CGFloat = {
+  @Environment(\.locale) private var locale
+  @ScaledMetric(relativeTo: .footnote) private var previewMarkHeight: CGFloat = 14
+  @ScaledMetric(relativeTo: .body) private var sheetMarkHeight: CGFloat = {
 #if os(tvOS)
-    22
+    36
 #else
-    14
+    22
 #endif
   }()
 
   var body: some View {
     ViewThatFits(in: .horizontal) {
       HStack {
-        sourceAndDate.fixedSize()
+        attribution.fixedSize()
         Spacer(minLength: 8)
         counters.fixedSize()
       }
       VStack(alignment: .leading, spacing: 6) {
-        sourceAndDate
+        attribution
         counters.frame(maxWidth: .infinity, alignment: .trailing)
       }
     }
@@ -284,22 +336,45 @@ private struct ReviewFooter: View {
     .foregroundStyle(.secondary)
   }
 
-  private var sourceAndDate: some View {
-    HStack(spacing: 6) {
+  private var attribution: some View {
+    HStack(spacing: showsByline ? 8 : 6) {
       if let sourceURL {
-        Link(destination: sourceURL) { mark }
+        Link(destination: sourceURL) { source }
       } else {
-        mark
+        source
       }
-      if let date = review.date {
+      if showsByline, !review.review.author.isEmpty {
+        Text(verbatim: "•")
+          .accessibilityHidden(true)
+        Text(verbatim: review.review.author)
+          .fontWeight(.medium)
+          .foregroundStyle(Color.Piratic.text)
+      }
+      if let date {
         Text(verbatim: date)
       }
     }
   }
 
+  private var date: String? {
+    guard showsByline, let postedAt = review.review.postedAt else { return review.date }
+    return postedAt.formattedForDisplay(.dateTime.day().month(.wide).year().locale(locale))
+  }
+
+  @ViewBuilder
+  private var source: some View {
+    if showsByline {
+      HStack(spacing: 8) {
+        mark.accessibilityHidden(true)
+        Text(verbatim: review.sourceName)
+      }
+    } else {
+      mark.accessibilityLabel(Text(verbatim: review.sourceName))
+    }
+  }
+
   private var mark: some View {
-    MediaScoreLogo(review.source, height: markHeight, style: .color)
-      .accessibilityLabel(Text(verbatim: review.sourceName))
+    MediaScoreLogo(review.source, height: showsByline ? sheetMarkHeight : previewMarkHeight, style: .color)
   }
 
   private var counters: some View {

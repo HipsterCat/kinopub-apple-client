@@ -16,10 +16,10 @@ final class ReviewPresentationTests: XCTestCase {
     XCTAssertEqual(card.counters.map(\.kind), [.replies, .likes])
     XCTAssertEqual(String(card.excerpt.characters), "Hunter Schafer was great. More thoughts.")
     for text in [card.excerpt, card.body] {
-      let plain = card.styled(text, linksEnabled: false)
+      let plain = ReviewPresentation.styled(text, linksEnabled: false)
       XCTAssertTrue(plain.runs.allSatisfy { $0.link == nil && $0.underlineStyle == nil })
     }
-    let full = card.styled(card.body, linksEnabled: true)
+    let full = ReviewPresentation.styled(card.body, linksEnabled: true)
     XCTAssertEqual(String(full.characters), "Hunter Schafer was great.\n\nMore thoughts.")
     XCTAssertEqual(full.runs.compactMap(\.link), [URL(string: url)!])
   }
