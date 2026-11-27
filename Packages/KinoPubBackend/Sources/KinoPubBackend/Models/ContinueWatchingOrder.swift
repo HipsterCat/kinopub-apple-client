@@ -35,12 +35,6 @@ public enum ContinueWatchingOrder {
   /// drops off after this — sampling is not continuing.
   public static let barelyStartedAfter: TimeInterval = 14 * 24 * 60 * 60
 
-  /// A subscription this many new episodes behind (or fewer) is being followed even when
-  /// the history page we read has no play of it. More than that, and nothing watched in
-  /// the window, is a subscription abandoned — a hundred and seventy waiting episodes
-  /// are not "up next".
-  public static let followedBacklog: Int = 5
-
   /// The viewer's choices (Settings › Home › Continue Watching), like Plex's
   /// "Weeks to consider for Continue Watching" and "Include bookmarks".
   public struct Rules: Equatable, Sendable {
@@ -105,8 +99,7 @@ public enum ContinueWatchingOrder {
     case released(Date)
     /// Bookmarked within the window and never played.
     case bookmarked(Date)
-    /// On the server's unfinished lists with no date we know. Sorts behind every dated
-    /// reason, in the list's own order.
+    /// Followed or listed as unfinished, without a qualifying playback or release date.
     case unfinished
 
     public var date: Date {
@@ -140,15 +133,15 @@ public enum ContinueWatchingOrder {
 
     var released: Date?
     if candidate.isSubscribed, candidate.item.hasNewEpisodes,
-       let date = fresh(candidate.updatedAt),
-       watched != nil || backlog(candidate.item) <= followedBacklog {
+       let date = fresh(candidate.updatedAt) {
       released = date
     }
 
     let bookmarked = rules.includesBookmarks ? fresh(candidate.bookmarkedAt) : nil
     let playbackReasons = [watched.map(Reason.watched), released.map(Reason.released)].compactMap { $0 }
     let hasPlayed = candidate.lastSeen != nil || (candidate.item.watched ?? 0) > 0
-    let unfinished = candidate.isListedUnfinished || (bookmarked != nil && hasPlayed)
+    let unfinished = candidate.isSubscribed || candidate.isListedUnfinished
+      || (bookmarked != nil && hasPlayed)
     guard let reason = playbackReasons.max(by: { $0.date < $1.date })
       ?? (unfinished ? .unfinished : bookmarked.map(Reason.bookmarked)) else { return nil }
     return Ranked(item: candidate.item, reason: reason,
@@ -161,9 +154,7 @@ public enum ContinueWatchingOrder {
     item.new ?? 0
   }
 
-  /// Draw order: allocate space to active playback and subscriptions first, then
-  /// bookmark-only titles, then undated unfinished titles outside subscriptions.
-  /// Within each group use the newest activity first. At most
+  /// The row: titles with a reason, newest activity first, at most
   /// ``Rules/maxItems`` (and ``maxBookmarks`` of those bookmarks). `limit` overrides the
   /// length, so a caller can take a few spare in case a card cannot be drawn.
   public static func ranked(_ candidates: [Candidate],
@@ -171,18 +162,9 @@ public enum ContinueWatchingOrder {
                             limit: Int? = nil,
                             now: Date = Date()) -> [Ranked] {
     let scored = candidates.enumerated().compactMap { offset, candidate in
-      score(candidate, rules: rules, now: now).map { entry in
-        let priority: Int
-        switch entry.reason {
-        case .watched, .released: priority = 0
-        case .unfinished: priority = candidate.isSubscribed ? 0 : 2
-        case .bookmarked: priority = 1
-        }
-        return (offset: offset, entry: entry, priority: priority)
-      }
+      score(candidate, rules: rules, now: now).map { (offset: offset, entry: $0) }
     }
     let sorted = scored.sorted { lhs, rhs in
-      if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
       if lhs.entry.activityDate != rhs.entry.activityDate {
         return lhs.entry.activityDate > rhs.entry.activityDate
       }
@@ -194,7 +176,7 @@ public enum ContinueWatchingOrder {
     var bookmarks = 0
     var result: [Ranked] = []
     let length = limit ?? rules.maxItems
-    for (_, entry, _) in sorted {
+    for (_, entry) in sorted {
       guard result.count < length else { break }
       if case .bookmarked = entry.reason {
         guard bookmarks < maxBookmarks else { continue }

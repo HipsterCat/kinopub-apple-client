@@ -1248,9 +1248,7 @@ class HomeCatalog: ObservableObject {
     // "When did the new episode come out" is only on the title's payload (`updated_at`);
     // the list carries none. It is sorted by that date, newest first (live 2026-10-25),
     // so the row's worth from its top is all that can make the row.
-    let released = Array(watchlist.filter {
-      $0.hasNewEpisodes && (lastSeen[$0.id] != nil || ($0.new ?? 0) <= ContinueWatchingOrder.followedBacklog)
-    }.prefix(cap))
+    let released = Array(watchlist.filter(\.hasNewEpisodes).prefix(cap))
     var details = await titleDetails(for: released,
                                      serverListed: serverListed,
                                      versions: Dictionary(uniqueKeysWithValues: released.map { ($0.id, version($0)) }))
@@ -1296,11 +1294,7 @@ class HomeCatalog: ObservableObject {
         return card
       }
     }
-    // The draw order reserves space for playback and subscriptions. Display the
-    // selected cards on the same activity timeline as the local progress overlay.
-    return cards.prefix(cap).sorted {
-      ($0.continueWatchingActivityDate ?? .distantPast) > ($1.continueWatchingActivityDate ?? .distantPast)
-    }
+    return Array(cards.prefix(cap))
   }
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.

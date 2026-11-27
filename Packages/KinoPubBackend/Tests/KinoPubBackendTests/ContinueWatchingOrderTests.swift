@@ -67,27 +67,15 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked([older, newer]), [2, 1])
   }
 
-  func testRecentSubscriptionWithFiveNewEpisodesWinsTheLastSlotOverABookmark() {
-    let bookmark = ContinueWatchingOrder.Candidate(item: film(1), bookmarkedAt: daysAgo(1))
-    let followed = ContinueWatchingOrder.Candidate(item: item(2, new: 5),
+  func testBookmarkAndFollowedReleaseCompeteByDateRegardlessOfEpisodeCount() {
+    var bookmark = ContinueWatchingOrder.Candidate(item: film(1), bookmarkedAt: daysAgo(1))
+    let followed = ContinueWatchingOrder.Candidate(item: item(2, new: 170),
                                                    isSubscribed: true, updatedAt: daysAgo(2))
-    var overLimit = followed
-    overLimit.item = item(3, new: 6)
+    let oneSlot = ContinueWatchingOrder.Rules(maxItems: 1)
 
-    XCTAssertEqual(ranked([bookmark, followed, overLimit], rules: .init(maxItems: 1)), [2])
-    XCTAssertEqual(ranked([bookmark, overLimit], rules: .init(maxItems: 1)), [1])
-  }
-
-  /// A hundred and seventy waiting episodes and nothing watched: abandoned, whatever
-  /// the release date says.
-  func testAnAbandonedSubscriptionIsNotUpNext() {
-    let abandoned = ContinueWatchingOrder.Candidate(item: item(1, new: 170), isSubscribed: true,
-                                                    updatedAt: daysAgo(1))
-    XCTAssertEqual(ranked([abandoned]), [])
-
-    var watched = abandoned
-    watched.lastSeen = daysAgo(10)
-    XCTAssertEqual(ranked([watched]), [1], "watched within the window: still followed")
+    XCTAssertEqual(ranked([followed, bookmark], rules: oneSlot), [1])
+    bookmark.bookmarkedAt = daysAgo(3)
+    XCTAssertEqual(ranked([bookmark, followed], rules: oneSlot), [2])
   }
 
   /// `new` on a title that is not a subscription is not a release reason.
@@ -124,9 +112,12 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked([inside, outside], rules: .init(weeks: 4)), [])
   }
 
-  func testUndatedTitlesAreDropped() {
-    let listedOnly = ContinueWatchingOrder.Candidate(item: item(1, new: 2), isSubscribed: true)
-    XCTAssertEqual(ranked([listedOnly]), [])
+  func testFollowedShowsQualifyWithNoRecentReleaseOrViewingActivity() {
+    let undated = ContinueWatchingOrder.Candidate(item: item(1), isSubscribed: true)
+    let older = ContinueWatchingOrder.Candidate(item: item(2, new: 12), isSubscribed: true,
+                                                updatedAt: daysAgo(60))
+    let unrelated = ContinueWatchingOrder.Candidate(item: item(3))
+    XCTAssertEqual(ranked([undated, older, unrelated]), [1, 2])
   }
 
   /// The row reads no history (Sasha, 2026-11-23): a film or series on the server's
@@ -150,12 +141,12 @@ final class ContinueWatchingOrderTests: XCTestCase {
 
   // MARK: - Bookmarks
 
-  func testBookmarkOnlyTitlesFillRemainingSlotsByDateAdded() {
+  func testBookmarksMixInByDateAdded() {
     let bookmark = ContinueWatchingOrder.Candidate(item: film(1), bookmarkedAt: daysAgo(1))
     let watched = ContinueWatchingOrder.Candidate(item: item(2), lastSeen: daysAgo(2))
     let older = ContinueWatchingOrder.Candidate(item: film(3), bookmarkedAt: daysAgo(3))
 
-    XCTAssertEqual(ranked([older, watched, bookmark]), [2, 1, 3])
+    XCTAssertEqual(ranked([older, watched, bookmark]), [1, 2, 3])
     XCTAssertEqual(ranked([older, watched, bookmark], rules: .init(includesBookmarks: false)), [2])
   }
 
@@ -180,8 +171,8 @@ final class ContinueWatchingOrderTests: XCTestCase {
     let resume = ContinueWatchingOrder.Candidate(item: item(3), lastSeen: daysAgo(1))
     let entries = ContinueWatchingOrder.ranked([resume, release, bookmarkOnly], rules: rules, now: now)
 
-    XCTAssertEqual(entries.map(\.item.id), [2, 3, 1])
-    XCTAssertEqual(entries.map(\.reason), [.released(daysAgo(2)), .watched(daysAgo(1)), .bookmarked(daysAgo(0.1))])
+    XCTAssertEqual(entries.map(\.item.id), [1, 2, 3])
+    XCTAssertEqual(entries.map(\.reason), [.bookmarked(daysAgo(0.1)), .released(daysAgo(2)), .watched(daysAgo(1))])
   }
 
   func testBookmarksTakeAtMostAThirdOfTheRow() {
@@ -190,7 +181,7 @@ final class ContinueWatchingOrderTests: XCTestCase {
     }
     let watched = ContinueWatchingOrder.Candidate(item: item(100), lastSeen: daysAgo(5))
 
-    XCTAssertEqual(ranked(bookmarks + [watched]), [100, 1, 2, 3, 4])
+    XCTAssertEqual(ranked(bookmarks + [watched]), [1, 2, 3, 4, 100])
   }
 
   /// The folder's newest item gets the folder's date; the rest only a date this device

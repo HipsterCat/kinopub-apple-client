@@ -2,11 +2,11 @@
   "version": "1.0",
   "date": "2026-11-27",
   "ru": [
-    "«Продолжить» отдаёт приоритет подпискам перед закладками, учитывает до пяти новых серий и обновляет устаревший список при возврате в приложение.",
+    "«Продолжить» обновляет устаревший список при возврате в приложение.",
     "На iPhone, iPad и Mac ряды серий и широких карточек выравниваются после прокрутки, а бейджи на обложках размывают фон. Значок с замком теперь подписан «Недоступно»."
   ],
   "en": [
-    "Continue Watching prioritizes followed shows over bookmarks, considers up to five new episodes and refreshes a stale list when you return to the app.",
+    "Continue Watching refreshes a stale list when you return to the app.",
     "On iPhone, iPad and Mac, episode and wide-card rows settle on a card after scrolling, and artwork badges blur the background. The lock badge now reads “Unavailable.”"
   ]
 }

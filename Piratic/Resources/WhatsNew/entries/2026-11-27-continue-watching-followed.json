@@ -1,0 +1,10 @@
+{
+  "version": "1.0.1",
+  "date": "2026-11-27",
+  "ru": [
+    "Любая подписка со следующей доступной серией может попасть в «Продолжить». Выход серий, просмотр и добавление в закладки учитываются по времени."
+  ],
+  "en": [
+    "Any followed show with a playable next episode can appear in Continue Watching. Episode releases, plays and bookmarks are ranked by activity time."
+  ]
+}

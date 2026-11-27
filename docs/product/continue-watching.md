@@ -45,9 +45,6 @@ device last played it, the release of a new episode on kino.pub for a followed s
 `updated_at`), and the time it was added to bookmarks. Kino.pub gives a folder timestamp for
 the newest bookmark in that folder. For bookmarks added in the app, use the locally recorded time.
 
-**prd** — When the row fills, titles qualified by playback or a subscription get space before
-bookmark-only titles. The cards that fit are shown in activity order.
-
 **prd** — A series included only because it was saved says «В закладках» / “Bookmarked”.
 Series in progress and followed series with new episodes show the episode the card offers.
 
@@ -68,10 +65,10 @@ watched, the series leaves the row the same way a fully watched one does (Replay
 the detail page), never a card that advertises the future episode number.
 
 **prd** — Dated interactions use the window chosen in Settings (eight weeks by default). A
-sample below the entry threshold counts as a viewing event for up to 14 days. A new release
-qualifies within the window when the viewer follows the series and either played it recently
-or is at most five episodes behind. The row can include up to four bookmark-only titles when
-the viewer enables bookmarks.
+sample below the entry threshold counts as a viewing event for up to 14 days. Every followed
+series is a candidate regardless of its episode backlog or recent activity. Recent releases
+supply an activity date. The row offers a followed series when it has a playable unwatched
+episode. Up to four bookmark-only titles can fit when the viewer enables bookmarks.
 
 The Library tab still has the whole watching list.
 
