@@ -849,7 +849,7 @@ final class TitleImagePickerModel {
 
   private static func isKinopubArt(_ url: String) -> Bool {
     guard let host = URL(string: url)?.host?.lowercased() else { return false }
-    return host.contains("kinopub") || host.contains("kino.pub") || host.contains("staticpop")
+    return host.contains("kinopub") || host.contains("kino.pub") || host.contains("staticpop") || host.contains("kino.watch") || host.contains("pushbr") || host.contains("boramoraboom")
   }
 
   /// Most votes first (usually the right one), then the larger file.
