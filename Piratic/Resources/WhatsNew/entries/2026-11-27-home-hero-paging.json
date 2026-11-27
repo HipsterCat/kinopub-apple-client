@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": ["При свайпе в баннере Главной текст скрывается и возвращается на то же место после остановки. Кадры сменяются без наложения, а попытка свайпа сбрасывает таймер."],
+  "en": ["Home hero details hide during a swipe and return in the same spot when paging stops. Artwork switches without overlapping, and starting a swipe resets the timer."]
+}

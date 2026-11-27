@@ -507,6 +507,7 @@ private struct HeroUnderChrome: ViewModifier {
                           for: .navigationBar)
 #else
     content
+      .scrollEdgeEffectHidden(showsArtworkUnderBar, for: .top)
       .toolbarBackgroundVisibility(showsArtworkUnderBar ? .hidden : .automatic, for: .windowToolbar)
       .toolbarColorScheme(showsArtworkUnderBar ? .dark : nil, for: .windowToolbar)
 #endif
