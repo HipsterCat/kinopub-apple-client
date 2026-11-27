@@ -1452,7 +1452,7 @@ class HomeCatalog: ObservableObject {
         // first episode the server does not count as watched, across season boundaries.
         // `playAgain` means there is no such episode: every *on-service* one is watched
         // (unreleased placeholders do not count), and a caught-up series has no business
-        // in Continue Watching while the rail says «Через N дней».
+        // in Continue Watching while the rail says «через N дней».
         guard detail.playbackAction != .playAgain,
               let (nextSeason, episode) = detail.primaryEpisode,
               episode.isOnService else { return nil }
