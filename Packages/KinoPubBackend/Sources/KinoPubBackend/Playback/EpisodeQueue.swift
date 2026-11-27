@@ -125,7 +125,7 @@ public struct EpisodeQueue {
   /// **Where the viewer is in the series** — what Play opens and what Continue Watching
   /// offers: the episode the viewer touched **last**, as the Apple TV app does (user's call,
   /// D17, 2026-10-04). Started and not finished → that one. Finished → the next **on
-  /// service** after it (never an unreleased placeholder the rail badges «Через N дней»).
+  /// service** after it (never an unreleased placeholder the rail badges «через N дней»).
   /// "Last" is by when it was played (`ViewerState.lastWatchedAt`) when the state knows,
   /// else by reading order: with E1, E2, E4, E5 watched and E6 half-way, it is E6; with E6
   /// untouched, it is E6 too — a skipped E3 stays skipped.

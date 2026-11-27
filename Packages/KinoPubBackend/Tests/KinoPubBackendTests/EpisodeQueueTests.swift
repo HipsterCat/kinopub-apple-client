@@ -119,7 +119,7 @@ final class EpisodeQueueTests: XCTestCase {
 
   // MARK: - Unreleased placeholders
 
-  /// Яга: E1–E6 watched, E7–E8 listed with no file and no runtime («Через N дней»).
+  /// Яга: E1–E6 watched, E7–E8 listed with no file and no runtime («через N дней»).
   /// Continue / Play must not offer E7 — caught up until something on service is left.
   func testContinueSkipsUnreleasedPlaceholders() {
     let item = seriesWithPlaceholders(watched: [1, 2, 3, 4, 5, 6],
