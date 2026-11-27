@@ -1,4 +1,5 @@
 import Nuke
+import PiraticMetadata
 import XCTest
 @testable import PiraticUI
 #if os(macOS)
@@ -8,10 +9,9 @@ import UIKit
 #endif
 
 final class ArtworkPipelineTests: XCTestCase {
-  func testPosterMirrorsKeepOriginalCacheKeyAndDiscardFailedResponses() async throws {
+  func testArtworkMirrorsKeepOriginalCacheKeyAndDiscardFailedResponses() async throws {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [PosterMirrorURLProtocol.self]
-    let source = try XCTUnwrap(URL(string: "https://m.pushbr.com/poster/item/wide/126952.jpg?v=1"))
     let cacheDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: cacheDirectory) }
     let cache = try DataCache(path: cacheDirectory)
@@ -21,18 +21,20 @@ final class ArtworkPipelineTests: XCTestCase {
       $0.dataCachePolicy = .storeOriginalData
     }
 
-    let request = ImageRequest(url: source)
-    let (data, response) = try await pipeline.data(for: request)
-    XCTAssertEqual(data, PosterMirrorURLProtocol.jpeg)
-    XCTAssertEqual(response?.url?.absoluteString,
-                   "https://m.boramoraboom.ru/poster/item/wide/126952.jpg?v=1")
-    XCTAssertEqual(pipeline.cache.cachedData(for: request), data)
+    for path in ["/poster/item/wide/126952.jpg?v=1", "/thumb/a/aa/hash/1000/480.jpg?v=1"] {
+      let source = try XCTUnwrap(URL(string: "https://m.pushbr.com\(path)"))
+      let request = ImageRequest(url: source)
+      let (data, response) = try await pipeline.data(for: request)
+      XCTAssertEqual(data, PosterMirrorURLProtocol.jpeg)
+      XCTAssertEqual(response?.url?.absoluteString, "https://m.boramoraboom.ru\(path)")
+      XCTAssertEqual(pipeline.cache.cachedData(for: request), data)
+    }
   }
 
-  func testPosterMirrorsAreLimitedToCataloguePosterURLs() throws {
-    for raw in ["https://m.staticpop.net/thumb/item/126952.jpg",
+  func testArtworkMirrorsAreLimitedToCatalogueImageURLs() throws {
+    for raw in ["https://m.staticpop.net/actors/126952.jpg",
                 "https://m.staticpop.net.example.org/poster/item/big/126952.jpg"] {
-      XCTAssertNil(ArtworkDataLoader.posterOrigins(for: try XCTUnwrap(URL(string: raw))))
+      XCTAssertNil(KinoPubArtworkCDN.origins(for: try XCTUnwrap(URL(string: raw))))
     }
   }
 
@@ -191,10 +193,12 @@ private final class PosterMirrorURLProtocol: URLProtocol, @unchecked Sendable {
       return
     }
     let isMirror = url.host == "m.boramoraboom.ru"
-    let headers = ["Content-Type": isMirror ? "image/jpeg" : "text/html"]
+    let isThumb = url.path.hasPrefix("/thumb/")
+    let headers = ["Content-Type": isMirror ? "image/jpeg" : (isThumb ? "image/png" : "text/html")]
     let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers)!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: isMirror ? Self.jpeg : Data("blocked".utf8))
+    let invalid = isThumb ? Data([0x89, 0x50, 0x4e, 0x47]) : Data("blocked".utf8)
+    client?.urlProtocol(self, didLoad: isMirror ? Self.jpeg : invalid)
     client?.urlProtocolDidFinishLoading(self)
   }
 

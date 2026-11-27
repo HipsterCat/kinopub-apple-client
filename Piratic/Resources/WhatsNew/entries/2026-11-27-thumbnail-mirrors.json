@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": ["Если кадр эпизода ещё обрабатывается на одном сервере, приложение ищет готовый кадр на другом."],
+  "en": ["If an episode thumbnail is still processing on one server, the app looks for the finished frame on another."]
+}

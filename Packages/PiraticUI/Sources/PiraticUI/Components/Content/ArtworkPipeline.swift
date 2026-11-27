@@ -762,11 +762,10 @@ public enum Artwork {
   }
 }
 
-/// Reports worker image routes and resolves direct kino.pub poster mirrors inside
+/// Reports worker image routes and resolves direct kino.pub artwork mirrors inside
 /// the download, so Nuke still coalesces and caches under the requested URL.
 final class ArtworkDataLoader: DataLoading, Sendable {
-  private static let posterHosts = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"]
-  private static let posterAttemptTimeout: TimeInterval = 4
+  private static let mirrorAttemptTimeout: TimeInterval = 4
   private let inner: DataLoader
 
   init(_ inner: DataLoader) {
@@ -778,10 +777,10 @@ final class ArtworkDataLoader: DataLoading, Sendable {
     didReceiveData: @escaping @Sendable (Data, URLResponse) -> Void,
     completion: @escaping @Sendable (Error?) -> Void
   ) -> any Cancellable {
-    if let url = request.url, let candidates = Self.posterOrigins(for: url) {
-      return PosterLoad(task: Task {
+    if let url = request.url, let candidates = KinoPubArtworkCDN.origins(for: url) {
+      return MirrorLoad(task: Task {
         var attempt = request
-        attempt.timeoutInterval = Self.posterAttemptTimeout
+        attempt.timeoutInterval = Self.mirrorAttemptTimeout
         var lastError: Error = URLError(.badServerResponse)
         for candidate in candidates {
           guard !Task.isCancelled else { return }
@@ -789,7 +788,7 @@ final class ArtworkDataLoader: DataLoading, Sendable {
           do {
             let (data, response) = try await inner.session.data(for: attempt)
             if let error = DataLoader.validate(response: response) { throw error }
-            // The catalogue serves JPEGs. A block page can be an HTTP 200.
+            // A block page or a PNG "processing" frame can be an HTTP 200.
             guard data.starts(with: [0xff, 0xd8, 0xff]) else {
               throw URLError(.cannotDecodeContentData)
             }
@@ -816,23 +815,7 @@ final class ArtworkDataLoader: DataLoading, Sendable {
     return box
   }
 
-  static func posterOrigins(for url: URL) -> [URL]? {
-    guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-          components.scheme?.lowercased() == "https",
-          components.port == nil || components.port == 443,
-          components.user == nil, components.password == nil,
-          let host = components.host?.lowercased(), posterHosts.contains(host),
-          components.percentEncodedPath.wholeMatch(of: /\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg/) != nil else {
-      return nil
-    }
-    let mirrors = posterHosts.filter { $0 != host }.compactMap { mirror in
-      components.host = mirror
-      return components.url
-    }
-    return [url] + mirrors
-  }
-
-  private struct PosterLoad: Cancellable {
+  private struct MirrorLoad: Cancellable {
     let task: Task<Void, Never>
     func cancel() { task.cancel() }
   }

@@ -13,7 +13,7 @@
  * from TMDB when the catalogue row doesn't have a duration yet.
  */
 
-import { preferredLang, readDocument, writeDocument } from "./title.js";
+import { isKinopubHost, preferredLang, readDocument, writeDocument } from "./title.js";
 
 const MAX_SEASONS = 4;
 const HINT = "/v1/title/by/kinopub/{id}/seasons/2-4";
@@ -71,7 +71,7 @@ export async function ensureEpisodeStill(env, document, seasonNumber, episodeNum
   const season = findSeason(document, seasonNumber);
   const episode = (season?.episodes || []).find((item) => Number(item.number) === episodeNumber);
   const thumb = episode?.thumbnail || episode?.still || episode?.image;
-  if (thumb && !String(thumb).includes("staticpop.net")) return document;
+  if (thumb && !isKinopubHost(thumb)) return document;
   // A prior fetch that found no still must not stick forever — ep art often
   // lands after the episode is already playable on kino.pub.
   const fetchedAt = Number(season?.fetched_at) || 0;

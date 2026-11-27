@@ -845,6 +845,7 @@ test("thumbnail miss is not edge-cached; src= seeds a staticpop thumb through we
   const fetched = [];
   globalThis.fetch = async (url) => {
     fetched.push(String(url));
+    if (new URL(url).searchParams.get("output") === "json") return Response.json({ format: "jpeg" });
     return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
       status: 200,
       headers: { "content-type": "image/webp" },
@@ -870,7 +871,8 @@ test("thumbnail miss is not edge-cached; src= seeds a staticpop thumb through we
     );
     assert.equal(stamped.status, 200);
     assert.equal(stamped.headers.get("x-kinopub-image-via"), "weserv");
-    const upstream = new URL(fetched[0]);
+    assert.equal(fetched.length, 2);
+    const upstream = new URL(fetched[1]);
     assert.equal(upstream.hostname, "wsrv.nl");
     assert.equal(upstream.searchParams.get("url"), src);
     assert.equal(upstream.searchParams.get("w"), "584");
@@ -878,6 +880,56 @@ test("thumbnail miss is not edge-cached; src= seeds a staticpop thumb through we
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("thumbnail skips a processing PNG and a stale WebP, then resizes the third host's JPEG", async (t) => {
+  const path = "/thumb/d/aa/fbfdda8071272f52e34173399083bd27/4317000/480.jpg";
+  const source = `https://m.boramoraboom.ru${path}`;
+  const fetched = [];
+  t.mock.method(globalThis, "fetch", async (raw) => {
+    const url = new URL(raw);
+    const origin = new URL(url.searchParams.get("url"));
+    const output = url.searchParams.get("output");
+    assert.equal(url.hostname, "wsrv.nl");
+    assert.equal(url.searchParams.get("w"), "584");
+    assert.equal(origin.pathname, path);
+    fetched.push(`${origin.hostname} ${output}`);
+    if (output === "json") {
+      return Response.json({ format: origin.hostname === "m.boramoraboom.ru" ? "png" : "jpeg" }, {
+        headers: { "x-upstream-response-length": "6048" },
+      });
+    }
+    const stale = origin.hostname === "m.staticpop.net";
+    return new Response(stale ? "processing" : "real frame", {
+      headers: { "content-type": "image/webp", "x-upstream-response-length": stale ? "3890" : "6048" },
+    });
+  });
+  // No KV: the stamped route still has the original source from the client.
+  const request = imageRequest("thumbnail", { query: `s=1&e=1&w=584&src=${encodeURIComponent(source)}` });
+  const redirect = await handleImage(request, {}, ctxSpy());
+  assert.equal(redirect.status, 302);
+  const response = await handleImage(new Request(redirect.headers.get("location")), {}, ctxSpy());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/webp");
+  assert.equal(await response.text(), "real frame");
+  assert.deepEqual(fetched, [
+    "m.boramoraboom.ru json", "m.staticpop.net json", "m.staticpop.net webp",
+    "m.pushbr.com json", "m.pushbr.com webp",
+  ]);
+});
+
+test("a thumbnail still processing on every mirror is a miss without negative caching", async (t) => {
+  t.mock.method(globalThis, "fetch", async (raw) => {
+    if (new URL(raw).hostname === "wsrv.nl") return Response.json({ format: "png" });
+    return new Response("processing", { headers: { "content-type": "image/png" } });
+  });
+  const source = "https://m.pushbr.com/thumb/a/bc/hash/1000/480.jpg";
+  const request = new Request(
+    `https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?s=1&e=1&src=${encodeURIComponent(source)}`,
+  );
+  const response = await handleImage(request, {}, ctxSpy());
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
 test("backdrop ignores season params and stays on the title frame", async () => {

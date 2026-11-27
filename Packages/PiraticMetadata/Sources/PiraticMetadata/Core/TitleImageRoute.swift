@@ -111,7 +111,7 @@ public struct TitleImageRoute: Sendable, Hashable {
   ///     never seen; without it a cold title only gets kino.pub's own art.
   ///   - season: with `.poster`, that season's poster; with `.thumbnail`, required.
   ///   - episode: with `.thumbnail`, the episode whose still is asked for.
-  ///   - kinopubThumb: with `.thumbnail`, optional `https://…staticpop.net/…` URL the
+  ///   - kinopubThumb: with `.thumbnail`, optional kino.pub CDN URL the
   ///     worker may seed and resize via wsrv.nl when TMDB has no still yet.
   ///   - kinopoisk: Kinopoisk id, so a cold title still has its Kinopoisk poster rung.
   ///   - wideChain: with `.cover`, `wide=1`: cover › textless backdrop › kino.pub's wide
@@ -145,7 +145,8 @@ public struct TitleImageRoute: Sendable, Hashable {
     if let language {
       query.append(URLQueryItem(name: "lang", value: language))
     }
-    if kind == .thumbnail, let kinopubThumb, Self.isStaticpopThumb(kinopubThumb) {
+    if kind == .thumbnail, let kinopubThumb, let source = URL(string: kinopubThumb),
+       KinoPubArtworkCDN.isThumbnail(source) || Self.isStaticpopThumb(kinopubThumb) {
       query.append(URLQueryItem(name: "src", value: kinopubThumb))
     }
     if kind == .cover, wideChain {

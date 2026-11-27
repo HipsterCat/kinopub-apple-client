@@ -17,7 +17,7 @@
  * Kinopoisk → another language), because the app now asks the worker for
  * every poster instead of kino.pub's CDN. Episode thumbnails may: a staticpop
  * still is resized through wsrv.nl so the client does not pull a raw 1280×720
- * JPEG into a 300–600 px rail slot. Optional `src=` (staticpop host only) seeds
+ * JPEG into a 300–600 px rail slot. Optional `src=` (kino.pub CDN only) seeds
  * a thumb the document never stored.
  *
  * Two rules shape the whole file:
@@ -420,20 +420,20 @@ async function handleImageQuery(request, url, env, ctx, route) {
     }
   }
 
-  // Client-known kino.pub episode thumb (staticpop only). Last resort after
-  // tvoe/tmdb, so a missing TMDB still still serves a resized WebP instead of
-  // forcing the app to pull the raw CDN file. Seeded into the document so the
-  // stamped follow-up (no `src=`) still finds it.
-  if (!asset && imageRequest.kind === "thumbnail") {
-    const src = readKinopubThumbSrc(url);
+  // The current CDN still is a fallback behind tvoe/TMDB. Keep it on the stamped
+  // request too, so it works if this document could not be written to KV.
+  if (imageRequest.kind === "thumbnail" && (!asset || isKinopubHost(asset.url))) {
+    const src = readKinopubSrc(url, "thumbnail");
     if (src) {
-      asset = { source: "kinopub", url: src, lang: null, width: null, height: null };
-      const base = stored || draftDocument(id, hints);
-      const seeded = seedEpisodeThumb(base, imageRequest.s, imageRequest.e, src);
-      if (seeded !== stored) {
-        await writeDocument(env, id, seeded);
-        stored = seeded;
+      if (!asset) {
+        const base = stored || draftDocument(id, hints);
+        const seeded = seedEpisodeThumb(base, imageRequest.s, imageRequest.e, src);
+        if (seeded !== stored) {
+          await writeDocument(env, id, seeded);
+          stored = seeded;
+        }
       }
+      asset = { source: "kinopub", url: src, lang: null, width: null, height: null };
     }
   }
 
@@ -1193,7 +1193,9 @@ function stampedURL(url, imageRequest, asset, rev) {
   // Only an explicit src rides along (older clients); one derived from the id
   // is derived again on the stamped side. `wide` keeps the wide-card chain.
   const explicitSrc = readKinopubSrc(url, imageRequest.kind);
-  if (imageRequest.src && explicitSrc) params.set("src", explicitSrc);
+  if (explicitSrc && (imageRequest.src || (imageRequest.kind === "thumbnail" && asset.source === "kinopub"))) {
+    params.set("src", explicitSrc);
+  }
   if (imageRequest.kind === "cover" && url.searchParams.has("wide")) params.set("wide", "1");
   // The Kinopoisk rung needs the id even when the document never stored it.
   if (imageRequest.kinopoisk && (imageRequest.kind === "poster" || imageRequest.kind === "cover")) {
@@ -1220,7 +1222,10 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   // Edge-cache the stamped answer so repeat Home/detail hits never re-tax
   // wsrv.nl. Key is the stamped URL (kind/id/lang/file + w/s/e/format).
   const cache = edgeCache();
-  const cacheKey = cache ? new Request(url.toString(), { method: "GET" }) : null;
+  const cacheURL = new URL(url);
+  // Old thumbnail responses could contain a processing frame already encoded as WebP.
+  if (stamp.kind === "thumbnail") cacheURL.searchParams.set("thumb-v", "2");
+  const cacheKey = cache ? new Request(cacheURL, { method: "GET" }) : null;
   if (cache && cacheKey) {
     const hit = await cache.match(cacheKey);
     if (hit) return hit;
@@ -1258,8 +1263,21 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   let asset = (stamp.kind === "thumbnail" || imageRequest.s != null)
     ? selectQueryAsset(stored, imageRequest, hints)
     : assetInLang(stored, stamp.kind, lang, hints);
+  if (stamp.kind === "thumbnail" && (!asset || isKinopubHost(asset.url))) {
+    const source = readKinopubSrc(url, "thumbnail");
+    if (source) asset = { source: "kinopub", url: source, lang: null };
+  }
   if (asset && langTag(asset.lang) !== stamp.lang) asset = null;
   if (!asset) return imageNotFound(missHint({ ...imageRequest, lang }));
+
+  const thumbOrigins = stamp.kind === "thumbnail" && kinopubArtworkOrigins(asset.url, KINOPUB_THUMB_PATH);
+  if (thumbOrigins) {
+    const served = await fetchKinopubThumbnail(thumbOrigins, imageRequest.w, format, weservEnabled(env));
+    if (!served) return imageNotFound(missHint(imageRequest), false, { store: false });
+    const response = imageResponse(served, stamp.kind, format, stamp.lang);
+    if (cache && cacheKey && ctx?.waitUntil) ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    return response;
+  }
 
   const legacy = resizeAsset(asset, stamp.kind, imageRequest.w);
   let fetched = null;
@@ -1448,7 +1466,56 @@ function coverChain(document, lang, kinopubSrc) {
 }
 
 const POSTER_FETCH_TIMEOUT_MS = 6000;
-const POSTER_MIRROR_TIMEOUT_MS = 4000;
+const CDN_MIRROR_TIMEOUT_MS = 4000;
+
+async function fetchKinopubThumbnail(origins, width, format, transform) {
+  if (transform) {
+    const served = await fetchTransformedKinopubThumbnail(origins, width, format);
+    if (served) return served;
+  }
+  const options = timeoutSignal(CDN_MIRROR_TIMEOUT_MS);
+  for (const origin of origins) {
+    try {
+      const response = await fetch(origin, options);
+      if (response.ok && /^image\/jpeg\b/i.test(response.headers.get("content-type") || "")) {
+        return { response, via: "legacy" };
+      }
+      await response.body?.cancel();
+    } catch {
+      if (options.signal?.aborted) break;
+    }
+  }
+  return null;
+}
+
+async function fetchTransformedKinopubThumbnail(origins, width, format) {
+  for (const origin of origins) {
+    const options = timeoutSignal(CDN_MIRROR_TIMEOUT_MS);
+    try {
+      // A transformed processing PNG is a valid WebP. Ask weserv about its input
+      // format on the same network path used for the transform.
+      const probe = await fetch(weservURL(origin, width, "json"), options);
+      if (!probe.ok) {
+        await probe.body?.cancel();
+        continue;
+      }
+      if ((await probe.json()).format !== "jpeg") continue;
+      const response = await fetch(weservURL(origin, width, format), options);
+      // The JSON and WebP have separate cache entries. Reject a cached transform
+      // when weserv reports that it was made from different source bytes.
+      const probedLength = probe.headers.get("x-upstream-response-length");
+      const transformedLength = response.headers.get("x-upstream-response-length");
+      if (response.ok && response.headers.get("content-type")?.startsWith("image/")
+          && (!probedLength || !transformedLength || probedLength === transformedLength)) {
+        return { response, via: "weserv" };
+      }
+      await response.body?.cancel();
+    } catch {
+      // An unavailable host or malformed probe gives the next mirror a chance.
+    }
+  }
+  return null;
+}
 
 /** One asset's bytes, WebP through wsrv.nl first, the source's own resizer next. */
 async function fetchAsset(env, asset, kind, w, format) {
@@ -1466,12 +1533,12 @@ async function fetchAsset(env, asset, kind, w, format) {
     return null;
   };
   const origin = durableOrigin(asset);
-  const mirrors = asset.source === "kinopub" && kinopubPosterOrigins(origin);
+  const mirrors = asset.source === "kinopub" && kinopubArtworkOrigins(origin, KINOPUB_POSTER_PATH);
   if (mirrors) {
     const transform = weservEnabled(env);
     for (const mirror of mirrors) {
       const target = transform ? weservURL(mirror, w, format) : mirror;
-      const served = await attempt(target, { timeout: POSTER_MIRROR_TIMEOUT_MS, imageOnly: true });
+      const served = await attempt(target, { timeout: CDN_MIRROR_TIMEOUT_MS, imageOnly: true });
       if (served) return served;
     }
     return null;
@@ -1950,10 +2017,6 @@ function episodeAsset(document, seasonNumber, episodeNumber) {
 }
 
 /**
- * Optional `src=` on `/img/thumbnail` — the episode's kino.pub CDN thumb the
- * client already holds. Only `*.staticpop.net` (and http/https) are accepted.
- */
-/**
  * kino.pub's own file, the last rung of a title poster / wide-card chain. The
  * file is addressed by the kino.pub id (Sasha 2026-11-26: no need for the
  * client to send it): poster `big`, wide card `wide` (asked with `?wide=1`).
@@ -1967,37 +2030,29 @@ function chainSource(url, kind, id) {
   return url.searchParams.has("wide") ? `${KINOPUB_POSTER_BASE}/wide/${id}.jpg` : null;
 }
 
-const KINOPUB_POSTER_HOSTS = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"];
-const KINOPUB_POSTER_BASE = `https://${KINOPUB_POSTER_HOSTS[0]}/poster/item`;
+const KINOPUB_IMAGE_HOSTS = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"];
+const KINOPUB_POSTER_BASE = `https://${KINOPUB_IMAGE_HOSTS[0]}/poster/item`;
+const KINOPUB_POSTER_PATH = /^\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg$/;
+const KINOPUB_THUMB_PATH = /^\/thumb\/.+\.jpg$/;
 
-function kinopubPosterOrigins(origin) {
+function kinopubArtworkOrigins(origin, path) {
   if (!origin) return null;
   const url = new URL(origin);
   const host = url.hostname;
   if (url.protocol !== "https:" || url.port || url.username || url.password
-    || !KINOPUB_POSTER_HOSTS.includes(host)
-    || !/^\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg$/.test(url.pathname)) return null;
-  return [origin, ...KINOPUB_POSTER_HOSTS.filter((mirror) => mirror !== host).map((mirror) => {
+    || !KINOPUB_IMAGE_HOSTS.includes(host) || !path.test(url.pathname)) return null;
+  return [origin, ...KINOPUB_IMAGE_HOSTS.filter((mirror) => mirror !== host).map((mirror) => {
     url.hostname = mirror;
     return url.toString();
   })];
 }
 
 function readKinopubSrc(url, kind) {
-  const legacy = readKinopubThumbSrc(url);
-  if (legacy || (kind !== "poster" && kind !== "cover")) return legacy;
+  if (!["poster", "cover", "thumbnail"].includes(kind)) return null;
   const source = safeHttpURL((url.searchParams.get("src") || "").trim());
-  return kinopubPosterOrigins(source) ? source : null;
-}
-
-function readKinopubThumbSrc(url) {
-  const raw = (url.searchParams.get("src") || "").trim();
-  if (!raw) return null;
-  let parsed;
-  try { parsed = new URL(raw); } catch { return null; }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-  if (!/(^|\.)staticpop\.net$/i.test(parsed.hostname)) return null;
-  return parsed.toString();
+  if (!source) return null;
+  if (/(^|\.)staticpop\.net$/i.test(new URL(source).hostname)) return source;
+  return kinopubArtworkOrigins(source, kind === "thumbnail" ? KINOPUB_THUMB_PATH : KINOPUB_POSTER_PATH) ? source : null;
 }
 
 /** Persist a client-seeded staticpop thumb so the next hit needs no `src=`. */
@@ -2014,7 +2069,7 @@ function seedEpisodeThumb(document, seasonNumber, episodeNumber, url) {
   const existing = epIndex >= 0 ? episodes[epIndex] : { number: episodeNumber };
   const current = existing.thumbnail || existing.still || existing.image;
   // Never overwrite a real (non-kinopub) still with a catalogue thumb.
-  if (current && !String(current).includes("staticpop.net")) return document;
+  if (current && !isKinopubHost(current)) return document;
   if (current === url) return document;
   const next = { ...existing, number: episodeNumber, thumbnail: url };
   if (epIndex >= 0) episodes[epIndex] = next;
@@ -2197,12 +2252,15 @@ function inferSource(url) {
   if (url.includes("image.tmdb.org")) return "tmdb";
   if (url.includes("static.cdn.tvoe.live") || url.includes("tvoe.live/_next/image")) return "tvoe";
   if (url.includes("kinopoiskapiunofficial.tech")) return "kinopoisk";
-  if (url.includes("staticpop.net")) return "kinopub";
+  if (isKinopubHost(url)) return "kinopub";
   return "unknown";
 }
 
-function isKinopubHost(url) {
-  return typeof url === "string" && url.includes("staticpop.net");
+export function isKinopubHost(url) {
+  const source = typeof url === "string" && safeHttpURL(url);
+  if (!source) return false;
+  const { hostname } = new URL(source);
+  return KINOPUB_IMAGE_HOSTS.includes(hostname) || /(^|\.)staticpop\.net$/i.test(hostname);
 }
 
 function safeHttpURL(url) {

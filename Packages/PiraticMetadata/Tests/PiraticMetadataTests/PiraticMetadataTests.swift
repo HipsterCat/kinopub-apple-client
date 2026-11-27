@@ -361,6 +361,11 @@ final class TitleImageRouteTests: XCTestCase {
     )
     XCTAssertFalse(TitleImageRoute.isStaticpopThumb("https://image.tmdb.org/t/p/original/x.jpg"))
     XCTAssertTrue(TitleImageRoute.isStaticpopThumb(thumb))
+    let mirroredThumb = "https://m.boramoraboom.ru/thumb/d/aa/hash/1000/480.jpg?image=1"
+    let mirroredRoute = route.episodeStill(kinopubID: 7, imdb: nil, season: 1, episode: 5,
+                                           pixelWidth: 584, kinopubThumb: mirroredThumb)
+    XCTAssertEqual(mirroredRoute.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+      .queryItems?.first(where: { $0.name == "src" })?.value, mirroredThumb)
   }
 
   func testSameInputsSameURL() {
