@@ -141,6 +141,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Continue Watching sneak-peek secondary line when genre is not the right answer —
   /// «В закладках» / «Недосмотрено». Not encoded; set when the card is drawn.
   public var continuePeekHint: String? = nil
+  /// Newest interaction used to rank this card in Continue Watching.
+  public var continueWatchingActivityDate: Date? = nil
   /// When true, Select opens a curated collection rather than a media title — Home /
   /// Collections grids use this so collection ids are not mistaken for item ids.
   public let opensCollection: Bool
@@ -476,6 +478,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               imdbID: imdbID,
               kinopoiskID: kinopoiskID)
     card.continuePeekHint = continuePeekHint
+    card.continueWatchingActivityDate = continueWatchingActivityDate
     card.fallbackLandscapeURL = fallbackLandscapeURL
     card.unavailableNotice = unavailableNotice
     return card
@@ -570,6 +573,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               imdbID: imdbID,
               kinopoiskID: kinopoiskID)
     card.continuePeekHint = continuePeekHint
+    card.continueWatchingActivityDate = continueWatchingActivityDate
     card.fallbackLandscapeURL = fallbackLandscapeURL
     card.unavailableNotice = unavailableNotice
     return card
@@ -595,6 +599,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     overview = try c.decodeIfPresent(String.self, forKey: .overview)
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
+    continueWatchingActivityDate = try c.decodeIfPresent(Date.self, forKey: .continueWatchingActivityDate)
     offeredName = try c.decodeIfPresent(String.self, forKey: .offeredName)
     hoverStillURL = try c.decodeIfPresent(String.self, forKey: .hoverStillURL)
     itemID = try c.decodeIfPresent(Int.self, forKey: .itemID) ?? id
@@ -662,6 +667,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(overview, forKey: .overview)
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
+    try c.encodeIfPresent(continueWatchingActivityDate, forKey: .continueWatchingActivityDate)
     try c.encodeIfPresent(offeredName, forKey: .offeredName)
     try c.encodeIfPresent(hoverStillURL, forKey: .hoverStillURL)
     try c.encode(itemID, forKey: .itemID)
@@ -696,6 +702,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
     case landscapeImageURL, overlayLabel, offeredName, hoverStillURL, itemID, video, season, seasonCount, episodeCount, mediaID
+    case continueWatchingActivityDate
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
     case genres, country, primaryAction

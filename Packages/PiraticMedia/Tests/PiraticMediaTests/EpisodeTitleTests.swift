@@ -46,7 +46,7 @@ final class EpisodeTitleTests: XCTestCase {
     XCTAssertNil(episode.title)
     let show = MediaEntity(kind: .show, title: "Трудно быть богом")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: episode, parent: show)).subtitle,
-                   "Season 1, Ep 1")
+                   "Season 1, Episode 1")
   }
 
   /// Only episodes: a film may well be called "1917".

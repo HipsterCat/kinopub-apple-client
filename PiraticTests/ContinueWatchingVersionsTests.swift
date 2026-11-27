@@ -143,18 +143,32 @@ final class ContinueWatchingVersionsTests: XCTestCase {
     XCTAssertEqual(watched.overlayLabel, String(localized: "Left Unfinished"))
   }
 
-  /// Series cards keep only the episode line on `overlayLabel` even when detail supplies year/genre.
-  func testSeriesSubtitleIgnoresReasonAndKeepsEpisodeLine() {
-    XCTAssertEqual(
+  func testSeriesSubtitleUsesBookmarkReasonOnlyForBookmarkOnlyTitles() {
+    func subtitle(_ reason: ContinueWatchingOrder.Reason) -> String? {
       HomeCatalog.continueWatchingSubtitle(
         isSeries: true,
         episodeLabel: "1 сезон, 1 серия: Рассвет",
         offeredVersionName: nil,
         concertShow: nil,
-        reason: .unfinished
-      ),
-      "1 сезон, 1 серия: Рассвет"
-    )
+        reason: reason
+      )
+    }
+    let now = Date()
+    XCTAssertEqual(subtitle(.bookmarked(now)), String(localized: "Bookmarked"))
+    let episodeReasons: [ContinueWatchingOrder.Reason] = [.unfinished, .watched(now), .released(now)]
+    for reason in episodeReasons {
+      XCTAssertEqual(subtitle(reason), "1 сезон, 1 серия: Рассвет")
+    }
+  }
+
+  func testBookmarkedSeriesKeepsItsCardWhileDetailsAreUnavailable() throws {
+    let series = WatchingItem(id: 104, type: "serial", title: "Пираты XXI века", posters: posters)
+    let card = try XCTUnwrap(HomeCatalog.card(
+      for: series, detail: nil, history: nil, finishedEpisodes: [:], local: nil,
+      isInHistory: false, isInWatchlist: false, cached: nil, reason: .bookmarked(Date())
+    ))
+    XCTAssertEqual(card.overlayLabel, String(localized: "Bookmarked"))
+    XCTAssertNil(card.video)
   }
 
   /// Local progress overlay on a non-series card preserves concert / version subtitles,
@@ -171,11 +185,13 @@ final class ContinueWatchingVersionsTests: XCTestCase {
       detail: nil, history: nil, finishedEpisodes: [:], local: nil,
       isInHistory: false, isInWatchlist: false, cached: nil, reason: .unfinished
     ))
-    let bookmarkedFilm = try XCTUnwrap(HomeCatalog.card(
+    let bookmarkedAt = Date()
+    var bookmarkedFilm = try XCTUnwrap(HomeCatalog.card(
       for: WatchingItem(id: 202, type: "movie", title: "Фильм / Film", posters: posters),
       detail: nil, history: nil, finishedEpisodes: [:], local: nil,
-      isInHistory: false, isInWatchlist: false, cached: nil, reason: .bookmarked(Date())
+      isInHistory: false, isInWatchlist: false, cached: nil, reason: .bookmarked(bookmarkedAt)
     ))
+    bookmarkedFilm.continueWatchingActivityDate = bookmarkedAt
     store.setItems([.card(concert), .card(bookmarkedFilm)], for: .continueWatching)
 
     localStore.cacheItem(.mock(id: 201, type: "concert"))
@@ -190,5 +206,6 @@ final class ContinueWatchingVersionsTests: XCTestCase {
     let painted = HomeCatalog.paintedContinueWatchingCards(store: store, localProgressStore: localStore)
     XCTAssertEqual(painted.first { $0.itemID == 201 }?.overlayLabel, "Dead Sea Concert")
     XCTAssertEqual(painted.first { $0.itemID == 202 }?.overlayLabel, String(localized: "Left Unfinished"))
+    XCTAssertEqual(painted.first { $0.itemID == 202 }?.continueWatchingActivityDate, bookmarkedAt)
   }
 }

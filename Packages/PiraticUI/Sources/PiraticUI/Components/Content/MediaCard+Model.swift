@@ -85,7 +85,7 @@ public extension MediaCard {
   /// The same card with the viewer's state replaced — watched, progress, follow, folders.
   /// Words and artwork are untouched.
   func withViewerState(_ state: ViewerState) -> MediaCard {
-    MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+    var card = MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: state.resumeFraction ?? (state.isWatched ? nil : progress),
                      badge: badge, backdropURL: backdropURL,
@@ -101,6 +101,8 @@ public extension MediaCard {
                      durationSeconds: durationSeconds, genres: genres, country: country,
                      primaryAction: primaryAction, opensCollection: opensCollection,
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+    card.continueWatchingActivityDate = continueWatchingActivityDate
+    return card
   }
 
   /// The unwatched count a cover paints: a followed series' episodes still to watch, nil
@@ -117,7 +119,7 @@ public extension MediaCard {
   func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {
     let left = count.flatMap { $0 > 0 ? $0 : nil }
     guard left != unwatchedEpisodes else { return self }
-    return MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+    var card = MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: progress,
                      badge: badge, backdropURL: backdropURL,
@@ -133,5 +135,7 @@ public extension MediaCard {
                      durationSeconds: durationSeconds, genres: genres, country: country,
                      primaryAction: primaryAction, opensCollection: opensCollection,
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+    card.continueWatchingActivityDate = continueWatchingActivityDate
+    return card
   }
 }

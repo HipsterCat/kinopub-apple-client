@@ -1,0 +1,6 @@
+{
+  "version": "1.0.1",
+  "date": "2026-11-27",
+  "ru": ["Ряд «Продолжить» сортируется по дате просмотра, выхода серии или добавления в закладки. Сериалы, сохранённые на потом, помечены «В закладках», а номера сезонов и серий написаны без сокращений."],
+  "en": ["Continue Watching puts recent plays, new episodes, and bookmarks in date order. Shows saved for later say “Bookmarked,” and episode captions are easier to read."]
+}

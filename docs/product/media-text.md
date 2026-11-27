@@ -14,22 +14,15 @@ line), **long** (spelled out). **VoiceOver always reads long**, whatever the scr
 
 | | en | ru |
 | --- | --- | --- |
-| short | `S1, E1` | `1 сезон, 1 серия` |
-| medium | `Season 1, Episode 1` · `S1, E1: Name` | `1 сезон, 1 серия` · `1 сезон, 1 серия: Name` |
+| short | `S1 E1` | `1 сезон, 1 серия` |
+| medium | `Season 1, Episode 1` · `S1 E1: Name` | `1 сезон, 1 серия` · `1 сезон, 1 серия: Name` |
 | long | `Season 1, Episode 1` · `Season 1, Episode 1: Name` | as medium |
 
-**Only one season known, and it is the first** — the season is not said: `E1` /
-`Episode 1` / `Episode 1: Name`, `1 серия` / `1 серия: Name`. The same when the season goes
-without saying, on a season's own rail. A name that is only the number again («Эпизод 1»)
-is no name.
-
-**The detail page's episodes** — the season switch is right beside them, or there is only one
-season: `7. Name`, and with no name `Episode 7` / `Серия 7`. **Everywhere else** the season is
-said, the name after a colon: `S1, E1: Name` / `1 сезон, 1 серия: Name` (Up Next), `S1, E1` /
-`1 сезон, 1 серия` without one. (User's call, 2026-10-03.)
-
-Continue Watching cards and the hero's capsules carry the season count, so a one-season show
-says `E2` / `2 серия` there too.
+When the only known season is the first, omit it from the reference. Continue Watching and Up
+Next show `2: Name` with a title, or `Episode 2` / `2 серия` when no title is available. Episode
+cards on a season's own rail use the same wording. For a series with multiple seasons, Continue
+Watching and Up Next show `S2 E3: Name` / `2 сезон, 3 серия: Name` and omit the colon for unnamed
+episodes. Treat placeholder titles such as «Эпизод 1» as unnamed.
 
 ## Season on its own
 
@@ -63,9 +56,9 @@ count days (`1д 12ч 4м`). Time left: `Ещё 53 мин` / `53 min left`.
 | --- | --- | --- |
 | Player subtitle | medium | — |
 | Hero capsules | short | medium (time left) |
-| Continue Watching card | short | short |
+| Continue Watching card | short with episode title when available | short |
 | Up Next tile (player) | short + `: Name` | short |
-| Episode tile on the detail page | `7. Name` · `Серия 7` | short |
+| Episode tile on the detail page | `7: Name` · `7 серия` | short |
 | History row, context menu, settings row | short | — |
 | Corner time chip, detail meta line | — | short |
 

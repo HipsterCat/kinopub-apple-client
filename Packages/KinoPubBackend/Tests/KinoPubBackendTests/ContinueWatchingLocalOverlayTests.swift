@@ -69,7 +69,6 @@ final class ContinueWatchingLocalOverlayTests: XCTestCase {
     XCTAssertEqual(plan.mutations[7]?.video, 5)
     XCTAssertEqual(plan.mutations[7]?.season, 1)
     XCTAssertNil(plan.mutations[7]?.progress)
-    XCTAssertEqual(plan.mutations[7]?.overlayLabel, "S1, E5")
     XCTAssertEqual(plan.order, [7])
   }
 
@@ -150,6 +149,21 @@ final class ContinueWatchingLocalOverlayTests: XCTestCase {
     XCTAssertEqual(plan.order, [3, 4])
     XCTAssertTrue(plan.mutations.isEmpty)
     XCTAssertTrue(plan.hiddenIDs.isEmpty)
+  }
+
+  func testAPlayDuringRefreshSortsBetweenDatedCards() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 1, isSeries: false, season: nil, video: 1,
+                                        activityDate: Date(timeIntervalSince1970: 200)),
+      ContinueWatchingLocalOverlay.Card(itemID: 2, isSeries: false, season: nil, video: 1,
+                                        activityDate: Date(timeIntervalSince1970: 100))
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(
+      cards: cards,
+      locals: [local(id: 2, progress: 0.4, isSeries: false, updatedAt: 150)],
+      snapshotTakenAt: .distantPast
+    )
+    XCTAssertEqual(plan.order, [1, 2])
   }
 
   func testFinishedFilmDoesNotHideADifferentCard() {

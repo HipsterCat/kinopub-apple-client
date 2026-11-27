@@ -3,7 +3,6 @@
 //
 
 import Foundation
-import PiraticMedia
 
 /// How local resume points paint the Continue Watching row **without** touching
 /// `ContentStore`'s TTL. The cached cards stay the last server-backed snapshot;
@@ -20,19 +19,19 @@ public enum ContinueWatchingLocalOverlay {
     public var isSeries: Bool
     public var season: Int?
     public var video: Int?
-    /// How many seasons the series has, when the card knows — for the overlay's wording.
-    public var seasonCount: Int?
+    /// The newest qualifying activity in the saved ranking.
+    public var activityDate: Date?
     /// Resume bar on the cached snapshot, so a stale local playhead cannot paint
     /// over further progress from another device.
     public var progress: Double?
 
     public init(itemID: Int, isSeries: Bool, season: Int?, video: Int?,
-                seasonCount: Int? = nil, progress: Double? = nil) {
+                activityDate: Date? = nil, progress: Double? = nil) {
       self.itemID = itemID
       self.isSeries = isSeries
       self.season = season
       self.video = video
-      self.seasonCount = seasonCount
+      self.activityDate = activityDate
       self.progress = progress
     }
   }
@@ -74,21 +73,17 @@ public enum ContinueWatchingLocalOverlay {
     public var progress: Double?
     public var season: Int?
     public var video: Int?
-    public var overlayLabel: String?
-
-    public init(progress: Double?, season: Int?, video: Int?, overlayLabel: String?) {
+    public init(progress: Double?, season: Int?, video: Int?) {
       self.progress = progress
       self.season = season
       self.video = video
-      self.overlayLabel = overlayLabel
     }
   }
 
   public struct Plan: Equatable, Sendable {
     public var hiddenIDs: Set<Int>
     public var mutations: [Int: Mutation]
-    /// Painted order: titles played here since the snapshot first, then the cached
-    /// row in its own order. Inserts (local-only) are included.
+    /// New plays merged into the saved ranking, including local-only inserts.
     public var order: [Int]
     public var insertIDs: [Int]
 
@@ -101,14 +96,6 @@ public enum ContinueWatchingLocalOverlay {
       self.order = order
       self.insertIDs = insertIDs
     }
-  }
-
-  /// The card's episode at its surface's length (`EpisodeText`).
-  static func overlayLabel(season: Int?, episode: Int?, seasonCount: Int?) -> String? {
-    guard let episode else { return nil }
-    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
-                       seasonCount: seasonCount)
-      .text(for: .continueWatchingCard)
   }
 
   /// - Parameter snapshotTakenAt: when the cached row was fetched. Only a play after
@@ -146,13 +133,7 @@ public enum ContinueWatchingLocalOverlay {
         }
         let season = next.season ?? local.season ?? card?.season
         let video = next.episode
-        let mutation = Mutation(
-          progress: nil,
-          season: season,
-          video: video,
-          overlayLabel: Self.overlayLabel(season: season, episode: video,
-                                          seasonCount: card?.seasonCount)
-        )
+        let mutation = Mutation(progress: nil, season: season, video: video)
         if present {
           if let nextEp = video, let cardEp = card?.video,
              (season ?? 0) < (card?.season ?? 0)
@@ -170,14 +151,7 @@ public enum ContinueWatchingLocalOverlay {
       if present, Self.localIsBehind(local, card: card) { continue }
       let season = local.season ?? card?.season
       let video = local.episode ?? card?.video
-      let mutation = Mutation(
-        progress: local.progress,
-        season: season,
-        video: video,
-        overlayLabel: local.isSeries
-          ? Self.overlayLabel(season: season, episode: video, seasonCount: card?.seasonCount)
-          : nil
-      )
+      let mutation = Mutation(progress: local.progress, season: season, video: video)
       if present {
         mutations[local.itemID] = mutation
       } else if local.canInsert {
@@ -186,21 +160,15 @@ public enum ContinueWatchingLocalOverlay {
       }
     }
 
-    var order: [Int] = []
-    var seen = Set<Int>()
+    var activityDates = cardByID.compactMapValues(\.activityDate)
     let liftedAfter = snapshotTakenAt?.timeIntervalSince1970 ?? -.infinity
     for local in recents where local.updatedAt > liftedAfter {
       let id = local.itemID
-      if hidden.contains(id) { continue }
-      let inRow = cardByID[id] != nil || insertIDs.contains(id)
-      guard inRow, seen.insert(id).inserted else { continue }
-      order.append(id)
+      let playedAt = Date(timeIntervalSince1970: local.updatedAt)
+      activityDates[id] = max(activityDates[id] ?? .distantPast, playedAt)
     }
-    for card in cards {
-      if hidden.contains(card.itemID) { continue }
-      if seen.insert(card.itemID).inserted {
-        order.append(card.itemID)
-      }
+    let order = (cards.map(\.itemID) + insertIDs).filter { !hidden.contains($0) }.sorted {
+      (activityDates[$0] ?? .distantPast) > (activityDates[$1] ?? .distantPast)
     }
 
     return Plan(hiddenIDs: hidden, mutations: mutations, order: order, insertIDs: insertIDs)

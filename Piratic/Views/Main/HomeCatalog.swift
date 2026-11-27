@@ -926,7 +926,7 @@ class HomeCatalog: ObservableObject {
                                           isSeries: $0.isSeries,
                                           season: $0.season,
                                           video: $0.video,
-                                          seasonCount: $0.seasonCount,
+                                          activityDate: $0.continueWatchingActivityDate,
                                           progress: $0.progress)
       },
       locals: locals,
@@ -955,11 +955,17 @@ class HomeCatalog: ObservableObject {
       guard let base else { return nil }
       guard let mutation = plan.mutations[id] else { return base }
       let updatedOverlay: String?
-      if let mutationOverlay = mutation.overlayLabel {
-        updatedOverlay = mutationOverlay
-      } else if !base.isSeries,
-                mutation.progress != nil,
-                base.overlayLabel == Self.continueReasonLabel(for: .bookmarked(Date())) {
+      let wasBookmarked = base.overlayLabel == String(localized: "Bookmarked")
+      if base.isSeries,
+         wasBookmarked || base.season != mutation.season || base.video != mutation.video {
+        let seasons = entryByID[id]?.item.seasons
+        let episode = seasons?.first { $0.number == mutation.season }?.episodes
+          .first { $0.number == mutation.video }
+        updatedOverlay = Self.overlayLabel(isSeries: true, season: mutation.season,
+                                           episode: mutation.video,
+                                           seasonCount: seasons?.count ?? base.seasonCount,
+                                           name: episode?.title)
+      } else if wasBookmarked, !base.isSeries, mutation.progress != nil {
         updatedOverlay = Self.continueReasonLabel(for: .unfinished)
       } else {
         updatedOverlay = base.overlayLabel
@@ -1149,8 +1155,7 @@ class HomeCatalog: ObservableObject {
   // MARK: - Continue watching
 
   /// The row (`ContinueWatchingOrder` says what goes on it and why). Sources: the three
-  /// watching lists for what is unfinished and what has new episodes, history and this
-  /// device for when something was watched, bookmarks for what was saved for later.
+  /// watching lists for unfinished titles and new episodes, local plays and bookmarks.
   /// The row stays at `rules.maxItems`. The header's page asks for a longer cut of
   /// the same ranking and does not write it back over the shelf.
   func expandedContinueWatching() async throws -> [MediaCard] {
@@ -1164,10 +1169,11 @@ class HomeCatalog: ObservableObject {
     let rules = ContinueWatchingPreferences.rules
     let cap = limit ?? rules.maxItems
     let watching = WatchingListCache.shared
+    let knownAdds = rules.includesBookmarks ? BookmarkMembershipStore.shared.addedDates() : [:]
     async let moviesTask = try? watching.movies(using: itemsService)
     async let allSerialsTask = try? watching.serials(subscribedOnly: false, using: itemsService)
     async let watchlistTask = try? watching.serials(subscribedOnly: true, using: itemsService)
-    async let bookmarksTask = recentBookmarks(rules: rules)
+    async let bookmarksTask = recentBookmarks(rules: rules, knownAdds: knownAdds)
 
     let moviesResult = await moviesTask
     let serialsResult = await allSerialsTask
@@ -1187,69 +1193,32 @@ class HomeCatalog: ObservableObject {
     let watchlist = watchlistResult ?? []
     // No `/v1/history` (Sasha, 2026-11-23): the three watching lists say what is
     // unfinished; dates come from this device and the title payloads only.
-    let history: [HistoryEntry] = []
-
     let watchlistIDs = Set(watchlist.map(\.id))
     let unfinishedIDs = Set(movies.map(\.id) + serials.map(\.id))
-    var lastSeen = ContinueWatchingOrder.lastSeenByItemID(history)
-    let newestEntry = Self.newestEntryByItemID(history)
-    let finishedEpisodes = Self.finishedEpisodesByItemID(history)
-    let historyIDs = Set(history.map(\.item.id))
     let localEntries = localProgressStore.allEntries()
     let localByID = Dictionary(uniqueKeysWithValues: localEntries.map { ($0.id, $0) })
+    let lastSeen = localByID.mapValues { Date(timeIntervalSince1970: $0.updatedAt) }
     let cached = store.cards(.continueWatching)
     let cachedByID = Dictionary(cached.map { ($0.itemID, $0) }, uniquingKeysWith: { _, last in last })
 
     var pool = ContinueWatchingOrder.mergePool(movies: movies, serials: serials, watchlist: watchlist)
 
-    // Whether the newest play stopped mid-video. False when it ran to the credits: then
-    // the card offers the next episode, which is what the row is for.
-    var stoppedMidway: [Int: Bool] = newestEntry.mapValues { !($0.watchProgress?.isFinished ?? false) }
-
-    // History is where "watched just now" lives — the watching lists are capped at 50,
-    // sorted by when a title got new content, and drop a series whose episodes are all
-    // watched. A series whose newest play ran to the credits stays: its payload says
-    // what comes next, or that nothing does (`card(for:)` returns nil on `playAgain`).
-    // A finished film has nothing next.
-    for entry in history {
-      let isEpisode = entry.isEpisode || (WatchingItem(historyEntry: entry)?.isEpisodicType ?? false)
-      if let watch = entry.watchProgress, watch.isFinished, !isEpisode { continue }
-      guard entry.lastSeenDate != nil,
-            !pool.contains(where: { $0.id == entry.item.id }),
-            let item = WatchingItem(historyEntry: entry) else { continue }
-      pool.append(item)
-    }
-
-    // This device's plays, which the server may not have yet. A series finished here
-    // goes in for the same reason as above; a film only while unfinished, and only past
-    // `enterContinueWatchingSeconds` — a trailer sampled for a minute is not something
-    // to carry on with.
+    // This device's plays can lead the server. A finished series episode may have a
+    // successor. A local-only film needs to still be in progress and past the entry floor.
     for entry in localEntries {
       let isSeries = entry.item.isEpisodicType || entry.season != nil
-      let date = Date(timeIntervalSince1970: entry.updatedAt)
       if entry.watch.isFinished, !isSeries { continue }
-      if lastSeen[entry.id].map({ date.isOnOrAfter($0) }) ?? true {
-        lastSeen[entry.id] = date
-        stoppedMidway[entry.id] = !entry.watch.isFinished
-      }
       if !pool.contains(where: { $0.id == entry.id }),
          entry.watch.isFinished || entry.watch.earnsContinueWatchingCard {
         pool.append(WatchingItem(mediaItem: entry.item))
       }
     }
 
-    // Drop server-listed films that local progress already considers finished.
-    // Series stay: finishing an episode is not finishing the title.
-    pool.removeAll { item in
-      guard let local = localByID[item.id], local.watch.isFinished else { return false }
-      return !item.isEpisodicType
-    }
-
     var bookmarkedAt: [Int: Date] = [:]
     if !bookmarked.isEmpty {
       bookmarkedAt = ContinueWatchingOrder.bookmarkDates(
         folders: bookmarked.map { (updated: $0.updated, itemIDs: $0.items.map(\.id)) },
-        knownAdds: BookmarkMembershipStore.shared.addedDates()
+        knownAdds: knownAdds
       )
       for item in bookmarked.flatMap(\.items)
       where bookmarkedAt[item.id] != nil && !pool.contains(where: { $0.id == item.id }) {
@@ -1257,20 +1226,16 @@ class HomeCatalog: ObservableObject {
       }
     }
 
-    var position = ContinueWatchingOrder.positionByItemID(history)
-    for entry in localEntries {
-      position[entry.id] = entry.position
+    // A finished film stays out even if it was added to a bookmark folder.
+    pool.removeAll { item in
+      !item.isEpisodicType && localByID[item.id]?.watch.isFinished == true
     }
 
-    // What the server's own watching lists carry. Anything else came in from history,
-    // this device or bookmarks, and only its details payload says what the server
-    // counts as watched.
-    let serverListed = Set(movies.map(\.id) + serials.map(\.id) + watchlist.map(\.id))
-    // What has to move for a title's payload to be asked for again: the server's counts,
-    // its newest history row, this device's play head.
+    // The details payload gives the server's watch state for local plays and bookmarks.
+    let serverListed = unfinishedIDs.union(watchlistIDs)
+    // Refresh the details payload when the server's counts or local viewing activity change.
     func version(_ item: WatchingItem) -> String {
       [item.watched, item.total, item.new,
-       lastSeen[item.id].map { Int($0.timeIntervalSince1970) },
        localByID[item.id].map { Int($0.updatedAt) }]
         .map { $0.map(String.init) ?? "-" }.joined(separator: "/")
     }
@@ -1287,8 +1252,7 @@ class HomeCatalog: ObservableObject {
       ContinueWatchingOrder.Candidate(
         item: item,
         lastSeen: lastSeen[item.id],
-        stoppedMidway: stoppedMidway[item.id] ?? false,
-        position: position[item.id],
+        position: localByID[item.id]?.position,
         isSubscribed: watchlistIDs.contains(item.id),
         updatedAt: details[item.id].flatMap { $0.updatedAt > 0 ? Date(timeIntervalSince1970: TimeInterval($0.updatedAt)) : nil },
         bookmarkedAt: bookmarkedAt[item.id],
@@ -1300,12 +1264,6 @@ class HomeCatalog: ObservableObject {
     // such titles at the top left the row at 11 (2026-10-25). Payloads are asked for a
     // batch at a time, so a full row costs no more than it did.
     let ranked = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: pool.count)
-    let reasonByID: [Int: ContinueWatchingOrder.Reason] = Dictionary(
-      uniqueKeysWithValues: candidates.compactMap { candidate in
-        ContinueWatchingOrder.reason(for: candidate, rules: rules)
-          .map { (candidate.item.id, $0) }
-      }
-    )
     var cards: [MediaCard] = []
     var next = 0
     var rounds = 0
@@ -1313,18 +1271,22 @@ class HomeCatalog: ObservableObject {
       rounds += 1
       let batch = Array(ranked[next..<min(ranked.count, next + cap - cards.count + Self.spareCards)])
       next += batch.count
-      let versions = Dictionary(uniqueKeysWithValues: batch.map { ($0.id, version($0)) })
-      details.merge(await titleDetails(for: batch, serverListed: serverListed, versions: versions)) { _, new in new }
-      cards += batch.compactMap {
-        Self.card(for: $0,
-                  detail: details[$0.id],
-                  history: newestEntry[$0.id],
-                  finishedEpisodes: finishedEpisodes[$0.id] ?? [:],
-                  local: localByID[$0.id],
-                  isInHistory: historyIDs.contains($0.id) || localByID[$0.id] != nil,
-                  isInWatchlist: watchlistIDs.contains($0.id),
-                  cached: cachedByID[$0.id],
-                  reason: reasonByID[$0.id])
+      let items = batch.map(\.item)
+      let versions = Dictionary(uniqueKeysWithValues: items.map { ($0.id, version($0)) })
+      details.merge(await titleDetails(for: items, serverListed: serverListed, versions: versions)) { _, new in new }
+      cards += batch.compactMap { entry in
+        let item = entry.item
+        var card = Self.card(for: item,
+                             detail: details[item.id],
+                             history: nil,
+                             finishedEpisodes: [:],
+                             local: localByID[item.id],
+                             isInHistory: localByID[item.id] != nil,
+                             isInWatchlist: watchlistIDs.contains(item.id),
+                             cached: cachedByID[item.id],
+                             reason: entry.reason)
+        card?.continueWatchingActivityDate = entry.activityDate
+        return card
       }
     }
     return Array(cards.prefix(cap))
@@ -1341,18 +1303,34 @@ class HomeCatalog: ObservableObject {
   /// of items (newest first too). A failure is no bookmarks, not a failed row.
   /// Folder list and pages go through `BookmarkFoldersStore` + `ContentStore` — no
   /// parallel raw `/v1/bookmarks` from this path.
-  private func recentBookmarks(rules: ContinueWatchingOrder.Rules) async -> [(updated: Date, items: [MediaItem])] {
+  private func recentBookmarks(
+    rules: ContinueWatchingOrder.Rules, knownAdds: [Int: Date]
+  ) async -> [(updated: Date, items: [MediaItem])] {
     guard rules.includesBookmarks else { return [] }
     let folders = await BookmarkFoldersStore.shared.refreshIfStale(using: itemsService)
     let now = Date()
-    let fresh = folders
-      .filter { $0.count != "0" && now.timeIntervalSince1970 - TimeInterval($0.updated) <= rules.window }
-      .recentlyUpdatedFirst()
+    var recentByFolder: [Int: Date] = [:]
+    for (itemID, addedAt) in knownAdds where now.timeIntervalSince(addedAt) <= rules.window {
+      for folderID in BookmarkMembershipStore.shared.folderIDs(for: itemID) {
+        recentByFolder[folderID] = max(recentByFolder[folderID] ?? .distantPast, addedAt)
+      }
+    }
+    let fresh = folders.recentlyUpdatedFirst()
+      .map { folder in
+        let updated = Date(timeIntervalSince1970: TimeInterval(folder.updated))
+        let latest = max(updated, recentByFolder[folder.id] ?? .distantPast)
+        return (folder: folder, updated: updated, latest: latest)
+      }
+      .filter {
+        ($0.folder.count != "0" || recentByFolder[$0.folder.id] != nil) &&
+          now.timeIntervalSince($0.latest) <= rules.window
+      }
+      .sorted { $0.latest > $1.latest }
       .prefix(Self.bookmarkFolderLimit)
     var result: [(updated: Date, items: [MediaItem])] = []
-    for folder in fresh {
+    for (folder, updated, _) in fresh {
       let items = await folderMediaItems(id: folder.id)
-      result.append((Date(timeIntervalSince1970: TimeInterval(folder.updated)), items))
+      result.append((updated, items))
     }
     return result
   }
@@ -1440,26 +1418,6 @@ class HomeCatalog: ObservableObject {
     }
   }
 
-  /// Item id → season → the episodes that season's history rows ran to the credits.
-  /// The full picture history can give, rather than only its most recent row.
-  private static func finishedEpisodesByItemID(_ history: [HistoryEntry]) -> [Int: [Int: Set<Int>]] {
-    history.reduce(into: [Int: [Int: Set<Int>]]()) { result, entry in
-      guard entry.isEpisode,
-            entry.watchProgress?.isFinished == true,
-            let season = entry.media?.snumber,
-            let number = entry.media?.number else { return }
-      result[entry.item.id, default: [:]][season, default: []].insert(number)
-    }
-  }
-
-  private static func newestEntryByItemID(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {
-    history.reduce(into: [Int: HistoryEntry]()) { result, entry in
-      guard let date = entry.lastSeenDate else { return }
-      if let existing = result[entry.item.id], let seen = existing.lastSeenDate, seen.isOnOrAfter(date) { return }
-      result[entry.item.id] = entry
-    }
-  }
-
   /// Continue-watching cards are landscape wide covers — episode stills are too
   /// anonymous to recognise a title from across the room. History still supplies the
   /// S/E label and resume bar; local progress fills gaps before the server catches up.
@@ -1489,7 +1447,7 @@ class HomeCatalog: ObservableObject {
         // first episode the server does not count as watched, across season boundaries.
         // `playAgain` means there is no such episode: every *on-service* one is watched
         // (unreleased placeholders do not count), and a caught-up series has no business
-        // in Continue Watching — never advertise «7 сер» when the rail says «Через N дней».
+        // in Continue Watching while the rail says «Через N дней».
         guard detail.playbackAction != .playAgain,
               let (nextSeason, episode) = detail.primaryEpisode,
               episode.isOnService else { return nil }
@@ -1519,6 +1477,11 @@ class HomeCatalog: ObservableObject {
           video = cached?.video
           season = cached?.season ?? next.season
           isResuming = cached?.progress != nil
+        } else if case .bookmarked = reason {
+          // Play will resolve the first available episode when it fetches the title.
+          video = nil
+          season = nil
+          isResuming = false
         } else {
           return nil
         }
@@ -1563,11 +1526,14 @@ class HomeCatalog: ObservableObject {
       ?? (isResuming
           ? (cached?.durationSeconds ?? Self.durationSeconds(history: history, local: local))
           : nil)
-    // The details payload when it was fetched, else the snapshot the player cached.
-    let seasonCount = (detail?.seasons ?? local?.item.seasons)?.count
-    // «1 серия: Поцелуй» — the episode the card offers, named when the payload names it.
+    let localSeasons = local?.item.seasons
+    let seasonCount = (detail?.seasons ?? localSeasons)?.count
+    let localEpisode = localSeasons?.first { $0.number == season }?.episodes
+      .first { $0.number == video }
+    // The offered episode, named when the payload names it.
     let episodeOverlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
-                                           seasonCount: seasonCount, name: offered?.title)
+                                           seasonCount: seasonCount,
+                                           name: EpisodeTitle.meaningful(offered?.title) ?? localEpisode?.title)
     // The episodes after the one offered: `new` counts the offered one too, so «+ ещё 1»
     // showed with nothing past it (Sasha, 2026-10-30). The label itself is off for now
     // (`MediaCardView.showsMoreEpisodesCount`).
@@ -1585,12 +1551,19 @@ class HomeCatalog: ObservableObject {
       title = split.artist
       concertShow = split.show
     }
+    // The details can reveal a play from another device that was missing in the lists.
+    let cardReason: ContinueWatchingOrder.Reason?
+    if case .bookmarked = reason, detail?.playbackAction == .resume {
+      cardReason = .unfinished
+    } else {
+      cardReason = reason
+    }
     let overlay = Self.continueWatchingSubtitle(
       isSeries: isSeries,
       episodeLabel: episodeOverlay,
       offeredVersionName: offeredVersion?.name,
       concertShow: concertShow,
-      reason: reason
+      reason: cardReason
     )
     // kino.pub's frame of what the card offers. Under the pointer `MediaCardView` asks the
     // worker for the title page's own picture of it and keeps this as the fallback.
@@ -1630,12 +1603,12 @@ class HomeCatalog: ObservableObject {
                      primaryAction: .play,
                      imdbID: detail?.imdb,
                      kinopoiskID: item.kinopoisk)
-    card.continuePeekHint = Self.continuePeekHint(for: reason)
+    card.continuePeekHint = Self.continuePeekHint(for: cardReason)
     return card
   }
 
   /// Line 2 of a Continue Watching card — never more than two lines on the card total.
-  /// - Series: season/episode (+ episode title when known).
+  /// - Series: the reason for a bookmark-only title, otherwise the offered episode.
   /// - Non-series: offered version (`subtype: multi` or multi-set concert), else the
   ///   concert's show half (after `/`), else the reason («В закладках» / «Недосмотрено»).
   static func continueWatchingSubtitle(isSeries: Bool,
@@ -1648,6 +1621,7 @@ class HomeCatalog: ObservableObject {
       return trimmed?.isEmpty == false ? trimmed : nil
     }
     if isSeries {
+      if case .bookmarked = reason { return continueReasonLabel(for: reason) }
       return nonEmpty(episodeLabel)
     }
     if let version = nonEmpty(offeredVersionName) {
@@ -1659,9 +1633,7 @@ class HomeCatalog: ObservableObject {
     return continueReasonLabel(for: reason)
   }
 
-  /// Card line 2 for a non-series Continue Watching card when no version or concert show
-  /// subtitle applies: «В закладках» for bookmarks, «Недосмотрено» for unfinished or
-  /// locally started titles.
+  /// Card line 2 when the card uses its reason as the subtitle.
   static func continueReasonLabel(for reason: ContinueWatchingOrder.Reason?) -> String? {
     switch reason {
     case .bookmarked:
@@ -1710,10 +1682,8 @@ class HomeCatalog: ObservableObject {
                                    seasonCount: Int?, name: String? = nil) -> String? {
     guard isSeries else { return nil }
     guard let episode else { return nil }
-    let text = EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
-                           name: name, seasonCount: seasonCount)
-    // With a name: «1 серия: Поцелуй». Without: the card's usual reference.
-    return text.name == nil ? text.text(for: .continueWatchingCard) : text.titled(.short)
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       name: name, seasonCount: seasonCount).text(for: .continueWatchingCard)
   }
 
   /// A concert's card title «Artist – Show» (`MediaPresentationProfile.cardTitle`, or

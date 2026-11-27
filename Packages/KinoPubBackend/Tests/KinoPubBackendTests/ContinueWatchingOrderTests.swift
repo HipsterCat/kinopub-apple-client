@@ -31,7 +31,7 @@ final class ContinueWatchingOrderTests: XCTestCase {
 
   private func ranked(_ candidates: [ContinueWatchingOrder.Candidate],
                       rules: ContinueWatchingOrder.Rules? = nil) -> [Int] {
-    ContinueWatchingOrder.ranked(candidates, rules: rules ?? self.rules, now: now).map(\.id)
+    ContinueWatchingOrder.ranked(candidates, rules: rules ?? self.rules, now: now).map(\.item.id)
   }
 
   // MARK: - What the row is for (Sasha, 2026-10-25)
@@ -39,12 +39,11 @@ final class ContinueWatchingOrderTests: XCTestCase {
   /// One episode of a bookmarked series watched last night: its next episode leads,
   /// ahead of everything left half-way earlier in the week.
   func testNextEpisodeOfTheShowJustWatchedLeads() {
-    let justWatched = ContinueWatchingOrder.Candidate(item: item(1), lastSeen: daysAgo(0.2),
-                                                      stoppedMidway: false)
+    let justWatched = ContinueWatchingOrder.Candidate(item: item(1), lastSeen: daysAgo(0.2))
     let halfWayMonday = ContinueWatchingOrder.Candidate(item: film(2), lastSeen: daysAgo(4),
-                                                        stoppedMidway: true, position: 1800)
+                                                        position: 1800)
     let halfWayTuesday = ContinueWatchingOrder.Candidate(item: item(3), lastSeen: daysAgo(3.5),
-                                                         stoppedMidway: true, position: 600)
+                                                         position: 600)
 
     XCTAssertEqual(ranked([halfWayMonday, halfWayTuesday, justWatched]), [1, 3, 2])
   }
@@ -89,19 +88,18 @@ final class ContinueWatchingOrderTests: XCTestCase {
   /// Something left half-way stays near the top while fresh.
   func testAFreshResumeKeepsItsDate() {
     let pausedLastNight = ContinueWatchingOrder.Candidate(item: film(1), lastSeen: daysAgo(0.5),
-                                                          stoppedMidway: true, position: 2000)
+                                                          position: 2000)
     let nextUpTwoDays = ContinueWatchingOrder.Candidate(item: item(2), lastSeen: daysAgo(2))
 
     XCTAssertEqual(ranked([nextUpTwoDays, pausedLastNight]), [1, 2])
   }
 
-  /// Stopped half-way days ago: behind a next episode from weeks ago.
-  func testAStalledResumeGoesBehindEverythingElse() {
+  func testAnOlderResumeStillUsesItsActivityDate() {
     let stalled = ContinueWatchingOrder.Candidate(item: film(1), lastSeen: daysAgo(4),
-                                                  stoppedMidway: true, position: 2000)
+                                                  position: 2000)
     let nextUp = ContinueWatchingOrder.Candidate(item: item(2), lastSeen: daysAgo(20))
 
-    XCTAssertEqual(ranked([stalled, nextUp]), [2, 1])
+    XCTAssertEqual(ranked([nextUp, stalled]), [1, 2])
   }
 
   // MARK: - Weeks to consider
@@ -131,7 +129,7 @@ final class ContinueWatchingOrderTests: XCTestCase {
 
   func testABarelyStartedTitleDropsAfterTwoWeeks() {
     let sampled = ContinueWatchingOrder.Candidate(item: film(1), lastSeen: daysAgo(15),
-                                                  stoppedMidway: true, position: 30)
+                                                  position: 30)
     XCTAssertEqual(ranked([sampled]), [])
 
     var recent = sampled
@@ -150,10 +148,29 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked([older, watched, bookmark], rules: .init(includesBookmarks: false)), [2])
   }
 
-  func testAPlayedBookmarkIsDatedByThePlay() {
+  func testABookmarkDateMovesAPlayedTitleWithoutChangingItsReason() {
     let played = ContinueWatchingOrder.Candidate(item: film(1), lastSeen: daysAgo(10),
                                                  bookmarkedAt: daysAgo(1))
-    XCTAssertEqual(ContinueWatchingOrder.reason(for: played, rules: rules, now: now), .watched(daysAgo(10)))
+    let newerPlay = ContinueWatchingOrder.Candidate(item: item(2), lastSeen: daysAgo(2))
+    let entries = ContinueWatchingOrder.ranked([newerPlay, played], rules: rules, now: now)
+
+    XCTAssertEqual(entries.map(\.item.id), [1, 2])
+    XCTAssertEqual(entries.first?.activityDate, daysAgo(1))
+    XCTAssertEqual(entries.first?.reason, .watched(daysAgo(10)))
+  }
+
+  func testOnlyABookmarkOnlySeriesUsesTheBookmarkReason() {
+    let bookmarkOnly = ContinueWatchingOrder.Candidate(
+      item: WatchingItem(id: 1, type: "serial", title: "Saved", posters: film(1).posters),
+      bookmarkedAt: daysAgo(0.1))
+    let release = ContinueWatchingOrder.Candidate(item: item(2, new: 1),
+                                                  isSubscribed: true, updatedAt: daysAgo(2),
+                                                  bookmarkedAt: daysAgo(0.2))
+    let resume = ContinueWatchingOrder.Candidate(item: item(3), lastSeen: daysAgo(1))
+    let entries = ContinueWatchingOrder.ranked([resume, release, bookmarkOnly], rules: rules, now: now)
+
+    XCTAssertEqual(entries.map(\.item.id), [1, 2, 3])
+    XCTAssertEqual(entries.map(\.reason), [.bookmarked(daysAgo(0.1)), .released(daysAgo(2)), .watched(daysAgo(1))])
   }
 
   func testBookmarksTakeAtMostAThirdOfTheRow() {

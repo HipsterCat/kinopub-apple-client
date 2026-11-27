@@ -1377,12 +1377,12 @@ class MediaItemModel: ObservableObject {
       do {
         let folderId = try await actionsService.createBookmarkFolder(title: title)
         try await itemsService.toggleBookmark(itemId: mediaItemId, folderId: folderId)
-        folderIDsContainingItem.insert(folderId)
-        BookmarkMembershipStore.shared.replace(itemID: mediaItemId, folderIDs: folderIDsContainingItem)
+        folderIDsContainingItem = BookmarkMembershipStore.shared.toggle(
+          itemID: mediaItemId, folderID: folderId, serverHint: folderIDsContainingItem)
         // The folder list itself changed — the one case where this page fetches it.
         // `folders` follows the store, so the new folder lands in the menu here.
         await BookmarkFoldersStore.shared.reload(using: itemsService)
-        contentStore.invalidate(family: .bookmarks)
+        contentStore.invalidateBookmarkMembership()
         presentHud(systemImage: "bookmark.fill", title: "Bookmarked")
       } catch {
         errorHandler.setError(error)

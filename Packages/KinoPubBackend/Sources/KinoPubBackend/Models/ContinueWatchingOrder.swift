@@ -9,9 +9,7 @@ import Foundation
 ///
 /// **What the row is for** (Sasha, 2026-10-25): what to watch next, not a list of things
 /// left unfinished. The next episode of the show just watched, a new episode of a
-/// subscription, a fresh bookmark — newest first, on one timeline. A film or episode left
-/// half-way stays only while it is fresh; after ``stalledAfter`` it goes behind
-/// everything else.
+/// subscription, a fresh bookmark — newest first, on one timeline.
 ///
 /// **Where the dates come from** (probed live 2026-10-25): `/v1/watching/*` carry no date
 /// at all, and are sorted by the title's `updated_at` (when it got new content), not by
@@ -32,10 +30,6 @@ public enum ContinueWatchingOrder {
 
   /// Bookmarks are mixed in, not the row: at most a third of it.
   public static let maxBookmarks: Int = 4
-
-  /// A title stopped half-way and not touched for this long is no longer "what I'm
-  /// watching" — it sorts behind next episodes, new episodes and bookmarks.
-  public static let stalledAfter: TimeInterval = 3 * 24 * 60 * 60
 
   /// A sample that never cleared ``WatchProgress/enterContinueWatchingSeconds``
   /// drops off after this — sampling is not continuing.
@@ -74,9 +68,6 @@ public enum ContinueWatchingOrder {
     public var item: WatchingItem
     /// Newest play of the title: history or this device.
     public var lastSeen: Date?
-    /// The newest play stopped mid-video. False when it ran to the credits — then the
-    /// card offers the next episode.
-    public var stoppedMidway: Bool
     /// Play head of the newest play, for the barely-started rule.
     public var position: Double?
     /// On the viewer's subscriptions (`watching/serials?subscribed=1`).
@@ -91,7 +82,6 @@ public enum ContinueWatchingOrder {
 
     public init(item: WatchingItem,
                 lastSeen: Date? = nil,
-                stoppedMidway: Bool = false,
                 position: Double? = nil,
                 isSubscribed: Bool = false,
                 updatedAt: Date? = nil,
@@ -99,7 +89,6 @@ public enum ContinueWatchingOrder {
                 isListedUnfinished: Bool = false) {
       self.item = item
       self.lastSeen = lastSeen
-      self.stoppedMidway = stoppedMidway
       self.position = position
       self.isSubscribed = isSubscribed
       self.updatedAt = updatedAt
@@ -108,7 +97,7 @@ public enum ContinueWatchingOrder {
     }
   }
 
-  /// Why a title is on the row, and the date it sorts by.
+  /// Why a title is on the row, used for the card's caption and the bookmark cap.
   public enum Reason: Equatable, Sendable {
     /// Played within the window: next episode, or resume while fresh.
     case watched(Date)
@@ -128,8 +117,14 @@ public enum ContinueWatchingOrder {
     }
   }
 
-  /// The newest reason the title belongs on the row, or nil when it does not.
-  public static func reason(for candidate: Candidate, rules: Rules, now: Date = Date()) -> Reason? {
+  public struct Ranked {
+    public let item: WatchingItem
+    public let reason: Reason
+    /// The newest qualifying event, including a bookmark on a title already being watched.
+    public let activityDate: Date
+  }
+
+  private static func score(_ candidate: Candidate, rules: Rules, now: Date) -> Ranked? {
     func fresh(_ date: Date?) -> Date? {
       guard let date, date.isOnOrBefore(now), now.timeIntervalSince(date) <= rules.window else { return nil }
       return date
@@ -150,22 +145,14 @@ public enum ContinueWatchingOrder {
       released = date
     }
 
-    var bookmarked: Date?
-    if rules.includesBookmarks, candidate.lastSeen == nil {
-      bookmarked = fresh(candidate.bookmarkedAt)
-    }
-
-    let reasons: [Reason] = [watched.map(Reason.watched),
-                             released.map(Reason.released),
-                             bookmarked.map(Reason.bookmarked)].compactMap { $0 }
-    if let newest = reasons.max(by: { $0.date < $1.date }) { return newest }
-    return candidate.isListedUnfinished ? .unfinished : nil
-  }
-
-  /// Stopped half-way and left alone: still on the row, behind everything else.
-  static func isStalled(_ candidate: Candidate, reason: Reason, now: Date) -> Bool {
-    guard case .watched(let date) = reason, candidate.stoppedMidway else { return false }
-    return now.timeIntervalSince(date) > stalledAfter
+    let bookmarked = rules.includesBookmarks ? fresh(candidate.bookmarkedAt) : nil
+    let playbackReasons = [watched.map(Reason.watched), released.map(Reason.released)].compactMap { $0 }
+    let hasPlayed = candidate.lastSeen != nil || (candidate.item.watched ?? 0) > 0
+    let unfinished = candidate.isListedUnfinished || (bookmarked != nil && hasPlayed)
+    guard let reason = playbackReasons.max(by: { $0.date < $1.date })
+      ?? (unfinished ? .unfinished : bookmarked.map(Reason.bookmarked)) else { return nil }
+    return Ranked(item: candidate.item, reason: reason,
+                  activityDate: max(reason.date, bookmarked ?? .distantPast))
   }
 
   /// How far behind a title is, for ties. Films have no episode counters and count as
@@ -174,36 +161,35 @@ public enum ContinueWatchingOrder {
     item.new ?? 0
   }
 
-  /// The row: titles with a reason, newest reason first, stalled ones last, at most
+  /// The row: titles with a reason, newest activity first, at most
   /// ``Rules/maxItems`` (and ``maxBookmarks`` of those bookmarks). `limit` overrides the
   /// length, so a caller can take a few spare in case a card cannot be drawn.
   public static func ranked(_ candidates: [Candidate],
                             rules: Rules,
                             limit: Int? = nil,
-                            now: Date = Date()) -> [WatchingItem] {
-    let scored = candidates.enumerated().compactMap { offset, candidate
-      -> (offset: Int, candidate: Candidate, reason: Reason, stalled: Bool)? in
-      guard let reason = reason(for: candidate, rules: rules, now: now) else { return nil }
-      return (offset, candidate, reason, isStalled(candidate, reason: reason, now: now))
+                            now: Date = Date()) -> [Ranked] {
+    let scored = candidates.enumerated().compactMap { offset, candidate in
+      score(candidate, rules: rules, now: now).map { (offset: offset, entry: $0) }
     }
     let sorted = scored.sorted { lhs, rhs in
-      if lhs.stalled != rhs.stalled { return !lhs.stalled }
-      if lhs.reason.date != rhs.reason.date { return lhs.reason.date > rhs.reason.date }
-      let lhsBacklog = backlog(lhs.candidate.item)
-      let rhsBacklog = backlog(rhs.candidate.item)
+      if lhs.entry.activityDate != rhs.entry.activityDate {
+        return lhs.entry.activityDate > rhs.entry.activityDate
+      }
+      let lhsBacklog = backlog(lhs.entry.item)
+      let rhsBacklog = backlog(rhs.entry.item)
       if lhsBacklog != rhsBacklog { return lhsBacklog < rhsBacklog }
       return lhs.offset < rhs.offset
     }
     var bookmarks = 0
-    var result: [WatchingItem] = []
+    var result: [Ranked] = []
     let length = limit ?? rules.maxItems
-    for entry in sorted {
+    for (_, entry) in sorted {
+      guard result.count < length else { break }
       if case .bookmarked = entry.reason {
         guard bookmarks < maxBookmarks else { continue }
         bookmarks += 1
       }
-      result.append(entry.candidate.item)
-      if result.count >= length { break }
+      result.append(entry)
     }
     return result
   }

@@ -156,10 +156,10 @@ final class MediaActionCatalogTests: XCTestCase {
       playback: .play(season: 1, episode: 1),
       isSeries: true
     ))
-    // Package tests resolve via fallback: EN-shaped `Play S1, E1`.
-    // Compact `S1, E1` is resume-only (progress bar).
+    // Package tests resolve via fallback: EN-shaped `Play S1 E1`.
+    // Compact `S1 E1` is resume-only (progress bar).
     XCTAssertEqual(play.title, MediaActionCopy.playEpisodeTitle(season: 1, episode: 1))
-    XCTAssertEqual(play.title, "Play S1, E1")
+    XCTAssertEqual(play.title, "Play S1 E1")
     XCTAssertNotEqual(play.title, EpisodeText(season: 1, number: 1).text(for: .heroAction))
   }
 
@@ -179,7 +179,7 @@ final class MediaActionCatalogTests: XCTestCase {
     ))
     XCTAssertEqual(play.chrome, .playPill)
     XCTAssertEqual(play.title, MediaActionCopy.replayEpisodeTitle(season: 1, episode: 1))
-    XCTAssertEqual(play.title, "Replay S1, E1")
+    XCTAssertEqual(play.title, "Replay S1 E1")
   }
 
   func testShuffleIsIconCircleBeforeMore() {

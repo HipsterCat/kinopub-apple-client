@@ -352,7 +352,7 @@ final class PlayerTrackSelectionTests: XCTestCase {
     XCTAssertEqual(title, series.localizedTitle)
     // The player's length (`MediaSurface.playerSubtitle`): a name makes room by shortening
     // the reference (docs/product/media-text.md).
-    XCTAssertEqual(subtitle, "S1, E2: Pilot")
+    XCTAssertEqual(subtitle, "S1 E2: Pilot")
     XCTAssertEqual(description, series.plot)
     XCTAssertEqual(genre, "Comedy")
     XCTAssertNil(type, "genres went here once, and never showed")

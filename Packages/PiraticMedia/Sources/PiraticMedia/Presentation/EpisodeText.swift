@@ -1,23 +1,8 @@
 import Foundation
 
-/// **An episode's reference** — «S1, E1», «1 сезон, 1 серия: Name» — one value, one set of
-/// rules, every surface (user's spec, 2026-10-03):
-///
-/// | Length | en | ru |
-/// | --- | --- | --- |
-/// | short | `S1, E1` | `1 сезон, 1 серия` |
-/// | medium | `Season 1, Episode 1` · `S1, E1: Name` | `1 сезон, 1 серия` · `1 сезон, 1 серия: Name` |
-/// | long | `Season 1, Episode 1` · `Season 1, Episode 1: Name` | as medium |
-///
-/// **Only one season known, and it is the first** — or the season goes without saying, as on
-/// a season's own rail: the season drops out. `E1` / `Episode 1` / `1 серия`, and with a
-/// name `Episode 1: Name` / `1 серия: Name`.
-///
-/// The name is shown only when it is one (`EpisodeTitle.meaningful`): «Эпизод 1» is the
-/// number again.
-///
-/// Two more shapes, for where the season is already said beside the episode: `titled`
-/// («S1, E2: Name» — Up Next) and `listItem` («7. Name» / «7 серия» — a season's own list).
+/// An episode's reference and optional name. Compact captions read «S1 E2: Name» or
+/// «1 сезон, 2 серия: Name». When the season goes without saying, they read «2: Name»,
+/// «Episode 2» or «2 серия». Accessibility uses the full wording.
 public struct EpisodeText: Hashable, Sendable {
   /// Nil when the season goes without saying.
   public let season: Int?
@@ -48,21 +33,21 @@ public struct EpisodeText: Hashable, Sendable {
     }
   }
 
-  /// The reference at `length` with the name after a colon when there is one: «S1, E2:
-  /// Name», «1 сезон, 2 серия: Name», and the reference alone without one.
+  /// The reference at `length` with the name after a colon when there is one.
   public func titled(_ length: TextLength, language: MediaLanguage = .current) -> String {
-    [reference(length, language), name].compactMap { $0 }.joined(separator: ": ")
+    if length == .short, season == nil { return listItem(language: language) }
+    return [reference(length, language), name].compactMap { $0 }.joined(separator: ": ")
   }
 
   /// An item of a season's own list — where the season is already said beside it (the
-  /// detail page's season switch) or there is only the one: «7. Name», and with no name
+  /// detail page's season switch) or there is only the one: «7: Name», and with no name
   /// «Episode 7» / «7 серия» — the number first, as in every other Russian reference
   /// (user's spec, 2026-10-03; word order Sasha, 2026-10-30).
   public func listItem(language: MediaLanguage = .current) -> String {
-    if let name { return "\(number). \(name)" }
+    if let name { return "\(number): \(name)" }
     switch language {
     case .ru: return "\(number) серия"
-    case .en: return "Ep \(number)"
+    case .en: return "Episode \(number)"
     }
   }
 
@@ -82,13 +67,13 @@ public struct EpisodeText: Hashable, Sendable {
   private func reference(_ length: TextLength, _ language: MediaLanguage) -> String {
     switch (language, season) {
     case (.ru, let season?):
-         return length == .short ? "Сез \(season), серия \(number)" : "\(season) сезон, \(number) серия"
+      return "\(season) сезон, \(number) серия"
     case (.ru, nil):
-         return length == .short ? "\(number) сер" : "\(number) серия"
+      return "\(number) серия"
     case (.en, let season?):
-      return length == .short ? "S\(season), E\(number)" : "Season \(season), Ep \(number)"
+      return length == .short ? "S\(season) E\(number)" : "Season \(season), Episode \(number)"
     case (.en, nil):
-      return length == .short ? "E\(number)" : "Ep \(number)"
+      return "Episode \(number)"
     }
   }
 }
@@ -105,7 +90,7 @@ public struct SeasonText: Hashable, Sendable {
 
   public func formatted(_ length: TextLength, language: MediaLanguage = .current) -> String {
     switch language {
-    case .ru: return length == .short ? "\(number) сез" :  "\(number) сезон"
+    case .ru: return "\(number) сезон"
     case .en: return length == .short ? "S\(number)" : "Season \(number)"
     }
   }

@@ -2,8 +2,8 @@
 
 What the Home row offers, in what order, and what it deliberately leaves out.
 
-The row is one merge of `/v1/watching/movies`, `/v1/watching/serials` (subscribed and not) and
-`/v1/history`, plus local resume points the server has not heard about yet. Field-level detail of
+The row combines `/v1/watching/movies`, both `/v1/watching/serials` lists, recent bookmarks, and
+local viewing activity. Field-level detail of
 those payloads is in [docs/providers/kinopub/watching.md](../providers/kinopub/watching.md); the
 mechanics are on `ContinueWatchingOrder` and `ContinueWatchingLocalOverlay`.
 
@@ -37,21 +37,16 @@ the title — that line is for Following posters.
 
 ## Order
 
-**prd** — Buckets first, in this order: played in the last week · on the watchlist with new episodes
-· the rest of the watchlist · everything else unfinished.
+**prd** — Sort descending by the latest qualifying interaction for each title. Use the time this
+device last played it, the release of a new episode on kino.pub for a followed series (the title's
+`updated_at`), and the time it was added to bookmarks. Kino.pub gives a folder timestamp for
+the newest bookmark in that folder. For bookmarks added in the app, use the locally recorded time.
 
-**prd** — Inside a bucket, most recently played wins. An unstarted *next episode* has no date of
-its own: it takes the newest `last_seen` among that series' rows in the `/v1/history` page we
-already fetched (finished episodes included). No extra request.
+**prd** — A series included only because it was saved says «В закладках» / “Bookmarked”.
+Series in progress and followed series with new episodes show the episode the card offers.
 
-**prd** — Where neither title has a date, **the smaller backlog wins** — `new`, the count of
-unwatched episodes. One or two waiting is a title being followed; a hundred and seventy is a title
-abandoned. This exists because the watching endpoints carry **no timestamp at all**: the only dates
-come from the page of `/v1/history` we fetch, so most of the row is date-less and the tie used to fall
-to the server's own list order.
-
-**prd** — A film counts as backlog zero. It has no episode counters, and a half-watched film is one
-press from finished, so it belongs above a serial with a season to go.
+**prd** — Undated unfinished titles follow dated ones. Ties go to the smaller unwatched backlog
+(`new`, zero for a film), then to the order of the input lists.
 
 ## What stays out
 
@@ -66,14 +61,11 @@ runtime — the season rail's «Через N дней») is not a next episode: 
 watched, the series leaves the row the same way a fully watched one does (Replay / Follow on
 the detail page), never a card that advertises the future episode number.
 
-**prd** — Abandoned titles leave the row. Thresholds (on `ContinueWatchingOrder`):
-
-| Rule | Threshold | Stays if |
-| --- | --- | --- |
-| Not touched | **90 days** (`abandonedAfter`) | on the watchlist |
-| No date in the fetched history page | — | on the watchlist |
-| Barely started (`position` < 90 s) | **14 days** (`barelyStartedAfter`) | never — sampling is not continuing |
-| Watchlist + new episodes | — | always |
+**prd** — Dated interactions use the window chosen in Settings (eight weeks by default). A
+sample below the entry threshold counts as a viewing event for up to 14 days. A new release
+qualifies within the window when the viewer follows the series and either played it recently
+or is at most three episodes behind. The row can include up to four bookmark-only titles when
+the viewer enables bookmarks.
 
 The Library tab still has the whole watching list.
 
@@ -123,21 +115,21 @@ sidebar badge.
   overlays local progress itself). When the player ends, those keys (and
   `WatchingListCache`) clear once so Library / badge see a fresh list.
 - Bookmark folders for this row and Top Bookmarks go through `BookmarkFoldersStore` +
-  `ContentStore` folder rows — no parallel raw `/v1/bookmarks` from those paths.
+  `ContentStore` folder rows. Confirmed bookmark changes refresh the ranking using the
+  watching-list cache.
 - The row asks **no `/v1/history`** (Sasha, 2026-11-23). `watching/movies`,
   `watching/serials?subscribed=0` and `subscribed=1` are the source: an unfollowed title
-  on those lists is `Reason.unfinished` (no date, behind dated reasons, list order); this
+  on those lists can qualify as unfinished without a known date. This
   device's plays and title payloads still date titles. The #110 fix had cut history to 8
   rows, which left every unfollowed title without a date and off the row.
 - An in-flight fetch that started **before** an invalidate is discarded (generation).
   Writing `fetchedAt = now` on that decode was why the network log filled with
   requests and the row never moved: Home trusted the old snapshot for another 60 s.
-- Local overlay does not paint a playhead that is **behind** the snapshot (other-device
-  progress already on the card). It still leads the row for progress this device wrote
-  that the server has not heard yet.
+- Local overlay keeps any further progress already on the card and merges plays after the
+  snapshot into the saved activity order.
 
 ## Open
 
 
-Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50; Continue
-Watching asks for 8). Tracked in Asana: [Library](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224202).
+Exact dates for viewing on other devices are tracked in
+[Library](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224202).

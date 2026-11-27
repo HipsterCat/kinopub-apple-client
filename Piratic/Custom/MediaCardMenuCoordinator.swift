@@ -112,7 +112,7 @@ final class MediaCardMenuCoordinator: ObservableObject {
         // The folder list itself changed, so this is the one place a card menu is
         // allowed to go and fetch it again.
         await reloadFolders()
-        contentStore.invalidate(family: .bookmarks)
+        contentStore.invalidateBookmarkMembership()
       } catch {
         errorHandler?.setError(error)
       }

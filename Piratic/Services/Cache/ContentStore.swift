@@ -269,7 +269,7 @@ final class ContentStore {
   /// to refetch next time it's asked for, instead of waiting out its TTL.
   func invalidate(family: RowKey.Family) {
     var didWatch = false
-    for key in rows.keys where key.family == family {
+    for key in Set(rows.keys).union(inFlight.keys) where key.family == family {
       bump(key)
       rows[key]?.fetchedAt = .distantPast
       if family == .watch { didWatch = true }
@@ -278,6 +278,16 @@ final class ContentStore {
       WatchingListCache.shared.invalidate()
       NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
     }
+  }
+
+  /// A bookmark change needs fresh folder pages and a new ranking. The cached
+  /// watching lists are still current.
+  func invalidateBookmarkMembership() {
+    invalidate(family: .bookmarks)
+    guard ContinueWatchingPreferences.rules.includesBookmarks else { return }
+    bump(.continueWatching)
+    rows[.continueWatching]?.fetchedAt = .distantPast
+    NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
   }
 
   /// The same, for named rows only — when one family member must refetch and the rest

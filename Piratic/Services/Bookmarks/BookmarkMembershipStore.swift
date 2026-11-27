@@ -97,6 +97,19 @@ final class BookmarkMembershipStore: Sendable {
     state.withLock { $0.addedAt }
   }
 
+  /// Record the date only after kino.pub accepts the optimistic change.
+  func confirmToggle(itemID: Int, folderID: Int, addedAt: Date?) {
+    state.withLock { state in
+      guard let folders = state.map[itemID] else { return }
+      if let addedAt, folders.contains(folderID) {
+        state.addedAt[itemID] = max(state.addedAt[itemID] ?? .distantPast, addedAt)
+      } else if folders.isEmpty {
+        state.addedAt[itemID] = nil
+      }
+      persist(state)
+    }
+  }
+
   func clear() {
     state.withLock { state in
       state = State()
@@ -159,11 +172,14 @@ enum BookmarkFolderToggle {
     var next = current
     let added = next.insert(folderID).inserted
     if !added { next.remove(folderID) }
+    let addedAt = added ? Date() : nil
     membership.replace(itemID: itemID, folderIDs: next)
     Task {
       do {
         try await service.toggleBookmark(itemId: itemID, folderId: folderID)
-        contentStore.invalidate(family: .bookmarks)
+        membership.confirmToggle(itemID: itemID, folderID: folderID, addedAt: addedAt)
+        BookmarkFoldersStore.shared.invalidate()
+        contentStore.invalidateBookmarkMembership()
       } catch {
         membership.replace(itemID: itemID, folderIDs: current)
         onFailure(current, error)

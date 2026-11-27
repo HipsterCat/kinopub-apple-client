@@ -2,11 +2,11 @@ import Foundation
 
 /// How a surface words an episode — one of `EpisodeText`'s shapes.
 public enum EpisodeStyle: Hashable, Sendable {
-  /// `EpisodeText.formatted(_:)` — the player's «S1, E2: Name», a capsule's «S1, E2».
+  /// `EpisodeText.formatted(_:)` — the player's «S1 E2: Name», a capsule's «S1 E2».
   case formatted(TextLength)
   /// `EpisodeText.titled(_:)` — the reference, then «: Name» when there is one.
   case titled(TextLength)
-  /// `EpisodeText.listItem()` — «7. Name», «Серия 7».
+  /// `EpisodeText.listItem()` — «7: Name», «7 серия».
   case listItem
 }
 
@@ -39,8 +39,8 @@ public enum MediaSurface: String, Hashable, Sendable, CaseIterable {
     switch self {
     case .playerSubtitle: return .formatted(.medium)
     case .episodeTile: return .listItem
-    case .upNextTile: return .titled(.short)
-    case .heroAction, .continueWatchingCard, .historyRow, .contextMenu, .settingsRow,
+    case .continueWatchingCard, .upNextTile: return .titled(.short)
+    case .heroAction, .historyRow, .contextMenu, .settingsRow,
          .timeBadge, .detailRuntime:
       return .formatted(.short)
     }
