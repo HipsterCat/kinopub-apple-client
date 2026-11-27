@@ -6,6 +6,7 @@
 import SwiftUI
 import PiraticUI
 import KinoPubBackend
+import PiraticMedia
 import PiraticMetadata
 
 /// Everything kino.pub has under one name, reached from the credits on an item page.
@@ -477,20 +478,13 @@ struct PersonItemsView: View {
   private var metaLine: String? {
     var parts: [String] = []
     if let birthday = personMetadata.birthday {
-      parts.append(Self.birthdayFormatter.string(from: birthday))
+      parts.append(birthday.formattedForDisplay(.init(date: .abbreviated, time: .omitted, locale: AppLanguage.lookupLocale)))
     }
     if let place = personMetadata.placeOfBirth, !place.isEmpty {
       parts.append(place)
     }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
-
-  private static let birthdayFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .none
-    return formatter
-  }()
 
   /// Put the title the viewer navigated from at the front of the filmography when
   /// `cast=` spelling missed it.

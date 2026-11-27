@@ -93,7 +93,9 @@ enum HistorySectioning: String, CaseIterable, Identifiable {
     case .month:
       let components = calendar.dateComponents([.year, .month], from: date)
       guard let start = calendar.date(from: components) else { return nil }
-      return (start, start.formatted(.dateTime.month(.wide).year()))
+      let style = Date.FormatStyle(locale: AppLanguage.lookupLocale, calendar: calendar,
+                                   timeZone: calendar.timeZone).month(.wide).year()
+      return (start, start.formattedForDisplay(style))
     }
   }
 

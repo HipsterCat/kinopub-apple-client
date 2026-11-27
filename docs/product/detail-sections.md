@@ -104,10 +104,11 @@ cards across on tvOS.
 **prd — Review cards (Sasha, 2026-11-27).** Ratings and Reviews previews the first reviews on the
 title page. Each card starts with the review's title and a face for its sentiment, or with the
 author's stars when the source provides a rating. An untitled review without either signal starts
-with its text. The source mark and posting date sit at the bottom left. Replies and reactions
-from the source sit at the bottom right. A Trakt person tag reads as the person's name.
-Selecting a review opens its full text with paragraph breaks in a scrollable sheet. Its web
-links are available in the sheet on iOS, iPadOS and macOS.
+with its text. The review starts at the top and uses regular type. The source mark and posting
+date sit at the bottom left. Replies and reactions sit at the bottom right, with positive
+votes to the right of negative votes. Selecting a review opens its full text with paragraph
+breaks in a scrollable sheet. A Trakt person tag reads as the person's name in the card and on
+tvOS. It becomes a link in the sheet on iOS, iPadOS and macOS. Russian dates show a bare year.
 
 **prd — Cast & Crew (Sasha, 2026-10-06; one row since 2026-10-11).** One heading, *Cast & Crew*, over
 **one row of people with no sections inside it**. Search's person card for everyone; **what each is to

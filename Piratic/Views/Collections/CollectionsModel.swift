@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import PiraticMedia
 import PiraticUI
 import OSLog
 import PiraticLogging
@@ -165,7 +166,7 @@ enum CollectionMediaCard {
   private static func updatedSubtitle(from timestamp: Int?) -> String? {
     guard let timestamp, timestamp > 0 else { return nil }
     let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-    return date.formatted(date: .abbreviated, time: .omitted)
+    return date.formattedForDisplay(.init(date: .abbreviated, time: .omitted, locale: AppLanguage.lookupLocale))
   }
 
   /// Compact count, e.g. 12_345 → "12.3k". Always Latin `k` / `M`.

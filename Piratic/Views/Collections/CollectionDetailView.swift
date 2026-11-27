@@ -6,6 +6,7 @@
 import SwiftUI
 import PiraticUI
 import KinoPubBackend
+import KinoPubMedia
 
 /// The grid behind one collection shelf's title / "+N more" — every item the
 /// collection has, no pagination (the endpoint returns them all at once).
@@ -160,7 +161,7 @@ struct CollectionDetailView: View {
     }
     if let updated = collection.updated, updated > 0 {
       let date = Date(timeIntervalSince1970: TimeInterval(updated))
-      stats.append(.init(value: date.formatted(.dateTime.month(.abbreviated).year()),
+      stats.append(.init(value: date.formattedForDisplay(.dateTime.month(.abbreviated).year().locale(AppLanguage.lookupLocale)),
                           caption: "Updated".localized))
     }
     // Every collection this client shows comes from kino.pub. The payload has no

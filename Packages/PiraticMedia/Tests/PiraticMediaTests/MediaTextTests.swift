@@ -216,6 +216,20 @@ final class MediaTextTests: XCTestCase {
                    "a listing knows no count, and says no runtime")
   }
 
+  func testDisplayDateKeepsTheLocalizedOrderAndTimeWithABareYearInRussian() throws {
+    let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-27T17:50:00Z"))
+    let russian = Locale(identifier: "ru_RU")
+    let long = Date.FormatStyle(date: .long, time: .omitted, locale: russian, timeZone: .gmt)
+    let timed = Date.FormatStyle(date: .abbreviated, time: .shortened, locale: russian, timeZone: .gmt)
+    let month = Date.FormatStyle(locale: russian, timeZone: .gmt).month(.wide).year()
+    let english = long.locale(Locale(identifier: "en_US"))
+
+    XCTAssertEqual(date.formattedForDisplay(long), "27 ноября 2026")
+    XCTAssertEqual(date.formattedForDisplay(timed), "27 нояб. 2026, 17:50")
+    XCTAssertEqual(date.formattedForDisplay(month), "ноябрь 2026")
+    XCTAssertEqual(date.formattedForDisplay(english), "November 27, 2026")
+  }
+
   func testHistoryEventTimeIsDayMonthAtClock() {
     let timeZone = TimeZone(identifier: "Europe/Moscow")!
     var calendar = Calendar(identifier: .gregorian)

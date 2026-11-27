@@ -50,7 +50,7 @@ extension UILabel {
   /// hyphenate. What does is tagging the run with a language that has no hyphenation
   /// data for Cyrillic — `NSLanguage` ("en") — so it is typeset by whole words. The font
   /// and colour stay the label's own.
-  func setUnhyphenated(_ text: String?, underlining ranges: [NSRange] = []) {
+  func setUnhyphenated(_ text: String?) {
     guard let text else {
       attributedText = nil
       return
@@ -60,16 +60,12 @@ extension UILabel {
     paragraph.usesDefaultHyphenation = false
     paragraph.lineBreakMode = lineBreakMode
     paragraph.alignment = textAlignment
-    let styled = NSMutableAttributedString(string: text, attributes: [
+    attributedText = NSAttributedString(string: text, attributes: [
       .font: font as Any,
       .foregroundColor: textColor as Any,
       .paragraphStyle: paragraph,
       NSAttributedString.Key(rawValue: "NSLanguage"): "en"
     ])
-    for range in ranges {
-      styled.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
-    }
-    attributedText = styled
   }
 }
 
@@ -785,12 +781,11 @@ final class TVPageReviewContent: TVPageCardContent {
   private let dateLabel = UILabel()
   private let countersLabel = UILabel()
   private var review: ReviewPresentation?
-  private var excerptLinks: [NSRange] = []
   private var looksFocused = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    headlineLabel.font = TVPageFonts.font(.body, weight: .semibold)
+    headlineLabel.font = .preferredFont(forTextStyle: .body)
     headlineLabel.numberOfLines = 2
     bodyLabel.font = .preferredFont(forTextStyle: .body)
     dateLabel.font = .preferredFont(forTextStyle: .caption2)
@@ -811,12 +806,6 @@ final class TVPageReviewContent: TVPageCardContent {
     self.review = review
     sourceView.image = review.source.uiImage(style: .color)
     dateLabel.text = review.date
-    var offset = 0
-    excerptLinks = review.excerpt.runs.compactMap { run in
-      let length = String(review.excerpt[run.range].characters).utf16.count
-      defer { offset += length }
-      return run.link.map { _ in NSRange(location: offset, length: length) }
-    }
     applyFocusLook(looksFocused)
     setNeedsLayout()
   }
@@ -830,7 +819,7 @@ final class TVPageReviewContent: TVPageCardContent {
     bodyLabel.textColor = ink
     dateLabel.textColor = secondary
     countersLabel.textColor = secondary
-    bodyLabel.setUnhyphenated(String(review.excerpt.characters), underlining: excerptLinks)
+    bodyLabel.setUnhyphenated(String(review.excerpt.characters))
 
     let heading = NSMutableAttributedString()
     let font = headlineLabel.font!
@@ -849,7 +838,7 @@ final class TVPageReviewContent: TVPageCardContent {
         case .negative: focused ? .systemRed.resolvedColor(with: .init(userInterfaceStyle: .light)) : .systemRed
         case .neutral: secondary
         }
-        heading.append(Self.glyph(image, font: font, color: color))
+        heading.append(Self.glyph(image, font: font, color: color, scale: 1.2))
         if review.title != nil { heading.append(NSAttributedString(string: " ")) }
       }
       if let title = review.title { heading.append(NSAttributedString(string: title)) }
@@ -860,16 +849,18 @@ final class TVPageReviewContent: TVPageCardContent {
     for counter in review.counters {
       if counters.length > 0 { counters.append(NSAttributedString(string: "    ")) }
       counters.append(NSAttributedString(string: "\(counter.value) "))
-      counters.append(Self.glyph(UIImage(systemName: counter.kind.symbol), font: countersLabel.font, color: secondary))
+      counters.append(Self.glyph(UIImage(systemName: counter.kind.symbol), font: countersLabel.font,
+                                 color: secondary, scale: 1.15))
     }
     countersLabel.attributedText = counters
   }
 
-  private static func glyph(_ image: UIImage?, font: UIFont, color: UIColor) -> NSAttributedString {
+  private static func glyph(_ image: UIImage?, font: UIFont, color: UIColor, scale: CGFloat = 1) -> NSAttributedString {
     guard let image, image.size.height > 0 else { return NSAttributedString() }
-    let height = ceil(font.capHeight)
+    let height = ceil(font.capHeight * scale)
     let attachment = NSTextAttachment(image: image.withTintColor(color, renderingMode: .alwaysOriginal))
-    attachment.bounds = CGRect(x: 0, y: 0, width: height * image.size.width / image.size.height, height: height)
+    attachment.bounds = CGRect(x: 0, y: (font.capHeight - height) / 2,
+                               width: height * image.size.width / image.size.height, height: height)
     return NSAttributedString(attachment: attachment)
   }
 
@@ -894,13 +885,15 @@ final class TVPageReviewContent: TVPageCardContent {
     let headlineHeight = hasHeading ? headlineLabel.sizeThatFits(fit).height : 0
     headlineLabel.frame = CGRect(x: pad, y: pad, width: width, height: headlineHeight)
 
-    // As many whole lines as fit between the headline and the foot.
+    // Give short text its measured height so the label starts it at the top.
     let bodyTop = headlineLabel.frame.maxY + (hasHeading ? 8 : 0)
     let room = footerY - 10 - bodyTop
     let lineHeight = bodyLabel.font.linePitch
     let lines = max(Int(floor(room / lineHeight)), 1)
     if bodyLabel.numberOfLines != lines { bodyLabel.numberOfLines = lines }
-    bodyLabel.frame = CGRect(x: pad, y: bodyTop, width: width, height: CGFloat(lines) * lineHeight)
+    let maximumHeight = CGFloat(lines) * lineHeight
+    let measuredHeight = bodyLabel.sizeThatFits(CGSize(width: width, height: maximumHeight)).height
+    bodyLabel.frame = CGRect(x: pad, y: bodyTop, width: width, height: min(ceil(measuredHeight), maximumHeight))
   }
 }
 
