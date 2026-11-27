@@ -856,13 +856,10 @@ struct MediaItemHeroView: View {
 #if !os(tvOS)
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 #if os(iOS)
-  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(\.scenePhase) private var scenePhase
 #endif
   /// The page's side margins on a bleeding page (`PageMargins`), iOS only.
   @Environment(\.pageMargins) private var pageMargins
-  /// The room between the margins at which the people's column did not fit.
-  @State private var creditsOverflowWidth: CGFloat?
 
   /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
   /// all of that into one short strip, and none of it was further up the scroll.
@@ -956,25 +953,14 @@ struct MediaItemHeroView: View {
       }
     }
 #if os(iOS)
-    // Fold / unfold / Split View: size classes and the content column change; drop
-    // stale band and credits measurements so ratings and columns reflow (Duo).
-    .onChange(of: horizontalSizeClass) { _, _ in resetHeroGeometryCaches() }
-    .onChange(of: verticalSizeClass) { _, _ in resetHeroGeometryCaches() }
-    .onChange(of: pageMargins?.contentWidth) { _, _ in resetHeroGeometryCaches() }
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
         Artwork.rememberDisplayScale()
-        resetHeroGeometryCaches()
       }
     }
 #endif
   }
 
-#if os(iOS)
-  private func resetHeroGeometryCaches() {
-    creditsOverflowWidth = nil
-  }
-#endif
 #endif
 
 #if os(iOS)
@@ -1550,6 +1536,10 @@ struct MediaItemHeroView: View {
   private var heroBottomBlock: some View {
     HStack(alignment: .bottom, spacing: Self.columnGutter) {
       leadingBottomColumn
+#if !os(tvOS)
+        .frame(width: showsCreditsColumn ? creditsRoom.map { $0 - creditsColumnWidth } : nil,
+               alignment: .leading)
+#endif
       if showsCreditsColumn {
         creditsBlock
           .frame(width: creditsColumnWidth, alignment: .leading)
@@ -1564,17 +1554,6 @@ struct MediaItemHeroView: View {
       }
 #endif
     }
-#if !os(tvOS)
-    // Wider than the band between the margins: the written column could not give way
-    // (the iPad's open sidebar, 2026-11-16) and the people ran off the screen. Drop
-    // their column for this width.
-    .onGeometryChange(for: CGFloat.self, of: \.size.width) { width in
-      guard showsCreditsColumn, heroBandSize.width > 0 else { return }
-      if width > bandWidthBetweenMargins + 1 {
-        creditsOverflowWidth = bandWidthBetweenMargins
-      }
-    }
-#endif
   }
 
   @ViewBuilder
@@ -2252,12 +2231,9 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     return true
 #else
-    // And only where it fits beside the written column: with the iPad's sidebar open
-    // the scores line alone left it no room, and it ran off the screen (2026-11-16).
-    // Hidden for the width it overflowed at; any other width (a turn, the sidebar
-    // closing) tries the column again.
-    guard !phoneHeroGrows else { return false }
-    return creditsOverflowWidth == nil || creditsOverflowWidth != bandWidthBetweenMargins
+    // Keep both columns readable in narrow windows and beside a portrait poster.
+    guard !phoneHeroGrows, let available = creditsRoom else { return false }
+    return available >= MediaItemPlotView.maxWidth * 0.65
 #endif
   }
 
