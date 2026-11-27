@@ -824,6 +824,7 @@ public struct MediaCardView: View {
   /// The artwork's own width, so its height is derived rather than negotiated. Nil for
   /// exactly one layout pass; `frame(height: nil)` leaves the natural size meanwhile.
   @State private var artworkWidth: CGFloat?
+  @State private var coverRevision = 0
 
   @AppStorage(MediaCardDisplayPreferences.ratingPlacementKey)
   private var ratingPlacementRaw = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
@@ -1462,10 +1463,18 @@ public struct MediaCardView: View {
     // Artwork ladder (`MediaCard.artworkLadder`): plate → first picture, the next one
     // only on failure. A vertical card never shows the wide backdrop.
     let decodeSize = artworkDecodeSize
+#if os(macOS)
+    // The poster route already has a fixed source width. Keep one bounded
+    // decode per poster while the live grid scales the bitmap to its frame.
+    let coverSize = !card.isLandscape && decodeSize.width > 1
+      ? CGSize(width: 256, height: 256 / aspect.ratio) : decodeSize
+#else
+    let coverSize = decodeSize
+#endif
     return Color.clear
       .overlay {
         if decodeSize.width > 1 {
-          episodeStillLadder(size: decodeSize)
+          cardArtwork(size: coverSize)
         } else {
           artworkPlate
         }
@@ -1486,6 +1495,9 @@ public struct MediaCardView: View {
                             })
             .transition(.opacity)
         }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: CoverArtwork.didRefreshTitle)) { notice in
+        if (notice.object as? Int) == card.itemID { coverRevision += 1 }
       }
       .animation(.easeInOut(duration: 0.3), value: showsHoverStill)
       .clipped()
@@ -1512,37 +1524,15 @@ public struct MediaCardView: View {
     }
   }
 
-  /// `MediaCard.artworkLadder` (at most three rungs): the plate while a rung loads,
-  /// the next rung only if it fails. Never a different picture first. Nested by hand,
-  /// not recursive `AnyView`, so the card keeps one static view type.
+  /// A single loader holds the last successful image while trying the updated ladder.
   @ViewBuilder
-  private func episodeStillLadder(size: CGSize) -> some View {
-    let _ = coverLanguage
+  private func cardArtwork(size: CGSize) -> some View {
+    let _ = (coverLanguage, coverRevision)
     let ladder = card.artworkLadder
-    if let first = ladder.first {
-      CachedRemoteImage(url: first, size: size, contentMode: .fill,
-                        placeholder: { artworkPlate },
-                        failure: {
-                          if ladder.count > 1 {
-                            CachedRemoteImage(url: ladder[1], size: size, contentMode: .fill,
-                                              placeholder: { artworkPlate },
-                                              failure: {
-                                                if ladder.count > 2 {
-                                                  CachedRemoteImage(url: ladder[2], size: size,
-                                                                    contentMode: .fill,
-                                                                    placeholder: { artworkPlate },
-                                                                    failure: { artworkPlate })
-                                                } else {
-                                                  artworkPlate
-                                                }
-                                              })
-                          } else {
-                            artworkPlate
-                          }
-                        })
-    } else {
-      artworkPlate
-    }
+    artworkPlate
+      .overlay {
+        FallbackRemoteImage(urls: ladder, size: size, keepsImageWhileReloading: true)
+      }
   }
 
   @ViewBuilder

@@ -107,6 +107,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
 
   private var onSelect: ((MediaCard) -> Void)?
   private var coverObserver: NSObjectProtocol?
+  private var titleArtworkObserver: NSObjectProtocol?
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   private var titleImageRoute = TitleImageRoute(baseURL: nil)
@@ -153,6 +154,11 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     ) { [weak self] _ in
       self?.reloadVisibleCovers()
     }
+    titleArtworkObserver = NotificationCenter.default.addObserver(
+      forName: CoverArtwork.didRefreshTitle, object: nil, queue: .main
+    ) { [weak self] notice in
+      if let id = notice.object as? Int { self?.reloadVisibleCovers(titleID: id) }
+    }
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.insetsLayoutMarginsFromSafeArea = false
@@ -171,20 +177,30 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       if let coverObserver {
         NotificationCenter.default.removeObserver(coverObserver)
       }
+      if let titleArtworkObserver {
+        NotificationCenter.default.removeObserver(titleArtworkObserver)
+      }
     }
   }
 
-  /// Same as the page collection: a cover-language change reloads the posters already
-  /// on screen. Landscape rows paint wide art and have nothing to swap.
-  private func reloadVisibleCovers() {
-    guard isViewLoaded, !isLandscape else { return }
+  /// A language change refreshes visible posters. An edit refreshes visible
+  /// representations of that title, including a wide cover.
+  private func reloadVisibleCovers(titleID: Int? = nil) {
+    guard isViewLoaded, titleID != nil || !isLandscape else { return }
     for path in collectionView.indexPathsForVisibleItems {
-      guard cards.indices.contains(path.item),
-            let cell = collectionView.cellForItem(at: path) as? TVUIKitPosterCell else { continue }
+      guard cards.indices.contains(path.item) else { continue }
+      let card = cards[path.item]
+      if let titleID, card.itemID != titleID { continue }
+      let visibleCell = collectionView.cellForItem(at: path)
+      if let cell = visibleCell as? TVUIKitMediaItemCell {
+        cell.configure(TVUIKitMediaItem(card: card))
+        continue
+      }
+      guard let cell = visibleCell as? TVUIKitPosterCell else { continue }
       let layoutWidth = collectionView.layoutAttributesForItem(at: path)?.size.width ?? cell.bounds.width
       let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
       let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
-      cell.configure(card: cards[path.item], size: size)
+      cell.configure(card: card, size: size)
     }
   }
 

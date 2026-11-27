@@ -159,6 +159,25 @@ final class WorkerPosterRouteTests: XCTestCase {
     XCTAssertEqual(card.coverURL, ladder[0])
   }
 
+  @MainActor
+  func testEditingArtworkRefreshesOnlyThatTitlesWorkerURLs() throws {
+    let id = Int.random(in: 10_000_000...99_999_999)
+    let card = MediaCard(id: id, posterURL: medium, title: "Edited")
+    let other = MediaCard(id: 1, posterURL: medium, title: "Other")
+    let before = card.coverLadder
+    let otherBefore = other.coverLadder
+
+    CoverArtwork.refreshTitle(id)
+
+    XCTAssertNotEqual(card.coverLadder.first, before.first)
+    XCTAssertEqual(card.coverLadder.dropFirst(), before.dropFirst())
+    XCTAssertEqual(other.coverLadder, otherBefore)
+    let url = try XCTUnwrap(card.coverLadder.first)
+    let query = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+    XCTAssertEqual(query.first(where: { $0.name == "w" })?.value, "780")
+    XCTAssertNotNil(query.first(where: { $0.name == "edit" })?.value)
+  }
+
   func testEnglishCoversAskTheWorkerInEnglish() throws {
     CoverArtworkPreferences.set(.english)
     let card = MediaCard(id: 1, posterURL: medium, title: "T")

@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": [
+    "На Mac постеры в каталоге остаются на месте при изменении размера окна. Сохранённая обложка обновляется прямо на карточке."
+  ],
+  "en": [
+    "On Mac, catalog posters stay visible while you resize the window. Saving a cover updates the card in place."
+  ]
+}

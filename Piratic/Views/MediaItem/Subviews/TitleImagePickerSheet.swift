@@ -714,7 +714,11 @@ final class TitleImagePickerModel {
     guard let client else { return false }
     isSaving = true
     saveError = nil
-    defer { isSaving = false }
+    var changed = false
+    defer {
+      isSaving = false
+      if changed { CoverArtwork.refreshTitle(target.kinopubID) }
+    }
     do {
       for kind in [WorkerImageAdminKind.logo, .poster, .cover, .backdrop] {
         let selected = selection[kind] ?? [:]
@@ -728,10 +732,10 @@ final class TitleImagePickerModel {
           _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
                                     language: pinLanguage,
                                     width: file?.width, height: file?.height)
+          changed = true
         }
         pinned[kind] = selected
       }
-      Artwork.clearCaches()
       return true
     } catch {
       saveError = error.localizedDescription
@@ -754,7 +758,7 @@ final class TitleImagePickerModel {
       let pinLanguage: WorkerArtworkLanguageTag? = (kind.picksPerLanguage) ? language : nil
       _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
                                 language: pinLanguage)
-      Artwork.clearCaches()
+      CoverArtwork.refreshTitle(target.kinopubID)
       await load(kind, force: true)
       return true
     } catch {
@@ -965,7 +969,7 @@ struct TitleImageAdminActions {
       guard let client else { return }
       do {
         try await work(client)
-        Artwork.clearCaches()
+        CoverArtwork.refreshTitle(target.kinopubID)
         await onArtworkChanged()
         report(HudToast(systemImage: "checkmark", title: String(localized: done)))
       } catch {

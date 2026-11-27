@@ -66,6 +66,35 @@ public enum CoverArtworkPreferences {
 }
 
 public enum CoverArtwork {
+  public static let didRefreshTitle = Notification.Name("piratic.coverArtworkTitle")
+  private static let revisionsKey = "artwork.titleEdits"
+  private static let revisions = Mutex(
+    UserDefaults.standard.dictionary(forKey: revisionsKey) as? [String: String] ?? [:]
+  )
+
+  /// Bypass the cached discovery response for the edited title, including on cards
+  /// created after the edit. The worker supplies its own revision for the image bytes.
+  @MainActor
+  public static func refreshTitle(_ id: Int) {
+    revisions.withLock {
+      $0[String(id)] = UUID().uuidString
+      UserDefaults.standard.set($0, forKey: revisionsKey)
+    }
+    NotificationCenter.default.post(name: didRefreshTitle, object: id)
+  }
+
+  private static func refreshedURL(_ url: URL?, id: Int) -> String? {
+    guard let url else { return nil }
+    guard let revision = revisions.withLock({ $0[String(id)] }),
+          var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+      return url.absoluteString
+    }
+    components.queryItems = (components.queryItems ?? []) + [
+      URLQueryItem(name: "edit", value: revision)
+    ]
+    return components.url?.absoluteString ?? url.absoluteString
+  }
+
   private struct Worker: Sendable {
     let route: TitleImageRoute
     let pixelWidth: Int
@@ -96,8 +125,9 @@ public enum CoverArtwork {
     guard let landscape = card.landscapeImageURL, landscape.contains("/item/wide/"),
           let worker = worker.withLock({ $0 }), card.itemID > 0 else { return nil }
     let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
-    return route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
-                          width: worker.widePixelWidth)?.absoluteString
+    let url = route.wideCard(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
+                             width: worker.widePixelWidth)
+    return refreshedURL(url, id: card.itemID)
   }
 
   private static var coverLanguageCode: String {
@@ -110,8 +140,9 @@ public enum CoverArtwork {
     guard let worker = worker.withLock({ $0 }), card.itemID > 0,
           tier(ofKinopubPoster: card.posterURL) != nil else { return nil }
     let route = TitleImageRoute(baseURL: worker.route.baseURL, language: coverLanguageCode)
-    return route.poster(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
-                        width: worker.pixelWidth)?.absoluteString
+    let url = route.poster(kinopubID: card.itemID, imdb: card.imdbID, kinopoisk: card.kinopoiskID,
+                           width: worker.pixelWidth)
+    return refreshedURL(url, id: card.itemID)
   }
 
   /// The Kinopoisk one-sheet for a kino.pub vertical cover, when Russian covers

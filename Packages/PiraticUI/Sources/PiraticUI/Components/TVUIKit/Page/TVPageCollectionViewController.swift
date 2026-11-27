@@ -191,6 +191,11 @@ public final class TVPageCollectionViewController: UIViewController {
     ) { [weak self] _ in
       self?.reloadVisibleCovers()
     }
+    titleArtworkObserver = NotificationCenter.default.addObserver(
+      forName: CoverArtwork.didRefreshTitle, object: nil, queue: .main
+    ) { [weak self] notice in
+      if let id = notice.object as? Int { self?.reloadVisibleCovers(titleID: id) }
+    }
 
     configureDataSource()
     applySnapshot(animated: false)
@@ -259,6 +264,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private var nestedLayoutCount = 0
   private var metricsMeasuredObserver: NSObjectProtocol?
   private var coverObserver: NSObjectProtocol?
+  private var titleArtworkObserver: NSObjectProtocol?
 
   deinit {
     // A view controller is destroyed on the main thread. `deinit` itself is
@@ -269,6 +275,9 @@ public final class TVPageCollectionViewController: UIViewController {
       }
       if let coverObserver {
         NotificationCenter.default.removeObserver(coverObserver)
+      }
+      if let titleArtworkObserver {
+        NotificationCenter.default.removeObserver(titleArtworkObserver)
       }
     }
   }
@@ -1245,9 +1254,14 @@ public final class TVPageCollectionViewController: UIViewController {
   /// Cover language changed under a page that is still on screen. Reconfigure what
   /// is visible so the new poster URL is the one the cell asks for; off-screen cells
   /// pick it up when they are dequeued.
-  private func reloadVisibleCovers() {
+  private func reloadVisibleCovers(titleID: Int? = nil) {
     guard isViewLoaded, dataSource != nil else { return }
     let ids = collectionView.indexPathsForVisibleItems.compactMap { dataSource.itemIdentifier(for: $0) }
+      .filter { id in
+        guard let titleID else { return true }
+        guard case .card(let card)? = itemsByID[id] else { return false }
+        return card.itemID == titleID
+      }
     guard !ids.isEmpty else { return }
     pendingReconfigure = ids
     applySnapshot(animated: false)

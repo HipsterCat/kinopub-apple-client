@@ -36,7 +36,11 @@ public struct ContentItemsListView<Header: View>: View {
   @Environment(\.mediaNavigation) private var mediaNavigation
   /// Posters grid or list/table rows, where the page offers the switch (`MediaGridLayout`).
   @Environment(\.mediaGridLayout) private var gridLayout
+#if os(tvOS)
   @State private var containerWidth: CGFloat = 1920
+#else
+  @State private var measuredMetrics: ShelfMetrics?
+#endif
 
 #if os(tvOS)
   @FocusState private var focusedItemID: Int?
@@ -52,7 +56,19 @@ public struct ContentItemsListView<Header: View>: View {
   private var usesListLayout: Bool { gridLayout == .list }
 
   private var metrics: ShelfMetrics {
+#if os(tvOS)
     .posters(width: containerWidth, typeSize: dynamicTypeSize)
+#else
+    measuredMetrics ?? .posters(width: 1920, typeSize: dynamicTypeSize)
+#endif
+  }
+
+  private var gridInset: CGFloat {
+#if os(tvOS)
+    metrics.gridInset(in: containerWidth)
+#else
+    metrics.inset
+#endif
   }
 
   private var gridColumns: [GridItem] {
@@ -127,7 +143,7 @@ public struct ContentItemsListView<Header: View>: View {
             placeholderCard
           }
         }
-        .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
+        .safeAreaPadding(.horizontal, gridInset)
         .padding(.vertical, Metrics.focusPadding)
       } else {
         TVUIKitMediaCollection(
@@ -157,7 +173,7 @@ public struct ContentItemsListView<Header: View>: View {
     }
     // Headers are supplied by callers; publishing the grid's own margin is what stops
     // each of them padding by a number of its own and landing off the first column.
-    .environment(\.shelfGridInset, metrics.gridInset(in: containerWidth))
+    .environment(\.shelfGridInset, gridInset)
     .onGeometryChange(for: CGFloat.self) { proxy in
       proxy.size.width
     } action: { width in
@@ -193,16 +209,23 @@ public struct ContentItemsListView<Header: View>: View {
 
     // Headers are supplied by callers; publishing the grid's own margin is what stops
     // each of them padding by a number of its own and landing off the first column.
-    .environment(\.shelfGridInset, metrics.gridInset(in: containerWidth))
+    .environment(\.shelfGridInset, gridInset)
+#if os(tvOS)
     .onGeometryChange(for: CGFloat.self) { proxy in
       proxy.size.width
     } action: { width in
       if width > 0 { containerWidth = width }
     }
-#if os(tvOS)
     // Default priority — `.userInitiated` yanked focus back to the first cell on every
     // return from a detail page.
     .defaultFocus($focusedItemID, items.first?.id)
+#else
+    .onGeometryChange(for: ShelfMetrics?.self) { [dynamicTypeSize] proxy in
+      guard proxy.size.width > 0 else { return nil }
+      return .posters(width: proxy.size.width, typeSize: dynamicTypeSize)
+    } action: { metrics in
+      if let metrics { measuredMetrics = metrics }
+    }
 #endif
   }
 
@@ -237,7 +260,7 @@ public struct ContentItemsListView<Header: View>: View {
           }
         }
       }
-      .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
+      .safeAreaPadding(.horizontal, gridInset)
       .padding(.vertical, Metrics.focusPadding)
 
       listFooter
@@ -274,7 +297,7 @@ public struct ContentItemsListView<Header: View>: View {
           }
         }
       }
-      .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
+      .safeAreaPadding(.horizontal, gridInset)
       .padding(.vertical, Metrics.focusPadding)
 
       listFooter
