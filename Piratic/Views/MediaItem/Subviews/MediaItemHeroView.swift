@@ -360,6 +360,7 @@ struct MediaItemHeroView: View {
   var titlePartnerLine: String? = nil
   /// Clean textless TMDB backdrop when enrichment supplied one.
   var preferredBackdropURL: URL? = nil
+  var openingBackdropURLs: [URL] = []
   /// Changes when this title's local picture cache is dropped, so the logo and
   /// backdrop load again instead of keeping the image they already decoded.
   var localCacheEpoch: Int = 0
@@ -938,7 +939,13 @@ struct MediaItemHeroView: View {
         }
         .background {
           ZStack {
+#if os(iOS)
+            GeometryReader { proxy in
+              wideScrollingBackdrop(size: proxy.size)
+            }
+#else
             scrollingBackdrop
+#endif
             if !usesAdaptivePosterHero {
               scrollingScrim
             }
@@ -1254,6 +1261,9 @@ struct MediaItemHeroView: View {
     if let backdropOutcome, backdropOutcome.key == backdropKey {
       return backdropOutcome.loaded
     }
+#if os(iOS)
+    if !phoneHeroGrows { return !backdropCandidates.isEmpty }
+#endif
     return mediaItem.posters.hasSpecifiedWide && !backdropCandidates.isEmpty
   }
 
@@ -1265,6 +1275,7 @@ struct MediaItemHeroView: View {
 
   private func noteBackdrop(loaded: Bool) {
     let key = backdropKey
+    if let backdropOutcome, backdropOutcome.key == key, backdropOutcome.loaded == loaded { return }
     withAnimation(Self.heroStateChange) {
       backdropOutcome = (key, loaded)
     }
@@ -1374,29 +1385,50 @@ struct MediaItemHeroView: View {
 
   private var backdropCandidates: [URL] {
     _ = coverLanguage
+#if os(iOS)
+    if !phoneHeroGrows, localCacheEpoch == 0, !openingBackdropURLs.isEmpty {
+      return openingBackdropURLs
+    }
+#endif
     return Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
   }
 
+#if os(iOS)
+  private func wideScrollingBackdrop(size: CGSize) -> some View {
+    ZStack(alignment: .top) {
+      if !showsPicture {
+        MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
+        Color.black.opacity(showsWash ? Self.posterWashDim : 0)
+        Color.Piratic.posterHeroPlate.opacity(usesAdaptivePosterHero ? 1 : 0)
+      }
+      if !backdropCandidates.isEmpty {
+        WideHeroPicture(urls: backdropCandidates, width: size.width, height: size.height,
+                        coveredLeading: pageMargins?.coveredLeading ?? 0,
+                        onLoaded: { noteBackdrop(loaded: true) },
+                        onFailed: { noteBackdrop(loaded: false) })
+          .id(localCacheEpoch)
+          .opacity(showsPicture ? 1 : 0)
+      }
+      if let player = trailer.player, trailer.isReady {
+        TrailerVideoLayer(player: player)
+          .allowsHitTesting(false)
+          .transition(.opacity)
+      }
+    }
+    .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
+  }
+#else
   /// The candidates always load, whatever the hero currently is, so a backdrop the
   /// worker has for a title kino.pub sent no `wide` for still arrives and takes over.
   /// Under it the page's blurred poster, unwashed: the plain page under a picture still on
   /// its way read as a grey slab (Sasha, 2026-10-30). Over both, the poster hero's plate
-  /// while there is no picture. Decode at the measured band so Retina pixels match what
-  /// is drawn; with an iPad sidebar open, shift the fill so the subject sits in the
-  /// content column (Sasha, 2026-11-26).
+  /// while there is no picture. Decode at the measured band so Retina pixels match
+  /// what is drawn.
   @ViewBuilder
   private var scrollingBackdrop: some View {
     let decode = heroBandSize.width > 1
       ? CGSize(width: (heroBandSize.width * 1.24).rounded(), height: heroBandSize.height)
       : CGSize.zero
-    let cropOffset: CGFloat = {
-#if os(iOS)
-      let covered = pageMargins?.coveredLeading ?? 0
-      return covered >= Self.sidebarOverlayThreshold ? (covered / 2).rounded() : 0
-#else
-      0
-#endif
-    }()
     ZStack {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
       if !backdropCandidates.isEmpty {
@@ -1405,7 +1437,6 @@ struct MediaItemHeroView: View {
                             onLoaded: { noteBackdrop(loaded: true) },
                             onFailed: { noteBackdrop(loaded: false) })
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-          .offset(x: cropOffset)
           .id(localCacheEpoch)
           .onAppear {
 #if DEBUG
@@ -1430,6 +1461,8 @@ struct MediaItemHeroView: View {
     .clipped()
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
+
+#endif
 
   /// Mac: the tvOS Home hero's legibility texture (`HeroBannerOverlay`: a 6% wash, the
   /// leading edge ramping in from a third of the way down, an eased bottom fade), and

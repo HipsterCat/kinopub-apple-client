@@ -31,6 +31,7 @@ public struct FallbackRemoteImage: View {
   @State private var image: Image?
   @State private var measured: CGSize = .zero
 
+  /// `paintsFromMemory` draws the cached candidate immediately and swaps later decodes atomically.
   /// `onFailed`: every candidate failed, or there was none.
   public init(urls: [URL], contentMode: ContentMode = .fill,
               size: CGSize = .zero,
@@ -117,7 +118,7 @@ public struct FallbackRemoteImage: View {
       onLoaded?()
       return
     }
-    if !keepsImageWhileReloading { image = nil }
+    if !keepsImageWhileReloading && !paintsFromMemory { image = nil }
 
     guard !urls.isEmpty else {
       artLog.debug("FallbackRemoteImage: no candidate URLs")
@@ -131,7 +132,7 @@ public struct FallbackRemoteImage: View {
         let loaded = try await Artwork.image(for: url, size: box, mode: resizeMode)
         guard !Task.isCancelled else { return }
         Artwork.noteDisplayed(loaded, url: url, size: box)
-        if keepsImageWhileReloading {
+        if keepsImageWhileReloading || paintsFromMemory {
           image = Image(platformImage: loaded)
         } else {
           withAnimation(Self.fadeIn) { image = Image(platformImage: loaded) }

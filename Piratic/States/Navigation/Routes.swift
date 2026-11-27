@@ -20,7 +20,7 @@ enum Route: Hashable {
   /// Home banner taps have no matched source of their own; zooming from a shelf
   /// poster behind the banner produced `CVPixelBufferCreate … -6680` (250×375 RGBA)
   /// on iPhone Duo (Sasha, 2026-11-26).
-  case detailsFromBanner(Int)
+  case detailsFromBanner(Int, artwork: [URL] = [])
   case history
   case bookmark(Bookmark)
   case seasons([Season])
@@ -67,7 +67,7 @@ enum Route: Hashable {
   var detailsItemID: Int? {
     switch self {
     case .details(let item): item.id
-    case .detailsById(let id), .detailsFromBanner(let id): id
+    case .detailsById(let id), .detailsFromBanner(let id, _): id
     default: nil
     }
   }
@@ -80,7 +80,7 @@ enum Route: Hashable {
     case .detailsById(let id):
       hasher.combine(1)
       hasher.combine(id)
-    case .detailsFromBanner(let id):
+    case .detailsFromBanner(let id, _):
       // Same destination identity as `detailsById` — zoom is presentation only.
       hasher.combine(1)
       hasher.combine(id)
@@ -145,9 +145,9 @@ enum Route: Hashable {
     case (.details(let a), .details(let b)):
       return a == b
     case (.detailsById(let a), .detailsById(let b)),
-         (.detailsFromBanner(let a), .detailsFromBanner(let b)),
-         (.detailsById(let a), .detailsFromBanner(let b)),
-         (.detailsFromBanner(let a), .detailsById(let b)):
+         (.detailsFromBanner(let a, _), .detailsFromBanner(let b, _)),
+         (.detailsById(let a), .detailsFromBanner(let b, _)),
+         (.detailsFromBanner(let a, _), .detailsById(let b)):
       return a == b
     case (.history, .history):
       return true
@@ -547,7 +547,7 @@ extension Route {
   var backdrop: RouteBackdrop {
     switch self {
     case .details(let item): .picture(Self.backdropKey(itemID: item.id))
-    case .detailsById(let id), .detailsFromBanner(let id):
+    case .detailsById(let id), .detailsFromBanner(let id, _):
       .picture(Self.backdropKey(itemID: id))
     // A title's own sub-page stays on the title's picture.
     case .ratingsAndReviews(let block): .picture(Self.backdropKey(itemID: block.item.id))

@@ -47,8 +47,10 @@ struct RouteDestination: View {
     switch route {
     case .details(let item):
       detailsView(for: item.id, knownItem: item)
-    case .detailsById(let id), .detailsFromBanner(let id):
+    case .detailsById(let id):
       detailsView(for: id)
+    case .detailsFromBanner(let id, let artwork):
+      detailsView(for: id, openingBackdropURLs: artwork)
     case .history:
       HistoryView()
     case .bookmark(let bookmark):
@@ -157,12 +159,13 @@ struct RouteDestination: View {
   }
 #endif
 
-  private func detailsView(for id: Int, knownItem: MediaItem? = nil) -> some View {
+  private func detailsView(for id: Int, knownItem: MediaItem? = nil,
+                           openingBackdropURLs: [URL] = []) -> some View {
     // One model per title on a section's stack, kept while it is on the stack: a section
     // left and come back to rebuilds the page around the same model, loaded and
     // scrolled where it was (Sasha, 2026-10-31).
     let tab = navigationState.selectedTab
-    return MediaItemView(model: MediaItemModelCache.shared.model(tab: tab, itemID: id) {
+    return MediaItemView(openingBackdropURLs: openingBackdropURLs, model: MediaItemModelCache.shared.model(tab: tab, itemID: id) {
       // Opened by id (Home, search, bookmarks, Go to Title): the fullest copy of the
       // title this session already has paints the page while the details load — the
       // last details payload, else the listing the card was drawn from.
@@ -270,7 +273,7 @@ final class MediaItemModelCache {
     Set(routes.compactMap { route -> Int? in
       switch route {
       case .details(let item): item.id
-      case .detailsById(let id), .detailsFromBanner(let id): id
+      case .detailsById(let id), .detailsFromBanner(let id, _): id
       default: nil
       }
     })

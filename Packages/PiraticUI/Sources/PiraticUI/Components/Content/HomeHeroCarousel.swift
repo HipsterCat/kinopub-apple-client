@@ -158,9 +158,9 @@ public struct HomeHeroCarousel: View {
               width - contentWidth >= Metrics.sidebarOverlayThreshold {
       // Tighter aspect of the column beside the sidebar (4:3), not 16:9 of the full
       // bleed width — matches the Apple TV app's shrink when the sidebar is open.
-      picture = min(contentWidth / Metrics.sidebarContentAspect + topBleed, screen * 0.8)
+      picture = min(contentWidth / Metrics.sidebarContentAspect, screen * 0.8)
     } else {
-      picture = min(width * 9 / 16 + topBleed, screen * 0.8)
+      picture = min(width * 9 / 16, screen * 0.8)
     }
 #endif
     return max(picture - topBleed, 0).rounded()
@@ -294,6 +294,12 @@ public struct HomeHeroCarousel: View {
     .task(id: PagerFrame(width: size.width, inset: pager.reading.inset)) {
       await Task.yield()
       guard !Task.isCancelled, size.width > 0 else { return }
+#if os(iOS)
+      if !isCompact {
+        snap()
+        return
+      }
+#endif
       if !isScrolling, !isTurning { move(to: current, animated: false) }
       try? await Task.sleep(for: .milliseconds(300))
       guard !Task.isCancelled else { return }
@@ -341,9 +347,7 @@ public struct HomeHeroCarousel: View {
   /// memory cache on the first paint of a neighbour.
   private var warmupBackdropSize: CGSize {
     HeroPagePicture.decodeSize(width: size.width, height: size.height + topBleed,
-                            topBleed: topBleed, isCompact: isCompact,
-                            contentWidth: pageMargins?.contentWidth,
-                            coveredLeading: pageMargins?.coveredLeading ?? 0)
+                            topBleed: topBleed, isCompact: isCompact)
   }
 
   /// How long one title stays before the next — tvOS's `TVPageHeroCarousel.dwell`.
@@ -788,33 +792,18 @@ private struct HeroPagePicture: View {
   /// its edge (a narrower layer left seams and a white strip mid-turn).
   private var pictureWidth: CGFloat { (width * (1 + 2 * Self.drift)).rounded() }
 
-  /// When the iPad sidebar overlays, nudge the crop toward the content column so the
-  /// subject is framed there (Apple TV app), not centred under the glass.
-  private var contentCropOffset: CGFloat {
-#if os(iOS)
-    guard !isCompact else { return 0 }
-    let covered = pageMargins?.coveredLeading ?? 0
-    guard covered >= HomeHeroCarousel.Metrics.sidebarOverlayThreshold else { return 0 }
-    return (covered / 2).rounded()
-#else
-    return 0
-#endif
-  }
-
   static func decodeSize(width: CGFloat, height: CGFloat, topBleed: CGFloat,
-                         isCompact: Bool, contentWidth: CGFloat? = nil,
-                         coveredLeading: CGFloat = 0) -> CGSize {
-    // Decode for the drawn box (full width × height). `contentWidth` / covered only
-    // affect layout height and crop offset — never a smaller decode that soft-upscales.
-    let _ = (contentWidth, coveredLeading)
+                         isCompact: Bool) -> CGSize {
     let wide = (width * (1 + 2 * drift)).rounded()
 #if os(iOS)
     if isCompact {
       let still = min((width * CompactHeroStill.tallness).rounded(), max(height - topBleed, 0))
       return CGSize(width: wide, height: still)
     }
-#endif
+    return WideHeroPicture.decodeSize(width: width)
+#else
     return CGSize(width: wide, height: height)
+#endif
   }
 
   var body: some View {
@@ -842,7 +831,8 @@ private struct HeroPagePicture: View {
                                           max(height - topBleed, 0)),
                          fromTop: true)
     } else {
-      croppedPicture(width: wide)
+      WideHeroPicture(urls: feature.backdropCandidates, width: width, height: height,
+                      coveredLeading: pageMargins?.coveredLeading ?? 0)
     }
 #else
     croppedPicture(width: wide)
@@ -854,7 +844,6 @@ private struct HeroPagePicture: View {
                         size: CGSize(width: width, height: height),
                         resizeMode: .fillTop)
       .frame(width: width, height: height, alignment: .top)
-      .offset(x: contentCropOffset)
       .frame(width: self.width, height: height)
       .clipped()
   }

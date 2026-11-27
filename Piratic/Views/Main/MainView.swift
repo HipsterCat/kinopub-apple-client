@@ -466,18 +466,24 @@ struct MainView: View {
 
   @ViewBuilder
   private var rows: some View {
+    let hero = rowsHero
     MediaRowsView(
       rows: homeRows,
       // Gated by `homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
       bannerCards: (catalog.supportsHeroBanner && homeBannerEnabled) ? catalog.bannerCards : [],
-      hero: rowsHero,
+      hero: hero,
       onHeroPlay: { card in
         cardMenu.play(card) { navigationState.push($0) }
       },
       onHeroDetails: { card in
         // Plain push — see `Route.detailsFromBanner` (Duo zoom crash from shelf poster).
+#if os(iOS)
+        let artwork = hero?.features.first(where: { $0.card.id == card.id })?.backdropCandidates ?? []
+        navigationState.push(Route.detailsFromBanner(card.itemID, artwork: artwork))
+#else
         navigationState.push(Route.detailsFromBanner(card.itemID))
+#endif
       },
       heroBookmarkEntries: { card in
         menuEntries(for: card, surface: .banner, isContinueWatching: false)

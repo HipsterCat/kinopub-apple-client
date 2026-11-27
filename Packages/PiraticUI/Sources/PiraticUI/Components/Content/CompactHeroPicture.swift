@@ -118,6 +118,69 @@ public struct CompactHeroPicture: View {
     .frame(width: pictureWidth, height: height, alignment: .top)
   }
 }
+
+/// Home and title artwork share a width-based canvas. The visible band's height can
+/// change with the toolbar or synopsis without changing the scale or top crop.
+public struct WideHeroPicture: View {
+  let urls: [URL]
+  let width: CGFloat
+  let height: CGFloat
+  let coveredLeading: CGFloat
+  let onLoaded: (() -> Void)?
+  let onFailed: (() -> Void)?
+
+  public init(urls: [URL], width: CGFloat, height: CGFloat, coveredLeading: CGFloat,
+              onLoaded: (() -> Void)? = nil, onFailed: (() -> Void)? = nil) {
+    self.urls = urls
+    self.width = width
+    self.height = height
+    self.coveredLeading = coveredLeading
+    self.onLoaded = onLoaded
+    self.onFailed = onFailed
+  }
+
+  public static func decodeSize(width: CGFloat) -> CGSize {
+    CGSize(width: (width * 1.24).rounded(), height: (width * 11 / 16).rounded())
+  }
+
+  public var body: some View {
+    let canvas = Self.decodeSize(width: width)
+    let offset = coveredLeading >= 40 ? (coveredLeading / 2).rounded() : 0
+    Color.black
+      .overlay(alignment: .top) {
+        if canvas.width > 1, canvas.height > 1 {
+          FallbackRemoteImage(urls: urls, size: canvas, resizeMode: .fillTop,
+                              paintsFromMemory: true,
+                              onLoaded: onLoaded, onFailed: onFailed)
+            .id(urls)
+            .frame(width: canvas.width, height: canvas.height, alignment: .top)
+            .clipped()
+            .overlay {
+              if height > canvas.height {
+                LinearGradient(stops: [.init(color: .clear, location: 0.8),
+                                       .init(color: .black, location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+              }
+            }
+            .offset(x: min(offset, (canvas.width - width) / 2))
+        }
+      }
+      .frame(width: width, height: height)
+      .clipped()
+      .transaction { $0.animation = nil }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+}
+
+#Preview("Wide hero framing") {
+  let urls = [URL(string: "https://m.staticpop.net/poster/item/wide/100582.jpg")].compactMap { $0 }
+  VStack(spacing: 8) {
+    WideHeroPicture(urls: urls, width: 600, height: 250, coveredLeading: 0)
+    WideHeroPicture(urls: urls, width: 600, height: 400, coveredLeading: 0)
+  }
+}
+
 #endif
 
 /// The phone hero's logo box, against the width — the Home banner's and the title

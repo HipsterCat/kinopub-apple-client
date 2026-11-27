@@ -227,7 +227,10 @@ struct MediaItemView: View {
   /// them — see `MediaItemRelatedRowsSection`. Previously each of those three
   /// shelves created and bound its own `MediaCardMenuCoordinator` independently.
   @StateObject private var relatedRowsMenu = MediaCardMenuCoordinator()
-  init(model: @autoclosure @escaping () -> MediaItemModel) {
+  private let openingBackdropURLs: [URL]
+
+  init(openingBackdropURLs: [URL] = [], model: @autoclosure @escaping () -> MediaItemModel) {
+    self.openingBackdropURLs = openingBackdropURLs
     _itemModel = StateObject(wrappedValue: model())
   }
 
@@ -253,11 +256,6 @@ struct MediaItemView: View {
 #endif
         }
       }
-#if !os(tvOS)
-      // tvOS: no fade when the details arrive — the page is already on screen.
-      .animation(.easeInOut(duration: 0.3), value: itemModel.itemLoaded)
-#endif
-      .animation(.easeInOut(duration: 0.3), value: itemModel.loadFailed)
       // Top only: on macOS, ignoring horizontal safe area draws under the sidebar and
       // the first episode/poster gets clipped. tvOS/iOS still bleed the hero edge-to-edge.
 #if os(macOS)
@@ -719,6 +717,7 @@ struct MediaItemView: View {
                             titleLogoRequestKind: itemModel.heroLogoRequestKind,
                             titlePartnerLine: itemModel.heroTitlePartnerLine,
                             preferredBackdropURL: itemModel.heroBackdropURL,
+                            openingBackdropURLs: openingBackdropURLs,
                             localCacheEpoch: itemModel.localCacheEpoch,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadata: itemModel.externalMetadata,
