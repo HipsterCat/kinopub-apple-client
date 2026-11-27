@@ -1466,7 +1466,8 @@ function coverChain(document, lang, kinopubSrc) {
 }
 
 const POSTER_FETCH_TIMEOUT_MS = 6000;
-const CDN_MIRROR_TIMEOUT_MS = 4000;
+// Five attempts plus the direct thumbnail fallback fit the client's 15 s request budget.
+const CDN_MIRROR_TIMEOUT_MS = 2500;
 
 async function fetchKinopubThumbnail(origins, width, format, transform) {
   if (transform) {
@@ -2030,7 +2031,9 @@ function chainSource(url, kind, id) {
   return url.searchParams.has("wide") ? `${KINOPUB_POSTER_BASE}/wide/${id}.jpg` : null;
 }
 
-const KINOPUB_IMAGE_HOSTS = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"];
+const KINOPUB_IMAGE_HOSTS = [
+  "m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru", "m.alador.space", "media.service-kp.com",
+];
 const KINOPUB_POSTER_BASE = `https://${KINOPUB_IMAGE_HOSTS[0]}/poster/item`;
 const KINOPUB_POSTER_PATH = /^\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg$/;
 const KINOPUB_THUMB_PATH = /^\/thumb\/.+\.jpg$/;

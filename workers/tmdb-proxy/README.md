@@ -84,9 +84,10 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    backdrop (same `images.backdrops` field, `iso_639_1` set) — not a poster.
    `s` on `poster` is that season's poster. `s` and `e` on `thumbnail` is that
    episode's still. Optional `src=` on `thumbnail` carries the catalogue thumb
-   from `m.staticpop.net`, `m.pushbr.com` or `m.boramoraboom.ru` when TMDB has
-   none yet. Thumbnail **404s are not edge-cached** (`no-store`). A season with
-   only missing or kino.pub stills is re-fetched from TMDB after six hours.
+   from `m.staticpop.net`, `m.pushbr.com`, `m.boramoraboom.ru`, `m.alador.space`
+   or `media.service-kp.com` when TMDB has none yet. Thumbnail **404s are not
+   edge-cached** (`no-store`). A season with only missing or kino.pub stills is
+   re-fetched from TMDB after six hours.
    A Russian poster uses tvoe, then a TMDB `ru` file, then the Kinopoisk image
    when we have (or just resolved) that id — never a kino.pub url, and never an
    English poster in its place. Missing Kinopoisk id on a Russian poster miss
@@ -101,7 +102,7 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    ladder URL when the still is from TMDB (face-crop tokens like
    `w454_and_h254_face` stay in that path — weserv only re-encodes), or the
    catalogue URL when the still is from kino.pub. Catalogue posters and stills
-   try the requested host first, then the other two mirrors with the same path.
+   try the requested host first, then the other mirrors with the same path.
    For a still, weserv's `output=json` identifies the source format before
    conversion. The worker skips processing PNGs and serves the first available
    JPEG frame as WebP. If weserv fails, the worker can serve a JPEG directly.

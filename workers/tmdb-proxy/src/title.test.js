@@ -408,7 +408,7 @@ test("Russian poster with nothing Russian and kino.pub down falls back to an Eng
     const stamped = await handleImage(new Request(response.headers.get("location")), env, ctxSpy());
     assert.equal(stamped.status, 200);
     assert.equal(stamped.headers.get("content-language"), "en");
-    assert.equal(fetched.length, 4);
+    assert.equal(fetched.length, 6);
     assert.ok(fetched.at(-1).includes("poster-en.jpg"), fetched.at(-1));
   } finally {
     globalThis.fetch = restore;
@@ -423,6 +423,7 @@ test("kino.pub poster mirrors keep the width and WebP transform on every attempt
     fetched.push(transform);
     if (fetched.length === 1) return new Response("blocked", { headers: { "content-type": "text/html" } });
     if (fetched.length === 2) throw new DOMException("deadline", "TimeoutError");
+    if (fetched.length < 5) return new Response(null, { status: 503 });
     return new Response("img", { headers: { "content-type": "image/webp" } });
   };
   try {
@@ -431,7 +432,7 @@ test("kino.pub poster mirrors keep the width and WebP transform on every attempt
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-kinopub-image-via"), "weserv");
     assert.deepEqual(fetched.map((url) => new URL(url.searchParams.get("url")).hostname),
-      ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"]);
+      ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru", "m.alador.space", "media.service-kp.com"]);
     for (const url of fetched) {
       assert.equal(url.hostname, "wsrv.nl");
       assert.equal(url.searchParams.get("w"), "584");

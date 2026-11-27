@@ -26,4 +26,5 @@ public struct VoteRequest: Endpoint {
   public var parameters: [String: Any]? { ["id": id, "like": like] }
   public var headers: [String: String]? { nil }
   public var forceSendAsGetParams: Bool { true }
+  public var isReadOnly: Bool { false }
 }

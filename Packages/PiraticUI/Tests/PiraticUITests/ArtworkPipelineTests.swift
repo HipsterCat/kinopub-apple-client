@@ -26,7 +26,7 @@ final class ArtworkPipelineTests: XCTestCase {
       let request = ImageRequest(url: source)
       let (data, response) = try await pipeline.data(for: request)
       XCTAssertEqual(data, PosterMirrorURLProtocol.jpeg)
-      XCTAssertEqual(response?.url?.absoluteString, "https://m.boramoraboom.ru\(path)")
+      XCTAssertEqual(response?.url?.absoluteString, "https://media.service-kp.com\(path)")
       XCTAssertEqual(pipeline.cache.cachedData(for: request), data)
     }
   }
@@ -192,7 +192,7 @@ private final class PosterMirrorURLProtocol: URLProtocol, @unchecked Sendable {
       client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
       return
     }
-    let isMirror = url.host == "m.boramoraboom.ru"
+    let isMirror = url.host == "media.service-kp.com"
     let isThumb = url.path.hasPrefix("/thumb/")
     let headers = ["Content-Type": isMirror ? "image/jpeg" : (isThumb ? "image/png" : "text/html")]
     let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers)!

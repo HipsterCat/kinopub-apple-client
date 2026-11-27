@@ -44,4 +44,5 @@ public struct MarkTimeRequest: Endpoint {
   }
   
   public var forceSendAsGetParams: Bool { true }
+  public var isReadOnly: Bool { false }
 }

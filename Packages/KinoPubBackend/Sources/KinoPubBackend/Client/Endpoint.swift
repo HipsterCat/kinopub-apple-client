@@ -20,6 +20,8 @@ public protocol Endpoint {
   /// Safe to send twice — to another API host after this one failed mid-request
   /// (`APIHostPool`). Default: `GET`. A toggle on `GET` (`/v1/watching/toggle`) says no.
   var isRepeatable: Bool { get }
+  /// Leaves account state alone. Some repeatable GETs still write account state.
+  var isReadOnly: Bool { get }
 }
 
 extension Endpoint {
@@ -30,4 +32,6 @@ extension Endpoint {
   public var baseURLOverride: URL? { nil }
 
   public var isRepeatable: Bool { method == "GET" }
+
+  public var isReadOnly: Bool { method == "GET" && isRepeatable }
 }

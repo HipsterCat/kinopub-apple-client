@@ -58,9 +58,11 @@ final class APIHostPoolTests: XCTestCase {
     return (client, pool)
   }
 
-  func testOrderIsTizensAndThePrimaryComesFirst() {
+  func testConfiguredPrimaryComesBeforeTheFallbacks() {
     let pool = APIHostPool(primary: URL(string: "https://api.service-kp.com/")!, defaults: .suite(suite))
-    XCTAssertEqual(pool.hosts.map(\.label), ["api.service-kp.com", "api.srvkp.com", "kino.watch/api"])
+    XCTAssertEqual(pool.hosts.map(\.label), [
+      "api.service-kp.com", "api.srvkp.com", "kino.watch/api", "api.boramoraboom.ru", "api.alador.space"
+    ])
     XCTAssertEqual(pool.current.label, "api.service-kp.com")
   }
 
@@ -121,6 +123,32 @@ final class APIHostPoolTests: XCTestCase {
     XCTAssertTrue(ReadRequest().isRepeatable)
   }
 
+  func testOnlyCatalogueReadsUseTheNewMirrorsAndTheWinningMirrorStaysSelected() async throws {
+    let session = HostRoutingSession()
+    let (client, pool) = makeClient(session)
+    let established = ["api.service-kp.com", "api.srvkp.com", "kino.watch/api"]
+    for host in established + ["api.boramoraboom.ru"] { session.replies[host] = .status(503) }
+
+    _ = try await client.performRequest(with: ReadRequest(), decodingType: Probe.self)
+    XCTAssertEqual(pool.current.label, "api.alador.space")
+    XCTAssertEqual(session.asked.last?.host, "api.alador.space")
+    let relaunched = APIHostPool(defaults: .suite(suite))
+    XCTAssertEqual(relaunched.current.label, "api.alador.space")
+
+    let writesAndOAuth: [any Endpoint] = [
+      WriteRequest(), VoteRequest(id: 1, like: 1), MarkTimeRequest(id: 1, time: 30),
+      ToggleWatchingRequest(id: 1, video: 1, season: nil),
+      RefreshTokenRequest(clientID: "fixture", clientSecret: "fixture", refreshToken: "fixture")
+    ]
+    for request in writesAndOAuth {
+      XCTAssertEqual(pool.attemptOrder(for: request).map(\.label), established)
+    }
+    session.replies["api.service-kp.com"] = .status(200)
+    _ = try await client.performRequest(with: writesAndOAuth[0], decodingType: Probe.self)
+    XCTAssertEqual(session.asked.last?.host, "api.service-kp.com")
+    XCTAssertEqual(pool.current.label, "api.alador.space")
+  }
+
   func testAWriteMovesOnWhenTheHostWasNeverReached() async throws {
     let session = HostRoutingSession()
     session.replies["api.service-kp.com"] = .error(.cannotFindHost)
@@ -145,16 +173,14 @@ final class APIHostPoolTests: XCTestCase {
 
   func testEveryHostFailingLeavesTheCurrentOneAlone() async {
     let session = HostRoutingSession()
-    for host in ["api.service-kp.com", "api.srvkp.com", "kino.watch/api"] {
-      session.replies[host] = .status(502)
-    }
     let (client, pool) = makeClient(session)
+    for host in pool.hosts { session.replies[host.label] = .status(502) }
 
     do {
       _ = try await client.performRequest(with: ReadRequest(), decodingType: Probe.self)
       XCTFail("502 everywhere is an error")
     } catch {}
-    XCTAssertEqual(session.asked.count, 3)
+    XCTAssertEqual(session.asked.count, pool.hosts.count)
     XCTAssertEqual(pool.current.label, "api.service-kp.com")
   }
 

@@ -37,6 +37,7 @@ public final class APIHostPool: Sendable {
       let path = url.path
       return path.isEmpty || path == "/" ? host : host + path
     }
+    fileprivate var isReadOnly: Bool { APIHostPool.readOnlyMirrorURLs.contains(url) }
     public init(_ url: URL) { self.url = url }
   }
 
@@ -67,11 +68,17 @@ public final class APIHostPool: Sendable {
   /// kino.pub's own API host first (it is the one `BaseURL` names and the one sign-in has
   /// always used), then the two mirrors kinopub-tizen falls back to. `api.srvkp.com` is
   /// also the host the PWA branch (`/api2/v1.1`, `ItemCollectionsRequest`) lives on;
-  /// `kino.watch/api` is the website's own path to the API.
+  /// `kino.watch/api` is the website's own path to the API. The last two mirrors
+  /// were verified with authenticated v1 reads.
   public static let defaultHostURLs: [URL] = [
     URL(string: "https://api.service-kp.com")!,
     URL(string: "https://api.srvkp.com")!,
     URL(string: "https://kino.watch/api")!
+  ] + readOnlyMirrorURLs
+
+  private static let readOnlyMirrorURLs: [URL] = [
+    URL(string: "https://api.boramoraboom.ru")!,
+    URL(string: "https://api.alador.space")!
   ]
 
   /// Posted on the main queue whenever the current host or an outcome changes.
@@ -130,15 +137,26 @@ public final class APIHostPool: Sendable {
     return Array(hosts[index...]) + Array(hosts[..<index])
   }
 
+  func attemptOrder(for endpoint: Endpoint) -> [Host] {
+    let order = attemptOrder
+    return Self.permitsReadOnlyMirrors(endpoint) ? order : order.filter { !$0.isReadOnly }
+  }
+
+  private static func permitsReadOnlyMirrors(_ endpoint: Endpoint) -> Bool {
+    endpoint.isReadOnly && endpoint.path.hasPrefix("/v1/")
+  }
+
   public func snapshot() -> Snapshot {
     state.withLock {
       Snapshot(hosts: hosts, currentIndex: $0.index, outcomes: $0.outcomes, lastSwitch: $0.lastSwitch)
     }
   }
 
-  /// A host answered (any HTTP status): it becomes the current one.
-  public func recordAnswer(from host: Host, status: Int) {
-    update(host: host, outcome: .answered(status: status), makeCurrent: true, reason: nil)
+  /// Record the answer and keep the preferred read mirror across account writes.
+  public func recordAnswer(from host: Host, status: Int, for endpoint: Endpoint? = nil) {
+    let preservesReadMirror = endpoint.map { !Self.permitsReadOnlyMirrors($0) } ?? false
+    update(host: host, outcome: .answered(status: status), makeCurrent: true, reason: nil,
+           preservesReadMirror: preservesReadMirror)
   }
 
   /// A host failed in a way that moved the request on.
@@ -151,7 +169,8 @@ public final class APIHostPool: Sendable {
     update(host: host, outcome: nil, makeCurrent: true, reason: "chosen by hand")
   }
 
-  private func update(host: Host, outcome: Outcome.Kind?, makeCurrent: Bool, reason: String?) {
+  private func update(host: Host, outcome: Outcome.Kind?, makeCurrent: Bool, reason: String?,
+                      preservesReadMirror: Bool = false) {
     let changed: Bool = state.withLock { state in
       guard let hostIndex = hosts.firstIndex(of: host) else { return false }
       var changed = false
@@ -159,7 +178,8 @@ public final class APIHostPool: Sendable {
         state.outcomes[host.id] = Outcome(kind: outcome, date: Date())
         changed = true
       }
-      if makeCurrent, hostIndex != state.index {
+      if makeCurrent, hostIndex != state.index,
+         !(preservesReadMirror && hosts[state.index].isReadOnly) {
         state.lastSwitch = (Date(), hosts[state.index].label, host.label, reason ?? lastFailureReason(in: state, excluding: host) ?? "answered")
         state.index = hostIndex
         let defaults = suite.defaults

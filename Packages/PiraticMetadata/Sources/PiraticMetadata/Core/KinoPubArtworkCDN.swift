@@ -1,7 +1,9 @@
 import Foundation
 
 public enum KinoPubArtworkCDN {
-  private static let hosts = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"]
+  public static let hosts = [
+    "m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru", "m.alador.space", "media.service-kp.com"
+  ]
 
   private static func sourceComponents(_ url: URL) -> URLComponents? {
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),

@@ -22,6 +22,7 @@
 //
 
 import Foundation
+import PiraticMetadata
 import Pulse
 import PulseProxy
 import Synchronization
@@ -106,17 +107,14 @@ public enum NetworkDiagnostics {
     configuration.sensitiveQueryItems = ["access_token", "refresh_token", "api_key"]
     configuration.sensitiveDataFields = ["access_token", "refresh_token", "password"]
 
-    // kino.pub serves the same artwork from several domains and adds new ones over time
-    // (`m.staticpop.net`, `m.boramoraboom.ru`, `m.pushbr.com` seen so far), so this list
-    // is *known incomplete* — the extension patterns below are the real safety net.
-    // See `docs/providers/kinopub/intro.md`.
-    configuration.excludedHosts = [
+    // Exact catalogue hosts keep the sibling API hosts visible in diagnostics.
+    // The extension patterns also catch artwork on new hosts.
+    configuration.excludedHosts = Set(KinoPubArtworkCDN.hosts).union([
       "*.staticpop.net",
-      "*.boramoraboom.ru",
       "*.pushbr.com",
       "image.tmdb.org",
       "*.mds.yandex.net"     // Kinopoisk stills, via the proxy
-    ]
+    ])
     configuration.excludedURLs = [
       "*.jpg*", "*.jpeg*", "*.png*", "*.webp*", "*.gif*", "*.avif*",
       "*.m3u8*", "*.ts*", "*.mp4*", "*.mkv*", "*.m4s*"

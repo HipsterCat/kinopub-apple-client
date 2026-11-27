@@ -95,7 +95,7 @@ public final class APIClient: Sendable {
     guard let hosts, requestData.baseURLOverride == nil else {
       return try await sendOnce(requestData, host: nil)
     }
-    let order = hosts.attemptOrder
+    let order = hosts.attemptOrder(for: requestData)
     for (attempt, host) in order.enumerated() {
       let isLast = attempt == order.count - 1
       do {
@@ -108,7 +108,7 @@ public final class APIClient: Sendable {
           if !isLast, requestData.isRepeatable { continue }
           return (data, response)
         }
-        hosts.recordAnswer(from: host, status: status)
+        hosts.recordAnswer(from: host, status: status, for: requestData)
         return (data, response)
       } catch {
         let underlying = Self.transportError(error)
