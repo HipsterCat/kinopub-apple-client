@@ -1,3 +1,4 @@
+import Nuke
 import XCTest
 @testable import PiraticUI
 #if os(macOS)
@@ -7,6 +8,34 @@ import UIKit
 #endif
 
 final class ArtworkPipelineTests: XCTestCase {
+  func testPosterMirrorsKeepOriginalCacheKeyAndDiscardFailedResponses() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [PosterMirrorURLProtocol.self]
+    let source = try XCTUnwrap(URL(string: "https://m.pushbr.com/poster/item/wide/126952.jpg?v=1"))
+    let cacheDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+    let cache = try DataCache(path: cacheDirectory)
+    let pipeline = ImagePipeline {
+      $0.dataLoader = ArtworkDataLoader(DataLoader(configuration: configuration))
+      $0.dataCache = cache
+      $0.dataCachePolicy = .storeOriginalData
+    }
+
+    let request = ImageRequest(url: source)
+    let (data, response) = try await pipeline.data(for: request)
+    XCTAssertEqual(data, PosterMirrorURLProtocol.jpeg)
+    XCTAssertEqual(response?.url?.absoluteString,
+                   "https://m.boramoraboom.ru/poster/item/wide/126952.jpg?v=1")
+    XCTAssertEqual(pipeline.cache.cachedData(for: request), data)
+  }
+
+  func testPosterMirrorsAreLimitedToCataloguePosterURLs() throws {
+    for raw in ["https://m.staticpop.net/thumb/item/126952.jpg",
+                "https://m.staticpop.net.example.org/poster/item/big/126952.jpg"] {
+      XCTAssertNil(ArtworkDataLoader.posterOrigins(for: try XCTUnwrap(URL(string: raw))))
+    }
+  }
+
   func testPixelSizeZeroStaysFullResolution() {
     XCTAssertEqual(Artwork.pixelSize(forPoints: .zero), .zero)
   }
@@ -147,6 +176,29 @@ final class ArtworkPipelineTests: XCTestCase {
 #endif
     XCTAssertGreaterThanOrEqual(bytes, 8 * 4 * 4)
   }
+}
+
+private final class PosterMirrorURLProtocol: URLProtocol, @unchecked Sendable {
+  static let jpeg = Data([0xff, 0xd8, 0xff, 0xd9])
+
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+  override func startLoading() {
+    guard let url = request.url else { return }
+    if url.host == "m.staticpop.net" {
+      client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
+      return
+    }
+    let isMirror = url.host == "m.boramoraboom.ru"
+    let headers = ["Content-Type": isMirror ? "image/jpeg" : "text/html"]
+    let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers)!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(self, didLoad: isMirror ? Self.jpeg : Data("blocked".utf8))
+    client?.urlProtocolDidFinishLoading(self)
+  }
+
+  override func stopLoading() {}
 }
 
 final class WorkerArtworkDailyTests: XCTestCase {

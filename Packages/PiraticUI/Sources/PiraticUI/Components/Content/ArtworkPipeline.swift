@@ -56,7 +56,7 @@ public enum Artwork {
     configuration.timeoutIntervalForRequest = requestTimeout
 
     return ImagePipeline {
-      $0.dataLoader = ActivityReportingDataLoader(DataLoader(configuration: configuration))
+      $0.dataLoader = ArtworkDataLoader(DataLoader(configuration: configuration))
       $0.dataLoadingQueue = TaskQueue(maxConcurrentOperationCount: concurrentDownloads)
       $0.dataCache = diskCache
       $0.imageCache = memoryCache
@@ -762,9 +762,11 @@ public enum Artwork {
   }
 }
 
-/// Reports worker image routes (`/img/…`) on the in-flight overlay. Poster CDNs stay
-/// quiet — a rail of twenty covers is not twenty methods.
-private final class ActivityReportingDataLoader: DataLoading, Sendable {
+/// Reports worker image routes and resolves direct kino.pub poster mirrors inside
+/// the download, so Nuke still coalesces and caches under the requested URL.
+final class ArtworkDataLoader: DataLoading, Sendable {
+  private static let posterHosts = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"]
+  private static let posterAttemptTimeout: TimeInterval = 4
   private let inner: DataLoader
 
   init(_ inner: DataLoader) {
@@ -776,6 +778,32 @@ private final class ActivityReportingDataLoader: DataLoading, Sendable {
     didReceiveData: @escaping @Sendable (Data, URLResponse) -> Void,
     completion: @escaping @Sendable (Error?) -> Void
   ) -> any Cancellable {
+    if let url = request.url, let candidates = Self.posterOrigins(for: url) {
+      return PosterLoad(task: Task {
+        var attempt = request
+        attempt.timeoutInterval = Self.posterAttemptTimeout
+        var lastError: Error = URLError(.badServerResponse)
+        for candidate in candidates {
+          guard !Task.isCancelled else { return }
+          attempt.url = candidate
+          do {
+            let (data, response) = try await inner.session.data(for: attempt)
+            if let error = DataLoader.validate(response: response) { throw error }
+            // The catalogue serves JPEGs. A block page can be an HTTP 200.
+            guard data.starts(with: [0xff, 0xd8, 0xff]) else {
+              throw URLError(.cannotDecodeContentData)
+            }
+            guard !Task.isCancelled else { return }
+            didReceiveData(data, response)
+            completion(nil)
+            return
+          } catch {
+            lastError = error
+          }
+        }
+        if !Task.isCancelled { completion(lastError) }
+      })
+    }
     guard let url = request.url, NetworkActivity.reportsArtworkRequest(url) else {
       return inner.loadData(with: request, didReceiveData: didReceiveData, completion: completion)
     }
@@ -786,6 +814,27 @@ private final class ActivityReportingDataLoader: DataLoading, Sendable {
       completion(error)
     })
     return box
+  }
+
+  static func posterOrigins(for url: URL) -> [URL]? {
+    guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          components.scheme?.lowercased() == "https",
+          components.port == nil || components.port == 443,
+          components.user == nil, components.password == nil,
+          let host = components.host?.lowercased(), posterHosts.contains(host),
+          components.percentEncodedPath.wholeMatch(of: /\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg/) != nil else {
+      return nil
+    }
+    let mirrors = posterHosts.filter { $0 != host }.compactMap { mirror in
+      components.host = mirror
+      return components.url
+    }
+    return [url] + mirrors
+  }
+
+  private struct PosterLoad: Cancellable {
+    let task: Task<Void, Never>
+    func cancel() { task.cancel() }
   }
 }
 

@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": ["Если сервер постеров Кинопаба недоступен, приложение пробует другой адрес."],
+  "en": ["If a KinoPub poster server is unavailable, the app tries another address."]
+}

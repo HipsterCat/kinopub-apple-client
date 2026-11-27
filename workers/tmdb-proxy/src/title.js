@@ -1192,7 +1192,7 @@ function stampedURL(url, imageRequest, asset, rev) {
   if (rev) params.set("v", String(rev));
   // Only an explicit src rides along (older clients); one derived from the id
   // is derived again on the stamped side. `wide` keeps the wide-card chain.
-  const explicitSrc = readKinopubThumbSrc(url);
+  const explicitSrc = readKinopubSrc(url, imageRequest.kind);
   if (imageRequest.src && explicitSrc) params.set("src", explicitSrc);
   if (imageRequest.kind === "cover" && url.searchParams.has("wide")) params.set("wide", "1");
   // The Kinopoisk rung needs the id even when the document never stored it.
@@ -1448,27 +1448,42 @@ function coverChain(document, lang, kinopubSrc) {
 }
 
 const POSTER_FETCH_TIMEOUT_MS = 6000;
+const POSTER_MIRROR_TIMEOUT_MS = 4000;
 
 /** One asset's bytes, WebP through wsrv.nl first, the source's own resizer next. */
 async function fetchAsset(env, asset, kind, w, format) {
-  const attempt = async (target) => {
+  const attempt = async (target, { timeout = POSTER_FETCH_TIMEOUT_MS, imageOnly = false } = {}) => {
     if (!target) return null;
     try {
-      const response = await fetch(target, timeoutSignal(POSTER_FETCH_TIMEOUT_MS));
-      return response.ok ? { response, via: target.startsWith("https://wsrv.nl/") ? "weserv" : "legacy" } : null;
+      const response = await fetch(target, timeoutSignal(timeout));
+      if (response.ok && (!imageOnly || response.headers.get("content-type")?.startsWith("image/"))) {
+        return { response, via: target.startsWith("https://wsrv.nl/") ? "weserv" : "legacy" };
+      }
+      await response.body?.cancel();
     } catch {
-      return null;
+      // Move on after a transport error or timeout.
     }
+    return null;
   };
+  const origin = durableOrigin(asset);
+  const mirrors = asset.source === "kinopub" && kinopubPosterOrigins(origin);
+  if (mirrors) {
+    const transform = weservEnabled(env);
+    for (const mirror of mirrors) {
+      const target = transform ? weservURL(mirror, w, format) : mirror;
+      const served = await attempt(target, { timeout: POSTER_MIRROR_TIMEOUT_MS, imageOnly: true });
+      if (served) return served;
+    }
+    return null;
+  }
   // Kinopoisk answers a title without a poster with a grey «K» GIF, which
   // wsrv happily converts: skip the rung instead (129379, Sasha 2026-11-26).
-  if (asset.source === "kinopoisk" && !(await kinopoiskHasPoster(durableOrigin(asset)))) return null;
+  if (asset.source === "kinopoisk" && !(await kinopoiskHasPoster(origin))) return null;
   if (weservEnabled(env)) {
-    const origin = durableOrigin(asset);
     const served = origin ? await attempt(weservURL(origin, w, format)) : null;
     if (served) return served;
   }
-  // A kino.pub file weserv could not reach is down for us too.
+  // Let the client own the direct fallback when the configured transform fails.
   if (asset.source === "kinopub" && weservEnabled(env)) return null;
   return attempt(asset.source === "kinopub" ? safeHttpURL(asset.url) : resizeAsset(asset, kind, w));
 }
@@ -1946,13 +1961,34 @@ function episodeAsset(document, seasonNumber, episodeNumber) {
  */
 function chainSource(url, kind, id) {
   if (kind !== "poster" && kind !== "cover") return null;
-  const explicit = readKinopubThumbSrc(url);
+  const explicit = readKinopubSrc(url, kind);
   if (explicit) return explicit;
   if (kind === "poster") return `${KINOPUB_POSTER_BASE}/big/${id}.jpg`;
   return url.searchParams.has("wide") ? `${KINOPUB_POSTER_BASE}/wide/${id}.jpg` : null;
 }
 
-const KINOPUB_POSTER_BASE = "https://m.staticpop.net/poster/item";
+const KINOPUB_POSTER_HOSTS = ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"];
+const KINOPUB_POSTER_BASE = `https://${KINOPUB_POSTER_HOSTS[0]}/poster/item`;
+
+function kinopubPosterOrigins(origin) {
+  if (!origin) return null;
+  const url = new URL(origin);
+  const host = url.hostname;
+  if (url.protocol !== "https:" || url.port || url.username || url.password
+    || !KINOPUB_POSTER_HOSTS.includes(host)
+    || !/^\/poster\/item\/(small|medium|big|wide)\/[0-9]+\.jpg$/.test(url.pathname)) return null;
+  return [origin, ...KINOPUB_POSTER_HOSTS.filter((mirror) => mirror !== host).map((mirror) => {
+    url.hostname = mirror;
+    return url.toString();
+  })];
+}
+
+function readKinopubSrc(url, kind) {
+  const legacy = readKinopubThumbSrc(url);
+  if (legacy || (kind !== "poster" && kind !== "cover")) return legacy;
+  const source = safeHttpURL((url.searchParams.get("src") || "").trim());
+  return kinopubPosterOrigins(source) ? source : null;
+}
 
 function readKinopubThumbSrc(url) {
   const raw = (url.searchParams.get("src") || "").trim();
