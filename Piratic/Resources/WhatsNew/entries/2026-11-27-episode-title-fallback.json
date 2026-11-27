@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": ["Английские названия серий снова видны в русском интерфейсе, когда у серии нет русского названия."],
+  "en": ["Episode cards show the available title when a translation is missing."]
+}

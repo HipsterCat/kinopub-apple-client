@@ -22,7 +22,9 @@ When the only known season is the first, omit it from the reference. Continue Wa
 Next show `2: Name` with a title, or `Episode 2` / `2 серия` when no title is available. Episode
 cards on a season's own rail use the same wording. For a series with multiple seasons, Continue
 Watching and Up Next show `S2 E3: Name` / `2 сезон, 3 серия: Name` and omit the colon for unnamed
-episodes. Treat placeholder titles such as «Эпизод 1» as unnamed.
+episodes. Treat placeholder titles such as «Эпизод 1» as unnamed. Prefer the app's language
+when both names are available. When only one real name is available, show it in either
+interface language (Sasha, 2026-11-27).
 
 ## Season on its own
 

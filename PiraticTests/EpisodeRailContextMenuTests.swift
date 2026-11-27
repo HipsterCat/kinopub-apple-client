@@ -9,6 +9,7 @@ import XCTest
 @testable import Piratic
 @testable import KinoPubBackend
 import PiraticUI
+import PiraticMetadata
 
 @MainActor
 final class EpisodeRailContextMenuTests: XCTestCase {
@@ -22,6 +23,25 @@ final class EpisodeRailContextMenuTests: XCTestCase {
                         watching: SeasonWatching(status: 0), episodes: [episode])
     return MediaCard(episode: episode, in: season, title: "Halo",
                      episodeLabel: "2 серия", dateLabel: nil)
+  }
+
+  func testEpisodeRailUsesEnglishNameWhenRussianScheduleOnlyHasANumber() {
+    let russian = EpisodeSchedule(episodeNumber: 4, seasonNumber: 1, name: "Эпизод 4")
+    let english = EpisodeSchedule(episodeNumber: 4, seasonNumber: 1, name: "The Crossing")
+    let enriched = SeasonsRailView.enrichedSchedule(
+      nil, from: [russian, english], fallbackSeason: 1, fallbackEpisode: 4)
+
+    XCTAssertEqual(enriched?.name, "The Crossing")
+  }
+
+  func testEpisodeGridRefreshesNamesWhenTheScheduleKeepsTheSameSlots() {
+    let placeholder = EpisodeSchedule(episodeNumber: 4, seasonNumber: 1, name: "Эпизод 4")
+    let named = EpisodeSchedule(episodeNumber: 4, seasonNumber: 1, name: "The Crossing")
+    let initial = KinoEpisodeGrid.alignment(seasons: [], official: [placeholder])
+    XCTAssertEqual(initial.official.first?.titles, ["Эпизод 4"])
+
+    let refreshed = KinoEpisodeGrid.alignment(seasons: [], official: [named])
+    XCTAssertEqual(refreshed.official.first?.titles, ["The Crossing"])
   }
 
   func testEpisodeRailMenuHasPlayAndInfoWithoutLibraryOrHide() {

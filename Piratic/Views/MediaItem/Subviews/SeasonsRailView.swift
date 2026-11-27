@@ -73,17 +73,14 @@ enum KinoEpisodeGrid {
     let seasonIDs: [Int]
     let episodeCounts: [Int]
     let titled: [Int]
-    let officialCount: Int
-    let officialFingerprint: Int
+    // The same slots can be refreshed with new names and other metadata.
+    let official: [EpisodeSchedule]
 
     init(seasons: [Season], official: [EpisodeSchedule]) {
       seasonIDs = seasons.map(\.id)
       episodeCounts = seasons.map(\.episodes.count)
       titled = seasons.map { $0.titleSeasonNumber ?? -1 }
-      officialCount = official.count
-      officialFingerprint = official.reduce(into: 0) { acc, episode in
-        acc = acc &* 31 &+ episode.seasonNumber &* 1_000_003 &+ episode.episodeNumber
-      }
+      self.official = official
     }
   }
 
@@ -134,7 +131,7 @@ enum KinoEpisodeGrid {
       isSeasonFinale: schedule.isSeasonFinale)
   }
 
-  private static func preferredName(_ titles: [String]) -> String? {
+  static func preferredName(_ titles: some Sequence<String>) -> String? {
     let names = titles.compactMap { EpisodeTitle.meaningful($0) }
     return MediaLanguage.current == .en ? names.last : names.first
   }
@@ -989,10 +986,10 @@ struct SeasonsRailView: View {
 
   /// Prefer the full TMDB row (overview / votes) when the rail schedule lost them.
   /// When the rail had no schedule (unmatched extra), still look up by season+number.
-  private static func enrichedSchedule(_ schedule: EpisodeSchedule?,
-                                       from official: [EpisodeSchedule],
-                                       fallbackSeason: Int? = nil,
-                                       fallbackEpisode: Int? = nil) -> EpisodeSchedule? {
+  static func enrichedSchedule(_ schedule: EpisodeSchedule?,
+                               from official: [EpisodeSchedule],
+                               fallbackSeason: Int? = nil,
+                               fallbackEpisode: Int? = nil) -> EpisodeSchedule? {
     let seed = schedule ?? {
       guard let fallbackEpisode else { return nil as EpisodeSchedule? }
       if let fallbackSeason {
@@ -1003,10 +1000,12 @@ struct SeasonsRailView: View {
       let matches = official.filter { $0.episodeNumber == fallbackEpisode }
       return matches.count == 1 ? matches[0] : nil
     }()
-    guard var merged = seed else { return nil }
-    guard let full = official.first(where: {
-      $0.seasonNumber == merged.seasonNumber && $0.episodeNumber == merged.episodeNumber
-    }) else { return merged }
+    guard let seed else { return nil }
+    let matching = official.lazy.filter {
+      $0.seasonNumber == seed.seasonNumber && $0.episodeNumber == seed.episodeNumber
+    }
+    guard let full = matching.first else { return seed }
+    var merged = seed
     if merged.overview == nil || merged.overview?.isEmpty == true { merged.overview = full.overview }
     if merged.still == nil { merged.still = full.still }
     if merged.airDate == nil { merged.airDate = full.airDate }
@@ -1014,7 +1013,8 @@ struct SeasonsRailView: View {
     if merged.voteCount == nil { merged.voteCount = full.voteCount }
     if merged.runtime == nil { merged.runtime = full.runtime }
     if full.isSeasonFinale { merged.isSeasonFinale = true }
-    if merged.name == nil || merged.name?.isEmpty == true { merged.name = full.name }
+    merged.name = EpisodeTitle.meaningful(schedule?.name)
+      ?? KinoEpisodeGrid.preferredName(matching.compactMap(\.name))
     return merged
   }
 
@@ -1277,6 +1277,7 @@ struct SeasonsRailView: View {
   private func rivuletItem(_ entry: RailEntry, divider: String, rating: String?) -> RivuletRailItem {
     switch entry {
     case .playable(let season, let episode, let schedule):
+      let schedule = railSchedule(schedule, for: episode, in: season)
       let name = Self.displayTitle(episode: episode, schedule: schedule)
       // Same listItem ruleset as TVUIKit / MediaCard — «7. Name» / «7 серия».
       let title = EpisodeText(season: nil, number: episode.number,
@@ -1352,10 +1353,7 @@ struct SeasonsRailView: View {
   private func railItem(for entry: RailEntry) -> TVUIKitMediaItem {
     switch entry {
     case .playable(let season, let episode, let schedule):
-      let schedule = Self.enrichedSchedule(schedule, from: officialEpisodes,
-                                           fallbackSeason: tabs.first { $0.id == season.id }?.first
-                                             ?? KinoPubMediaMapping.seasonNumber(season),
-                                           fallbackEpisode: episode.number)
+      let schedule = railSchedule(schedule, for: episode, in: season)
       let card = card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
       let title = Self.displayTitle(episode: episode, schedule: schedule)
@@ -1989,6 +1987,15 @@ struct SeasonsRailView: View {
     episode.stamped(season: season.number, mediaId: season.mediaId, seriesTitle: seriesTitle)
   }
 
+  private func railSchedule(_ schedule: EpisodeSchedule?, for episode: Episode,
+                            in season: Season) -> EpisodeSchedule? {
+    Self.enrichedSchedule(
+      schedule, from: officialEpisodes,
+      fallbackSeason: tabs.first { $0.id == season.id }?.first
+        ?? KinoPubMediaMapping.seasonNumber(season),
+      fallbackEpisode: episode.number)
+  }
+
   /// The rail's card — the same landscape `MediaCard` History and Continue Watching
   /// draw, captioned "EPISODE 9 · 5 Mar" where the poster shelves caption "S2, E5".
   private func card(for episode: Episode,
@@ -1996,11 +2003,7 @@ struct SeasonsRailView: View {
                     schedule: EpisodeSchedule?,
                     fallbackStill: URL? = nil,
                     primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
-    let schedule = Self.enrichedSchedule(
-      schedule, from: officialEpisodes,
-      fallbackSeason: tabs.first { $0.id == season.id }?.first
-        ?? KinoPubMediaMapping.seasonNumber(season),
-      fallbackEpisode: episode.number)
+    let schedule = railSchedule(schedule, for: episode, in: season)
     // Ladder: unique still (worker / TMDB) first; kino.pub + series backdrop are
     // fallbacks — MediaCardView paints iconic → backdrop → unique → kinopub on 404.
     let unique = uniqueStillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
