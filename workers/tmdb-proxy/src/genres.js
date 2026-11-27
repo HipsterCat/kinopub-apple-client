@@ -1,9 +1,9 @@
 /**
- * Our genre ids — the same table the app reads (`genres.json` in KinoPubMedia)
+ * Our genre ids — the same table the app reads (`genres.json` in PiraticMedia)
  * and the ingest writes documents with (`tools/metadata-ingest/genres.py`).
  * Only what this worker needs: TMDB's ids, which is what it gets from TMDB.
  */
-import table from "../../../Packages/KinoPubMedia/Sources/KinoPubMedia/Resources/genres.json" with { type: "json" };
+import table from "../../../Packages/PiraticMedia/Sources/PiraticMedia/Resources/genres.json" with { type: "json" };
 
 const byId = new Map(table.genres.map((row) => [row.id, row]));
 const byTmdb = new Map();

@@ -6,7 +6,7 @@
 import SwiftUI
 import PiraticUI
 import KinoPubBackend
-import KinoPubMedia
+import PiraticMedia
 
 /// The grid behind one collection shelf's title / "+N more" — every item the
 /// collection has, no pagination (the endpoint returns them all at once).

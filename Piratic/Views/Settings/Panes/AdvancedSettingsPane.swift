@@ -7,7 +7,7 @@ import SwiftUI
 import PiraticUI
 import PiraticMetadata
 import KinoPubBackend
-import KinoPubMedia
+import PiraticMedia
 
 #if !os(tvOS)
 struct AdvancedSettingsPane: View {

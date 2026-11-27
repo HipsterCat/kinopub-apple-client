@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Our genre ids, the same table the app reads.
 
-The table is `Packages/KinoPubMedia/Sources/KinoPubMedia/Resources/genres.json` —
+The table is `Packages/PiraticMedia/Sources/PiraticMedia/Resources/genres.json` —
 one file for the Swift package, this pipeline and the worker, so a document and
 the app never disagree on what `drama` is. Matching mirrors
 `GenreVocabulary.swift`: ids first where a source has them, names otherwise,
@@ -19,7 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 
 TABLE = (Path(__file__).resolve().parents[2]
-         / "Packages/KinoPubMedia/Sources/KinoPubMedia/Resources/genres.json")
+         / "Packages/PiraticMedia/Sources/PiraticMedia/Resources/genres.json")
 
 # Mirrors `MediaPrecedence.standard` for `.genres`: one source's list wins
 # whole, never a splice, because its order is the claim — its first genre is
