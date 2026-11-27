@@ -4,7 +4,7 @@
 //
 //  Apple TV–style sneak peek for poster / video long-press: native art aspect
 //  (poster 2:3, wide 16:9), plate hugs the loaded bitmap (no letterbox gutters),
-//  and a metadata footer with the title, subtitle and playback time.
+//  and a metadata footer with the title and subtitle.
 //  SwiftUI surfaces use `MediaCardContextPreview`; tvOS UIKit menus use
 //  `TVMediaCardContextPreviewController`.
 //
@@ -26,20 +26,18 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
   public let title: String
   /// Secondary line under the title — `2026 · Drama`, `В закладках`, `1h 55m`, …
   public let subtitle: String?
-  public let time: String?
   let reusesShelfArtwork: Bool
 
   public init(url: URL?, aspect: CardAspect, title: String, subtitle: String? = nil) {
     self.init(artworkURLs: [url].compactMap { $0 }, aspect: aspect, title: title,
-              subtitle: subtitle, time: nil, reusesShelfArtwork: false)
+              subtitle: subtitle, reusesShelfArtwork: false)
   }
 
   private init(artworkURLs: [URL], aspect: CardAspect, title: String, subtitle: String?,
-               time: String?, reusesShelfArtwork: Bool) {
+               reusesShelfArtwork: Bool) {
     self.artworkURLs = artworkURLs
     self.aspect = aspect
     self.title = title
-    self.time = time
     self.reusesShelfArtwork = reusesShelfArtwork
     self.subtitle = subtitle.flatMap { line in
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,7 +65,7 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
 
   var footerHeight: CGFloat {
     // SwiftUI can grow beyond this minimum when a caption wraps.
-    52 + (subtitle == nil ? 0 : 18) + (time == nil ? 0 : 18)
+    52 + (subtitle == nil ? 0 : 18)
   }
 
   /// Shrink the max box so it matches the bitmap's aspect — no letterbox gutters.
@@ -92,13 +90,17 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
       aspect = card.isLandscape ? .landscape : .poster
     }
 
+    let language = MediaLanguage.current
+    let caption = card.sneakPeekSubtitle(surface: surface, language: language)
+    let showsPlaybackTime = surface == .episodeRail || (surface == .shelf && card.isLandscape)
+    let time = showsPlaybackTime ? card.peekTime(language: language) : nil
+    let subtitle = [caption, time].compactMap { $0 }.joined(separator: " · ")
+
     return MediaCardContextPreviewSpec(
       artworkURLs: card.sneakPeekArtwork(surface: surface, images: images, scale: scale),
       aspect: aspect,
       title: card.title,
-      subtitle: card.sneakPeekSubtitle(surface: surface),
-      time: surface == .episodeRail || (surface == .shelf && card.isLandscape)
-        ? card.peekTime(language: .current) : nil,
+      subtitle: subtitle,
       reusesShelfArtwork: surface == .shelf && card.isLandscape && !card.isSeries
     )
   }
@@ -196,7 +198,7 @@ public extension MediaCard {
     guard !isWatched, let progress, progress.isFinite, progress > 0 else { return total }
     let remaining = RemainingText(progress: progress, durationSeconds: durationSeconds)
       .formatted(MediaSurface.timeBadge.runtimeLength, language: language)
-    return "\(remaining) / \(total)"
+    return remaining
   }
 }
 
@@ -245,12 +247,6 @@ public struct MediaCardContextPreview: View {
             .foregroundStyle(.secondary)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
-        }
-        if let time = spec.time {
-          Text(time)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
         }
       }
       .padding(.horizontal, 14)

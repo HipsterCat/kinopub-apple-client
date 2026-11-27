@@ -131,11 +131,10 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     XCTAssertEqual(spec.url?.absoluteString,
                    "https://m.staticpop.net/poster/episode/thumb/42.jpg")
     XCTAssertEqual(spec.title, "Альтруисты")
-    XCTAssertEqual(spec.subtitle, "S1, E3")
-    XCTAssertEqual(spec.time, MediaLanguage.current == .ru ? "50м" : "50m")
+    XCTAssertEqual(spec.subtitle, MediaLanguage.current == .ru ? "S1, E3 · 50м" : "S1, E3 · 50m")
   }
 
-  func testFilmContinueWatchingKeepsWideCoverAndShowsRemainingAndTotal() {
+  func testFilmContinueWatchingKeepsWideCoverAndAddsRemainingTimeToCaption() {
     let card = MediaCard(
       id: 9,
       posterURL: "https://example.com/poster.jpg",
@@ -151,8 +150,10 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf, images: images)
     XCTAssertEqual(spec.aspect, .landscape)
     XCTAssertEqual(spec.artworkURLs, card.artworkLadder)
-    XCTAssertEqual(spec.subtitle, "Недосмотрено")
-    XCTAssertEqual(spec.time, MediaLanguage.current == .ru ? "Ещё 1ч 30м / 2ч" : "1h 30m left / 2h")
+    XCTAssertEqual(
+      spec.subtitle,
+      MediaLanguage.current == .ru ? "Недосмотрено · Ещё 1ч 30м" : "Недосмотрено · 1h 30m left"
+    )
   }
 
   func testUnfinishedHintDoesNotReplaceEpisodeCaption() {

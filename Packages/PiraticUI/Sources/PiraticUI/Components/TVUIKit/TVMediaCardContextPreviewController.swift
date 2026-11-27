@@ -18,7 +18,6 @@ public final class TVMediaCardContextPreviewController: UIViewController {
   private let spinner = UIActivityIndicatorView(style: .large)
   private let titleLabel = UILabel()
   private let subtitleLabel = UILabel()
-  private let timeLabel = UILabel()
   private let footer = UIView()
   private let captions = UIStackView()
   private let card = UIView()
@@ -56,17 +55,11 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     subtitleLabel.textColor = .secondaryLabel
     subtitleLabel.numberOfLines = 2
     subtitleLabel.isHidden = spec.subtitle == nil
-
-    timeLabel.text = spec.time
-    timeLabel.font = .preferredFont(forTextStyle: .subheadline)
-    timeLabel.adjustsFontForContentSizeCategory = true
-    timeLabel.textColor = .secondaryLabel
-    timeLabel.isHidden = spec.time == nil
   }
 
   private func previewSize(art: CGSize) -> CGSize {
     let bounds = CGSize(width: max(1, art.width - 28), height: .greatestFiniteMagnitude)
-    let labels = [titleLabel, subtitleLabel, timeLabel].filter { !$0.isHidden }
+    let labels = [titleLabel, subtitleLabel].filter { !$0.isHidden }
     let textHeight = labels.reduce(CGFloat.zero) { $0 + $1.sizeThatFits(bounds).height }
     let gaps = CGFloat(max(0, labels.count - 1)) * 2
     return CGSize(width: art.width, height: art.height + ceil(textHeight + gaps) + 24)
@@ -110,7 +103,6 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     captions.translatesAutoresizingMaskIntoConstraints = false
     captions.addArrangedSubview(titleLabel)
     captions.addArrangedSubview(subtitleLabel)
-    captions.addArrangedSubview(timeLabel)
     footer.addSubview(captions)
 
     cardWidth = card.widthAnchor.constraint(equalToConstant: art.width)
