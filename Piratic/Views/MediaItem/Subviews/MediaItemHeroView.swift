@@ -2110,18 +2110,17 @@ struct MediaItemHeroView: View {
     let quality = TitleInfoStripFacts.qualityBadgeAssets(mediaItem: mediaItem)
     let ageAssets = ratings.compactMap(MediaBadgeImages.ageRatingAssetName)
     let typedRatings = ratings.filter { MediaBadgeImages.ageRatingAssetName($0) == nil }
-    let badges = quality + ageAssets
-    if runtime != nil || !languages.isEmpty || !badges.isEmpty || !typedRatings.isEmpty || views > 0
-        || voicing != nil || captions {
+    if runtime != nil || !languages.isEmpty || !quality.isEmpty || !ageAssets.isEmpty
+        || !typedRatings.isEmpty || views > 0 || voicing != nil || captions {
       ViewThatFits(in: .horizontal) {
-        phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
-                         badges: badges, typedRatings: typedRatings, views: views)
-        phonePlaybackRow(runtime: runtime, languages: languages, voicing: nil, captions: captions,
-                         badges: badges, typedRatings: typedRatings, views: views)
-        phonePlaybackRow(runtime: nil, languages: languages, voicing: nil, captions: captions,
-                         badges: badges, typedRatings: typedRatings, views: views)
-        phonePlaybackRow(runtime: nil, languages: Array(languages.prefix(1)), voicing: nil, captions: captions,
-                         badges: badges, typedRatings: typedRatings, views: 0)
+        phonePlaybackRow(runtime: runtime, quality: quality, languages: languages, voicing: voicing,
+                         captions: captions, ageAssets: ageAssets, typedRatings: typedRatings, views: views)
+        phonePlaybackRow(runtime: runtime, quality: quality, languages: languages, voicing: nil,
+                         captions: captions, ageAssets: ageAssets, typedRatings: typedRatings, views: views)
+        phonePlaybackRow(runtime: runtime, quality: quality, languages: Array(languages.prefix(1)),
+                         voicing: nil, captions: captions, ageAssets: ageAssets, typedRatings: typedRatings, views: 0)
+        phonePlaybackRow(runtime: nil, quality: quality, languages: Array(languages.prefix(1)),
+                         voicing: nil, captions: captions, ageAssets: ageAssets, typedRatings: typedRatings, views: 0)
       }
       .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
@@ -2129,11 +2128,15 @@ struct MediaItemHeroView: View {
     }
   }
 
-  private func phonePlaybackRow(runtime: String?, languages: [String], voicing: String?, captions: Bool,
-                                badges: [String], typedRatings: [String], views: Int) -> some View {
+  private func phonePlaybackRow(runtime: String?, quality: [String], languages: [String],
+                                voicing: String?, captions: Bool, ageAssets: [String],
+                                typedRatings: [String], views: Int) -> some View {
     HStack(spacing: Self.metaSpacing) {
       if let runtime {
         Text(verbatim: runtime)
+      }
+      if !quality.isEmpty {
+        MediaBadgeImages(quality)
       }
       if !languages.isEmpty {
         // The sound's glyph before its languages, as the player's audio menu has it.
@@ -2153,8 +2156,8 @@ struct MediaItemHeroView: View {
       if captions {
         MediaBadgeImages(["CC"])
       }
-      if !badges.isEmpty {
-        MediaBadgeImages(badges)
+      if !ageAssets.isEmpty {
+        MediaBadgeImages(ageAssets)
       }
       ForEach(typedRatings, id: \.self) { rating in
         PlaybackTag(rating)
