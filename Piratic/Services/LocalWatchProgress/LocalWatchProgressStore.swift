@@ -1,0 +1,370 @@
+//
+//  LocalWatchProgressStore.swift
+//  Piratic
+//
+//  Tracks watch progress locally so "Continue Watching", the detail page and the season
+//  rail can show what the player just did, before (or without) the backend recording it.
+//
+//  Reads are synchronous from memory; every write is queued to `WatchLibraryWriter`
+//  and persisted with SwiftData in `Caches/` (see `WatchLibrary`).
+//
+//  Two rules keep it race-free:
+//  - A write is queued inside the same lock that changes memory, so the disk sees
+//    writes in the order memory did. Queued after `unlock()`, two writers could swap
+//    places: progress rolled back after a relaunch, or a cleared title came back.
+//  - A payload is encoded where the item is handed in (`cacheItem`, on the main
+//    actor), never from the player's tick: encoding one every ten seconds of playback
+//    would be work for nothing.
+//
+
+import Foundation
+import KinoPubBackend
+import PiraticLogging
+import OSLog
+import SwiftData
+import Synchronization
+
+extension Notification.Name {
+  /// Posted after a local resume point is written or cleared. Home and the detail page
+  /// repaint from this without invalidating `ContentStore` — the row's TTL is the server
+  /// snapshot, not the playhead.
+  static let localWatchProgressDidChange = Notification.Name("Piratic.localWatchProgressDidChange")
+}
+
+/// A locally persisted resume point for a media item (or a specific episode of a series).
+public struct LocalWatchEntry: Codable, Identifiable {
+  public let item: MediaItem
+  public var position: Double
+  public var duration: Double
+  public var season: Int?
+  public var episode: Int?
+  public var updatedAt: Double
+
+  public var id: Int { item.id }
+
+  /// Watch classification for this resume point — the single source of truth (fraction / finished).
+  public var watch: WatchProgress { WatchProgress(position: position, duration: duration) }
+  public var progress: Double? { watch.resumeFraction }
+  public var finished: Bool { watch.isFinished }
+}
+
+protocol LocalWatchProgressProvider {
+  var localProgressStore: LocalWatchProgressStore { get }
+}
+
+/// Thread-safe store of local resume points, backed by SwiftData.
+final class LocalWatchProgressStore: Sendable {
+
+  /// Minimum playback before an item is considered "started" and worth resuming — the shared
+  /// `WatchProgress` floor, so the local store and the classifier never disagree.
+  static let minimumSeconds: Double = WatchProgress.startedSeconds
+
+  private enum Write: Sendable {
+    case record(WatchRecordValue)
+    case snapshot(itemID: Int, payload: Data)
+    case deleteAll(itemID: Int)
+    case flush(CheckedContinuation<Void, Never>)
+  }
+
+  private struct State {
+    /// Payloads of titles the user opened this session, plus the persisted ones for titles
+    /// that have a resume point (so episode playback, whose `PlayableItem` is an `Episode`,
+    /// can still resolve the parent series artwork after a relaunch).
+    var snapshots: [Int: MediaItem] = [:]
+    /// Each snapshot's JSON, encoded in `cacheItem` (or read back from disk).
+    var payloads: [Int: Data] = [:]
+    /// Titles whose current payload is already on disk — the player writes every ~10s,
+    /// and rewriting the same payload on each tick would be pure waste.
+    var persistedSnapshotIDs: Set<Int> = []
+    /// One per episode (series) or per title (film), keyed by `WatchRecord.key`.
+    var records: [String: WatchRecordValue] = [:]
+
+    func entry(for record: WatchRecordValue) -> LocalWatchEntry? {
+      guard let item = snapshots[record.itemID] else { return nil }
+      return LocalWatchEntry(item: item,
+                             position: record.position,
+                             duration: record.duration,
+                             season: record.season,
+                             episode: record.episode,
+                             updatedAt: record.updatedAt.timeIntervalSince1970)
+    }
+  }
+
+  private let state: Mutex<State>
+  private let writes: AsyncStream<Write>.Continuation
+
+  init(container: ModelContainer = WatchLibrary.makeContainer()) {
+    let (stream, continuation) = AsyncStream<Write>.makeStream()
+    writes = continuation
+    var loaded = Self.load(from: container)
+    Self.importLegacyJSON(into: &loaded, writes: continuation)
+    state = Mutex(loaded)
+
+    // One consumer, so writes land in the order they were made.
+    let writer = WatchLibraryWriter(modelContainer: container)
+    Task.detached(priority: .utility) {
+      for await write in stream {
+        switch write {
+        case .record(let value):
+          await writer.upsert(value)
+        case .snapshot(let itemID, let payload):
+          await writer.upsertSnapshot(itemID: itemID, payload: payload)
+        case .deleteAll(let itemID):
+          await writer.deleteAll(itemID: itemID)
+        case .flush(let continuation):
+          continuation.resume()
+        }
+      }
+    }
+  }
+
+  /// Remember the artwork/title for an item the user is browsing. In memory only; the
+  /// payload reaches disk with the title's first resume point.
+  @MainActor
+  func cacheItem(_ item: MediaItem) {
+    let payload = try? JSONEncoder().encode(item)
+    state.withLock { state in
+      state.snapshots[item.id] = item
+      guard let payload, state.payloads[item.id] != payload else { return }
+      state.payloads[item.id] = payload
+      // A newer payload than the one on disk goes out with the next write.
+      state.persistedSnapshotIDs.remove(item.id)
+    }
+  }
+
+  /// Changes the copy of a title the player and the next page read, without writing it to
+  /// disk again: marks and positions are not what the persisted payload is for.
+  func updateSnapshot(for id: Int, _ change: (inout MediaItem) -> Void) {
+    guard var item = snapshot(for: id) else { return }
+    change(&item)
+    let changed = item
+    state.withLock { $0.snapshots[id] = changed }
+  }
+
+  /// The cached payload for an item, when the user has browsed it this session or it has
+  /// a resume point. An `Episode` carries no genres or countries, so track selection
+  /// reads them from here.
+  func snapshot(for id: Int) -> MediaItem? {
+    state.withLock { $0.snapshots[id] }
+  }
+
+  /// Record a resume point. No-op for live/trailers (non-finite duration) or before the
+  /// minimum threshold, or when we have no snapshot to render a card with.
+  ///
+  /// `position < duration` keeps the exact end-of-file tick for `recordFinished`.
+  /// A position already past `WatchProgress.watchedFraction` is still written;
+  /// `WatchProgress` classifies it as finished on read, so Continue Watching
+  /// does not grow a resume bar from it.
+  func recordProgress(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) {
+    guard duration.isFinite, duration > 0, position < duration else { return }
+    let watch = WatchProgress(position: position, duration: duration)
+    guard watch.hasStarted else { return }
+    if write(mediaId: mediaId, position: position, duration: duration, season: season, episode: episode) {
+      notify()
+    }
+  }
+
+  /// End of playback: keep a finished tombstone so Continue Watching can hide a film
+  /// or step a series to the next episode without waiting out Home's TTL, and without
+  /// `ContentStore.invalidate(.watch)`.
+  func recordFinished(mediaId: Int, duration: Double, season: Int?, episode: Int?) {
+    guard duration.isFinite, duration > 0 else { return }
+    if write(mediaId: mediaId, position: duration, duration: duration, season: season, episode: episode) {
+      notify()
+    }
+  }
+
+  /// The resume entry for an item, if any (and past the minimum threshold).
+  /// A movie (`season == nil`) matches by id alone — there's a single resume point per movie, and
+  /// keying it by `episode` (derived from a flaky `videos.first.number`) doesn't round-trip reliably.
+  /// A series episode requires an exact `(season, episode)` match.
+  func entry(forId id: Int, season: Int?, episode: Int?) -> LocalWatchEntry? {
+    state.withLock { state in
+      let key = WatchRecord.key(itemID: id, season: season, episode: episode)
+      guard let record = state.records[key], record.watch.isResumable else { return nil }
+      return state.entry(for: record)
+    }
+  }
+
+  /// The newest resume point per title, most-recently-watched first. Includes finished
+  /// tombstones — Home's overlay needs them to hide a film / advance a series before the
+  /// server row refreshes.
+  func allEntries() -> [LocalWatchEntry] {
+    state.withLock { state in
+      var newest: [Int: WatchRecordValue] = [:]
+      for record in state.records.values where record.watch.state != .unwatched {
+        if let existing = newest[record.itemID], existing.updatedAt >= record.updatedAt { continue }
+        newest[record.itemID] = record
+      }
+      return newest.values
+        .sorted { $0.updatedAt > $1.updatedAt }
+        .compactMap { state.entry(for: $0) }
+    }
+  }
+
+  /// One resume point by its key — what `ViewerStateReader` asks for every card it paints,
+  /// so a lookup, not a scan. Finished ones included.
+  func record(itemID: Int, season: Int?, episode: Int?) -> WatchRecordValue? {
+    state.withLock { $0.records[WatchRecord.key(itemID: itemID, season: season, episode: episode)] }
+  }
+
+  /// Every resume point written for one title — each episode the player touched, not just
+  /// the newest. The detail page lays these over its payload.
+  /// Lays the player's local positions over a details payload. Only what was written
+  /// after the payload was requested counts: anything older the server has already seen
+  /// through `marktime` and answered with, and the payload is the better source for it.
+  /// The detail page and the Home hero both read Play's state through this, so their
+  /// Play buttons say the same thing. A position on a title kino.pub had as never
+  /// started (`watched == -1`) makes it started (`0`): the resume rule reads only
+  /// started ones, and the hero stayed on «Смотреть» after a minute of playback
+  /// (round 14, 2026-10-25). Returns whether anything changed.
+  @discardableResult
+  func layPositions(over item: inout MediaItem, writtenAfter requestedAt: Date) -> Bool {
+    let records = records(forItem: item.id).filter { $0.updatedAt > requestedAt }
+    var changed = false
+    for record in records {
+      let time = Int(record.position)
+      if let season = record.season {
+        guard let episode = item.seasons?
+          .first(where: { $0.number == season })?.episodes
+          .first(where: { $0.number == record.episode }),
+          episode.watching.time != time else { continue }
+        item.updateEpisode(id: episode.id) {
+          $0.watching = EpisodeWatching(status: $0.watching.status, time: time)
+          if $0.watched < 0, time > 0 { $0.watched = 0 }
+        }
+        changed = true
+      } else if var videos = item.videos, !videos.isEmpty {
+        let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex
+        guard videos[index].watching.time != time else { continue }
+        videos[index].watching = EpisodeWatching(status: videos[index].watching.status, time: time)
+        if videos[index].watched < 0, time > 0 { videos[index].watched = 0 }
+        item.videos = videos
+        changed = true
+      }
+    }
+    return changed
+  }
+
+  func records(forItem itemID: Int) -> [WatchRecordValue] {
+    state.withLock { $0.records.values.filter { $0.itemID == itemID } }
+  }
+
+  func clear(id: Int) {
+    let hadRecords = state.withLock { state in
+      let keys = state.records.values.filter { $0.itemID == id }.map(\.key)
+      keys.forEach { state.records[$0] = nil }
+      state.persistedSnapshotIDs.remove(id)
+      if !keys.isEmpty { writes.yield(.deleteAll(itemID: id)) }
+      return !keys.isEmpty
+    }
+    guard hadRecords else { return }
+    notify()
+  }
+
+  /// Every resume point and cached title payload — previous account's watch history.
+  func clearAll() {
+    state.withLock { state in
+      let itemIDs = Set(state.records.values.map(\.itemID)).union(state.snapshots.keys)
+      state = State()
+      // Inside the lock, as every other write (the rule above): queued after it, a record
+      // made in between was deleted on disk and kept in memory.
+      for id in itemIDs {
+        writes.yield(.deleteAll(itemID: id))
+      }
+    }
+    notify()
+  }
+
+  /// Returns once every write queued before it is on disk. Tests only.
+  func flush() async {
+    await withCheckedContinuation { writes.yield(.flush($0)) }
+  }
+
+  // MARK: - Writing
+
+  /// Returns false when there is no payload to draw a card from — the same rule as before.
+  private func write(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) -> Bool {
+    state.withLock { state in
+      guard state.snapshots[mediaId] != nil else { return false }
+      let value = WatchRecordValue(itemID: mediaId,
+                                   season: season,
+                                   episode: episode,
+                                   position: position,
+                                   duration: duration,
+                                   updatedAt: Date())
+      state.records[value.key] = value
+      writes.yield(.record(value))
+      if let payload = state.payloads[mediaId], state.persistedSnapshotIDs.insert(mediaId).inserted {
+        writes.yield(.snapshot(itemID: mediaId, payload: payload))
+      }
+      return true
+    }
+  }
+
+  // MARK: - Loading
+
+  /// Synchronous on purpose: Home paints Continue Watching from this on its first frame.
+  /// A throwaway context on this thread; the writer owns its own.
+  private static func load(from container: ModelContainer) -> State {
+    var state = State()
+    let context = ModelContext(container)
+    let decoder = JSONDecoder()
+    do {
+      for snapshot in try context.fetch(FetchDescriptor<TitleSnapshot>()) {
+        if let item = try? decoder.decode(MediaItem.self, from: snapshot.payload) {
+          state.snapshots[snapshot.itemID] = item
+          state.payloads[snapshot.itemID] = snapshot.payload
+          state.persistedSnapshotIDs.insert(snapshot.itemID)
+        }
+      }
+      for record in try context.fetch(FetchDescriptor<WatchRecord>()) {
+        let value = WatchRecordValue(itemID: record.itemID,
+                                     season: record.season,
+                                     episode: record.episode,
+                                     position: record.position,
+                                     duration: record.duration,
+                                     updatedAt: record.updatedAt)
+        state.records[value.key] = value
+      }
+    } catch {
+      Logger.app.error("LocalWatchProgressStore: load failed: \(error.localizedDescription)")
+    }
+    return state
+  }
+
+  /// The JSON file the store used before SwiftData, in `Documents/` (iOS/macOS only —
+  /// tvOS could never write it). Imported once, then deleted.
+  private static func importLegacyJSON(into state: inout State, writes: AsyncStream<Write>.Continuation) {
+    guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    else { return }
+    let url = documents.appendingPathComponent("local_watch_progress.json")
+    guard let data = try? Data(contentsOf: url) else { return }
+    defer { try? FileManager.default.removeItem(at: url) }
+    guard let legacy = try? JSONDecoder().decode([LocalWatchEntry].self, from: data) else { return }
+
+    for entry in legacy {
+      let value = WatchRecordValue(itemID: entry.id,
+                                   season: entry.season,
+                                   episode: entry.episode,
+                                   position: entry.position,
+                                   duration: entry.duration,
+                                   updatedAt: Date(timeIntervalSince1970: entry.updatedAt))
+      if let existing = state.records[value.key], existing.updatedAt >= value.updatedAt { continue }
+      state.records[value.key] = value
+      state.snapshots[entry.id] = entry.item
+      writes.yield(.record(value))
+      // Still in `init`: nothing else holds these items yet.
+      if let payload = try? JSONEncoder().encode(entry.item) {
+        state.payloads[entry.id] = payload
+        state.persistedSnapshotIDs.insert(entry.id)
+        writes.yield(.snapshot(itemID: entry.id, payload: payload))
+      }
+    }
+    Logger.app.info("LocalWatchProgressStore: imported \(legacy.count) legacy resume points")
+  }
+
+  private func notify() {
+    NotificationCenter.default.post(name: .localWatchProgressDidChange, object: nil)
+  }
+}

@@ -52,6 +52,6 @@ clients are often PKCE-only).
 
 ## Code
 
-- `Packages/KinoPubMetadata/.../MyAnimeList/MyAnimeListSource.swift`
+- `Packages/PiraticMetadata/.../MyAnimeList/MyAnimeListSource.swift`
 - `MyAnimeListCredentials.swift` — name-only resolution
 - Settings › Integrations › MyAnimeList — ratings toggle when a Client ID is present

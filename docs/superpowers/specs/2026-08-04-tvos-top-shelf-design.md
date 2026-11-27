@@ -32,7 +32,7 @@ Home / CW mutations
   ContentStore (.continueWatching)
         │  map MediaCard → TopShelfSnapshot
         ▼
-  TopShelfCache  ──UserDefaults(suiteName: group.com.soda.kinopub)──►  KinoPubTopShelf
+  TopShelfCache  ──UserDefaults(suiteName: group.com.soda.kinopub)──►  PiraticTopShelf
         │                                                              ContentProvider
         └── TVTopShelfContentProvider.topShelfContentDidChange()       (read-only)
                                                                               │
@@ -48,7 +48,7 @@ Home / CW mutations
 ### Targets & packaging
 
 - **Main app:** existing `com.soda.kinopub` multiplatform target. App Group entitlement added (harmless on non-tvOS; write path `#if os(tvOS)`).
-- **Extension:** new `KinoPubTopShelf` target, bundle id `com.soda.kinopub.topshelf`, tvOS-only, `NSExtensionPointIdentifier = com.apple.tv-top-shelf`, principal class = content provider. Embedded in the app for Apple TV builds only.
+- **Extension:** new `PiraticTopShelf` target, bundle id `com.soda.kinopub.topshelf`, tvOS-only, `NSExtensionPointIdentifier = com.apple.tv-top-shelf`, principal class = content provider. Embedded in the app for Apple TV builds only.
 
 ### App Group
 

@@ -29,7 +29,7 @@ non-commercial, open-source, experimental). Name the source commit in our commit
 | [metadata-sources.md](metadata-sources.md) | TMDB / KP / worker / others | Exact-title fallback rule; MDBList for ratings | S · P2 |
 | [architecture-concurrency.md](architecture-concurrency.md) | Stores, observation, Swift 6 | Swift 6 mode in packages, mutation generations | M · P2 |
 | [performance.md](performance.md) | Measuring perf | Landed — see [docs/engineering/performance.md](../engineering/performance.md) | — |
-| [liquid-glass-hig.md](liquid-glass-hig.md) | Glass, HIG | Check `kinoGlass` on older Apple TVs | S · P2 |
+| [liquid-glass-hig.md](liquid-glass-hig.md) | Glass, HIG | Check `piraticGlass` on older Apple TVs | S · P2 |
 | [watched-repos.md](watched-repos.md) | The 15 repos, per-topic matrix, update method | — | — |
 
 ## Upcoming

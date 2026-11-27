@@ -1,0 +1,2074 @@
+//
+//  MediaCardView.swift
+//
+//
+
+import Foundation
+import SwiftUI
+import KinoPubBackend
+import PiraticMedia
+import PiraticMetadata
+
+/// What a single-click / Select on the card does.
+public enum MediaCardPrimaryAction: String, Codable, Hashable, Sendable {
+  /// Push the title detail page (default catalog posters).
+  case openDetail
+  /// Fetch + open the player at the resume point (Continue Watching).
+  case play
+}
+
+/// Icon + value shown under a card title (collection watchers / views, etc.).
+public struct MediaCardCaptionStat: Hashable, Codable, Sendable {
+  public let systemImage: String
+  public let value: String
+
+  public init(systemImage: String, value: String) {
+    self.systemImage = systemImage
+    self.value = value
+  }
+}
+
+/// Everything a poster card needs to draw itself, so rows can be built from any
+/// endpoint's payload rather than only from a full `MediaItem`.
+public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
+  public let id: Int
+  public let posterURL: String
+  public let title: String
+  public let subtitle: String?
+  /// When this was watched, for history surfaces. **On the card, not beside it**: the
+  /// card is what `ContentStore` snapshots, so a date kept in a parallel map is lost
+  /// the moment page 1 is served from cache — which is what put a warm-cache history
+  /// list entirely into the "Earlier" section.
+  public let watchedAt: Date?
+  /// External catalogue scores. Prefer this over pulling fields off `MediaItem`.
+  public let scores: MediaScores
+
+  /// Convenience for call sites / Codable that still speak in loose doubles.
+  public var imdbRating: Double? { scores.imdb }
+  public var kinopoiskRating: Double? { scores.kinopoisk }
+
+  /// The combined score shown on the poster, or nil when neither source rated it.
+  public var rating: Rating? { scores.aggregate }
+  /// `WatchProgress.resumeFraction` — 0…1 while this video is in progress, nil
+  /// when unwatched or already finished. Do not re-threshold it in the view.
+  ///
+  /// TODO: a copy of viewer state, like `isWatched` — moves to `ViewerState` read at paint
+  /// time with the card's migration (docs/media-model.md step 4); not deprecated yet
+  /// because every card's chrome still paints from it.
+  public let progress: Double?
+  public let badge: String?
+
+  /// Wide artwork for the page behind the card, shown while it holds focus. Nil
+  /// falls back to whatever the card itself draws.
+  public let backdropURL: String?
+  /// kino.pub sent a `wide` field for this title — not a `/wide/` path derived from big/medium.
+  public let hasSpecifiedWideArtwork: Bool
+
+  /// The plot, for the focus preview.
+  public let overview: String?
+
+  /// When set the card renders wide instead of as a poster — used by Continue
+  /// Watching, where the artwork is an episode still.
+  public let landscapeImageURL: String?
+  /// Overlaid on a landscape card, e.g. "S2, E5 · 42 min".
+  public let overlayLabel: String?
+  /// The name of the video Play opens, for a title in several — a concert's next set. Continue
+  /// Watching shows it in place of the title while the card is focused (Sasha, 2026-10-26).
+  public let offeredName: String?
+  /// The still of the episode or video the card offers, when the card itself draws the
+  /// title's wide cover: shown in its place while the pointer is over the card (Sasha,
+  /// 2026-10-30).
+  public let hoverStillURL: String?
+
+  /// The title this card belongs to. For an episode card this is the series id;
+  /// for a normal poster it matches `id`.
+  public let itemID: Int
+  /// Episode/video number for `/v1/watching/toggle`. Nil when the card is just a poster.
+  public let video: Int?
+  /// Season number for series episodes. Nil for films.
+  public let season: Int?
+  /// How many seasons the series has that we know of: one, and it is the first, and the
+  /// card says «E2» / «2 серия» without the season (`EpisodeText`). Nil when unknown.
+  public let seasonCount: Int?
+  /// How many episodes in the series/season when known.
+  public let episodeCount: Int?
+  /// History media id for `/v1/history/clear-for-media`. Nil clears the whole item.
+  public let mediaID: Int?
+  /// Whether this video is already marked watched — drives the context-menu label.
+  public let isWatched: Bool
+  /// True for serials, so the context menu can say "Go to Show" rather than "Go to Movie".
+  public let isSeries: Bool
+  /// Title appears in `/v1/history` — context menu can offer Browse History.
+  public let isInHistory: Bool
+  /// Follow (a series' alone) and bookmark folders as this card knows them — the
+  /// payload's word, or today's state once `ContentStore` laid it over
+  /// (`withViewerState`). It is what the card paints; a menu or folder picker asks
+  /// `ViewerStateReader` for `ref` when it opens. Watched and progress are still their
+  /// own fields above.
+  public let viewerState: ViewerState
+  /// Item-level 4K / HDR when known from the catalogue payload (not device caps).
+  public let is4K: Bool
+  public let isHDR: Bool
+  public let isHD: Bool
+  public let is3D: Bool
+  public let hasClosedCaptions: Bool
+  /// Release year when known from the catalogue.
+  public let year: Int?
+  /// Last air year for a show that has ended. Nil while it is ongoing, for a film,
+  /// or when the listing never said. A caption of `2019–2024` needs both years.
+  public let yearEnd: Int?
+  /// Episodes of a followed series that are still unwatched (`/v1/watching/serials` → `new`),
+  /// when the payload says; nil for everything else. A poster's caption under the cover shows
+  /// it in place of the year.
+  public let unwatchedEpisodes: Int?
+  /// Runtime in seconds (film total, or episode when the card is an episode still).
+  public let durationSeconds: Int?
+  /// The title's genres as the media model has them, the primary first — facts, not
+  /// words. A caption names the primary at paint time (`primaryGenre(language:)`), and a
+  /// filter matches any of them.
+  public let genres: [Genre]
+  /// The first production country, as the source names it.
+  public let country: String?
+  /// Single-click / Select on the still. Continue Watching and Recently Watched
+  /// landscape use `.play`; the title under the still opens detail separately.
+  public let primaryAction: MediaCardPrimaryAction
+  /// Lock chip for content not on kino.pub («Нет на Кинопабе»). Artwork stays full
+  /// opacity — chip only. Not encoded; the rail / person page builds it every time.
+  public var unavailableNotice: String? = nil
+  /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
+  /// own thumbnail. Not encoded; the rail sets it every time.
+  public var fallbackLandscapeURL: String? = nil
+  /// Continue Watching sneak-peek secondary line when genre is not the right answer —
+  /// «В закладках» / «Недосмотрено». Not encoded; set when the card is drawn.
+  public var continuePeekHint: String? = nil
+  /// When true, Select opens a curated collection rather than a media title — Home /
+  /// Collections grids use this so collection ids are not mistaken for item ids.
+  public let opensCollection: Bool
+  /// Icon + counter stack under the title (watchers / views on collection covers).
+  public let captionStats: [MediaCardCaptionStat]
+  /// kino.pub's numeric IMDb and Kinopoisk ids, so a card can be looked up in external
+  /// metadata (the Home banner's title logo) without fetching the item first.
+  public let imdbID: Int?
+  public let kinopoiskID: Int?
+
+  public var isLandscape: Bool { landscapeImageURL != nil }
+
+  /// What the focus backdrop draws: the wide artwork where the payload carried one,
+  /// the card's own image otherwise.
+  public var backdropImageURL: String {
+    backdropURL ?? landscapeImageURL ?? posterURL
+  }
+
+  /// Whether a long-press  can toggle watched for this card (needs a video target).
+  public var canToggleWatched: Bool { video != nil }
+
+  /// Score for the plaque / caption, honouring the user's source preference.
+  public func displayRating(source: MediaCardRatingSource) -> Rating? {
+    scores.selecting(source).aggregate
+  }
+
+  /// Scores filtered to the user's source preference (for `MediaScoresView`).
+  public func displayScores(source: MediaCardRatingSource) -> MediaScores {
+    scores.selecting(source)
+  }
+
+  /// Compact runtime for captions when `durationSeconds` is set.
+  public var durationLabel: String? {
+    guard let durationSeconds, durationSeconds >= 60 else { return nil }
+    return RuntimeText(seconds: durationSeconds).formatted(.short)
+  }
+
+  /// One genre, the primary, in the viewer's language — what a caption has room for (D7).
+  public func primaryGenre(language: MediaLanguage = .current) -> String? {
+    genres.first.map { $0.name.value(languageCode: language.rawValue) }
+  }
+
+  /// «3 сезона» for a series whose season count is known; nil for a film and for a listed
+  /// series, whose payload carries no seasons.
+  public func seasonCountText(language: MediaLanguage = .current) -> String? {
+    guard isSeries else { return nil }
+    return SeasonCountText(seasonCount)?.formatted(language: language)
+  }
+
+  /// A film's year, an ongoing series' year, or `2019–2024` once a show has ended
+  /// in a later year. Same year twice is just the year.
+  public var yearLabel: String? {
+    if isSeries, let start = year, let end = yearEnd, end > start {
+      return "\(start)–\(end)"
+    }
+    return year.map(String.init)
+  }
+
+  /// `Год Жанр` / `2019–2024 Жанр` — the line under a cover in a catalog grid
+  /// (search, collections, person credits, Library bookmarks). Year first so
+  /// titles of the same genre sort by eye; an ended series keeps its span.
+  ///
+  /// A concert says the tour instead of the genre: kino.pub's title is
+  /// "Artist / The Eras Tour", and the half after "/" is that continuation.
+  /// `omittingGenreIDs` is the section the cover is already in (documentary,
+  /// anime, animation), so the line names the next genre rather than repeating it.
+  public func catalogCaption(language: MediaLanguage = .current,
+                             omittingGenreIDs: Set<String> = []) -> String? {
+    switch (yearLabel, catalogDetail(language: language, omittingGenreIDs: omittingGenreIDs)) {
+    case let (year?, detail?): return "\(year) \(detail)"
+    case let (year?, nil): return year
+    case let (nil, detail?): return detail
+    default: return nil
+    }
+  }
+
+  /// The words after the year: a concert's tour, otherwise one genre.
+  func catalogDetail(language: MediaLanguage = .current,
+                     omittingGenreIDs: Set<String> = []) -> String? {
+    if let tour = concertContinuation { return tour }
+    let genre = omittingGenreIDs.isEmpty
+      ? genres.first
+      : genres.first { !omittingGenreIDs.contains($0.id) }
+    return genre?.name.value(languageCode: language.rawValue)
+  }
+
+  /// "Artist / The Eras Tour" — the card's title is the artist, `subtitle` the tour.
+  /// A film's subtitle is a translation, so this stays nil unless the genres are music
+  /// (or the title is filed as a concert and nothing else).
+  private var concertContinuation: String? {
+    guard genres.contains(where: { $0.domain == .music || $0.id == "concert" }) else { return nil }
+    guard let subtitle = subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !subtitle.isEmpty,
+          subtitle.caseInsensitiveCompare(title) != .orderedSame else { return nil }
+    return subtitle
+  }
+
+  /// Finds the primary meaningful genre, skipping obvious generic categories (anime, animation, cartoon).
+  public func usefulGenre(language: MediaLanguage = .current) -> String? {
+    usefulGenres(limit: 1, language: language).first
+  }
+
+  /// Up to `limit` genres in kino.pub's order, the generic anime / cartoon ones skipped;
+  /// the primary genre when every one is generic.
+  /// The word for a series: «Мультсериал» or «Аниме-сериал» when its genres say so, as
+  /// kino.pub's own rows name them, else «Сериал» (Sasha, 2026-11-04). The genre it stands
+  /// for is already left out of `usefulGenres`, so the line never says it twice.
+  public var seriesKindKey: String {
+    func has(_ keys: [String]) -> Bool {
+      genres.contains { genre in
+        let names = [genre.id, genre.name.ru, genre.name.en].map { $0.lowercased() }
+        return keys.contains { key in names.contains { $0.contains(key) } }
+      }
+    }
+    if has(["anime", "аниме"]) { return "Kind_animeSeries_One" }
+    if has(["animation", "анимация", "мультфильм", "cartoon"]) { return "Kind_animatedSeries_One" }
+    if has(Self.documentaryKeywords) { return "Kind_documentarySeries_One" }
+    return "Kind_series_One"
+  }
+
+  static let documentaryKeywords = ["documentary", "документальн"]
+
+  /// `usefulGenres` for a line that already says «Документальный сериал»: without the
+  /// documentary genre, which it would only repeat.
+  public func usefulGenres(limit: Int, omittingDocumentary: Bool,
+                           language: MediaLanguage = .current) -> [String] {
+    guard omittingDocumentary else { return usefulGenres(limit: limit, language: language) }
+    let documentary = Set(genres.filter { genre in
+      let names = [genre.id, genre.name.ru, genre.name.en].map { $0.lowercased() }
+      return Self.documentaryKeywords.contains { key in names.contains { $0.contains(key) } }
+    }.map { $0.name.value(languageCode: language.rawValue) })
+    return usefulGenres(limit: limit + documentary.count, language: language)
+      .filter { !documentary.contains($0) }
+      .prefix(limit)
+      .map { $0 }
+  }
+
+  public func usefulGenres(limit: Int, language: MediaLanguage = .current) -> [String] {
+    let genericKeywords = ["anime", "аниме", "animation", "анимация", "мультфильм", "мультфильмы", "cartoon"]
+    let useful = genres.filter { genre in
+      let id = genre.id.lowercased()
+      let ru = genre.name.ru.lowercased()
+      let en = genre.name.en.lowercased()
+      return !genericKeywords.contains { id.contains($0) || ru.contains($0) || en.contains($0) }
+    }
+    .prefix(limit)
+    .map { $0.name.value(languageCode: language.rawValue) }
+    .filter { !$0.isEmpty }
+    if !useful.isEmpty { return Array(useful) }
+    return primaryGenre(language: language).map { [$0] } ?? []
+  }
+
+  /// Duration or volume line for banner:
+  /// - Series with 2+ seasons: "2 сезона" / "2 seasons"
+  /// - Series with 1 season: episode count "8 серий" / "8 episodes", when known
+  /// - Series without counts (a shelf payload): nothing
+  /// - Film: runtime (e.g. "135 мин")
+  public func bannerDurationText(language: MediaLanguage = .current) -> String? {
+    if isSeries {
+      // A shelf payload carries no seasons: say nothing rather than guess a count.
+      if let seasons = seasonCount, seasons > 1 {
+        return SeasonCountText(seasons)?.formatted(language: language)
+      }
+      guard let episodes = episodeCount else { return nil }
+      return EpisodesLeftText(episodes)?.formatted(language: language)
+    } else {
+      return durationLabel
+    }
+  }
+
+  /// Formats year/span for banner: 2026, 2024–26.
+  public var bannerYearSpan: String? {
+    guard let start = year else { return nil }
+    if isSeries, let end = yearEnd, end > start {
+      if start / 100 == end / 100 {
+        return "\(start)–\(String(format: "%02d", end % 100))"
+      } else {
+        return "\(start)–\(end)"
+      }
+    }
+    return String(start)
+  }
+
+  /// Exact-geometry placeholder card for skeleton rows.
+  public static func placeholder(id: Int = -1) -> MediaCard {
+    MediaCard(
+      id: id,
+      posterURL: "",
+      title: "",
+      overview: nil
+    )
+  }
+
+  public init(id: Int,
+              posterURL: String,
+              title: String,
+              subtitle: String? = nil,
+              watchedAt: Date? = nil,
+              scores: MediaScores? = nil,
+              imdbRating: Double? = nil,
+              imdbVotes: Int? = nil,
+              kinopoiskRating: Double? = nil,
+              kinopoiskVotes: Int? = nil,
+              progress: Double? = nil,
+              badge: String? = nil,
+              backdropURL: String? = nil,
+              hasSpecifiedWideArtwork: Bool = false,
+              overview: String? = nil,
+              landscapeImageURL: String? = nil,
+              overlayLabel: String? = nil,
+              offeredName: String? = nil,
+              hoverStillURL: String? = nil,
+              itemID: Int? = nil,
+              video: Int? = nil,
+              season: Int? = nil,
+              seasonCount: Int? = nil,
+              episodeCount: Int? = nil,
+              mediaID: Int? = nil,
+              isWatched: Bool = false,
+              isSeries: Bool = false,
+              isInHistory: Bool = false,
+              viewerState: ViewerState = .unknown,
+              is4K: Bool = false,
+              isHDR: Bool = false,
+              isHD: Bool = false,
+              is3D: Bool = false,
+              hasClosedCaptions: Bool = false,
+              year: Int? = nil,
+              yearEnd: Int? = nil,
+              unwatchedEpisodes: Int? = nil,
+              durationSeconds: Int? = nil,
+              genres: [Genre] = [],
+              country: String? = nil,
+              primaryAction: MediaCardPrimaryAction = .openDetail,
+              opensCollection: Bool = false,
+              captionStats: [MediaCardCaptionStat] = [],
+              imdbID: Int? = nil,
+              kinopoiskID: Int? = nil) {
+    self.id = id
+    self.posterURL = posterURL
+    self.title = title
+    self.subtitle = subtitle
+    self.watchedAt = watchedAt
+    self.scores = scores ?? MediaScores(
+      imdb: imdbRating,
+      imdbVotes: imdbVotes,
+      kinopoisk: kinopoiskRating,
+      kinopoiskVotes: kinopoiskVotes
+    )
+    self.progress = progress
+    self.badge = badge
+    self.backdropURL = backdropURL
+    self.hasSpecifiedWideArtwork = hasSpecifiedWideArtwork
+    self.overview = overview
+    self.landscapeImageURL = landscapeImageURL
+    self.overlayLabel = overlayLabel
+    self.offeredName = offeredName
+    self.hoverStillURL = hoverStillURL
+    self.itemID = itemID ?? id
+    self.video = video
+    self.season = season
+    self.seasonCount = seasonCount
+    self.episodeCount = episodeCount
+    self.mediaID = mediaID
+    self.isWatched = isWatched
+    self.isSeries = isSeries
+    self.isInHistory = isInHistory
+    self.viewerState = viewerState
+    self.is4K = is4K
+    self.isHDR = isHDR
+    self.isHD = isHD
+    self.is3D = is3D
+    self.hasClosedCaptions = hasClosedCaptions
+    self.year = year
+    self.yearEnd = yearEnd
+    self.unwatchedEpisodes = unwatchedEpisodes
+    self.durationSeconds = durationSeconds
+    self.genres = genres
+    self.country = country
+    self.primaryAction = primaryAction
+    self.opensCollection = opensCollection
+    self.captionStats = captionStats
+    self.imdbID = imdbID
+    self.kinopoiskID = kinopoiskID
+  }
+
+  /// Continue Watching paint-time overlay: progress / offered S/E change without
+  /// rebuilding the rest of the card (artwork, badges, identity).
+  public func withContinueWatching(progress: Double?,
+                                   season: Int?,
+                                   video: Int?,
+                                   overlayLabel: String?,
+                                   durationSeconds: Int? = nil) -> MediaCard {
+    var card = MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
+              itemID: itemID,
+              video: video,
+              season: season,
+              seasonCount: seasonCount,
+              episodeCount: episodeCount,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              viewerState: viewerState,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              yearEnd: yearEnd,
+              unwatchedEpisodes: unwatchedEpisodes,
+              durationSeconds: durationSeconds ?? self.durationSeconds,
+              genres: genres,
+              country: country,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
+    card.continuePeekHint = continuePeekHint
+    card.fallbackLandscapeURL = fallbackLandscapeURL
+    card.unavailableNotice = unavailableNotice
+    return card
+  }
+
+  public func withBackdropURL(_ backdropURL: String?) -> MediaCard {
+    MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL ?? self.backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
+              itemID: itemID,
+              video: video,
+              season: season,
+              seasonCount: seasonCount,
+              episodeCount: episodeCount,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              viewerState: viewerState,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              yearEnd: yearEnd,
+              unwatchedEpisodes: unwatchedEpisodes,
+              durationSeconds: durationSeconds,
+              genres: genres,
+              country: country,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
+  }
+
+  /// Prefer the worker's `/img/poster/by/kinopub/{id}` over the listing's
+  /// staticpop URL (person filmography matched titles — Sasha, 2026-11-26).
+  public func withPosterURL(_ posterURL: String) -> MediaCard {
+    var card = MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
+              itemID: itemID,
+              video: video,
+              season: season,
+              seasonCount: seasonCount,
+              episodeCount: episodeCount,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              viewerState: viewerState,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              yearEnd: yearEnd,
+              unwatchedEpisodes: unwatchedEpisodes,
+              durationSeconds: durationSeconds,
+              genres: genres,
+              country: country,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
+    card.continuePeekHint = continuePeekHint
+    card.fallbackLandscapeURL = fallbackLandscapeURL
+    card.unavailableNotice = unavailableNotice
+    return card
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decode(Int.self, forKey: .id)
+    posterURL = try c.decode(String.self, forKey: .posterURL)
+    title = try c.decode(String.self, forKey: .title)
+    subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
+    watchedAt = try c.decodeIfPresent(Date.self, forKey: .watchedAt)
+    scores = MediaScores(
+      imdb: try c.decodeIfPresent(Double.self, forKey: .imdbRating),
+      imdbVotes: try c.decodeIfPresent(Int.self, forKey: .imdbVotes),
+      kinopoisk: try c.decodeIfPresent(Double.self, forKey: .kinopoiskRating),
+      kinopoiskVotes: try c.decodeIfPresent(Int.self, forKey: .kinopoiskVotes)
+    )
+    progress = try c.decodeIfPresent(Double.self, forKey: .progress)
+    badge = try c.decodeIfPresent(String.self, forKey: .badge)
+    backdropURL = try c.decodeIfPresent(String.self, forKey: .backdropURL)
+    hasSpecifiedWideArtwork = try c.decodeIfPresent(Bool.self, forKey: .hasSpecifiedWideArtwork) ?? false
+    overview = try c.decodeIfPresent(String.self, forKey: .overview)
+    landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
+    overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
+    offeredName = try c.decodeIfPresent(String.self, forKey: .offeredName)
+    hoverStillURL = try c.decodeIfPresent(String.self, forKey: .hoverStillURL)
+    itemID = try c.decodeIfPresent(Int.self, forKey: .itemID) ?? id
+    video = try c.decodeIfPresent(Int.self, forKey: .video)
+    season = try c.decodeIfPresent(Int.self, forKey: .season)
+    seasonCount = try c.decodeIfPresent(Int.self, forKey: .seasonCount)
+    episodeCount = try c.decodeIfPresent(Int.self, forKey: .episodeCount)
+    mediaID = try c.decodeIfPresent(Int.self, forKey: .mediaID)
+    isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
+    isSeries = try c.decodeIfPresent(Bool.self, forKey: .isSeries) ?? false
+    isInHistory = try c.decodeIfPresent(Bool.self, forKey: .isInHistory) ?? false
+    is4K = try c.decodeIfPresent(Bool.self, forKey: .is4K) ?? false
+    isHDR = try c.decodeIfPresent(Bool.self, forKey: .isHDR) ?? false
+    isHD = try c.decodeIfPresent(Bool.self, forKey: .isHD) ?? false
+    is3D = try c.decodeIfPresent(Bool.self, forKey: .is3D) ?? false
+    hasClosedCaptions = try c.decodeIfPresent(Bool.self, forKey: .hasClosedCaptions) ?? false
+    year = try c.decodeIfPresent(Int.self, forKey: .year)
+    yearEnd = try c.decodeIfPresent(Int.self, forKey: .yearEnd)
+    unwatchedEpisodes = try c.decodeIfPresent(Int.self, forKey: .unwatchedEpisodes)
+    durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
+    if let genres = try c.decodeIfPresent([Genre].self, forKey: .genres) {
+      self.genres = genres
+    } else if let line = try c.decodeIfPresent(String.self, forKey: .genreLine),
+              let name = line.components(separatedBy: ", ").first, !name.isEmpty {
+      // A card written before genres were facts kept the primary's name only.
+      self.genres = [Genre.unmapped(source: .kinopub, key: name, name: name, domain: .video)]
+    } else {
+      self.genres = []
+    }
+    country = try c.decodeIfPresent(String.self, forKey: .country)
+      ?? c.decodeIfPresent(String.self, forKey: .countryLine)
+    if let state = try c.decodeIfPresent(ViewerState.self, forKey: .viewerState) {
+      viewerState = state
+    } else {
+      // A card written before the three copies became one value.
+      let following = try c.decodeIfPresent(Bool.self, forKey: .isInWatchlist)
+      let folders = try c.decodeIfPresent([Int].self, forKey: .bookmarkFolderIDs) ?? []
+      viewerState = ViewerState(isFollowing: isSeries ? following : nil,
+                                bookmarkFolderIDs: folders.isEmpty ? nil : Set(folders))
+    }
+    // Old row snapshots omit this key — keep opening detail until the next CW fetch.
+    primaryAction = try c.decodeIfPresent(MediaCardPrimaryAction.self, forKey: .primaryAction)
+      ?? .openDetail
+    opensCollection = try c.decodeIfPresent(Bool.self, forKey: .opensCollection) ?? false
+    captionStats = try c.decodeIfPresent([MediaCardCaptionStat].self, forKey: .captionStats) ?? []
+    imdbID = try c.decodeIfPresent(Int.self, forKey: .imdbID)
+    kinopoiskID = try c.decodeIfPresent(Int.self, forKey: .kinopoiskID)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(posterURL, forKey: .posterURL)
+    try c.encode(title, forKey: .title)
+    try c.encodeIfPresent(subtitle, forKey: .subtitle)
+    try c.encodeIfPresent(watchedAt, forKey: .watchedAt)
+    try c.encodeIfPresent(scores.imdb, forKey: .imdbRating)
+    try c.encodeIfPresent(scores.imdbVotes, forKey: .imdbVotes)
+    try c.encodeIfPresent(scores.kinopoisk, forKey: .kinopoiskRating)
+    try c.encodeIfPresent(scores.kinopoiskVotes, forKey: .kinopoiskVotes)
+    try c.encodeIfPresent(progress, forKey: .progress)
+    try c.encodeIfPresent(badge, forKey: .badge)
+    try c.encodeIfPresent(backdropURL, forKey: .backdropURL)
+    try c.encode(hasSpecifiedWideArtwork, forKey: .hasSpecifiedWideArtwork)
+    try c.encodeIfPresent(overview, forKey: .overview)
+    try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
+    try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
+    try c.encodeIfPresent(offeredName, forKey: .offeredName)
+    try c.encodeIfPresent(hoverStillURL, forKey: .hoverStillURL)
+    try c.encode(itemID, forKey: .itemID)
+    try c.encodeIfPresent(video, forKey: .video)
+    try c.encodeIfPresent(season, forKey: .season)
+    try c.encodeIfPresent(seasonCount, forKey: .seasonCount)
+    try c.encodeIfPresent(episodeCount, forKey: .episodeCount)
+    try c.encodeIfPresent(mediaID, forKey: .mediaID)
+    try c.encode(isWatched, forKey: .isWatched)
+    try c.encode(isSeries, forKey: .isSeries)
+    try c.encode(isInHistory, forKey: .isInHistory)
+    try c.encode(is4K, forKey: .is4K)
+    try c.encode(isHDR, forKey: .isHDR)
+    try c.encode(isHD, forKey: .isHD)
+    try c.encode(is3D, forKey: .is3D)
+    try c.encode(hasClosedCaptions, forKey: .hasClosedCaptions)
+    try c.encodeIfPresent(year, forKey: .year)
+    try c.encodeIfPresent(yearEnd, forKey: .yearEnd)
+    try c.encodeIfPresent(unwatchedEpisodes, forKey: .unwatchedEpisodes)
+    try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+    try c.encode(genres, forKey: .genres)
+    try c.encodeIfPresent(country, forKey: .country)
+    try c.encode(viewerState, forKey: .viewerState)
+    try c.encode(primaryAction, forKey: .primaryAction)
+    try c.encode(opensCollection, forKey: .opensCollection)
+    try c.encode(captionStats, forKey: .captionStats)
+    try c.encodeIfPresent(imdbID, forKey: .imdbID)
+    try c.encodeIfPresent(kinopoiskID, forKey: .kinopoiskID)
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
+    case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
+    case landscapeImageURL, overlayLabel, offeredName, hoverStillURL, itemID, video, season, seasonCount, episodeCount, mediaID
+    case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
+    case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
+    case genres, country, primaryAction
+    case opensCollection, captionStats, imdbID, kinopoiskID
+    /// Read from cards written before `viewerState` and `genres`, never written.
+    case isInWatchlist, bookmarkFolderIDs, genreLine, countryLine
+  }
+}
+
+public extension MediaCard {
+  /// The standard mapping from a catalog item, so grids and rows draw the same card:
+  /// the payload into the media model (`KinoPubMediaMapping`), then the model's card
+  /// (`MediaCard(ref:entity:state:)`).
+  init(_ item: MediaItem) {
+    self.init(ref: item.titleRef, entity: item.mediaEntity, state: ViewerState(reportedBy: item))
+  }
+}
+
+/// Where a card's name is drawn, if anywhere.
+public enum MediaCardCaption {
+  /// Never — the screen names the focused item somewhere else, as the home rows do
+  /// in their preview.
+  case none
+  /// Only while the card holds focus, over space kept free for it so the grid does
+  /// not shift as focus moves. What a grid with no preview of its own uses.
+  case onFocus
+  /// Always, for platforms with no focus at all.
+  case always
+}
+
+private struct CatalogCaptionOmittedGenreIDsKey: EnvironmentKey {
+  static let defaultValue: Set<String> = []
+}
+
+public extension EnvironmentValues {
+  /// Genre ids the catalog listing already is — documentary, anime, animation —
+  /// so a cover's caption names the next genre instead of repeating the section.
+  var catalogCaptionOmittedGenreIDs: Set<String> {
+    get { self[CatalogCaptionOmittedGenreIDsKey.self] }
+    set { self[CatalogCaptionOmittedGenreIDsKey.self] = newValue }
+  }
+}
+
+/// Poster or landscape card. Width comes from the parent (`containerRelativeFrame` /
+/// grid column); height from `CardAspect`. Landscape cards follow the episode-rail
+/// layout: play glyph + progress on the still, title / meta in the caption below —
+/// no ⋯ overflow control on the card (long-press context menu only).
+///
+/// Behavioural identity: same focus animation, caption reveal, progress semantics,
+/// watched treatment and existing badge slots; only aspect and which slots have
+/// content differ. New badge slots (editorial awards etc.) wait on design (D10).
+public struct MediaCardView: View {
+
+  private let card: MediaCard
+  private let caption: MediaCardCaption
+  /// When false, only the caption is drawn — sibling still owns Play (CW / History split).
+  private let showsArtwork: Bool
+  private let playChromeStyle: LandscapePlayChromeStyle
+  /// When true, play chrome stays visible (previews / VariantGallery).
+  private let forcePlayChrome: Bool
+  /// What the play chrome is: our glass Play, or YouTube's own button for a card that
+  /// opens YouTube (the title page's videos).
+  private let playGlyph: LandscapePlayGlyph
+
+  public init(card: MediaCard,
+              caption: MediaCardCaption = .always,
+              showsArtwork: Bool = true,
+              playChromeStyle: LandscapePlayChromeStyle = .glass,
+              forcePlayChrome: Bool = false,
+              playGlyph: LandscapePlayGlyph = .play) {
+    self.card = card
+    self.caption = caption
+    self.showsArtwork = showsArtwork
+    self.playChromeStyle = playChromeStyle
+    self.forcePlayChrome = forcePlayChrome
+    self.playGlyph = playGlyph
+  }
+
+  @Environment(\.isFocused) private var cardFocused
+#if !os(tvOS)
+  @State private var isHovered = false
+  /// Pointer over the unwatched count chip — expands «2» → «2 серии» without hiding it.
+  @State private var badgeHovered = false
+#endif
+
+  /// A watched card's artwork sits dimmed, and on macOS hovering it restores it to full.
+  /// `isHovered` only exists there — there is no pointer on tvOS or iOS — so the dim is
+  /// simply constant off macOS rather than reading a state that does not compile.
+  /// Unavailable titles (episode stills and filmography) keep full opacity — the lock
+  /// chip says so; washing the art reads as broken (Sasha, 2026-10-30 / 2026-11-26).
+  private var watchedArtworkOpacity: Double {
+    guard dimsWatchedArtwork else { return 1 }
+#if os(macOS)
+    return isHovered ? 1 : 0.5
+#else
+    return 0.5
+#endif
+  }
+  /// The artwork's own width, so its height is derived rather than negotiated. Nil for
+  /// exactly one layout pass; `frame(height: nil)` leaves the natural size meanwhile.
+  @State private var artworkWidth: CGFloat?
+
+  @AppStorage(MediaCardDisplayPreferences.ratingPlacementKey)
+  private var ratingPlacementRaw = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
+  @AppStorage(MediaCardDisplayPreferences.ratingSourceKey)
+  private var ratingSourceRaw = MediaCardDisplayPreferences.defaultRatingSource.rawValue
+  @AppStorage(MediaCardDisplayPreferences.ratingVisibilityKey)
+  private var ratingVisibilityRaw = MediaCardDisplayPreferences.defaultRatingVisibility.rawValue
+  @AppStorage(MediaCardDisplayPreferences.showVoteCountKey)
+  private var showVoteCount = MediaCardDisplayPreferences.defaultShowVoteCount
+  @AppStorage(MediaCardDisplayPreferences.showIMDbRatingKey)
+  private var showIMDbRating = MediaCardDisplayPreferences.defaultShowIMDbRating
+  @AppStorage(MediaCardDisplayPreferences.showKinopoiskRatingKey)
+  private var showKinopoiskRating = MediaCardDisplayPreferences.defaultShowKinopoiskRating
+  @AppStorage(MediaCardDisplayPreferences.sortRatingsByVotesKey)
+  private var sortRatingsByVotes = MediaCardDisplayPreferences.defaultSortRatingsByVotes
+  @AppStorage(MediaCardDisplayPreferences.fadedRatingIconsKey)
+  private var fadedRatingIcons = MediaCardDisplayPreferences.defaultFadedRatingIcons
+  @AppStorage(MediaCardDisplayPreferences.capabilityPlacementKey)
+  private var capabilityPlacementRaw = MediaCardDisplayPreferences.defaultCapabilityPlacement.rawValue
+  @AppStorage(MediaCardDisplayPreferences.show4KKey)
+  private var show4K = MediaCardDisplayPreferences.defaultShow4K
+  @AppStorage(MediaCardDisplayPreferences.showHDRKey)
+  private var showHDR = MediaCardDisplayPreferences.defaultShowHDR
+  @AppStorage(MediaCardDisplayPreferences.showHDKey)
+  private var showHD = MediaCardDisplayPreferences.defaultShowHD
+  @AppStorage(MediaCardDisplayPreferences.show3DKey)
+  private var show3D = MediaCardDisplayPreferences.defaultShow3D
+  @AppStorage(MediaCardDisplayPreferences.showCCKey)
+  private var showCC = MediaCardDisplayPreferences.defaultShowCC
+  @AppStorage(MediaCardDisplayPreferences.editorialPlacementKey)
+  private var editorialPlacementRaw = MediaCardDisplayPreferences.defaultEditorialPlacement.rawValue
+  @AppStorage(MediaCardDisplayPreferences.showOriginalTitleKey)
+  private var showOriginalTitle = MediaCardDisplayPreferences.defaultShowOriginalTitle
+  @AppStorage(MediaCardDisplayPreferences.showYearKey)
+  private var showYear = MediaCardDisplayPreferences.defaultShowYear
+  @AppStorage(MediaCardDisplayPreferences.showDurationKey)
+  private var showDuration = MediaCardDisplayPreferences.defaultShowDuration
+  @AppStorage(MediaCardDisplayPreferences.showGenreKey)
+  private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
+  @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
+  @Environment(\.mediaCardTitleFont) private var titleFont
+  @Environment(\.titleImageRoute) private var titleImageRoute
+  @AppStorage(MediaCardDisplayPreferences.showCountryKey)
+  private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
+  @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
+  private var showBookmarkSymbol = MediaCardDisplayPreferences.defaultShowBookmarkSymbol
+  @Environment(\.hidesMediaCardBookmarkSymbol) private var hidesBookmarkSymbol
+  @AppStorage(MediaCardDisplayPreferences.progressVisibilityKey)
+  private var progressVisibilityRaw = MediaCardDisplayPreferences.defaultProgressVisibility.rawValue
+  @AppStorage(MediaCardDisplayPreferences.watchedStyleKey)
+  private var watchedStyleRaw = MediaCardDisplayPreferences.defaultWatchedStyle.rawValue
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
+
+  private var ratingPlacement: MediaCardChromePlacement {
+    MediaCardChromePlacement(rawValue: ratingPlacementRaw)
+      ?? MediaCardDisplayPreferences.defaultRatingPlacement
+  }
+  private var ratingSource: MediaCardRatingSource {
+    // With the aggregate off there is no source picker in Settings either, so every
+    // card shows whatever it has, each score under its own logo.
+    guard RatingFeature.combinedEnabled else { return .combined }
+    return MediaCardRatingSource(rawValue: ratingSourceRaw)
+      ?? MediaCardDisplayPreferences.defaultRatingSource
+  }
+  private var ratingVisibility: MediaCardRatingVisibility {
+    MediaCardRatingVisibility(rawValue: ratingVisibilityRaw)
+      ?? MediaCardDisplayPreferences.defaultRatingVisibility
+  }
+  private var capabilityPlacement: MediaCardChromePlacement {
+    MediaCardChromePlacement(rawValue: capabilityPlacementRaw)
+      ?? MediaCardDisplayPreferences.defaultCapabilityPlacement
+  }
+  private var editorialPlacement: MediaCardChromePlacement {
+    MediaCardChromePlacement(rawValue: editorialPlacementRaw)
+      ?? MediaCardDisplayPreferences.defaultEditorialPlacement
+  }
+  private var watchedStyle: MediaCardWatchedStyle {
+    MediaCardWatchedStyle(rawValue: watchedStyleRaw)
+      ?? MediaCardDisplayPreferences.defaultWatchedStyle
+  }
+  private var progressVisibility: MediaCardProgressVisibility {
+    MediaCardProgressVisibility(rawValue: progressVisibilityRaw)
+      ?? MediaCardDisplayPreferences.defaultProgressVisibility
+  }
+
+  private var aspect: CardAspect { card.isLandscape ? .landscape : .poster }
+
+  private var playsOnSelect: Bool { card.primaryAction == .play }
+
+  private var activeRating: Rating? {
+    card.displayRating(source: ratingSource)
+  }
+
+  private var filteredCapabilityBadges: MediaCapabilityBadges {
+    MediaCapabilityBadges(
+      is4K: show4K && card.is4K,
+      isHD: showHD && card.isHD,
+      isHDR: showHDR && card.isHDR,
+      is3D: show3D && card.is3D,
+      hasClosedCaptions: showCC && card.hasClosedCaptions
+    )
+  }
+
+  private var capabilityChips: [String] {
+    var chips: [String] = []
+    let badges = filteredCapabilityBadges
+    if badges.is4K { chips.append("4K") }
+    else if badges.isHD { chips.append("HD") }
+    if badges.isHDR { chips.append("HDR") }
+    if badges.is3D { chips.append("3D") }
+    if badges.hasClosedCaptions { chips.append("CC") }
+    return chips
+  }
+
+  private var captionMetaParts: [String] {
+    var parts: [String] = []
+    // Duration lives on landscape artwork (Apple-style time chip), not in the caption.
+    if showYear, showGenre,
+       let caption = card.catalogCaption(omittingGenreIDs: omittedGenreIDs) {
+      parts.append(caption)
+    } else {
+      if showYear, let year = card.yearLabel {
+        parts.append(year)
+      }
+      if showGenre, let detail = card.catalogDetail(omittingGenreIDs: omittedGenreIDs) {
+        parts.append(detail)
+      }
+    }
+    if showCountry, let country = card.country, !country.isEmpty {
+      parts.append(country)
+    }
+    return parts
+  }
+
+  private var captionScores: MediaScores {
+    // With the aggregate off there is no source picker — show whatever we have.
+    let base: MediaScores
+    if RatingFeature.combinedEnabled {
+      base = card.displayScores(source: ratingSource)
+    } else {
+      base = card.scores
+    }
+    return base.filteringPosterSources(imdb: showIMDbRating, kinopoisk: showKinopoiskRating)
+  }
+
+  private var showsRatingChrome: Bool {
+    guard ratingPlacement != .hidden || !RatingFeature.combinedEnabled else { return false }
+    switch ratingVisibility {
+    case .always:
+      break
+    case .onFocusHover:
+      if !isPointerActive { return false }
+    case .hotOnly:
+      guard let rating = activeRating,
+            rating.tier == .good || rating.tier == .awarded else { return false }
+    }
+    return true
+  }
+
+  private var showsCaptionScores: Bool {
+    guard !card.isLandscape else { return false }
+    guard captionScores.hasDisplayableScore else { return false }
+    // Labelled scores are the only rating a card has while the aggregate is off —
+    // they are not the "Under title" branch of a setting that is no longer shown.
+    guard RatingFeature.combinedEnabled else { return showsRatingChrome }
+    return ratingPlacement == .inCaption && showsRatingChrome
+  }
+
+  private var showsArtworkRatingBadge: Bool {
+    guard RatingFeature.combinedEnabled else { return false }
+    guard ratingPlacement == .onArtwork else { return false }
+    guard showsRatingChrome else { return false }
+    return activeRating != nil
+  }
+
+  /// Reserve the on-poster badge footprint when a lock chip is present but this title
+  /// has no score — neighbours with badges must not shove the chip upward.
+  private var showsArtworkRatingSlot: Bool {
+    guard card.unavailableNotice != nil else { return false }
+    guard RatingFeature.combinedEnabled else { return false }
+    guard ratingPlacement == .onArtwork else { return false }
+    guard showsRatingChrome else { return false }
+    return activeRating == nil
+  }
+
+  private var showsPlayChrome: Bool {
+    guard playsOnSelect else { return false }
+    if forcePlayChrome { return true }
+#if os(tvOS)
+    return cardFocused
+#elseif os(macOS)
+    return isHovered
+#else
+    // Touch: the time chip's play glyph already says "this resumes". A second glyph
+    // parked in the middle of every still only covers the picture.
+    return false
+#endif
+  }
+
+  private var dimsWatchedArtwork: Bool {
+    card.isWatched && watchedStyle.dimsArtwork
+  }
+
+  private var isPointerActive: Bool {
+#if os(macOS)
+    isHovered
+#elseif os(tvOS)
+    cardFocused
+#else
+    true
+#endif
+  }
+
+  /// The fraction the bar draws: the same `resumeFraction` the time chip reads for «Ещё N
+  /// мин», so the two cannot disagree — a chip saying how much is left always has a bar,
+  /// a watched or untouched card has neither. It used to drop the bar for anything past
+  /// half watched: a fraction rounded to a whole number and compared with 1 (Sasha,
+  /// 2026-10-30: «12m left» with no bar).
+  private var inProgressFraction: Double? {
+    guard !card.isWatched, let progress = card.progress, progress > 0, progress < 1 else { return nil }
+    return progress
+  }
+
+  private var showsProgressBarNow: Bool {
+    guard inProgressFraction != nil else { return false }
+    switch progressVisibility {
+    case .always: return true
+    case .onFocusHover: return isPointerActive
+    }
+  }
+
+  /// Bookmark ribbon only — never “following”. Subscribed surfaces hide it wholesale
+  /// via `hidesMediaCardBookmarkSymbol` (Sasha, 2026-11-20).
+  private var showsBookmarkOnArtwork: Bool {
+    !hidesBookmarkSymbol && showBookmarkSymbol && card.viewerState.isBookmarked
+  }
+
+  private var landscapeTimeBadge: LandscapeTimeBadge? {
+    guard showDuration, card.isLandscape else { return nil }
+#if os(macOS)
+    // Duration only on hover/focus; watched check stays at rest so it does not fight
+    // the hover chip.
+    return LandscapeTimeBadge(
+      durationSeconds: card.durationSeconds,
+      progress: card.progress,
+      isWatched: card.isWatched,
+      includeDuration: isPointerActive
+    )
+#else
+    return LandscapeTimeBadge(
+      durationSeconds: card.durationSeconds,
+      progress: card.progress,
+      isWatched: card.isWatched
+    )
+#endif
+  }
+
+  /// One caption line for landscape: "S1, E12 + 3 more", "E6 + 2 more", or either half alone.
+  static let showsMoreEpisodesCount = false
+
+  private var landscapeEpisodeLine: String? {
+    Self.landscapeSubtitleLine(for: card)
+  }
+
+  /// The single subtitle line under a landscape card (`title` + this line = 2 lines max).
+  /// Continue Watching / episode rails use `overlayLabel` unless History sets `watchedAt`.
+  static func landscapeSubtitleLine(for card: MediaCard) -> String? {
+    guard card.isLandscape, card.watchedAt == nil else { return nil }
+    let episode = card.overlayLabel.flatMap { $0.isEmpty ? nil : $0 }
+    let moreCount: Int? = {
+      guard let badge = card.badge else { return nil }
+      let digits = badge.filter(\.isNumber)
+      guard let value = Int(digits), value > 0 else { return nil }
+      return value
+    }()
+    // «+ ещё N» is off (Sasha, 2026-10-30): the line names the episode instead.
+    guard Self.showsMoreEpisodesCount else { return episode }
+    switch (episode, moreCount) {
+    case (let episode?, let count?):
+      return String(format: String(localized: "%@ + %d more"), episode, count)
+    case (let episode?, nil):
+      return episode
+    case (nil, let count?):
+      return String(format: String(localized: "+ %d more"), count)
+    case (nil, nil):
+      return nil
+    }
+  }
+
+  public var body: some View {
+      VStack(alignment: .center, spacing: Metrics.cardCaptionSpacing) {
+      if showsArtwork {
+        artwork
+      }
+
+      if caption != .none {
+        captionBlock
+      }
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(Text(accessibilityTitle))
+    .accessibilityValue(Text(accessibilityValue))
+    .accessibilityHint(Text(accessibilityHint))
+  }
+
+  private var accessibilityHint: String {
+    if card.opensCollection { return String(localized: "Opens the collection") }
+    return playsOnSelect ? String(localized: "Plays or resumes") : String(localized: "Opens the title")
+  }
+
+  private var accessibilityTitle: String {
+    if let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
+      return "\(card.title), \(subtitle)"
+    }
+    return card.title
+  }
+
+  private var accessibilityValue: String {
+    var parts: [String] = []
+    if let rating = card.rating {
+      parts.append("Rating \(rating.formatted)")
+    }
+    if let progress = card.progress {
+      parts.append("\(Int((progress * 1).rounded())) percent watched")
+    }
+    for stat in card.captionStats {
+      parts.append(stat.value)
+    }
+    if card.is4K { parts.append("4K") }
+    if card.isHDR { parts.append("HDR") }
+    if card.isWatched { parts.append("Watched") }
+    return parts.joined(separator: ", ")
+  }
+
+  // MARK: - Artwork
+
+  /// The cell's own width, measured where nothing can clamp it.
+  ///
+  /// A zero-height `Color.clear` under `maxWidth: .infinity` takes the full width it is
+  /// offered whatever the height proposal is, which is the whole point: measuring the
+  /// artwork itself made the height it derived feed back into the width it was measured
+  /// from, and `aspectRatio(_:contentMode: .fit)` treats *every* width ≤ the offered one
+  /// as a valid answer to that. So the card kept whatever width it happened to land on
+  /// first — a window resize widened the column and the poster stayed put while the
+  /// caption under it grew to the new column, which is the gap that opened between rows.
+  private var widthProbe: some View {
+    Color.clear
+      .frame(maxWidth: .infinity)
+      .frame(height: 0)
+      .onGeometryChange(for: CGFloat.self) { proxy in
+        proxy.size.width
+      } action: { width in
+        if width > 0 { artworkWidth = width }
+      }
+  }
+
+  @ViewBuilder
+  private var artwork: some View {
+    VStack(spacing: 0) {
+      widthProbe
+      artworkBox
+    }
+  }
+
+  @ViewBuilder
+  private var artworkBox: some View {
+    ZStack {
+      stillImage
+
+      if card.isLandscape {
+        landscapeOverlays
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if showsProgressBarNow, card.isLandscape, let progress = inProgressFraction {
+        progressBar(progress)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+      }
+
+      // Top-trailing chips (4K + bookmark). Editorial +N on landscape is a caption label.
+      artworkTopTrailing
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+      if !card.isLandscape {
+        posterOverlays
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+
+#if !os(tvOS)
+      // Cheap pointer affordance — dim the still, keep the glass rim on top.
+        // Not on a landscape card with nothing to play (an episode not out, or not on
+        // kino.pub): the dim is the play affordance there (Sasha, 2026-10-30).
+        Color.black.opacity(card.isLandscape && !playsOnSelect ? 0
+                            : (isHovered && !card.isWatched && dimsWatchedArtwork) ? 0.1
+                            : (isHovered && !dimsWatchedArtwork) ? 0.1 : 0)
+        .allowsHitTesting(false)
+#endif
+
+      if showsPlayChrome {
+        LandscapePlayChromeView(style: playChromeStyle, glyph: playGlyph)
+          .transition(.opacity.combined(with: .scale(scale: 0.92)))
+          .allowsHitTesting(false)
+      }
+    }
+    // Height measured from the card's own width, never negotiated with the caption.
+    //
+    // This was `.aspectRatio(_:contentMode: .fit)`, which means "fit inside whatever
+    // you are offered" — so in a horizontal rail, where the row equalises card heights,
+    // a two-line caption ("S1, E1 + 2 more") ate into the artwork and the tile beside a
+    // one-line caption came out taller. Continue Watching showed both in the same row.
+    // A grid hid the bug because its rows leave height free.
+    //
+    // Width → height is the only direction that holds in every container.
+    .frame(maxWidth: .infinity)
+    // Sized correctly on the *first* pass too. Without this the unmeasured frame is
+    // `height: nil` — the stack's natural size, which is far larger than the card —
+    // and the snap to the measured height rode the subtree's transaction animation,
+    // so every card scrolling into view zoomed down from giant. `.fit` gives the right
+    // box immediately; the measured frame below then holds it against a caption that
+    // would otherwise squeeze it.
+    .aspectRatio(aspect.ratio, contentMode: .fit)
+    // Pinned in both directions once the probe has reported: `fit` inside exactly
+    // `w × w/ratio` is exactly `w × w/ratio`, so the artwork fills its column instead
+    // of settling for any narrower box that also satisfies the ratio.
+    .frame(width: artworkWidth, height: artworkWidth.map { $0 / aspect.ratio })
+    // Never animated: this is a layout fact arriving, not a state change worth showing.
+    // `ArtworkImage` sets an animation on its whole subtree for the image fade, and
+    // this frame was being carried along by it.
+    .animation(nil, value: artworkWidth)
+    .opacity(watchedArtworkOpacity)
+    .animation(.easeOut(duration: 0.2), value: showsPlayChrome)
+#if os(tvOS)
+    // One composited lockup so `.borderless` lift/specular stays a single unit —
+    // rating/status chips sit inside the hover group rather than as sibling images.
+    .hoverEffect(.highlight)
+#else
+    .clipShape(Self.artworkShape)
+    .piraticGlassRim(in: Self.artworkShape)
+//#if os(macOS)
+    .onHover { isHovered = $0 }
+    .animation(.easeOut(duration: 0.15), value: isHovered)
+//    .pointingHandCursorOnHover()
+//#endif
+#endif
+  }
+
+  private static var artworkShape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
+  }
+
+  @ViewBuilder
+  private var posterOverlays: some View {
+    ZStack(alignment: .topLeading) {
+      Color.clear
+      // Rating then lock chip — same corner stack so a missing score does not yank the
+      // chip upward when neighbours carry a badge (filmography mixed rows).
+      VStack(alignment: .leading, spacing: 4) {
+        if showsArtworkRatingBadge, let rating = activeRating {
+          RatingBadgeView(rating: rating)
+            .padding(.leading, 3)
+            .padding(.top, 3)
+            .accessibilityLabel(Text("Rating \(rating.formatted)"))
+        } else if showsArtworkRatingSlot {
+          // Invisible footprint matching a plain badge so layout stays put.
+          Text(verbatim: "0.0")
+            .font(TypeScale.ratingBadge)
+            .fontDesign(.rounded)
+            .padding(.horizontal, RatingBadgeView.horizontalPadding)
+            .padding(.vertical, RatingBadgeView.verticalPadding)
+            .hidden()
+            .padding(.leading, 3)
+            .padding(.top, 3)
+            .accessibilityHidden(true)
+        }
+        if let notice = card.unavailableNotice {
+          Label(notice, systemImage: "lock.fill")
+            .font(.caption2.weight(.medium))
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+            .padding(.leading, 6)
+            .padding(.bottom, 6)
+        }
+      }
+    }
+    .overlay(alignment: .topTrailing) {
+      if !card.isLandscape, card.isWatched, watchedStyle.showsCheckmark {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.caption.weight(.bold))
+          .foregroundStyle(.white)
+//#if !os(tvOS)
+          // Per-card shadow, rendered on every visible watched glyph in a shelf —
+          // measurable tvOS shelf-scroll cost for a barely-visible glow. Off there.
+//          .shadow(radius: 4)
+//#endif
+          .padding(3)
+      }
+    }
+  }
+
+  /// Unwatched episodes on a **subscribed** series — drives the Appearance chrome
+  /// (on-poster round count / under-title line like tvOS). Nil when not following or
+  /// caught up; never invents a count from `card.badge` (Continue Watching still uses
+  /// that for «+N more»).
+  private var unwatchedEpisodeCount: Int? {
+    card.followedUnwatchedEpisodes
+  }
+
+  private var showsUnwatchedOnArtwork: Bool {
+    guard editorialPlacement == .onArtwork,
+          let count = unwatchedEpisodeCount else { return false }
+    // Landscape (CW / History): one left means that episode is about to play — no chip.
+    // On Mac hover / tvOS focus the play affordance owns the still; hide unless the
+    // pointer is on the chip itself (optional expand «2» → «2 серии»). iPhone has no
+    // persistent hover — `isPointerActive` is always true there, so do not use it.
+    if card.isLandscape {
+      guard count > 1 else { return false }
+#if os(tvOS)
+      if cardFocused { return false }
+#else
+      // Pointer platforms (Mac, iPad + trackpad): hide while the still is hovered.
+      // Pure touch leaves `isHovered` false, so the chip stays.
+      if isHovered && !badgeHovered { return false }
+#endif
+    }
+    return true
+  }
+
+  private var showsUnwatchedUnderTitle: Bool {
+    // Landscape play cards: count is the still chip only — never a second «N серий»
+    // line under Continue Watching (Sasha, 2026-11-26).
+    guard !card.isLandscape else { return false }
+    return editorialPlacement == .inCaption && unwatchedEpisodeCount != nil
+  }
+
+  /// Digit at rest; full «2 серии» while the pointer rests on the chip.
+  private var unwatchedArtworkBadgeText: String {
+    guard let count = unwatchedEpisodeCount else { return "" }
+#if !os(tvOS)
+    if card.isLandscape, badgeHovered,
+       let expanded = EpisodesLeftText(count)?.formatted() {
+      return expanded
+    }
+#endif
+    return "\(count)"
+  }
+
+  /// Capability chips + optional unwatched count + bookmark (bookmark is rightmost).
+  private var artworkTopTrailing: some View {
+    HStack(alignment: .top, spacing: 6) {
+      if showsUnwatchedOnArtwork {
+        editorialBadge(unwatchedArtworkBadgeText)
+#if !os(tvOS)
+          .onHover { badgeHovered = $0 }
+          .animation(.easeOut(duration: 0.2), value: badgeHovered)
+#endif
+      }
+      if capabilityPlacement == .onArtwork, !capabilityChips.isEmpty {
+        capabilityBadgesRow
+      }
+      if showsBookmarkOnArtwork {
+        Image(systemName: "bookmark.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.white)
+//#if !os(tvOS)
+//          .shadow(color: .black.opacity(0.55), radius: 4, y: 1)
+//#endif
+          .accessibilityLabel(Text("Bookmarked"))
+      }
+    }
+    .padding(6)
+  }
+
+  private var capabilityBadgesRow: some View {
+    HStack(spacing: 6) {
+      ForEach(capabilityChips, id: \.self) { chip in
+        Text(chip)
+          .font(MediaCapabilityBadgesView.font)
+          .foregroundStyle(.white)
+          .padding(.horizontal, MediaCapabilityBadgesView.horizontalPadding)
+          .padding(.vertical, MediaCapabilityBadgesView.verticalPadding)
+          // Opaque plate — not `.ultraThinMaterial`. Materials on every poster
+          // re-sample the backdrop while Home scrolls (Mac hitch).
+          .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+          .accessibilityLabel(Text(chip))
+      }
+    }
+  }
+
+  /// Round count chip: +4pt horizontal padding vs the old capsule, and `minWidth ==
+  /// height` so a single digit stays a circle at every Dynamic Type size.
+  private func editorialBadge(_ badge: String) -> some View {
+    Text(badge)
+      .font(.caption.weight(.bold))
+      .monospacedDigit()
+      .foregroundStyle(.black)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 3)
+      .background {
+        GeometryReader { geo in
+          Capsule()
+            .fill(Color.Piratic.accent)
+            .frame(width: max(geo.size.width, geo.size.height),
+                   height: geo.size.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
+      .accessibilityLabel(Text(EpisodesLeftText(Int(badge.filter(\.isNumber)))?.formatted() ?? badge))
+//#if !os(tvOS)
+//      .shadow(radius: 4)
+//#endif
+  }
+
+  /// Points box for Nuke downsample. Wait for the width probe — decoding at
+  /// `.zero` (full resolution) on every Home card was the Mac scroll hitch.
+  private var artworkDecodeSize: CGSize {
+    guard let width = artworkWidth, width > 1 else { return .zero }
+    return CGSize(width: width, height: width / aspect.ratio)
+  }
+
+  private var stillImage: some View {
+    // Clear + overlay is the reliable fill: the loader's ideal size otherwise
+    // letterboxes inside the 16:9 lockup. Hold the placeholder until the width
+    // probe reports — starting a full-resolution decode on the first frame and
+    // then swapping to the tile size was the Mac Home scroll cost.
+    //
+    // Artwork ladder (`MediaCard.artworkLadder`): plate → first picture, the next one
+    // only on failure. A vertical card never shows the wide backdrop.
+    let decodeSize = artworkDecodeSize
+    return Color.clear
+      .overlay {
+        if decodeSize.width > 1 {
+          episodeStillLadder(size: decodeSize)
+        } else {
+          artworkPlate
+        }
+      }
+      .overlay {
+        // The offered episode's own still over the title's cover while hovered, crossfaded.
+        if decodeSize.width > 1, showsHoverStill,
+           let artwork = hoverArtwork(points: decodeSize.width) {
+          CachedRemoteImage(url: artwork.primary, size: decodeSize, contentMode: .fill,
+                            placeholder: { Color.clear },
+                            failure: {
+                              if let fallback = artwork.fallback {
+                                CachedRemoteImage(url: fallback, size: decodeSize,
+                                                  contentMode: .fill,
+                                                  placeholder: { Color.clear },
+                                                  failure: { Color.clear })
+                              }
+                            })
+            .transition(.opacity)
+        }
+      }
+      .animation(.easeInOut(duration: 0.3), value: showsHoverStill)
+      .clipped()
+  }
+
+  /// Iconic plate until a photograph arrives — not an empty grey forever.
+  /// YouTube cards use the brand mark instead of a play SF Symbol (Sasha, 2026-11-14).
+  private var landscapeIconicPlaceholder: some View {
+    ZStack {
+      // fill.tertiary — same quiet family as «Сезон», not bright white (Sasha, 2026-11-14).
+      Rectangle().fill(.fill.tertiary)
+      if playGlyph == .youtube {
+        Image("youtube-play", bundle: .module)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 56)
+          .accessibilityHidden(true)
+      } else {
+        Image(systemName: "play.rectangle.on.rectangle")
+          .font(.system(size: 28, weight: .regular))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
+  /// `MediaCard.artworkLadder` (at most three rungs): the plate while a rung loads,
+  /// the next rung only if it fails. Never a different picture first. Nested by hand,
+  /// not recursive `AnyView`, so the card keeps one static view type.
+  @ViewBuilder
+  private func episodeStillLadder(size: CGSize) -> some View {
+    let _ = coverLanguage
+    let ladder = card.artworkLadder
+    if let first = ladder.first {
+      CachedRemoteImage(url: first, size: size, contentMode: .fill,
+                        placeholder: { artworkPlate },
+                        failure: {
+                          if ladder.count > 1 {
+                            CachedRemoteImage(url: ladder[1], size: size, contentMode: .fill,
+                                              placeholder: { artworkPlate },
+                                              failure: {
+                                                if ladder.count > 2 {
+                                                  CachedRemoteImage(url: ladder[2], size: size,
+                                                                    contentMode: .fill,
+                                                                    placeholder: { artworkPlate },
+                                                                    failure: { artworkPlate })
+                                                } else {
+                                                  artworkPlate
+                                                }
+                                              })
+                          } else {
+                            artworkPlate
+                          }
+                        })
+    } else {
+      artworkPlate
+    }
+  }
+
+  @ViewBuilder
+  private var artworkPlate: some View {
+    if card.isLandscape {
+      landscapeIconicPlaceholder
+    } else {
+      Rectangle().fill(.fill.tertiary)
+    }
+  }
+
+  /// What the pointer brings up over the title's cover — same rule as the sneak peek
+  /// (`MediaCard.pointerArtwork`). Needs a kino.pub thumb before anything swaps in.
+  private func hoverArtwork(points: CGFloat) -> (primary: URL, fallback: URL?)? {
+    guard card.hoverStillURL?.isEmpty == false else { return nil }
+    return card.pointerArtwork(images: titleImageRoute, points: points, scale: hoverScale)
+  }
+
+  /// Request pixels per point — the scale the pipeline decodes at.
+  private var hoverScale: CGFloat {
+#if os(macOS)
+    Artwork.macOSRequestScale
+#else
+    2
+#endif
+  }
+
+  private var showsHoverStill: Bool {
+#if os(macOS)
+    card.isLandscape && isPointerActive && card.hoverStillURL?.isEmpty == false
+#else
+    false
+#endif
+  }
+
+  /// Progress along the bottom + time chip pinned bottom-leading (never centered).
+  @ViewBuilder
+  private var landscapeOverlays: some View {
+    ZStack(alignment: .bottomLeading) {
+      if showsProgressBarNow, card.isLandscape, let progress = inProgressFraction {
+        progressBar(progress)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .overlay(alignment: .bottomLeading) {
+      if let landscapeTimeBadge {
+        landscapeTimeBadge
+          .padding(6)
+      }
+    }
+    .overlay(alignment: .topLeading) {
+      if let notice = card.unavailableNotice {
+        // Same opaque chip language as `LandscapeTimeBadge` — no material sampling
+        // while the rail scrolls under the pointer.
+        Label(notice, systemImage: "lock.fill")
+          .font(.caption2.weight(.medium))
+          .labelStyle(.titleAndIcon)
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 3)
+          .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+          .padding(6)
+      }
+    }
+  }
+
+  private func progressBar(_ progress: Double) -> some View {
+    GeometryReader { geometry in
+      // On the still, so not the page's colours: `subtitle` is near black in light mode
+      // and the watched part vanished into the picture.
+      ZStack(alignment: .leading) {
+        Capsule().fill(Color.white.opacity(0.35))
+        Capsule()
+          .fill(Color.white)
+          .frame(width: geometry.size.width * min(max(progress, 0), 1))
+          .frame(height: 3)
+      }
+    }
+    .frame(height: 3)
+    .padding(.horizontal, 1)
+  }
+
+  // MARK: - Caption
+
+  /// Hidden rather than absent while unfocused, so neighbouring cards keep their
+  /// baselines and the row does not jump as focus travels along it.
+  private var captionBlock: some View {
+    VStack(alignment: .center, spacing: 4) {
+      titleRow
+
+      // History's "when did I watch this" line. Shown on landscape cards too, which
+      // the original-title rule below deliberately excludes — a history row without a
+      // date is the one thing this caption exists to say.
+      if let watchedAt = card.watchedAt {
+        Text(watchedAt.formatted(date: .abbreviated, time: .shortened))
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(Color.Piratic.subtitle)
+          .lineLimit(1)
+          .frame(maxWidth: .infinity, alignment: .center)
+      }
+
+      // Original title is poster-only — landscape captions stay a single title line.
+      // Collection covers reuse `subtitle` for the updated date; always show it
+      // (independent of the "Original title" appearance toggle).
+      if !card.isLandscape,
+         (showOriginalTitle || card.opensCollection),
+         let subtitle = card.subtitle,
+         !subtitle.isEmpty,
+         subtitle != card.title {
+        Text(subtitle)
+          .font(TypeScale.cardSubtitle)
+          .foregroundStyle(Color.Piratic.subtitle)
+          .lineLimit(1)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, alignment: .center)
+      }
+
+      // Subscribed unwatched count **under** the title — its own line, same words as
+      // tvOS Following (`EpisodesLeftText`), not a chip beside the title (Sasha, 2026-11-21).
+      if showsUnwatchedUnderTitle,
+         let text = EpisodesLeftText(unwatchedEpisodeCount)?.formatted() {
+        Text(text)
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(Color.Piratic.subtitle)
+          .lineLimit(1)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, alignment: .center)
+      }
+
+      if card.isLandscape, let line = landscapeEpisodeLine {
+        Text(line)
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(Color.Piratic.subtitle)
+          .lineLimit(1)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, alignment: .center)
+      }
+
+      if showsCaptionScores {
+        MediaScoresView(
+          captionScores,
+          showsVotes: showVoteCount,
+          collapsesVotesToFit: true,
+          sortByVotes: sortRatingsByVotes,
+          fadedIcons: fadedRatingIcons
+        )
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(Color.Piratic.subtitle)
+      }
+
+      if !card.isLandscape, !card.captionStats.isEmpty {
+        HStack(spacing: 10) {
+          ForEach(Array(card.captionStats.enumerated()), id: \.offset) { _, stat in
+            HStack(spacing: 4) {
+              Image(systemName: stat.systemImage)
+              Text(stat.value)
+                .monospacedDigit()
+            }
+          }
+        }
+        .font(TypeScale.cardMeta)
+        .foregroundStyle(Color.Piratic.subtitle)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .center)
+      }
+
+      // Year / genre yield to the unwatched line when that placement is on — tvOS
+      // Following does the same (`TVPageCells.posterSubtitle`).
+      // Landscape cards (Continue Watching / History / episodes) never show year/genre
+      // under the still — they stay at most two lines (`title` + `landscapeEpisodeLine`
+      // or `watchedAt`), even when `year` and `genres` are populated for sneak peek.
+      // Always one line: year is fixed, genre (and country) truncate — a long
+      // «Документальный» must not wrap under the year onto a second line.
+      if !card.isLandscape, !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty {
+        captionMetaLine
+      }
+
+      captionFiller
+    }
+    .frame(maxWidth: .infinity, alignment: .center)
+    // Never compressed. The artwork's height is pinned to its width now, so a row that
+    // equalises card heights has only the caption left to squeeze — which is what cut
+    // the second line off. Ideal height, always.
+    .fixedSize(horizontal: false, vertical: true)
+    .opacity(caption == .always || cardFocused ? 1 : 0)
+    .animation(.easeOut(duration: 0.12), value: cardFocused)
+  }
+
+  /// Year · genre · country under a cover — one line. Year keeps its full width;
+  /// the genre (or concert tour) and country compress with a trailing ellipsis.
+  @ViewBuilder
+  private var captionMetaLine: some View {
+    let year = showYear ? card.yearLabel : nil
+    let detail = showGenre ? card.catalogDetail(omittingGenreIDs: omittedGenreIDs) : nil
+    let country: String? = {
+      guard showCountry, let value = card.country, !value.isEmpty else { return nil }
+      return value
+    }()
+    HStack(spacing: 4) {
+      if let year {
+        Text(year)
+          .fixedSize(horizontal: true, vertical: false)
+      }
+      if let detail {
+        Text(detail)
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+      if let country {
+        if year != nil || detail != nil {
+          Text("·")
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        Text(country)
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+    }
+    .font(TypeScale.cardMeta)
+    .foregroundStyle(Color.Piratic.subtitle)
+    .frame(maxWidth: .infinity, alignment: .center)
+  }
+
+  /// Blank lines padding the caption out to a constant number, so every card in a row
+  /// is exactly as tall as every other one.
+  ///
+  /// Reserved in *lines*, not points: a fixed height in points is what
+  /// `TVUIKitPosterMetrics.captionHeight` does on tvOS, and it only holds there because
+  /// that surface has one type size. Here the same caption is drawn at every Dynamic
+  /// Type setting, so the reserve has to be expressed in the thing that actually scales.
+  @ViewBuilder
+  private var captionFiller: some View {
+    let missing = reservedCaptionLines - captionLineCount
+    if missing > 0 {
+      ForEach(0..<missing, id: \.self) { _ in
+        Text(verbatim: " ")
+          .font(TypeScale.cardMeta)
+          .lineLimit(1)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
+  /// How many lines this card's caption actually draws.
+  private var captionLineCount: Int {
+    if card.isLandscape {
+      return Self.landscapeCaptionLineCount(for: card)
+    }
+    var lines = 1 // title
+    if card.watchedAt != nil { lines += 1 }
+    if showOriginalTitle || card.opensCollection,
+       let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
+      lines += 1
+    }
+    if showsUnwatchedUnderTitle { lines += 1 }
+    if showsCaptionScores { lines += 1 }
+    if !card.captionStats.isEmpty { lines += 1 }
+    if !showsUnwatchedUnderTitle, !captionMetaParts.isEmpty { lines += 1 }
+    return lines
+  }
+
+  /// Fixed two-line caption budget for landscape cards (title + at most one subtitle/date line).
+  static let landscapeReservedCaptionLines = 2
+
+  static func landscapeCaptionLineCount(for card: MediaCard) -> Int {
+    var lines = 1 // title
+    if card.watchedAt != nil || landscapeSubtitleLine(for: card) != nil {
+      lines += 1
+    }
+    return lines
+  }
+
+  /// The constant every card of this shape pads up to. Landscape: fixed two-line slot
+  /// (title + episode/reason/version/watched date) so rail height never jumps and never
+  /// adds a third line. Posters: title + meta, plus a scores line when «Under title»
+  /// ratings are on — so a card without a score does not shrink beside one that has it.
+  private var reservedCaptionLines: Int {
+    if card.isLandscape { return Self.landscapeReservedCaptionLines }
+    var lines = 2
+    if RatingFeature.combinedEnabled, ratingPlacement == .inCaption, showsRatingChrome {
+      lines += 1
+    } else if !RatingFeature.combinedEnabled, showsRatingChrome {
+      lines += 1
+    }
+    return lines
+  }
+
+  /// Title + optional quality chips hug as one group, then the group is centered.
+  /// Unwatched count is never here — when "Under title" it is its own line below
+  /// (`showsUnwatchedUnderTitle`), matching tvOS.
+  private var titleRow: some View {
+    HStack(spacing: 0) {
+      Spacer(minLength: 0)
+      HStack(spacing: 6) {
+        MarqueeText(
+          card.title,
+          // A landscape card is the title page's episode card, title and all (Sasha,
+          // 2026-10-30): Continue Watching and History use the same step-up type.
+          font: titleFont ?? (card.isLandscape ? TypeScale.episodeCardTitle : TypeScale.cardTitle),
+          alignment: .center,
+          fillsWidth: true,
+          style: .title
+        )
+        .frame(minWidth: 0)
+#if !os(tvOS)
+        // Truncation ellipsis: the full title on hover (macOS / pointer iPad).
+        .help(card.title)
+#endif
+
+        if capabilityPlacement == .inCaption, !capabilityChips.isEmpty {
+          capabilityBadgesRow
+            .fixedSize()
+        }
+      }
+      Spacer(minLength: 0)
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  // MARK: - Legacy metrics (call sites / placeholders until fully migrated)
+
+  /// Fallback poster width when a caller still needs a concrete size (placeholders).
+  public static var cardWidth: CGFloat {
+    ShelfMetrics.posters(width: referenceWidth, typeSize: .large)
+      .cardWidth(in: referenceWidth)
+  }
+
+  public static var posterHeight: CGFloat { cardWidth / CardAspect.poster.ratio }
+  public static var landscapeWidth: CGFloat {
+    ShelfMetrics.landscape(width: referenceWidth, typeSize: .large)
+      .cardWidth(in: referenceWidth)
+  }
+  public static var landscapeHeight: CGFloat { landscapeWidth / CardAspect.landscape.ratio }
+  public static var cornerRadius: CGFloat { Metrics.cardCornerRadius }
+  public static var captionSpacing: CGFloat { Metrics.cardCaptionSpacing }
+  public static var titleFont: Font { TypeScale.cardTitle }
+  public static var subtitleFont: Font { TypeScale.cardSubtitle }
+
+  private static var referenceWidth: CGFloat {
+#if os(tvOS)
+    1920
+#elseif os(macOS)
+    1100
+#else
+    390
+#endif
+  }
+}
+
+// MARK: - Landscape play chrome
+
+/// Visual treatments for the centered play affordance on play-primary landscape cards.
+public enum LandscapePlayChromeStyle: String, CaseIterable, Sendable {
+  /// Liquid Glass circle — shipping default.
+  case glass
+  /// Translucent white plate (hero secondary circle language), no backdrop sampling.
+  case translucent
+  /// Same glass material, larger hit-looking target.
+  case glassLarge
+}
+
+/// What sits in the middle of a play-primary still on hover / focus.
+public enum LandscapePlayGlyph: Sendable {
+  /// Our Play in its glass circle.
+  case play
+  /// YouTube's own red play button (`youtube-play`), for a card that opens YouTube.
+  case youtube
+}
+
+/// Decorative play glyph in the middle of a landscape still. Not a Button — the
+/// parent card / link owns the action.
+public struct LandscapePlayChromeView: View {
+  public let style: LandscapePlayChromeStyle
+  public let glyph: LandscapePlayGlyph
+
+  public init(style: LandscapePlayChromeStyle = .glass, glyph: LandscapePlayGlyph = .play) {
+    self.style = style
+    self.glyph = glyph
+  }
+
+  private var diameter: CGFloat {
+    switch style {
+    case .glass: return 38
+    case .translucent: return 52
+    case .glassLarge: return 64
+    }
+  }
+
+  private var iconSize: CGFloat {
+    switch style {
+    case .glass, .translucent: return 16
+    case .glassLarge: return 24
+    }
+  }
+
+  public var body: some View {
+    switch glyph {
+    case .play: glassPlay
+    case .youtube:
+      // YouTube's button stands on its own — no glass under it. As wide as the glass
+      // circle is tall, at the asset's own 10:7.
+      Image("youtube-play", bundle: .module)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: diameter * 1.4)
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var glassPlay: some View {
+    Image(systemName: "play.fill")
+      .font(.system(size: iconSize, weight: .semibold))
+      .foregroundStyle(.primary)
+      .padding(.leading, 2)
+      .frame(width: diameter, height: diameter)
+      .modifier(LandscapePlayChromeBackground(style: style))
+  }
+}
+
+private struct LandscapePlayChromeBackground: ViewModifier {
+  let style: LandscapePlayChromeStyle
+
+  func body(content: Content) -> some View {
+    switch style {
+    case .glass, .glassLarge:
+      content.piraticGlass(in: Circle())
+    case .translucent:
+      content
+        .background {
+          Circle().fill(Color.white.opacity(0.22))
+        }
+        .overlay {
+          Circle()
+            .strokeBorder(Color.white.opacity(0.35), lineWidth: Metrics.hairline)
+        }
+    }
+  }
+}
+
+#Preview("Poster with 4K/HDR") {
+  MediaCardView(
+    card: MediaCard(
+      id: 1,
+      posterURL: "https://m.staticpop.net/poster/item/big/6581.jpg",
+      title: "Стражи Галактики",
+      subtitle: "Guardians of the Galaxy",
+      imdbRating: 8.1,
+      kinopoiskRating: 8.3,
+      progress: 0.4,
+//      badge: "+2",
+      is4K: true,
+      isHDR: true
+    ),
+    caption: .always
+  )
+  .frame(width: 260)
+  .padding()
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
+}
+
+#Preview("Poster watched") {
+  MediaCardView(
+    card: MediaCard(
+      id: 2,
+      posterURL: "https://m.staticpop.net/poster/item/big/6581.jpg",
+      title: "Стражи Галактики",
+      subtitle: "Test test test",
+      imdbRating: 7.2,
+      kinopoiskRating: 7.0,
+      isWatched: true,
+      is4K: true
+    ),
+    caption: .always
+  )
+  .frame(width: 260)
+  .padding()
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
+}
+
+#Preview("Landscape episode") {
+  MediaCardView(
+    card: MediaCard(
+      id: 3,
+      posterURL: "https://m.staticpop.net/poster/item/big/10524.jpg",
+      title: "Название эпизода подлиннее обычного",
+      subtitle: "Test test test",
+      progress: 0.55,
+      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/10524.jpg",
+      overlayLabel: "S1, E3",
+      isSeries: true,
+      viewerState: ViewerState(isFollowing: true),
+      durationSeconds: 48 * 60,
+      primaryAction: .play
+    ),
+    caption: .always,
+    forcePlayChrome: true
+  )
+  .frame(width: 260)
+  .padding()
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
+}
+
+#Preview("Landscape time states") {
+  HStack(alignment: .top, spacing: 44) {
+    MediaCardView(
+      card: MediaCard(
+        id: 1,
+        posterURL: "https://m.staticpop.net/poster/item/wide/8581.jpg",
+        title: "Unwatched",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        durationSeconds: 62 * 60,
+        primaryAction: .play
+      ),
+      caption: .always,
+      forcePlayChrome: false
+    )
+    .frame(width: 320)
+    MediaCardView(
+      card: MediaCard(
+        id: 2,
+        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        title: "In progress",
+        progress: 0.35,
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        viewerState: ViewerState(isFollowing: true),
+        durationSeconds: 2 * 3600,
+        primaryAction: .play
+      ),
+      caption: .always,
+      forcePlayChrome: false
+    )
+    .frame(width: 360)
+    MediaCardView(
+      card: MediaCard(
+        id: 3,
+        posterURL: "https://m.staticpop.net/poster/item/wide/3581.jpg",
+        title: "Watched",
+        progress: 1,
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/3581.jpg",
+        isWatched: true,
+        durationSeconds: 2 * 60,
+        primaryAction: .play
+      ),
+      caption: .onFocus
+    )
+    .frame(width: 260)
+  }
+  .padding()
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
+}
+
+public extension EnvironmentValues {
+  /// The caption title's style for the cards under it; nil is `TypeScale.cardTitle`.
+  /// The title page's episodes are a step up (`TypeScale.episodeCardTitle`).
+  @Entry var mediaCardTitleFont: Font? = nil
+  /// The worker's image route, so a card's hover picture comes from the same place the
+  /// title page takes it (`MediaCardView.hoverArtwork`). Unconfigured: kino.pub's own.
+  @Entry var titleImageRoute: TitleImageRoute = TitleImageRoute(baseURL: nil, language: nil)
+}

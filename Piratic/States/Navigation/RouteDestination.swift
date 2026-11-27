@@ -1,0 +1,289 @@
+//
+//  RouteDestination.swift
+//  Piratic
+//
+//  Single destination registry for every tab's NavigationStack.
+//
+
+import SwiftUI
+import KinoPubBackend
+import PiraticKit
+import PiraticMetadata
+import PiraticUI
+
+struct RouteDestination: View {
+  let route: Route
+  let linkProvider: NavigationLinkProvider
+  /// Namespace for system zoom transitions sourced from cards / banners / cast.
+  var transitionNamespace: Namespace.ID?
+
+  @Environment(\.appContext) private var appContext
+  @Environment(ErrorHandler.self) private var errorHandler
+  @EnvironmentObject private var authState: AuthState
+  @Environment(NavigationState.self) private var navigationState
+
+  var body: some View {
+    destination
+      .modifier(ZoomDestinationModifier(route: route, namespace: transitionNamespace))
+#if os(tvOS)
+      // Product decision 2026-09-21 (Sasha): a pushed page owns the whole screen. The
+      // tab bar stays with the tab root — no switching tabs from inside a stack, no bar
+      // floating over a detail page fading in and out, and Menu pops instead of finding
+      // the bar focused and quitting the app.
+      //
+      // One owner for the bar: where our zoom proxy runs, `TabBarSlide` hides it on push
+      // and shows it on pop to the root. Hiding it here as well left SwiftUI's own record
+      // at "hidden" after that pop (it never saw the bar come back), and SwiftUI re-applied
+      // it on the next switch to this tab: the bar vanished from every tab after a title
+      // and a popup in Catalog (Sasha, 2026-11-21; lldb: `_hideBarWithTransition` from a
+      // SwiftUI update). `.hidden` stays for stacks without the proxy.
+      .toolbar(TVNavigationZoom.isAvailable ? .automatic : .hidden, for: .tabBar)
+      .tvNavigationZoom()
+#endif
+  }
+
+  @ViewBuilder
+  private var destination: some View {
+    switch route {
+    case .details(let item):
+      detailsView(for: item.id, knownItem: item)
+    case .detailsById(let id), .detailsFromBanner(let id):
+      detailsView(for: id)
+    case .history:
+      HistoryView()
+    case .bookmark(let bookmark):
+      BookmarkView(model: BookmarkModel(bookmark: bookmark,
+                                        itemsService: appContext.contentService,
+                                        errorHandler: errorHandler))
+    case .seasons(let seasons):
+      SeasonsView(model: SeasonsModel(seasons: seasons, linkProvider: linkProvider))
+    case .season(let season):
+      SeasonView(model: SeasonModel(season: season, linkProvider: linkProvider))
+    case .person(let person):
+      PersonItemsView.make(person: person,
+                           linkProvider: linkProvider,
+                           context: appContext,
+                           authState: authState,
+                           errorHandler: errorHandler)
+    case .collections:
+      CollectionsView.make(context: appContext,
+                           authState: authState,
+                           errorHandler: errorHandler)
+    case .collection(let collection):
+      CollectionDetailView.make(collection: collection,
+                                context: appContext,
+                                errorHandler: errorHandler)
+    case .shortcutItems(let shortcut, let contentType, let title):
+      ShortcutItemsView.make(shortcut: shortcut,
+                             contentType: contentType,
+                             title: title,
+                             context: appContext,
+                             authState: authState,
+                             errorHandler: errorHandler)
+    case .filteredShelf(let filter, let title):
+      FilteredShelfView.make(filter: filter,
+                             title: title,
+                             context: appContext,
+                             authState: authState,
+                             errorHandler: errorHandler)
+    case .watchlist:
+      WatchlistView(embedded: true)
+    case .bookmarkFolders(let folders):
+      BookmarkFoldersView(folders: folders)
+    case .continueWatching:
+      ContinueWatchingListView.make(context: appContext,
+                                    authState: authState,
+                                    errorHandler: errorHandler)
+    case .ratingsAndReviews(let payload):
+#if os(tvOS)
+      MediaItemReviewsTVPage(payload: payload)
+#else
+      MediaItemRatingsAndReviewsPage(payload: payload)
+#endif
+    case .castAndCrew(let payload):
+#if os(tvOS)
+      // Navigating section headers are an iOS/macOS affordance; tvOS keeps the rail.
+      EmptyView()
+#else
+      MediaItemCastAndCrewPage(payload: payload, linkProvider: linkProvider)
+#endif
+    case .player(let item, let token):
+#if os(macOS)
+      MacPlayerRouteGuard(item: item, mode: .media)
+#else
+      player(item, mode: .media, token: token)
+#endif
+    case .trailerPlayer(let item, let token):
+#if os(macOS)
+      MacPlayerRouteGuard(item: item, mode: .trailer)
+#else
+      player(item, mode: .trailer, token: token)
+#endif
+    case .livePlayer(let channel, let token):
+#if os(macOS)
+      MacPlayerRouteGuard(item: channel, mode: .live)
+#else
+      player(channel, mode: .live, token: token)
+#endif
+    }
+  }
+
+#if !os(macOS)
+  @ViewBuilder
+  private func player(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
+#if DEBUG && os(tvOS)
+    // UI tests of the detail page: the stand-in records the title as watched and
+    // waits for Menu (`DetailFixture`). Neither fixture has a stream of its own, so both
+    // get the stand-in unless asked for the real player (`-PIRATICFixtureRealPlayer`),
+    // which then plays Apple's sample stream.
+    if (DetailFixture.isActive || TVChannelsFixture.isActive) && !DebugLaunch.fixtureRealPlayer {
+      DetailFixturePlayer(item: item, mode: mode)
+    } else {
+      systemPlayer(item, mode: mode, token: token)
+    }
+#else
+    systemPlayer(item, mode: mode, token: token)
+#endif
+  }
+
+  private func systemPlayer(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
+    PlayerView(manager: PlaybackSession.shared.play(
+      item: item,
+      mode: mode,
+      token: token,
+      downloadedFilesDatabase: appContext.downloadedFilesDatabase,
+      actionsService: appContext.actionsService
+    ))
+  }
+#endif
+
+  private func detailsView(for id: Int, knownItem: MediaItem? = nil) -> some View {
+    // One model per title on a section's stack, kept while it is on the stack: a section
+    // left and come back to rebuilds the page around the same model, loaded and
+    // scrolled where it was (Sasha, 2026-10-31).
+    let tab = navigationState.selectedTab
+    return MediaItemView(model: MediaItemModelCache.shared.model(tab: tab, itemID: id) {
+      // Opened by id (Home, search, bookmarks, Go to Title): the fullest copy of the
+      // title this session already has paints the page while the details load — the
+      // last details payload, else the listing the card was drawn from.
+      MediaItemModel(mediaItemId: id,
+                     knownItem: (knownItem
+                       ?? appContext.localProgressStore.snapshot(for: id)
+                       ?? ListedItemCache.shared.item(id: id))
+                       .map(WatchingListCache.shared.reconciled),
+                     itemsService: appContext.contentService,
+                     downloadManager: appContext.downloadManager,
+                     linkProvider: linkProvider,
+                     errorHandler: errorHandler)
+    })
+  }
+}
+
+/// Applies `navigationTransition(.zoom)` when a matched source namespace is present.
+private struct ZoomDestinationModifier: ViewModifier {
+  let route: Route
+  let namespace: Namespace.ID?
+
+  func body(content: Content) -> some View {
+    // Not tvOS: the zoom has no effect there (Apple's docs), and a preferred transition
+    // on the pushed page would stand in front of `TVNavigationZoom`.
+#if os(iOS)
+    if let namespace, let sourceID = route.zoomSourceID {
+      content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+    } else {
+      content
+    }
+#else
+    content
+#endif
+  }
+}
+
+#if os(macOS)
+/// Safety net, not the fix: the player is never supposed to reach the main stack on
+/// macOS — every Play entry point either uses `PlayerLink` or routes through
+/// `NavigationState.push`, both of which open the dedicated window directly (see
+/// `ROADMAP.md`, "macOS presentation"). If a
+/// `.player` / `.trailerPlayer` route still lands here, open the window and pop this
+/// destination instead of showing the player inline next to the sidebar.
+private struct MacPlayerRouteGuard: View {
+  let item: any PlayableItem
+  let mode: WatchMode
+
+  @Environment(\.openWindow) private var openWindow
+  @Environment(\.dismiss) private var dismiss
+  @Environment(NavigationState.self) private var navigationState
+
+  var body: some View {
+    Color.clear
+      .onAppear {
+        assertionFailure("'.player'/'.trailerPlayer' reached the main stack on macOS — route through PlayerLink instead")
+        PlaybackWindowState.shared.show(item: item, mode: mode, from: navigationState)
+        openWindow(id: PlaybackWindowState.windowID)
+        dismiss()
+      }
+  }
+}
+#endif
+
+extension Route {
+  /// Stable zoom source id shared with `matchedTransitionSource` on cards.
+  var zoomSourceID: String? {
+    switch self {
+    case .details(let item):
+      return "media-\(item.id)"
+    case .detailsById(let id):
+      return "media-\(id)"
+    case .detailsFromBanner:
+      // Banner opens intentionally skip zoom — see `Route.detailsFromBanner`.
+      return nil
+    case .person(let person):
+      return "person-\(person.id)"
+    case .ratingsAndReviews(let payload):
+      // The viewers' and critics' cards zoom into their tab; the section's title has no
+      // card to grow out of.
+      return payload.tab == .all ? nil : RatingsAndReviews.zoomSourceID(item: payload.item.id, tab: payload.tab)
+    default:
+      return nil
+    }
+  }
+}
+
+/// The title pages' models, one per title on each section's stack. Kept while the title
+/// is on that stack; let go when it is popped (`NavigationState` tells it).
+@MainActor
+final class MediaItemModelCache {
+  static let shared = MediaItemModelCache()
+
+  private var models: [String: MediaItemModel] = [:]
+
+  func model(tab: NavigationTabs, itemID: Int, make: () -> MediaItemModel) -> MediaItemModel {
+    let key = Self.key(tab, itemID)
+    if let model = models[key] { return model }
+    let model = make()
+    models[key] = model
+    return model
+  }
+
+  /// Lets go of the titles no longer on `tab`'s stack.
+  nonisolated static func itemIDs(in routes: [Route]) -> Set<Int> {
+    Set(routes.compactMap { route -> Int? in
+      switch route {
+      case .details(let item): item.id
+      case .detailsById(let id), .detailsFromBanner(let id): id
+      default: nil
+      }
+    })
+  }
+
+  func keep(only ids: Set<Int>, on tab: NavigationTabs) {
+    let prefix = "\(tab)#"
+    for key in models.keys where key.hasPrefix(prefix) {
+      if let id = Int(key.dropFirst(prefix.count)), !ids.contains(id) { models[key] = nil }
+    }
+  }
+
+  var count: Int { models.count }
+
+  private static func key(_ tab: NavigationTabs, _ id: Int) -> String { "\(tab)#\(id)" }
+}

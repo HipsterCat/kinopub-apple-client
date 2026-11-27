@@ -64,7 +64,7 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   bar and the field follow the offset, so the bar stayed hidden above the screen.
   `TVPageCollectionView` lands that one target on the adjusted top (27.2 already asks
   for it). Re-probe on the next SDK.
-  Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
+  Checked by `TVSearchLayoutUITests` (`-PIRATICSearchFixture -ForceGridKeyboard YES`).
 
 - **`TVNavigationZoom.swift`** (tvOS push and pop) — tvOS has no public page transition but
   the crossfade: `UIViewController.Transition.zoom` and `.navigationTransition(.zoom)` have no
@@ -75,7 +75,7 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   controller's view (common superview above every hosting controller), through a proxy in
   front of SwiftUI's navigation delegate (it also hides UIKit's private
   `animatorForOperation:` question). The tab bar's hide and show are a slide up and back
-  down alongside (`TabBarSlide`). `-KINOPUBSystemNavigationTransition YES`: system crossfade.
+  down alongside (`TabBarSlide`). `-PIRATICSystemNavigationTransition YES`: system crossfade.
   Re-probe on the next SDK.
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
   (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):

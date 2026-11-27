@@ -1,0 +1,73 @@
+//
+//  File.swift
+//
+//
+//  Created by Kirill Kunst on 31.07.2023.
+//
+
+import Foundation
+import SwiftUI
+
+public struct PiraticButton: View {
+
+  public enum ButtonColor {
+    /// The primary action colour — white, as on Apple TV. Named for its role rather
+    /// than its shade so it can be restyled without lying about it.
+    case accent
+    case gray
+    case red
+    case blue
+
+    internal var color: Color {
+      switch self {
+      case .accent:
+        return Color.Piratic.accent
+      case .red:
+        return Color.Piratic.accentRed
+      case .gray:
+        return Color.Piratic.selectionBackground
+      case .blue:
+        return Color.Piratic.accentBlue
+      }
+    }
+
+    /// Label colour that stays legible on `color`.
+    internal var foreground: Color {
+      switch self {
+      case .accent:
+        return .black
+      case .red, .gray, .blue:
+        return .white
+      }
+    }
+  }
+
+  public var title: String
+  public var color: ButtonColor
+  public var action: () -> Void
+
+  public init(title: String, color: ButtonColor, action: @escaping () -> Void) {
+    self.title = title
+    self.action = action
+    self.color = color
+  }
+
+  public var body: some View {
+    Button(action: action) {
+      Text(title)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, minHeight: 40)
+        .font(TypeScale.actionLabel)
+    }
+    .buttonStyle(PiraticButtonStyle(buttonColor: color))
+
+  }
+}
+
+struct PiraticButton_Previews: PreviewProvider {
+  static var previews: some View {
+    PiraticButton(title: "Watch", color: .accent, action: {
+
+    })
+  }
+}

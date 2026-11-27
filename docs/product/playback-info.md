@@ -1,6 +1,6 @@
 # Playback info — what the system player is told about what is playing
 
-Implemented by `PlayerInfo` (KinoPubMedia), projected from a `MediaContext`. Where the facts come
+Implemented by `PlayerInfo` (PiraticMedia), projected from a `MediaContext`. Where the facts come
 from and which source wins is the media model's business ([docs/media-model.md](../media-model.md)); this file is only what reaches the screen.
 
 ## The fields
@@ -153,7 +153,7 @@ surface and get no substitute.
   auto-play went through episodes 2–4 it still said only episode 1. The tab is built for every
   episode the player swaps in, so it is read once per episode — nothing is recounted while one plays.
 - **Platter.** Up Next and Season sit on the same platter AVKit draws under its own Info tab: player
-  glass (`kinoPlayerGlass`), corners ≈ 46 pt, clipping the rail at its edges. AVKit makes the panel
+  glass (`piraticPlayerGlass`), corners ≈ 46 pt, clipping the rail at its edges. AVKit makes the panel
   as tall as its tallest tab and lays Info out in it, so `PlayerTabPlatter` asks 263 pt and puts
   its platter 14 pt down, 250 pt tall — the frame Info's platter then has, pixel for pixel, on the
   tvOS 27.2 and 26.5 simulators (2026-10-21).

@@ -12,15 +12,15 @@ let package = Package(
       targets: ["KinoPubBackend"])
   ],
   dependencies: [
-    .package(name: "KinoPubLogging", path: "../KinoPubLogging"),
-    .package(name: "KinoPubMedia", path: "../KinoPubMedia")
+    .package(name: "PiraticLogging", path: "../PiraticLogging"),
+    .package(name: "PiraticMedia", path: "../PiraticMedia")
   ],
   targets: [
     .target(
       name: "KinoPubBackend",
       dependencies: [
-        .product(name: "KinoPubLogging", package: "KinoPubLogging"),
-        .product(name: "KinoPubMedia", package: "KinoPubMedia")
+        .product(name: "PiraticLogging", package: "PiraticLogging"),
+        .product(name: "PiraticMedia", package: "PiraticMedia")
       ],
       resources: [
         .process("Resources")
@@ -29,7 +29,7 @@ let package = Package(
       name: "KinoPubBackendTests",
       dependencies: [
         "KinoPubBackend",
-        .product(name: "KinoPubMedia", package: "KinoPubMedia")
+        .product(name: "PiraticMedia", package: "PiraticMedia")
       ],
       resources: [
         .copy("Fixtures")

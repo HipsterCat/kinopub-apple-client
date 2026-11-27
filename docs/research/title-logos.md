@@ -40,7 +40,7 @@ Prerequisites, in order:
 Language (`?lang=ru|en`), freshness TTLs, and tvoe as preferred ru artwork: [worker.md](worker.md) (plan only).
 
 ### B. Area-normalized sizing, S · P1
-One pure `LogoBudget(aspect:container:)` in KinoPubUI, used by both the hero and the banner, with unit tests. Budget as a fraction of the container; Sodalite's curve, floor and ceiling.
+One pure `LogoBudget(aspect:container:)` in PiraticUI, used by both the hero and the banner, with unit tests. Budget as a fraction of the container; Sodalite's curve, floor and ceiling.
 
 ### C. Legibility, S · P2
 A measured-contrast dark shadow, applied only where needed (Plozz), drawn once (rasterized), not a live `.shadow` per frame.

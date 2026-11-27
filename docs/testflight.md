@@ -33,7 +33,7 @@ TestFlight number on iOS, tvOS and macOS and uses that max + 1, so two uploads c
 collide.
 
 **What to Test** is the Russian What's New catalog for the current marketing version:
-isolated files under `KinoPubAppleClient/Resources/WhatsNew/entries/` (newest first),
+isolated files under `Piratic/Resources/WhatsNew/entries/` (newest first),
 then the frozen legacy `whats-new.json`. A manual run can override it in the workflow
 input. Local Fastlane falls back to `git log` when What's New is empty (no CHANGELOG.md).
 
@@ -124,5 +124,5 @@ Secrets-free sanity: `bundle exec fastlane ios lint`.
 ## Related
 
 - In-app What's New: [docs/product/whats-new.md](product/whats-new.md)
-- New user-facing bullets: `KinoPubAppleClient/Resources/WhatsNew/entries/`
-- Legacy archive (do not extend): `KinoPubAppleClient/Resources/whats-new.json`
+- New user-facing bullets: `Piratic/Resources/WhatsNew/entries/`
+- Legacy archive (do not extend): `Piratic/Resources/whats-new.json`

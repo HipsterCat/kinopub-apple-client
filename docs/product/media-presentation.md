@@ -20,7 +20,7 @@ fact (user's call, 2026-10-04). Documentary leads by its type. `GenreVocabulary.
 applied by the merge.
 
 Type decides first, genre second. Genres are read in our vocabulary (`GenreVocabulary`,
-KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an id that list lacks.
+PiraticMedia), which holds kino.pub's whole id list; a name only decides for an id that list lacks.
 `tvshow` implies the *TV Show* genre, `documovie`/`docuserial` *Documentary*, `concert` *Concert*.
 
 ## Rules

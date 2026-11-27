@@ -79,7 +79,7 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
     detailChips.isEmpty
   }
 
-  /// The drawn badges of `KinoPubUI`'s `Media.xcassets/badges`, by asset name, for the
+  /// The drawn badges of `PiraticUI`'s `Media.xcassets/badges`, by asset name, for the
   /// title page: one quality mark (4K, else HD, else SD), then 3D and AD. The words they
   /// replace were typed capsules (Sasha, 2026-11-08). The certification is not a badge
   /// here — it is a word in the facts line.

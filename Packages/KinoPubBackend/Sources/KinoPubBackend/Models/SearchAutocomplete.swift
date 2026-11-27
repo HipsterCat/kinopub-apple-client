@@ -9,7 +9,7 @@
 //
 
 import Foundation
-import KinoPubLogging
+import PiraticLogging
 
 public struct SearchAutocompleteEntry: Decodable, Hashable, Sendable, Identifiable {
   public let id: Int

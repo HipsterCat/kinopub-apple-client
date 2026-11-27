@@ -11,7 +11,7 @@
 
 import XCTest
 @testable import KinoPubBackend
-import KinoPubMedia
+import PiraticMedia
 
 final class MultiVersionItemTests: XCTestCase {
 

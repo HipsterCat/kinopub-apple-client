@@ -140,7 +140,7 @@ jobs:
           swift --version
 
       - name: Xcode can open the project
-        run: xcodebuild -list -project KinoPubAppleClient.xcodeproj
+        run: xcodebuild -list -project Piratic.xcodeproj
 
       - name: Ensure Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain || echo "bundled with this Xcode"

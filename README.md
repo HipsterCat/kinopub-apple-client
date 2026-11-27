@@ -40,13 +40,13 @@ Verification gaps and unfinished edges are Asana subtasks ([Kinopub Engineering 
   every platform (Xcode 26.6 GM's SDKs are 26.5; tvOS 26.5 is also the oldest
   tvOS 26 simulator runtime).
 - Swift 5 language mode in packages (`swift-tools-version: 6.2`)
-- Single multiplatform target `KinoPubAppleClient` (product name `KinoPub`)
+- Single multiplatform target `Piratic` (product name `KinoPub`)
 - tvOS follows the system light/dark setting; iOS and macOS are forced dark until their pass
 - **Internal TestFlight:** daily / version bump / Actions → TestFlight (iOS, tvOS,
   macOS). Secrets and first upload: [docs/testflight.md](docs/testflight.md)
 
 ```
-open KinoPubAppleClient.xcodeproj
+open Piratic.xcodeproj
 # pick an Apple TV / iPhone / Mac destination
 ```
 
@@ -67,8 +67,8 @@ API reference: [kinoapi.com](https://kinoapi.com) (verify load-bearing shapes ag
 
 ## App structure
 
-- `KinoPubAppleClient` — app target
-- `KinoPubUI` / `KinoPubBackend` / `KinoPubKit` / `KinoPubLogging` / `KinoPubMetadata` — local packages
+- `Piratic` — app target
+- `PiraticUI` / `KinoPubBackend` / `PiraticKit` / `PiraticLogging` / `PiraticMetadata` — local packages
 
 Third-party today: KeychainAccess, PopupView, Reachability. No analytics or crash-reporting SDK —
 crashes come from TestFlight / Xcode Organizer; product analytics is a late-stage item.

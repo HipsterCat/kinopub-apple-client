@@ -1,0 +1,508 @@
+//
+//  FeatureFlags.swift
+//  Piratic
+//
+
+import Foundation
+import Synchronization
+import PiraticUI
+
+/// Single source of truth for user-facing surfaces that are compiled but not yet
+/// ready to ship. Flip one flag instead of scattering per-view checks.
+///
+/// An off flag must skip the work (network, sampling, chrome), not only hide UI.
+///
+/// **Every flag is switchable in the app** — Settings › Diagnostics › Feature flags, in
+/// every build. What ships is `FeatureFlag.defaultValue`; a switch in the app is an
+/// override stored on this device. Call sites read these names and never the storage.
+enum FeatureFlags {
+  /// Contained Home banner shelf. Off pending redesign — when false, Home does
+  /// not sample banner cards and does not load wide poster artwork for them.
+  static var homeBannerEnabled: Bool { FeatureFlag.homeBanner.isEnabled }
+
+  /// The banner titles as one full-width carousel at the top of Home, Apple TV style —
+  /// `TVPageSection.hero` on tvOS, `HomeHeroCarousel` on iOS, iPadOS and macOS. Off: the
+  /// banner shelf, two cards across. Needs `homeBannerEnabled` — it is the same sample
+  /// of titles.
+  static var homeHeroCarouselEnabled: Bool { FeatureFlag.homeHeroCarousel.isEnabled }
+
+  /// Gates the Downloads tab, the item-detail download action, and any other
+  /// downloads-facing UI. `PiraticKit`'s `DownloadManager` / `DownloadedFilesDatabase`
+  /// machinery stays compiled and available either way — this only hides entry points.
+  ///
+  /// Never on tvOS: an Apple TV has no storage to keep a film on (the system purges it),
+  /// and the switch is not offered there — but its default is on everywhere, so the TV's
+  /// «Моё» showed a Downloads row that could never hold anything (Sasha, 2026-11-16).
+  ///
+  /// TODO(downloads): add Download to `MediaCardContextMenus`
+  /// (single source — do not hand-roll per shelf / banner / rail).
+  static var downloadsEnabled: Bool {
+#if os(tvOS)
+    false
+#else
+    FeatureFlag.downloads.isEnabled
+#endif
+  }
+
+  /// "All Bookmarks" overview tab (folder shelves). Off while History / Watchlist /
+  /// per-folder tabs carry browsing; when false the tab is omitted and the overview
+  /// catalog is not fetched.
+  static var allBookmarksEnabled: Bool { FeatureFlag.allBookmarks.isEnabled }
+  static var macSidebarEnabled: Bool { FeatureFlag.macSidebar.isEnabled }
+  /// Mac: the search field in the toolbar and sort / filters as a row of icon menus — the
+  /// layout before the field moved to the sidebar (Sasha, 2026-11-05).
+  static var macLegacySearchChrome: Bool { FeatureFlag.macLegacySearchChrome.isEnabled }
+
+  /// tvOS shelves + grids share one `TVPosterView` / `TVCardView` atom (same
+  /// `ShelfMetrics` sizing), drawn by a recycling `UICollectionView` rather than a
+  /// Lazy stack — lazy defers creation, it does not reuse cells. SwiftUI
+  /// `MediaCardView` remains the fallback. iOS / macOS ignore this flag.
+  ///
+  /// On since 2026-08-06. **Device Hub focus validation is still outstanding** — this
+  /// was turned on to be judged on a real screen, not because that check passed.
+  static var tvUIKitPosters: Bool { FeatureFlag.tvUIKitPosters.isEnabled }
+
+  /// tvOS Watch Now / Movies / Series render as **one** `UICollectionView` per page
+  /// (`TVPage`: typed sections, HIG column formula, diffable snapshots) instead of one
+  /// bridged rail per row inside a SwiftUI `Section` stack (`MediaRowsView`). The old
+  /// path stays behind this switch until the page has been driven on a device; then it
+  /// is deleted, not kept.
+  static var tvPageSections: Bool { FeatureFlag.tvPageSections.isEnabled }
+
+  /// tvOS Search as UIKit (`TVSearchPage`: `UISearchContainerViewController`, native
+  /// suggestions with recents and kino.pub's type-ahead, a row of system pull-downs —
+  /// type, genre, country, years, facets, sort — sent to `/v1/items/search`, the best
+  /// matches as two rows of wide cards, local-first results). Off falls back to the
+  /// SwiftUI `.searchable` screen.
+  ///
+  /// The focus trap of 2026-09-23 (Down from the tab bar skipped the keyboard, Up never
+  /// left the results) was `.ignoresSafeArea()` on the search host: the keyboard,
+  /// suggestions and scope bar were laid out *under* the tab bar, so the focus engine
+  /// had nothing below the bar but the results. Found with `-UIFocusLoggingEnabled YES`;
+  /// `testSearchFocusRoundTrip` walks the whole column both ways.
+  ///
+  /// tvOS 26.5+ again: Down from the Search *tab* while the bar holds focus was a no-op
+  /// (Select still entered the field). `TVSearchPageHostViewController` embeds the
+  /// container with a tab-bar `UIFocusGuide` into the search chrome; see
+  /// `testSearchTabDownFromTabBar`.
+  static var tvUIKitSearch: Bool { FeatureFlag.tvUIKitSearch.isEnabled }
+
+  /// tvOS Search with the grid keyboard (Settings › General › Keyboard): **on**, the
+  /// keyboard stays on the left while focus is in the results, and the tab bar and the
+  /// search field stay put while the results scroll (Sasha, 2026-11-20). **Off** is the
+  /// behaviour Apple's apps have: the keyboard slides away with focus in the results and
+  /// the page takes the whole width, and the bar and field leave with the scroll.
+  ///
+  /// Read inside `PiraticUI` (`TVSearchChrome.keepsGridKeyboardVisible`), handed over at
+  /// launch — the search stack is built and pre-warmed then, so this applies at launch.
+  /// Switched in Settings › Experiments on the TV.
+  static var gridKeyboardAlwaysVisible: Bool { FeatureFlag.gridKeyboardAlwaysVisible.isEnabled }
+
+  /// tvOS detail page: everything under the hero is **one** `UICollectionView`
+  /// (`TVEmbeddedPage`), laid out in columns — Ratings | Reviews, Director | Cast,
+  /// Similar, Stills | Facts, Type · Year · Country · Genre, Collections, then
+  /// Video | Audio | Subtitles — from the same cells Watch Now and Search use. Off falls
+  /// back to the SwiftUI section stack, which stays until the new page has been driven on
+  /// a device; then it is deleted, not kept.
+  static var tvDetailSections: Bool { FeatureFlag.tvDetailSections.isEnabled }
+
+  /// A series detail page fetches its item with `nolinks=1` and resolves an episode's
+  /// links from `/v1/items/media-links` when it is played (`MediaLinksResolver`).
+  ///
+  /// **Off.** It saves real bytes on a long show — most of that payload is links, and at
+  /// most one episode's worth is ever used — but every playback path has to go and get a
+  /// link first, and the first attempt shipped with a decoder that could not read a
+  /// link-less `files` entry at all, so every series page said "Couldn't Load". The
+  /// machinery stays compiled and switchable; kino.pub is making `nolinks=1` the default
+  /// in a future API version, so this is what we flip when that lands — after watching a
+  /// series actually play with it on.
+  static var seriesDetailsWithoutLinks: Bool { FeatureFlag.seriesDetailsWithoutLinks.isEnabled }
+
+  /// The muted trailer that starts by itself behind the detail hero (macOS today —
+  /// iPhone is off for legibility, tvOS by the no-blur-over-video policy).
+  ///
+  /// Off means no second `AVPlayer` is ever built and no trailer stream is fetched, not
+  /// a hidden video layer. Up-to-fullscreen then has nothing to open, and the Trailer
+  /// button still plays the real thing through the system player.
+  static var heroAmbientTrailerEnabled: Bool { FeatureFlag.heroAmbientTrailer.isEnabled }
+
+  /// The artwork behind a detail page: the blurred-poster wash on iOS / macOS, and on
+  /// tvOS the full-bleed hero still with its fold material.
+  ///
+  /// Off means the page sits on the plain app background and neither the wide still nor
+  /// the blur buffer is decoded — the hero's own foreground (title, actions, poster) is
+  /// untouched. **On tvOS that is the whole picture behind the page**, so expect a bare
+  /// page there, not a subtler one.
+  static var detailAmbientBackdropEnabled: Bool { FeatureFlag.detailAmbientBackdrop.isEnabled }
+
+  /// The tvOS sidecar-SRT machinery: a custom transport-bar Subtitles menu (dual
+  /// tracks), our own cue overlay, and hiding the system's Subtitles control.
+  ///
+  /// **Off.** Subtitles are the system player's on every platform — the master's own
+  /// WebVTT renditions, styled by the system. The machinery stays compiled because the
+  /// dual-subtitle stage will want it; flipping this brings the whole path back.
+  static var tvOSSidecarSubtitles: Bool { FeatureFlag.tvOSSidecarSubtitles.isEnabled }
+
+  /// Our edits to what the system player lists under Audio and Subtitles: the master
+  /// rewrite (`HLSAudioLabeler`) that renames every rendition after the API row
+  /// ("Русский ∙ Многоголосый, LostFilm"), numbers look-alikes ("∙ 2"), collapses the
+  /// per-quality groups into one and moves `DEFAULT`.
+  ///
+  /// **Off.** The player gets the CDN's master untouched and AVKit lists and names the
+  /// tracks itself — localized, with its own CC / SDH / Forced wording. What we still do
+  /// is *choose*: `TrackResolver` picks the dub and subtitles a title opens with, and a
+  /// pick made in the system menu is remembered. Both read the master as delivered
+  /// (`AudioRenditions.Naming.asDelivered`, `SubtitleRenditions`).
+  ///
+  /// What the stock menus make of a kino.pub master is in docs/providers/kinopub/hls.md:
+  /// AVFoundation merges the per-quality copies by itself (the collapse was not needed),
+  /// and names an option after `NAME` only in the viewer's own language. The player logs
+  /// both menus as AVFoundation hands them over (`tracks ·` lines). On brings the rewrite
+  /// back unchanged.
+  static var rewritesStreamTrackMenus: Bool { FeatureFlag.rewritesStreamTrackMenus.isEnabled }
+
+  /// Our own combined IMDb + Kinopoisk score: poster plaque, hero pill, the detail
+  /// "Rating" tile, and the card Rating placement / source settings. Off — IMDb and
+  /// Kinopoisk show only under their own logos meanwhile.
+  ///
+  /// Card chrome reads it from inside `PiraticUI`, so the value is handed to
+  /// `RatingFeature.combinedEnabled` once at launch (`FeatureFlag.applyAtLaunch()`).
+  static var combinedRatingEnabled: Bool { FeatureFlag.combinedRating.isEnabled }
+
+  /// Ratings and Reviews led by two cards, «Зрители» and «Критики», each a score out of 100
+  /// on an arc (Sasha, 2026-11-09), on every platform. Off is the card it replaced: the
+  /// combined score over a table of sources (pointer platforms) and the row of score tiles
+  /// ending in the reviews' count (tvOS).
+  static var ratingsSummaryCards: Bool { FeatureFlag.ratingsSummaryCards.isEnabled }
+
+  /// tvOS player, Episodes and Up Next tabs: on, the tiles sit on a glass platter matched to
+  /// Info's (`PlayerRailTab.Style.platter`); off, they are the title page's still row —
+  /// four columns, the page gutter, no platter, Apple's way (`.open`). An experiment
+  /// (Sasha, 2026-10-21): the two stay side by side until one is chosen.
+  static var playerTabsPlatter: Bool { FeatureFlag.playerTabsPlatter.isEnabled }
+
+  /// The trailer player's Info panel (tvOS). **Off**: it shows the trailer's running time,
+  /// which AVKit gives no way to hide on its own, so `playbackControlsIncludeInfoViews` is
+  /// false for trailers. On restores the panel with its *Go to Movie/Show* button.
+  static var trailerInfoPanel: Bool { FeatureFlag.trailerInfoPanel.isEnabled }
+
+  /// tvOS series page: the season row from Rivulet (full "Season N" tabs, an S2
+  /// divider, episode stills with the metadata plate). Off is the current numbered
+  /// tabs and wide cells. Select on the still plays; Select on the text opens the
+  /// info sheet.
+  static var rivuletSeasonRail: Bool { FeatureFlag.rivuletSeasonRail.isEnabled }
+
+  /// Where the detail page's metadata comes from. **On**: one `/v2/title` call to the
+  /// worker plus the Kinopoisk proxy without staff, no TMDB. **Off**: the TMDB, Kinopoisk
+  /// and proxy calls the page has always made. Only the chosen path is requested — a
+  /// title is never fetched both ways (Sasha, 2026-11-04). The page's Debug sheet can
+  /// flip one open title to the other path to compare them; that does not change this.
+  static var titleCardMetadata: Bool { FeatureFlag.titleCardMetadata.isEnabled }
+
+  /// Title page hero: the status capsule («Новый сезон», «Новинка») first in the facts
+  /// line, as it shipped on 2026-11-08. Off: on a line of its own above the facts, where
+  /// Sasha moved it for now (2026-11-09).
+  static var heroStatusInFactsLine: Bool { FeatureFlag.heroStatusInFactsLine.isEnabled }
+
+  /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
+  /// *movies*, so the detail page's season rail renders for a title that has none.
+  ///
+  /// Exists to test one specific hypothesis: that the hero blur / scroll choreography
+  /// only behaves because a season rail happens to be the first section below the hero,
+  /// and falls apart for movies where it is absent. Comparing a movie with and without
+  /// this flag isolates "is it the content or the choreography".
+  ///
+  /// The fabricated episodes are **not playable** (no `files`) — this is a layout and
+  /// focus probe, nothing else. DEBUG-only so it cannot reach a shipping build.
+#if DEBUG
+  static var fakeSeasonsOnMovies: Bool { FeatureFlag.fakeSeasonsOnMovies.isEnabled }
+#else
+  static let fakeSeasonsOnMovies = false
+#endif
+}
+
+/// One switch, what it ships as, and when a change to it takes hold. The in-app list
+/// (`FeatureFlagsView`, and the tvOS page in `TVProfileSettingsView`) is built from this.
+enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
+  case homeBanner
+  case homeHeroCarousel
+  case downloads
+  case allBookmarks
+  case tvUIKitPosters
+  case tvPageSections
+  case tvUIKitSearch
+  case gridKeyboardAlwaysVisible
+  case tvDetailSections
+  case seriesDetailsWithoutLinks
+  case heroAmbientTrailer
+  case detailAmbientBackdrop
+  case tvOSSidecarSubtitles
+  case rewritesStreamTrackMenus
+  case combinedRating
+  case ratingsSummaryCards
+  case playerTabsPlatter
+  case trailerInfoPanel
+  case rivuletSeasonRail
+  case titleCardMetadata
+  case heroStatusInFactsLine
+  case macSidebar
+  case macLegacySearchChrome
+#if DEBUG
+  case fakeSeasonsOnMovies
+#endif
+
+  var id: String { rawValue }
+
+  /// What a build ships with, and what "Reset" returns to.
+  var defaultValue: Bool {
+    switch self {
+    case .homeBanner: true
+    case .homeHeroCarousel: true
+    case .downloads: true
+    case .allBookmarks: true
+    case .tvUIKitPosters: true
+    case .tvPageSections: true
+    case .tvUIKitSearch: true
+    case .gridKeyboardAlwaysVisible: true
+    case .tvDetailSections: true
+    case .seriesDetailsWithoutLinks: false
+    case .heroAmbientTrailer: false
+    case .detailAmbientBackdrop: true
+    case .tvOSSidecarSubtitles: false
+    case .rewritesStreamTrackMenus: false
+    case .combinedRating: false
+    case .ratingsSummaryCards: true
+    case .playerTabsPlatter: false
+    case .trailerInfoPanel: false
+    case .rivuletSeasonRail: false
+    case .titleCardMetadata: false
+    case .heroStatusInFactsLine: false
+    case .macSidebar: true
+    case .macLegacySearchChrome: false
+#if DEBUG
+    case .fakeSeasonsOnMovies: false
+#endif
+    }
+  }
+
+  /// The name in the list. Developer-facing, so the code's own words, not translated.
+  var title: String {
+    switch self {
+    case .homeBanner: "Home banner shelf"
+    case .homeHeroCarousel: "Full-screen Home carousel"
+    case .downloads: "Downloads"
+    case .allBookmarks: "All Bookmarks tab"
+    case .tvUIKitPosters: "UIKit poster shelves"
+    case .tvPageSections: "One collection view per page"
+    case .tvUIKitSearch: "UIKit Search"
+    case .gridKeyboardAlwaysVisible: "Grid keyboard always visible"
+    case .tvDetailSections: "Detail sections in columns"
+    case .seriesDetailsWithoutLinks: "Series pages without links (nolinks=1)"
+    case .heroAmbientTrailer: "Muted trailer behind the hero"
+    case .detailAmbientBackdrop: "Artwork behind the detail page"
+    case .tvOSSidecarSubtitles: "Sidecar SRT subtitles (dual)"
+    case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
+    case .combinedRating: "Combined IMDb + Kinopoisk rating"
+    case .ratingsSummaryCards: "Viewers and Critics cards"
+    case .playerTabsPlatter: "Player tabs on a platter"
+    case .trailerInfoPanel: "Info panel on trailers"
+    case .rivuletSeasonRail: "Rivulet season rail"
+    case .titleCardMetadata: "Title metadata from /v2/title"
+    case .heroStatusInFactsLine: "Status badge inside the facts line"
+    case .macSidebar: "Sidebar navigation (Mac)"
+    case .macLegacySearchChrome: "Toolbar search field and icon filters (Mac)"
+#if DEBUG
+    case .fakeSeasonsOnMovies: "Fake seasons on movies"
+#endif
+    }
+  }
+
+  /// One line on what flipping it changes — the full story is on `FeatureFlags`.
+  var summary: String {
+    switch self {
+    case .homeBanner: "Wide banner cards at the top of Home."
+    case .homeHeroCarousel: "The banner titles one at a time across the whole width, Apple TV style; off is the shelf of two."
+    case .downloads: "Downloads tab, download actions and storage rows."
+    case .allBookmarks: "The folder-shelves overview tab in Library."
+    case .tvUIKitPosters: "TVUIKit cells in a recycling collection view; off is SwiftUI cards."
+    case .tvPageSections: "Watch Now, Movies and Series as one UICollectionView each."
+    case .tvUIKitSearch: "UISearchContainerViewController with native suggestions; off is .searchable."
+    case .gridKeyboardAlwaysVisible: "Search with the grid keyboard: it stays on the left with focus in the results, and the tab bar and field stay put. Off: the keyboard slides away and the bar scrolls off, as in Apple's apps."
+    case .tvDetailSections: "The detail page under the hero as one UICollectionView in columns; off is the SwiftUI stack."
+    case .seriesDetailsWithoutLinks: "Lighter series payload; each episode's links fetched on play."
+    case .heroAmbientTrailer: "A second, muted AVPlayer behind the detail hero."
+    case .detailAmbientBackdrop: "Blurred poster wash (iOS, macOS) or the hero still (tvOS)."
+    case .tvOSSidecarSubtitles: "Our transport-bar Subtitles menu and cue overlay instead of the system's."
+    case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
+    case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
+    case .ratingsSummaryCards: "Ratings and Reviews opens with a Viewers and a Critics card, each a score out of 100 on an arc. Off: the combined score over a source table (iOS, Mac), the score tiles (TV)."
+    case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
+    case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
+    case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
+    case .titleCardMetadata: "One worker /v2/title call plus Kinopoisk instead of the TMDB calls. Only the chosen source is fetched."
+    case .heroStatusInFactsLine: "Title page: «Новый сезон», «Новинка» first in the year / genres line. Off: on its own line above it."
+    case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
+    case .macLegacySearchChrome: "The search field in the toolbar on the Search page, and sort / type / genre / country / years as a row of icon menus. Off: the field at the top of the sidebar, one Filters menu and Sort on its own."
+#if DEBUG
+    case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
+#endif
+    }
+  }
+
+  /// Which platforms read it at all — a tvOS-only switch on the Mac is a control that
+  /// does nothing.
+  var isRelevantHere: Bool {
+    switch self {
+    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .gridKeyboardAlwaysVisible, .tvDetailSections,
+         .tvOSSidecarSubtitles,
+         .playerTabsPlatter, .trailerInfoPanel, .rivuletSeasonRail:
+#if os(tvOS)
+      true
+#else
+      false
+#endif
+    case .downloads:
+#if os(tvOS)
+      false
+#else
+      true
+#endif
+    case .macSidebar, .macLegacySearchChrome:
+#if os(macOS)
+      true
+#else
+      false
+#endif
+    default:
+      true
+    }
+  }
+
+  /// Switches that decide how the app shell is built — tabs, pages, card chrome — are pinned
+  /// until Apply (or cold launch) remounts the shell, so a flip never leaves half the app
+  /// built one way and half the other. The rest are read whenever their surface next opens.
+  var appliesAtLaunch: Bool {
+    switch self {
+    case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
+         .tvUIKitSearch, .gridKeyboardAlwaysVisible, .combinedRating, .macSidebar, .macLegacySearchChrome:
+      true
+    default:
+      false
+    }
+  }
+
+  // MARK: - Value
+
+  var isEnabled: Bool {
+    appliesAtLaunch
+      ? (Self.launchValues.withLock { $0[self] } ?? defaultValue)
+      : storedValue
+  }
+
+  /// What the switch says now — for a launch-time flag, what the *next* launch will use.
+  var storedValue: Bool {
+    UserDefaults.standard.object(forKey: defaultsKey) as? Bool ?? defaultValue
+  }
+
+  var isOverridden: Bool {
+    UserDefaults.standard.object(forKey: defaultsKey) != nil
+  }
+
+  /// A launch-time flag changed since the shell last pinned it (`applyAtLaunch` /
+  /// `applyPending`).
+  var isPendingApply: Bool {
+    appliesAtLaunch && storedValue != isEnabled
+  }
+
+  /// Old name — same as `isPendingApply`.
+  var isPendingRelaunch: Bool { isPendingApply }
+
+  /// Storing the default removes the override, so a changed default in a later build
+  /// reaches a device that only ever matched it.
+  func set(_ value: Bool) {
+    if value == defaultValue {
+      UserDefaults.standard.removeObject(forKey: defaultsKey)
+    } else {
+      UserDefaults.standard.set(value, forKey: defaultsKey)
+    }
+  }
+
+  /// The detail page's corner switch (removed 2026-11-04) kept its choice under its own
+  /// key. Carried over once, so a device that had picked v2 stays on v2.
+  private static func migrateTitleCardSwitch() {
+    let legacyKey = "piratic.debug.usesTitleCard"
+    let defaults = UserDefaults.standard
+    guard let legacy = defaults.object(forKey: legacyKey) as? Bool else { return }
+    defaults.removeObject(forKey: legacyKey)
+    if !FeatureFlag.titleCardMetadata.isOverridden {
+      FeatureFlag.titleCardMetadata.set(legacy)
+    }
+  }
+
+  static func resetAll() {
+    allCases.forEach { UserDefaults.standard.removeObject(forKey: $0.defaultsKey) }
+  }
+
+  var defaultsKey: String { "featureFlag.\(rawValue)" }
+
+  /// Pinned shell values. Refreshed at launch and when the viewer taps Apply.
+  /// Behind a Mutex: `isEnabled` is read from many actors; writes stay on MainActor
+  /// via `refreshLaunchPins` (same pattern as `ContentStore` / tile artwork caches).
+  private static let launchValues = Mutex<[FeatureFlag: Bool]>([:])
+
+  /// Called first thing at launch: pins the launch-time values, and hands the one that
+  /// lives inside a package to it.
+  @MainActor
+  static func applyAtLaunch() {
+    migrateTitleCardSwitch()
+    refreshLaunchPins()
+  }
+
+  /// Re-read stored launch-time flags and push package-side pins. Call before a
+  /// shell remount so the new tree builds against the toggles the viewer just set.
+  @MainActor
+  static func refreshLaunchPins() {
+    let pins = Dictionary(
+      uniqueKeysWithValues: allCases.filter(\.appliesAtLaunch).map { ($0, $0.storedValue) }
+    )
+    launchValues.withLock { $0 = pins }
+    RatingFeature.combinedEnabled = FeatureFlag.combinedRating.isEnabled
+#if os(tvOS)
+    TVSearchChrome.keepsGridKeyboardVisible = FeatureFlag.gridKeyboardAlwaysVisible.isEnabled
+#endif
+  }
+
+  /// Soft-remounts the shell under a blocking loader so pending launch-time flags
+  /// take hold without quitting. No-op when nothing is pending.
+  @MainActor
+  static func applyPending() {
+    guard allCases.contains(where: \.isPendingApply) else { return }
+    Task { await applyPendingAsync() }
+  }
+
+  @MainActor
+  static func applyPendingAsync() async {
+    guard allCases.contains(where: \.isPendingApply) else { return }
+    await ShellRemount.shared.run {
+      refreshLaunchPins()
+    }
+  }
+}
+
+/// Defaults keys shared by the diagnostics surfaces, so a toggle and the thing it
+/// toggles cannot drift apart. The "Verbose logging" switch this replaces was bound to a
+/// `@State` nothing read, under the footer "Demo controls — not saved yet" — a control
+/// that does nothing is worse than no control, because it looks like an answer.
+enum DiagnosticsSettings {
+  /// Shows the in-flight network readout over the whole app.
+  static let activityOverlayKey = "diagnostics.activityOverlay"
+
+  /// Streams the network log to the Pulse app on a Mac. Off by default — turning it on
+  /// is what asks for local-network permission, and that prompt is the user's to spend.
+  static let remoteLoggingKey = "diagnostics.remoteLogging"
+
+  /// tvOS: marks where each arrow press would move focus, and names the arrows that go
+  /// nowhere (`FocusDebugOverlay`, borrowed from silo-apple). `-PIRATICFocusDebug YES`
+  /// turns it on without Settings.
+  static let focusOverlayKey = "diagnostics.focusOverlay"
+}

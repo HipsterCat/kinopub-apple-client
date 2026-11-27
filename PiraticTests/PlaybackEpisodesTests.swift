@@ -1,0 +1,121 @@
+//
+//  PlaybackEpisodesTests.swift
+//  PiraticTests
+//
+//  The player's Episodes tab lists a series the way the title page does: seasons then
+//  episodes in reading order, the season playing selected. Films have no list.
+//
+
+import XCTest
+@testable import Piratic
+@testable import KinoPubBackend
+import PiraticMetadata
+
+final class PlaybackEpisodesTests: XCTestCase {
+
+  func testAMovieHasNoEpisodeList() {
+    XCTAssertNil(PlaybackEpisodes(playing: MediaItem.mock(), series: MediaItem.mock()))
+  }
+
+  func testASeriesWithoutSeasonsHasNoList() {
+    let series = MediaItem.mock(id: 50, type: "serial")
+    let episode = listedEpisode(id: 101, number: 1)
+    XCTAssertNil(PlaybackEpisodes(playing: episode, series: series))
+  }
+
+  func testSeasonsAndEpisodesAreInReadingOrder() throws {
+    let series = series(seasonOrder: [2, 1])
+    let playing = episode(in: series, season: 1, number: 2)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    XCTAssertEqual(list.seasons.map(\.number), [1, 2])
+    XCTAssertEqual(list.seasons.map(\.episodeIDs), [[101, 102, 103], [201, 202, 203]])
+    XCTAssertEqual(list.seriesID, 50)
+  }
+
+  func testThePlayingEpisodeSelectsItsSeason() throws {
+    let series = series()
+    let playing = episode(in: series, season: 2, number: 1)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    XCTAssertEqual(list.openingEpisodeID, 201)
+    XCTAssertEqual(list.selectedSeasonID, 2)
+    XCTAssertEqual(list.episodeByID[201]?.seasonNumber, 2)
+    XCTAssertEqual(list.episodeByID[201]?.mediaId, 50)
+    XCTAssertEqual(list.episodeByID[201]?.seriesTitle, series.localizedTitle)
+  }
+
+  func testASingleSeasonIsStillAList() throws {
+    let series = series(seasonOrder: [1])
+    let playing = episode(in: series, season: 1, number: 3)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    XCTAssertEqual(list.seasons.map(\.id), [1])
+    XCTAssertEqual(list.openingEpisodeID, 103)
+    XCTAssertEqual(list.selectedSeasonID, 1)
+  }
+
+#if os(tvOS)
+  /// Auto-play went on from the episode the player opened with: the series snapshot still
+  /// says the next one is unwatched, this device's progress says it finished — the Season
+  /// tab's tile says watched. The episode on screen wears the now-playing look.
+  @MainActor
+  func testTheSeasonTabReadsWatchedFromTheViewerNotTheSnapshot() throws {
+    let series = series()
+    let playing = episode(in: series, season: 1, number: 3)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    let viewer = ViewerStateReaderMock()
+    viewer.overlays[.episode(50, season: 1, number: 2)] = ViewerOverlay(isWatched: true)
+    let items = list.seasonItems(viewer: viewer)
+    XCTAssertEqual(items.map(\.id), [101, 102, 103])
+    XCTAssertEqual(items.map(\.status), [.ready, .watched, .ready])
+    XCTAssertEqual(items.map(\.isNowPlaying), [false, false, true])
+    XCTAssertEqual(list.seasonTitle, "Episodes".localized)
+  }
+
+  /// TMDB's episodes kino.pub has not uploaded stand in their place, not playable.
+  @MainActor
+  func testAnnouncedEpisodesStandInTheirPlace() throws {
+    let series = series(seasonOrder: [1])
+    let playing = episode(in: series, season: 1, number: 1)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    let schedule = (1...5).map { EpisodeSchedule(episodeNumber: $0, seasonNumber: 1) }
+    let items = list.seasonItems(viewer: ViewerStateReaderMock(), schedule: schedule)
+    XCTAssertEqual(items.map(\.id), [101, 102, 103,
+                                     PlaybackEpisodes.announcedID(season: 1, number: 4),
+                                     PlaybackEpisodes.announcedID(season: 1, number: 5)])
+    XCTAssertNil(list.episodeByID[items[3].id], "an announced episode must not be playable")
+  }
+
+  /// Only the season playing — the tab is one row, like Up Next.
+  @MainActor
+  func testTheSeasonTabHoldsTheSeasonPlayingAlone() throws {
+    let series = series()
+    let playing = episode(in: series, season: 2, number: 1)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    XCTAssertEqual(list.seasonItems(viewer: ViewerStateReaderMock()).map(\.id), [201, 202, 203])
+  }
+#endif
+
+  // MARK: - Fixtures
+
+  private func series(seasonOrder: [Int] = [1, 2]) -> MediaItem {
+    let seasons = seasonOrder.map { number -> Season in
+      let episodes = (1...3).reversed().map { n in
+        listedEpisode(id: number * 100 + n, number: n)
+      }
+      return Season(id: number, title: "", number: number,
+                    watching: SeasonWatching(status: 0), episodes: episodes)
+    }
+    var item = MediaItem.mock(id: 50, type: "serial")
+    item.seasons = seasons
+    return item
+  }
+
+  private func listedEpisode(id: Int, number: Int) -> Episode {
+    Episode(id: id, title: "", thumbnail: "", duration: 3_000, tracks: 1, number: number,
+            ac3: 0, audios: [], watched: 0, watching: EpisodeWatching(status: 0, time: 0),
+            subtitles: [], files: [])
+  }
+
+  private func episode(in series: MediaItem, season: Int, number: Int) -> Episode {
+    series.seasons!.first { $0.number == season }!.episodes.first { $0.number == number }!
+  }
+}

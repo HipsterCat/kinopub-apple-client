@@ -10,7 +10,7 @@
 //
 
 import Foundation
-import KinoPubLogging
+import PiraticLogging
 
 public struct KinoPubConfig: Decodable, Sendable {
   public struct TypeEntry: Decodable, Sendable {

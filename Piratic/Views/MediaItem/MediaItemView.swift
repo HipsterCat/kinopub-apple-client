@@ -1,0 +1,1458 @@
+//
+//  MediaItemView.swift
+//  Piratic
+//
+//  Created by Kirill Kunst on 28.07.2023.
+//
+
+import Foundation
+import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+import PiraticUI
+import KinoPubBackend
+import PiraticKit
+import PiraticLogging
+import PiraticMetadata
+import PiraticMedia
+
+/// Focus targets owned by the hero. One case per button — SIX of them used to share
+/// `heroOther`, which is why tvOS focus froze dead on Play: with multiple sibling
+/// views bound to the same `@FocusState` equals-value, the engine has no way to
+/// resolve which one is actually focused, and directional moves in and out of the
+/// group (including Right into the row, and Down past it) simply stop resolving.
+enum MediaItemFocusTarget: Hashable {
+  case play
+  /// A film's second version, as its own play pill beside Play.
+  case playAlternate
+  /// The third, when no Trailer pill takes its place.
+  case playThird
+  /// «+ ещё N» — into the versions rail.
+  case moreVersions
+  /// The versions rail as a whole (tvOS): what «+ ещё N» focuses. Not a hero control.
+  case versionsRail
+  case watchlist
+  case bookmark
+  case watched
+  case trailer
+  case more
+  case download
+  case shuffle
+  case plot
+
+  /// Hero action-row controls (not the synopsis).
+  var isActionControl: Bool {
+    switch self {
+    case .play, .playAlternate, .playThird, .moreVersions, .watchlist, .bookmark, .watched,
+         .trailer, .more, .download, .shuffle:
+      return true
+    case .plot, .versionsRail:
+      return false
+    }
+  }
+
+  /// Controls that push the player over the page.
+  var opensPlayer: Bool {
+    switch self {
+    case .play, .playAlternate, .playThird, .shuffle, .trailer:
+      return true
+    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more,
+         .download, .plot:
+      return false
+    }
+  }
+
+  /// The row's main control: labelled Follow when it leads, else Play — whatever Play
+  /// reads, Replay included. Focus lands here on opening the page and on coming back
+  /// to it (Sasha, 2026-10-03).
+  static func entry(promotesFollow: Bool) -> MediaItemFocusTarget {
+    promotesFollow ? .watchlist : .play
+  }
+}
+
+#if os(tvOS)
+/// The focus engine's own answer to "is anything focused?". SwiftUI's `@FocusState`
+/// only knows the controls bound to it, so `nil` there can mean "a rail card below has
+/// focus" as easily as "nothing does" — the hero must not take focus back from the
+/// first, and it must not read a menu, alert or cover as the sections either.
+enum TVFocusProbe {
+  @MainActor static var nothingFocused: Bool {
+    focusedItem == nil
+  }
+
+  /// Focus sits in a menu, context menu, alert, sheet or cover laid over the page.
+  /// Those take `@FocusState` off the hero without moving into the sections, and the
+  /// backdrop fades when that is read as the details (Sasha, 2026-10-25).
+  @MainActor static var focusedItemIsOverlay: Bool {
+    guard let item = focusedItem else { return false }
+    return isOverlay(item)
+  }
+
+  @MainActor private static var focusedItem: UIFocusItem? {
+    guard let window = keyWindow, let system = UIFocusSystem.focusSystem(for: window) else { return nil }
+    return system.focusedItem
+  }
+
+  @MainActor private static var keyWindow: UIWindow? {
+    let windows = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap(\.windows)
+    return windows.first(where: \.isKeyWindow) ?? windows.first
+  }
+
+  /// A presentation over the page, not a card in it. Two shapes show up here: the
+  /// system's menu and alert live outside the root controller's view (a transition
+  /// view on the window), and an over-full-screen cover is inside that view but its
+  /// controller is presented. A rail cell is neither.
+  @MainActor private static func isOverlay(_ item: UIFocusItem) -> Bool {
+    guard let view = item as? UIView, let window = view.window else { return false }
+    if let root = window.rootViewController?.view, !view.isDescendant(of: root) {
+      return true
+    }
+    var responder: UIResponder? = view
+    while let current = responder {
+      if let controller = current as? UIViewController, controllerIsPresented(controller) {
+        return true
+      }
+      if let candidate = current as? UIView, classNameIsOverlay(candidate) {
+        return true
+      }
+      responder = current.next
+    }
+    return false
+  }
+
+  @MainActor private static func controllerIsPresented(_ controller: UIViewController) -> Bool {
+    if controller is UIAlertController { return true }
+    var cursor: UIViewController? = controller
+    while let current = cursor {
+      if current.presentingViewController != nil { return true }
+      cursor = current.parent
+    }
+    return false
+  }
+
+  /// Private menu and keyboard containers that stay inside the root view. A focused
+  /// key is the New Folder alert's keyboard, never a section.
+  private static func classNameIsOverlay(_ view: UIView) -> Bool {
+    let name = NSStringFromClass(type(of: view))
+    return name.contains("ContextMenu") || name.contains("AlertController")
+      || name.contains("Keyboard") || name.contains("UIKB")
+  }
+}
+#endif
+
+
+/// Whether a hero action control may accept input.
+///
+/// Never applied as `.disabled` — that dimmed the glass and was rejected on
+/// device (Sasha, 2026-10-02). Loading is a no-op in the handler instead.
+/// Focus must **never** feed this. Steering Down-from-plot by `.disabled`-ing
+/// Trailer / Bookmark / More left those controls dim forever whenever
+/// `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open
+/// bookmarks (Sasha, 2026-10-01). Down → Play is `focusSection` + `defaultFocus`.
+enum MediaItemHeroActionAvailability {
+  static func isInteractable(isLoading: Bool = false) -> Bool {
+    !isLoading
+  }
+}
+
+
+/// Whether the hero is on screen, measured by the hero's own frame on iOS and macOS and
+/// used for one thing: pausing the ambient trailer once it has scrolled away. An
+/// `@Observable` held by reference so the write lands in `MediaItemHeroView` alone and
+/// never re-runs this page's body. tvOS does not use it: there the artwork is the stack's
+/// backdrop and never scrolls away, so there is no page-wide state to keep.
+@Observable
+final class MediaItemHeroPhase {
+  var isHeroOnScreen = true
+  /// What became of the backdrop candidates, keyed by them (`MediaItemHeroView`).
+  var backdropOutcome: (key: String, loaded: Bool)?
+  /// What became of the blurred poster behind a poster hero, keyed by its URL.
+  var washOutcome: (key: String, loaded: Bool)?
+  /// What the shared title slot drew, and the logo language it got.
+  var titleLogoMark: TitleLogoMark = .empty
+  var deliveredLogoLanguage: WorkerArtworkLanguageTag?
+  /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
+  /// ignores the top safe area so the picture runs under them; the hero's title must not.
+  var topChromeInset: CGFloat = 0
+  /// The hero has a picture behind its chrome (it loaded), so the toolbar over it goes
+  /// dark. Written by the hero once per change.
+  var showsPicture = false
+  /// Mac: the hero has gone up under the window toolbar, which then names the title,
+  /// as Apple Music's artist page does. Written by the hero once per crossing.
+  var isHeroPastToolbar = false
+}
+
+struct MediaItemView: View {
+
+  @Environment(ErrorHandler.self) var errorHandler
+  @Environment(NavigationState.self) var navigationState
+  @EnvironmentObject var authState: AuthState
+  @Environment(\.appContext) private var appContext
+  /// The Change Images sheet, while open.
+  @State private var imagePickerTarget: TitleImagePickerTarget?
+  /// The Title IDs form, while open.
+  @State private var idsTarget: TitleImagePickerTarget?
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  /// iPhone: the hero is a centred column with Play and Trailer alone; Bookmarks, the
+  /// bell and Download are in the navigation bar and Mark as Watched in «…» (Sasha,
+  /// 2026-11-10). The hero reads the same size class (`phoneHeroGrows`).
+  private var barCarriesActions: Bool { horizontalSizeClass == .compact }
+#endif
+  @StateObject private var itemModel: MediaItemModel
+  /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
+  private var trailer: TrailerPreviewModel { itemModel.trailer }
+  /// Set by the hero's «+ ещё N»: the versions rail parks on, and focus lands on, the
+  /// first version that had no pill.
+  @State private var versionsEntry: Int?
+  /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
+  /// takes the binding, not the value, so hero focus moves re-render the hero alone.
+  @FocusState private var focus: MediaItemFocusTarget?
+  /// Content minY in the page scroll. 0 is the hero. Menu uses it to decide
+  /// between returning there and leaving the page.
+  @State private var pageScrollMinY: CGFloat = 0
+  @Environment(\.dismiss) private var dismiss
+#if os(macOS)
+  /// `.key` when this page's window is the key window again — back from the player
+  /// window (paused, still open) or from another app.
+  @Environment(\.controlActiveState) private var controlActiveState
+#endif
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
+  /// Owns folder state + context-menu wiring for the related-item rows (Similar /
+  /// More from Director / More with Actor) as ONE coordinator shared across all of
+  /// them — see `MediaItemRelatedRowsSection`. Previously each of those three
+  /// shelves created and bound its own `MediaCardMenuCoordinator` independently.
+  @StateObject private var relatedRowsMenu = MediaCardMenuCoordinator()
+  init(model: @autoclosure @escaping () -> MediaItemModel) {
+    _itemModel = StateObject(wrappedValue: model())
+  }
+
+  var body: some View {
+    @Bindable var errorHandler = errorHandler
+    details
+      .background(pageBackground)
+#if os(tvOS)
+      // Behind the page, not in it: the stack's one backdrop shows this title's
+      // picture while the hero and the sections scroll over it.
+      .pageBackdrop(tvBackdrop)
+#endif
+      .overlay {
+        // Full-page error only when there is nothing to paint. Under a hero drawn from
+        // the card the failure sits where the details would be (`detailsFailure`).
+        if itemModel.loadFailed && !paintsPage {
+          UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying,
+                          onRetry: { itemModel.retry() },
+                          onSignIn: { authState.requestReauthentication(reason: "title details") })
+        } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
+#if !os(tvOS)
+          LoadingIndicatorView(delay: .milliseconds(700))
+#endif
+        }
+      }
+#if !os(tvOS)
+      // tvOS: no fade when the details arrive — the page is already on screen.
+      .animation(.easeInOut(duration: 0.3), value: itemModel.itemLoaded)
+#endif
+      .animation(.easeInOut(duration: 0.3), value: itemModel.loadFailed)
+      // Top only: on macOS, ignoring horizontal safe area draws under the sidebar and
+      // the first episode/poster gets clipped. tvOS/iOS still bleed the hero edge-to-edge.
+#if os(macOS)
+      .ignoresSafeArea(edges: .top)
+      // The synopsis popup as the TV app's panel over the page: the page stays live, a
+      // click outside closes it (Sasha, 2026-10-30).
+      .hostsInfoPopups()
+#elseif os(iOS)
+      // Edge to edge: the picture runs under the iPad's open sidebar and past the
+      // iPhone's notch, the words and the first cards keep clear of both by the page
+      // margins measured here (`PageMargins`, Sasha 2026-11-16). Ignoring only the
+      // vertical safe area kept the words clear but left them flush against the sidebar,
+      // 20 pt where the same page has 40 without it.
+      .ignoresSafeArea()
+      .providesPageMargins()
+#else
+      .ignoresSafeArea()
+#endif
+#if !os(tvOS)
+      // Measured on the full-window frame, which overlaps the bars by exactly this much.
+      // Written into `heroPhase`, so only the hero re-reads it.
+      .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.top }) { inset in
+        itemModel.heroPhase.topChromeInset = inset
+      }
+#endif
+      // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter
+      // here plus the system's own tab-bar minimize timing was reading as "tabs fade in
+      // and out in random places." Revisit properly later; until then, always-on beats
+      // unpredictable. See `docs/archive/plans/detail-page-choreography.md`.
+      // No navigation bar on this page, on either platform: the artwork runs to the
+      // top edge and the title is already spelled out in 100pt over it. What stays is
+      // the toolbar itself — Back and the overflow float over the picture.
+#if os(iOS)
+      // One back control. Otherwise the bar draws the chevron and the previous
+      // screen's name as two pills over the picture.
+      .toolbarRole(.editor)
+      // Bare over the picture — no title, no edge effect, no bar — and the system's own
+      // bar with the title once the hero has gone under it, as on Mac.
+      .modifier(PhoneTitlePageBar(phase: itemModel.heroPhase,
+                                  title: itemModel.mediaItem.localizedTitle))
+#endif
+#if os(macOS)
+      // No title over the hero — it spells the name out itself; once the hero has gone
+      // under the toolbar, the toolbar takes the name (and the original one under it).
+      .modifier(MacTitlePageToolbar(phase: itemModel.heroPhase,
+                                    title: itemModel.mediaItem.localizedTitle,
+                                    subtitle: macToolbarSubtitle))
+#endif
+#if os(iOS) || os(macOS)
+      .toolbar {
+#if os(macOS)
+        // At the trailing edge, as the TV app's title page has its actions, not beside
+        // Back where the split view puts a primary action.
+        ToolbarSpacer(.flexible)
+#endif
+        ToolbarItemGroup(placement: .primaryAction) {
+#if os(macOS)
+          // One glass group, the way Notes pairs Share with its «…»: the bell and More,
+          // as the iPhone's bar has them; Bookmarks are in the hero's row on both
+          // (Sasha, 2026-11-23: the Mac had them the other way round).
+          followToolbarButton
+#endif
+#if os(iOS)
+          // iPhone: one button there, not three — the bell; Bookmarks are in the hero's
+          // row as on the Home banner, Download in «…» (Sasha, 2026-11-16).
+          if barCarriesActions {
+            followToolbarButton
+          }
+#endif
+          overflowMenu
+        }
+      }
+#endif
+      .sheet(item: $imagePickerTarget) { target in
+        TitleImagePickerSheet(target: target,
+                              images: appContext.metadataService.images,
+                              onSaved: { await itemModel.resetLocalCache() },
+                              initialKind: TitleImagePickerSheet.launchKind ?? .logo)
+      }
+      .sheet(item: $idsTarget) { target in
+        TitleIDsSheet(target: target,
+                      images: appContext.metadataService.images,
+                      knownIDs: knownTitleIDs,
+                      knownKind: itemModel.mediaItem.isSeries ? "show" : "movie",
+                      onSaved: { await itemModel.resetLocalCache() })
+      }
+#if DEBUG
+      // `-PIRATICOpenItem <id> -PIRATICOpenImagePicker logo|backdrop|ids`: screenshots of
+      // the Change Images sheet with the live worker catalog, or of the Title IDs form.
+      .onChange(of: itemModel.itemLoaded, initial: true) { _, loaded in
+        guard loaded, imagePickerTarget == nil, idsTarget == nil else { return }
+        if UserDefaults.standard.string(forKey: "PIRATICOpenImagePicker") == "ids" {
+          imageAdminActions?.onEditIDs()
+        } else if TitleImagePickerSheet.launchKind != nil {
+          imageAdminActions?.onChangeImages()
+        }
+      }
+#endif
+      .task {
+        // A model kept for this route (`MediaItemModelCache`) is already loaded: the page
+        // comes back as it was instead of fetching again from nothing.
+        guard !itemModel.itemLoaded else { return }
+        itemModel.fetchData()
+      }
+      // Back from the player: the page never unmounted, so repaint the rail and the hero
+      // from what the player just wrote locally. No-op until the payload has loaded.
+      .onAppear {
+        itemModel.repaintFromLocalProgress()
+        // Navigation already began `page.title`. End on first paint. A
+        // re-appear (back from the player) with no open interval is a no-op —
+        // it must not stash a leftover that would swallow the next push.
+        if itemModel.hasPaintedItem {
+          PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
+        } else {
+          PerfSignpost.beginTitleOpen(id: "\(itemModel.mediaItemId)")
+        }
+      }
+#if os(macOS)
+      // The page sits beside the player window and never re-appears; focusing its window
+      // is the return. Repaints from local progress only — no request, no-op if unchanged.
+      .onChange(of: controlActiveState) { _, state in
+        if state == .key { itemModel.repaintFromLocalProgress() }
+      }
+#endif
+      .onChange(of: itemModel.hasPaintedItem) { _, painted in
+        if painted {
+          PerfSignpost.endTitleOpen(reason: "painted", id: "\(itemModel.mediaItemId)")
+        }
+      }
+      .onDisappear {
+        PerfSignpost.cancelTitleOpen(id: "\(itemModel.mediaItemId)")
+      }
+      .task {
+        relatedRowsMenu.bind(errorHandler: errorHandler)
+        await relatedRowsMenu.refreshFolders()
+      }
+      .mediaCardNewFolderAlert(relatedRowsMenu)
+      // Ambient muted trailer behind the hero:
+      // - iPhone: off (short band, chrome on top — legibility / battery).
+      // - tvOS: off for now (1C) — video without scrims looked broken; Trailer button
+      //   still opens the real player. Revisit when the hero pass lands.
+      // - macOS: on, unless `FeatureFlags.heroAmbientTrailerEnabled` says otherwise —
+      //   the guard below is what keeps an off flag from building the player at all.
+#if os(macOS)
+      .task(id: itemModel.itemLoaded ? itemModel.mediaItem.trailerURL : nil) {
+        guard FeatureFlags.heroAmbientTrailerEnabled,
+              itemModel.itemLoaded,
+              let url = itemModel.mediaItem.trailerURL else { return }
+        try? await Task.sleep(for: .seconds(MediaItemHeroView.trailerLeadIn))
+        guard !Task.isCancelled else { return }
+        trailer.start(url: url)
+      }
+#endif
+      // `trailer.setActive` lives on `MediaItemHeroView`'s own `onChange` — see
+      // `MediaItemHeroPhase` — so this page never reads `heroPhase.isHeroOnScreen`.
+      .onAppear {
+        trailer.setSuspended(false)
+      }
+      .onDisappear {
+        trailer.setSuspended(true)
+      }
+      .handleError(state: $errorHandler.state)
+      .hudToast($itemModel.hudToast)
+      .modifier(VoteChoicePresentation(isPresented: $itemModel.showsVoteChoice,
+                                       onVote: { itemModel.vote(up: $0) }))
+      .alert("MediaItem_VoteChoice".localized, isPresented: $itemModel.showsVoteConfirm) {
+        Button(itemModel.pendingVoteUp ? "Like".localized : "Dislike".localized) {
+          itemModel.confirmPendingVote()
+        }
+        Button("Cancel".localized, role: .cancel) {}
+      } message: {
+        Text("MediaItem_VoteLocked".localized)
+      }
+      .alert("MediaItem_VoteCastTitle".localized, isPresented: $itemModel.showsVoteLockedNotice) {
+        Button("OK".localized, role: .cancel) {}
+      } message: {
+        Text("MediaItem_VoteCastBody".localized)
+      }
+  }
+
+  /// The ids this page already has, for the Title IDs form: kino.pub's IMDb and
+  /// Kinopoisk, and the TMDB id the metadata came with.
+  private var knownTitleIDs: [String: String] {
+    let item = itemModel.mediaItem
+    var ids: [String: String] = [:]
+    if let imdb = item.imdb, imdb > 0 { ids["imdb"] = TMDBIDFormatter.imdbString(from: imdb) }
+    if let kinopoisk = item.kinopoisk, kinopoisk > 0 { ids["kinopoisk"] = String(kinopoisk) }
+    if let tmdb = itemModel.externalMetadata.tmdbId {
+      ids["tmdb"] = "\(item.isSeries ? "tv" : "movie")/\(tmdb)"
+    }
+    return ids
+  }
+
+  /// Change Images and the worker's maintenance actions, for an admin with a token.
+  private var imageAdminActions: TitleImageAdminActions? {
+    guard itemModel.itemLoaded else { return nil }
+    let item = itemModel.mediaItem
+    let target = TitleImagePickerTarget(kinopubID: item.id, imdb: item.imdb,
+                                        title: item.localizedTitle)
+    return TitleImageAdminActions.make(
+      target: target,
+      kinopoisk: item.kinopoisk,
+      images: appContext.metadataService.images,
+      onChangeImages: { imagePickerTarget = target },
+      onEditIDs: { idsTarget = target },
+      onArtworkChanged: { await itemModel.resetLocalCache() },
+      report: { itemModel.hudToast = $0 }
+    )
+  }
+
+#if !os(tvOS)
+  /// Mark as Watched, as items of More: the plain mark, and for a series the hero's
+  /// per-episode and per-season choices beside it.
+  @ViewBuilder
+  private var watchedMenuItems: some View {
+    if !itemModel.isWatched {
+      if let (season, episode) = itemModel.mediaItem.primaryEpisode {
+        // One «Mark as Watched ›» opening the episode, the season and the rest, the way
+        // Download is (Sasha, 2026-11-16); the season or episode is each item's subtitle.
+        Menu {
+          Button {
+            itemModel.toggleWatched()
+          } label: {
+            Label("Mark Episode Watched", systemImage: "checkmark")
+            Text(verbatim: EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))
+          }
+          Button {
+            itemModel.toggleWatched(season: season)
+          } label: {
+            Label("Mark Season Watched", systemImage: "checkmark.circle")
+            Text(verbatim: SeasonText(season.number).formatted(.long))
+          }
+          Button {
+            itemModel.markUnwatchedInSeason(season)
+          } label: {
+            Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
+          }
+          Button {
+            itemModel.markAllEpisodesWatched()
+          } label: {
+            Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+          }
+        } label: {
+          Label("MediaAction_MarkWatchedMenu", systemImage: "checkmark.circle")
+        }
+      } else {
+        Button {
+          itemModel.toggleWatched()
+        } label: {
+          Label("MediaAction_MarkWatchedMenu", systemImage: "checkmark.circle")
+        }
+      }
+      Divider()
+    }
+  }
+
+#endif
+
+#if os(iOS) || os(macOS)
+  /// The bell, for a series that can be followed — not while labelled Follow leads the
+  /// hero's row (nothing left to play), where it would be said twice.
+  @ViewBuilder
+  private var followToolbarButton: some View {
+    let item = itemModel.mediaItem
+    if item.isSeries,
+       !MediaItemHeroView.promotesFollow(mediaItem: item,
+                                         awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                                         canFollow: true) {
+      Button {
+        itemModel.toggleWatchlist()
+      } label: {
+        Label(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist),
+              systemImage: itemModel.isInWatchlist ? "bell.fill" : "bell")
+      }
+#if os(macOS)
+      .help(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist))
+#endif
+      .disabled(!itemModel.itemLoaded)
+    }
+  }
+
+#endif
+
+#if os(iOS)
+  /// Download (with the flag on), in «…»: what Play opens, or pausing it; for a series
+  /// also the season, its unwatched episodes, or all of them.
+  @ViewBuilder
+  private var downloadMenuItems: some View {
+    if let phase = itemModel.downloadPhase, phase != .downloaded {
+      let downloading: Bool = if case .downloading = phase { true } else { false }
+      let current = Button {
+        if downloading {
+          itemModel.pauseCurrentDownload()
+        } else {
+          itemModel.startCurrentDownload()
+        }
+      } label: {
+        Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
+              systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
+        if let (season, episode) = itemModel.mediaItem.primaryEpisode {
+          Text(verbatim: EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))
+        }
+      }
+      if let (season, _) = itemModel.mediaItem.primaryEpisode {
+        // «Download ›»: what Play opens, the season, its unwatched episodes, or all.
+        Menu {
+          current
+          Button {
+            itemModel.downloadSeason(season)
+          } label: {
+            Label("Season", systemImage: "arrow.down.to.line")
+            Text(verbatim: SeasonText(season.number).formatted(.long))
+          }
+          Button {
+            itemModel.downloadUnwatchedInSeason(season)
+          } label: {
+            Label("Unwatched in Season", systemImage: "arrow.down.to.line")
+          }
+          Button {
+            itemModel.downloadAllEpisodes()
+          } label: {
+            Label("All Episodes", systemImage: "arrow.down.to.line")
+          }
+        } label: {
+          Label("Download", systemImage: "arrow.down.to.line")
+        }
+      } else {
+        current
+      }
+    }
+  }
+
+#endif
+
+#if os(iOS) || os(macOS)
+  /// The page's secondary actions, in the one place a platform with a toolbar puts
+  /// them. Same list the tvOS hero shows in its overflow circle.
+  private var overflowMenu: some View {
+    Menu {
+#if os(macOS)
+      watchedMenuItems
+#elseif os(iOS)
+      // iPad: the Mac's «…» — Mark as Watched here, Download in the hero's row (Sasha,
+      // 2026-11-16: the menu differed). iPhone adds Download, its row has no room.
+      watchedMenuItems
+      if barCarriesActions {
+        downloadMenuItems
+      }
+#endif
+      if let imageAdminActions {
+        TitleImageAdminMenuItems(actions: imageAdminActions)
+        Divider()
+      }
+      MediaItemOverflowMenu(isSeries: itemModel.mediaItem.isSeries,
+                            isWatched: itemModel.isWatched,
+                            isBookmarked: itemModel.isBookmarked,
+                            onWatchedToggle: { itemModel.toggleWatched() },
+                            onClearFromContinueWatching: { itemModel.clearFromContinueWatching() },
+                            onBrowseWatchlist: { Self.openWatchlist(navigationState) })
+    } label: {
+      Label("More", systemImage: "ellipsis")
+    }
+#if os(macOS)
+    .menuIndicator(.hidden)
+    .help("More")
+#endif
+    .disabled(!itemModel.itemLoaded)
+  }
+#endif
+
+  /// The page draws from the card's copy of the title at once — the banner or the
+  /// poster it was opened from already has the title, the plot, the logo and the
+  /// backdrop at the same URLs — and fills in what only the details call knows (seasons,
+  /// the episode on Play, the trailer) in place. It used to wait for that call behind a
+  /// loader and then fade the whole page in (tvOS, Sasha 2026-11-05). iOS and macOS
+  /// waited until 2026-11-08, and a failed details call left them an empty page.
+  private var paintsPage: Bool {
+    itemModel.itemLoaded || itemModel.hasPaintedItem
+  }
+
+  @ViewBuilder
+  private var details: some View {
+    if paintsPage {
+      scrollDetails
+        // `.userInitiated`: the default `.automatic` is only a hint, and tvOS otherwise
+        // takes the topmost focusable element. The hero also names the same control in
+        // its `.task` — Follow when it leads, else Play.
+        .defaultFocus($focus, entryFocus, priority: .userInitiated)
+    } else {
+#if os(tvOS)
+      // The failure is drawn over this (the overlay above); a spinner under it showed
+      // through the error text.
+      if itemModel.loadFailed {
+        Color.clear
+      } else {
+        LoadingIndicatorView(delay: .milliseconds(700))
+      }
+#else
+      Color.clear
+#endif
+    }
+  }
+
+  private var entryFocus: MediaItemFocusTarget {
+    .entry(promotesFollow: MediaItemHeroView.promotesFollow(
+      mediaItem: itemModel.mediaItem,
+      awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+      canFollow: true
+    ))
+  }
+
+  /// One native vertical scroll: the hero and the sections below are one view and focus
+  /// graph, and the focus engine scrolls it. The only scroll this page
+  /// asks for itself is back to the top whenever a hero control takes focus: the hero's
+  /// controls sit at its bottom edge, and left alone the engine nudges the page just far
+  /// enough to frame whichever one was focused (the same drift Plozz corrects the same
+  /// way). Below the hero there is nothing to correct and nothing is written.
+  ///
+  /// On tvOS the artwork is not in this scroll at all: it is the navigation stack's one
+  /// backdrop (`pageBackdrop`), screen-sized and still at any depth. On iOS and macOS it
+  /// is the hero's own `.background` and scrolls away with it. Either way the page keeps
+  /// no fold state, no scroll target behaviour and no scroll-driven layer, which is what
+  /// used to re-render every shelf on each hero↔section move.
+  private var scrollDetails: some View {
+    ScrollViewReader { proxy in
+      ScrollView(.vertical) {
+        VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
+          MediaItemHeroView(mediaItem: itemModel.mediaItem,
+                            currentItem: { [itemModel] in itemModel.mediaItem },
+                            focus: $focus,
+                            trailer: trailer,
+                            phase: itemModel.heroPhase,
+                            linkProvider: itemModel.linkProvider,
+                            isWatched: itemModel.isWatched,
+                            isBookmarked: itemModel.isBookmarked,
+                            folders: itemModel.folders,
+                            folderIDsContainingItem: itemModel.folderIDsContainingItem,
+                            onWatchedToggle: { itemModel.toggleWatched() },
+                            onSeasonWatchedToggle: { itemModel.toggleWatched(season: $0) },
+                            onFolderToggle: { itemModel.toggleFolder($0) },
+                            onCreateFolder: { itemModel.createFolderAndAdd(named: $0) },
+                            onClearFromContinueWatching: { itemModel.clearFromContinueWatching() },
+                            onBrowseWatchlist: { Self.openWatchlist(navigationState) },
+                            isInWatchlist: itemModel.isInWatchlist,
+                            onToggleWatchlist: { itemModel.toggleWatchlist() },
+                            awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                            primaryEpisodeSchedule: itemModel.primaryEpisodeSchedule,
+                            seasonLabels: itemModel.seasonLabels,
+                            downloadPhase: itemModel.downloadPhase,
+                            onDownload: { itemModel.startCurrentDownload() },
+                            onPauseDownload: { itemModel.pauseCurrentDownload() },
+                            onDeleteDownload: { itemModel.deleteCurrentDownload() },
+                            onDownloadSeason: { itemModel.downloadSeason($0) },
+                            onDownloadUnwatchedInSeason: { itemModel.downloadUnwatchedInSeason($0) },
+                            onDownloadAllEpisodes: { itemModel.downloadAllEpisodes() },
+                            onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
+                            onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
+                            titleLogoURL: itemModel.heroLogoURL,
+                            titleLogoRequestKind: itemModel.heroLogoRequestKind,
+                            titlePartnerLine: itemModel.heroTitlePartnerLine,
+                            preferredBackdropURL: itemModel.heroBackdropURL,
+                            localCacheEpoch: itemModel.localCacheEpoch,
+                            ageRating: itemModel.externalMetadata.ageRating,
+                            externalMetadata: itemModel.externalMetadata,
+                            externalMetadataLoaded: itemModel.heroLogoResolved,
+                            onShowMoreVersions: { showMoreVersions() },
+                            onFocusEntered: {
+                              withAnimation(.easeInOut(duration: 0.4)) {
+                                proxy.scrollTo(Self.heroAnchor, anchor: .top)
+                              }
+                            },
+                            ensureBookmarkFoldersLoaded: {
+                              await itemModel.ensureBookmarkFoldersLoaded()
+                            },
+                            imageAdmin: imageAdminActions)
+            .id(Self.heroAnchor)
+#if os(tvOS)
+            // Screen height minus a peek strip: the slice of the first section showing
+            // under the hero at rest is what says there is more below.
+            .containerRelativeFrame(.vertical, alignment: .topLeading) { length, _ in
+              length * MediaItemLayout.heroFraction
+            }
+            // Apple's tvOS layout guidance: without a full-width focus section on the
+            // header, Up from the right side of the shelves below can miss it or jump
+            // to the tab bar, because the engine searches straight up.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .focusSection()
+#endif
+
+          if itemModel.loadFailed {
+            detailsFailure
+          }
+
+          contentSections
+        }
+#if os(tvOS)
+        .background {
+          // Inside the scroll, so the anchor's enclosing scroll view is this page's: in
+          // the ScrollView's own background it was a sibling of it, never found the
+          // page, and Menu on a card fell to SwiftUI with no offset and closed the title.
+          DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
+        }
+#endif
+        .background {
+          GeometryReader { geo in
+            Color.clear.preference(
+              key: PageScrollOffsetKey.self,
+              value: geo.frame(in: .named(MediaItemLayout.scrollSpace)).minY
+            )
+          }
+        }
+//        .padding(.bottom, MediaItemLayout.bottomPadding)
+      }
+      .background(Color.Piratic.background)
+      .coordinateSpace(name: MediaItemLayout.scrollSpace)
+#if os(tvOS)
+      .onPreferenceChange(PageScrollOffsetKey.self) { pageScrollMinY = $0 }
+      .onExitCommand {
+        // A hero control has focus: this is the hero, Menu closes the title. Decided by
+        // focus, not by the remembered scroll offset — that offset went stale after the
+        // scroll back up, and Menu on Play then scrolled to where the page already was
+        // instead of closing it (UI test, 2026-11-17).
+        FocusLog.decision("menu (SwiftUI): focus=\(focus.map { "\($0)" } ?? "nil") offset=\(DetailPageMenu.focusedPageOffset().map { "\(Int($0))" } ?? "nil")")
+        if let focus, focus != .versionsRail {
+          FocusLog.decision("menu (SwiftUI): at the hero, dismiss")
+          dismiss()
+        } else if !menuReturnsToHero(proxy) {
+          FocusLog.decision("menu (SwiftUI): not below the hero, dismiss")
+          dismiss()
+        }
+      }
+#endif
+#if !os(tvOS)
+      // Where the page was, kept by its model: coming back to the section finds it
+      // there (`MediaItemModelCache`).
+      .environment(\.scrollMemory, itemModel.scrollMemory)
+      .remembersScroll()
+#endif
+#if os(tvOS)
+      // A focused card's lift and a focused button's scale are drawn outside their
+      // frames; the page's own edges must not cut them.
+      .scrollClipDisabled()
+#endif
+    }
+  }
+
+  /// The details call failed under a hero painted from the card: what went wrong and
+  /// Try Again (or Sign In when the session is dead), where the seasons and the rest
+  /// would be. Its own focus section, so the remote can always reach the button from
+  /// the hero.
+  private var detailsFailure: some View {
+    UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying,
+                    onRetry: { itemModel.retry() },
+                    onSignIn: { authState.requestReauthentication(reason: "title details") })
+    .frame(maxWidth: .infinity)
+#if os(tvOS)
+    .focusSection()
+#endif
+  }
+
+  private struct PageScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+      value = nextValue()
+    }
+  }
+
+  private static let heroAnchor = "media-item-hero"
+
+#if os(tvOS)
+  /// Menu below the hero scrolls back to it and asks the button-row guide for the
+  /// entry control. At the hero the press is declined so the stack pops. Nothing
+  /// here writes `@FocusState` — that assignment left the card below visually focused.
+  private func menuReturnsToHero(_ proxy: ScrollViewProxy, belowHero: Bool = false) -> Bool {
+    let offset = DetailPageMenu.focusedPageOffset() ?? -pageScrollMinY
+    guard belowHero || offset >= 40 else { return false }
+    FocusLog.decision("menu: back up to the hero (from \(belowHero ? "the sections" : "SwiftUI"), offset=\(Int(offset)))")
+    NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
+    withAnimation(.easeInOut(duration: 0.45)) {
+      proxy.scrollTo(Self.heroAnchor, anchor: .top)
+    }
+    // Once the hero is back on screen. A UIKit request for the SwiftUI entry control
+    // made at once, with the hero still off screen under a card, did not land (round 5:
+    // focus stayed on the off-screen card, nothing on screen looked focused). If the
+    // request still misses, SwiftUI's own focus moves there.
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(500))
+      guard !HeroEntryFocus.request() else { return }
+      FocusLog.decision("menu: the UIKit request missed, @FocusState takes the entry control")
+      focus = entryFocus
+    }
+    return true
+  }
+#endif
+
+  /// «+ ещё N»: park the rail on the first version without a pill, then hand it focus —
+  /// a turn later, so the rail has its entry before the engine asks for it.
+  private func showMoreVersions() {
+    versionsEntry = firstVersionWithoutPill
+    Task { @MainActor in
+      focus = .versionsRail
+    }
+  }
+
+  /// Where «+ ещё N» lands: the first version the hero had no pill for.
+  private var firstVersionWithoutPill: Int? {
+    let variants = itemModel.mediaItem.playChoices
+    let limit = MediaActionCatalog.versionPillLimit(showsTrailer: itemModel.mediaItem.trailerURL != nil)
+    return variants.indices.contains(limit) ? variants[limit].id : nil
+  }
+
+  /// Real seasons, or — under `FeatureFlags.fakeSeasonsOnMovies` — a fabricated one for
+  /// titles that have none. **Temporary diagnostic, delete with the flag.**
+  private var seasonsForDisplay: [Season]? {
+    if let real = itemModel.mediaItem.seasons, !real.isEmpty { return real }
+    guard FeatureFlags.fakeSeasonsOnMovies, itemModel.itemLoaded else { return nil }
+    return Self.probeSeason(for: itemModel.mediaItem).map { [$0] }
+  }
+
+  /// One season of six unplayable episodes reusing the title's own artwork, so the rail
+  /// renders at realistic size. **Temporary diagnostic, delete with the flag.**
+  ///
+  /// `EpisodeWatching` / `SeasonWatching` are `Codable` structs whose memberwise init is
+  /// internal to `KinoPubBackend`, so they are decoded from literals here rather than
+  /// widening those models' API for a throwaway probe.
+  private static func probeSeason(for item: MediaItem) -> Season? {
+    func decoded<T: Decodable>(_ json: String) -> T? {
+      try? JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+    guard let seasonWatching: SeasonWatching = decoded(#"{"status":-1}"#) else { return nil }
+
+    let still = item.posters.wideURL ?? CoverArtwork.resolve(
+      url: item.posters.medium, kinopoiskID: item.kinopoisk)
+    let episodes: [Episode] = (1...6).compactMap { number in
+      // Two watched, one mid-progress, rest fresh — enough states to see the rail's chrome.
+      let status = number <= 2 ? 1 : -1
+      let time = number == 3 ? 600 : 0
+      guard let watching: EpisodeWatching = decoded(#"{"status":\#(status),"time":\#(time)}"#)
+      else { return nil }
+      return Episode(id: item.id * 1000 + number,
+                     title: "Probe episode \(number)",
+                     thumbnail: still,
+                     duration: 60 * 42,
+                     tracks: 1,
+                     number: number,
+                     ac3: 0,
+                     audios: [],
+                     watched: number <= 2 ? 1 : 0,
+                     watching: watching,
+                     subtitles: [],
+                     files: [])
+    }
+    guard !episodes.isEmpty else { return nil }
+    return Season(id: item.id * 1000,
+                  title: "Probe season",
+                  number: 1,
+                  watching: seasonWatching,
+                  episodes: episodes)
+  }
+
+  /// Between the playable rail and the sections under it. On tvOS both are TVUIKit rows that
+  /// carry their own gap below them, as Home's rows do; the stack's spacing on top of that
+  /// made the gap under the episodes half as tall again as every other (Sasha, 2026-10-11).
+  private var contentSpacing: CGFloat {
+#if os(tvOS)
+    FeatureFlags.tvDetailSections ? 0 : MediaItemLayout.sectionSpacing
+#else
+    MediaItemLayout.sectionSpacing
+#endif
+  }
+
+  /// TMDB's videos for the rail: the app's language, English, the original — in that
+  /// order, the removed ones dropped (`MediaItemModel.titlePageVideos`).
+  private var titlePageVideos: [TrailerRef] { itemModel.titlePageVideos }
+
+  private var trailerEntriesEmpty: Bool {
+    !itemModel.itemLoaded
+      || TrailersRailView.entries(item: itemModel.mediaItem, videos: titlePageVideos).isEmpty
+  }
+
+  @ViewBuilder
+  private var contentSections: some View {
+    VStack(alignment: .leading, spacing: contentSpacing) {
+      if let seasons = seasonsForDisplay, !seasons.isEmpty {
+        SeasonsRailView(seasons: seasons,
+                        memory: itemModel.seasonsRail,
+                        linkProvider: itemModel.linkProvider,
+                        seriesTitle: itemModel.mediaItem.localizedTitle,
+                        showsChrome: true,
+                        openingEpisodeID: itemModel.mediaItem.primaryEpisode?.episode.id,
+                        awaitsNextEpisode: itemModel.awaitedEpisodeAirDate != nil,
+                        onUnavailableSelected: { message, systemImage in
+                          itemModel.hudToast = HudToast(systemImage: systemImage, title: message)
+                        },
+                        onHide: { episode, season in
+                          itemModel.hide(episode: episode, season: season)
+                        },
+                        onToggleWatched: { episode, season in
+                          itemModel.toggleWatched(episode: episode, season: season)
+                        },
+                        seasonSchedules: itemModel.seasonSchedules,
+                        officialEpisodes: itemModel.officialEpisodes,
+                        externalMetadata: itemModel.externalMetadata,
+                        seriesBackdropURL: MediaItemHeroView.backdropCandidates(
+                          for: itemModel.mediaItem,
+                          preferredBackdropURL: itemModel.heroBackdropURL
+                        ).first,
+                        titleLogoURL: itemModel.heroLogoURL,
+                        seasonPosterURL: { [images = appContext.metadataService.images,
+                                            item = itemModel.mediaItem] season, pixels in
+                          images.url(.poster, kinopubID: item.id, imdb: item.imdb,
+                                     width: pixels, season: season)
+                        },
+                        episodeStillURL: { [images = appContext.metadataService.images,
+                                            item = itemModel.mediaItem] season, episode, pixels, thumb in
+                          images.episodeStill(kinopubID: item.id, imdb: item.imdb,
+                                              season: season, episode: episode,
+                                              pixelWidth: pixels, kinopubThumb: thumb)
+                        },
+                        onToggleSeasonWatched: { season in
+                          itemModel.toggleWatched(season: season)
+                        },
+                        onDownloadSeason: { season in
+                          itemModel.downloadSeason(season)
+                        },
+                        seasonPosters: { [itemModel] number in
+                          await itemModel.seasonPosters(number)
+                        },
+                        imdbID: itemModel.mediaItem.imdb,
+                        onSeasonVisible: { seasonNumber in
+                          Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
+                        },
+                        onPageOffset: { pageScrollMinY = -$0 })
+      }
+
+      // Versions of one film sit under the episodes (Sasha, 2026-11-04: seasons/episodes,
+      // versions, trailers and videos, ratings), so for a film they are the first row under
+      // the hero — "what can I play right now" is the cheapest thing to reach on a remote.
+      // Empty for everything with one video, which is almost every film.
+      if !itemModel.mediaItem.playbackVariants.isEmpty {
+        VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
+                         linkProvider: itemModel.linkProvider,
+                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
+                         showsChrome: true,
+                         titleKey: itemModel.mediaItem.presentation.videosRailTitleKey,
+                         entryVariantID: versionsEntry)
+#if os(tvOS)
+          // A UIKit rail is no SwiftUI focus target cell by cell, but the rail as a whole
+          // can be one: focusing it hands focus to UIKit, which lands on `entryVariantID`
+          // (the shape `TVSidebarSandbox` settled). A `UIFocusSystem` request from here is
+          // refused — "ineligible environment" — while a hero control holds focus.
+          .focused($focus, equals: .versionsRail)
+#endif
+      }
+
+      // Trailers, teasers and the rest: kino.pub's trailer, then TMDB's videos on YouTube.
+      if !trailerEntriesEmpty {
+        TrailersRailView(item: itemModel.mediaItem,
+                         videos: titlePageVideos,
+                         linkProvider: itemModel.linkProvider,
+                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
+                         showsChrome: true)
+      }
+
+#if os(tvOS)
+      if FeatureFlags.tvDetailSections {
+        tvDetailSections
+      } else {
+        infoSections
+      }
+#else
+      infoSections
+#endif
+    }
+  }
+
+  /// Everything under the playable rails as the SwiftUI stack it has always been. On
+  /// tvOS it is the fallback behind `FeatureFlags.tvDetailSections`; elsewhere it is the page.
+  @ViewBuilder
+  private var infoSections: some View {
+    VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
+#if !os(tvOS)
+      // A concert's songs, first under its videos, as on tvOS (`MediaItemTVSections.make`).
+      MediaItemSetlistSection(tracks: SetlistTrack.tracks(of: itemModel.mediaItem))
+#endif
+      // The shipped ratings row, on every platform. It is the validated one; the
+      // block experiment below runs beside it, not instead of it.
+      MediaItemRatingsSection(mediaItem: itemModel.mediaItem,
+                              externalMetadata: itemModel.externalMetadata,
+                              likeCount: itemModel.likeCount,
+                              dislikeCount: itemModel.dislikeCount,
+                              myVote: itemModel.myVote,
+                              onVote: { itemModel.askToConfirmVote(up: $0) },
+                              showsHeader: true)
+#if !os(tvOS)
+      // Experiment: scores and opinions as one block section.
+      MediaItemRatingsAndReviewsSection(mediaItem: itemModel.mediaItem,
+                                        externalMetadata: itemModel.externalMetadata,
+                                        summary: itemModel.externalMetadata.reviewsSummary,
+                                        likeCount: itemModel.likeCount,
+                                        dislikeCount: itemModel.dislikeCount,
+                                        destination: ratingsAndReviewsDestination,
+                                        tabDestination: { ratingsAndReviewsDestination(tab: $0) })
+#else
+      // tvOS fallback SwiftUI stack: thumbs live on the TVUIKit card when that flag is on.
+      MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
+                                    dislikeCount: itemModel.dislikeCount,
+                                    myVote: itemModel.myVote,
+                                    onVote: { _ in itemModel.askToVote() })
+        .detailFocusSection()
+#endif
+      MediaItemCastSection(mediaItem: itemModel.mediaItem,
+                           linkProvider: itemModel.linkProvider,
+                           externalMetadata: itemModel.externalMetadata,
+                           destination: castAndCrewDestination)
+        .detailFocusSection()
+      MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
+        .detailFocusSection()
+      // Where to go next comes before the reading matter: the shelves are the page's
+      // recommendations, and stills and trivia are the tail you reach only if you are
+      // still here. Everything about *this* title (ratings and reviews, vote, cast,
+      // awards) stays above them. Reviews used to be in this tail; they moved up into
+      // the ratings block on the pointer platforms.
+      MediaItemRelatedRowsSection(rows: itemModel.relatedRows,
+                                  relatedItem: { itemModel.relatedItem(forCardID: $0) },
+                                  linkProvider: itemModel.linkProvider,
+                                  cardMenu: relatedRowsMenu,
+                                  pendingShelves: itemModel.pendingRelatedShelfTitles)
+        .detailFocusSection()
+      MediaItemPhotosSection(stills: itemModel.externalMetadata.stills)
+        .detailFocusSection()
+#if !os(tvOS)
+      MediaItemFactsSection(facts: itemModel.externalMetadata.facts)
+      // Both variants are on the page while the block experiment runs: the merged
+      // Ratings and Reviews block above, and the standalone Reviews section here,
+      // where it shipped. Comparing them needs both visible; one of them goes with
+      // this comment.
+      MediaItemReviewsSection(mediaItem: itemModel.mediaItem,
+                              reviews: itemModel.externalMetadata.reviews,
+                              summary: itemModel.externalMetadata.reviewsSummary,
+                              destination: ratingsAndReviewsDestination)
+      // Same rail shape as Facts/Reviews, for the two things worth a glance before
+      // the table below: what this release technically is, and whether it's OK for
+      // the room. `InfoFooter` (Uploaded / Last Update / source credit), inside
+      // `MediaItemInfoColumns`, is untouched.
+      MediaItemBadgeCardsSection(mediaItem: itemModel.mediaItem,
+                                externalMetadata: itemModel.externalMetadata,
+                                skipPreview: itemModel.skipPreview)
+#endif
+      MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
+                           externalMetadata: itemModel.externalMetadata,
+                           metadataPath: MetadataPathSwitch(model: itemModel))
+        .detailFocusSection()
+    }
+  }
+
+#if os(tvOS)
+  /// Everything under the hero as one collection, in columns — see `MediaItemTVSections`
+  /// for what is on it and in what order, and `MediaItemTVPage` for what Select does.
+  private var tvDetailSections: some View {
+    MediaItemTVPage(model: itemModel, cardMenu: relatedRowsMenu)
+  }
+#endif
+
+  private var castAndCrewDestination: (any Hashable)? {
+#if os(tvOS)
+    nil
+#else
+    itemModel.linkProvider.castAndCrew(
+      CastAndCrew.make(item: itemModel.mediaItem, metadata: itemModel.externalMetadata)
+    )
+#endif
+  }
+
+  /// Always present. The block's header and every card in it lead to the same page,
+  /// and that has to be true before the reviews arrive as well as after — a chevron
+  /// that appears halfway through enrichment is a control the user watched grow.
+  private var ratingsAndReviewsDestination: any Hashable {
+    ratingsAndReviewsDestination(tab: .all)
+  }
+
+  private func ratingsAndReviewsDestination(tab: RatingsTab) -> any Hashable {
+    itemModel.linkProvider.ratingsAndReviews(
+      RatingsAndReviews(item: itemModel.mediaItem,
+                        metadata: itemModel.externalMetadata,
+                        likeCount: itemModel.likeCount,
+                        dislikeCount: itemModel.dislikeCount,
+                        tab: tab)
+    )
+  }
+
+  /// tvOS: the plain page — it draws nothing behind itself; the stack's backdrop is
+  /// what shows through (`tvBackdrop`). iOS / macOS keep the optional blurred-poster
+  /// wash behind the whole page.
+  @ViewBuilder
+  private var pageBackground: some View {
+#if os(tvOS)
+       Color.clear
+#else
+    if FeatureFlags.detailAmbientBackdropEnabled,
+       itemModel.mediaItem.posters.hasSpecifiedWide {
+      ambientBackground
+    } else {
+      genericBackground
+    }
+#endif
+  }
+
+  /// What the page sits on with `detailAmbientBackdropEnabled` off: the app background
+  /// and nothing else — no still, no blur buffer, nothing decoded for it.
+  private var genericBackground: some View {
+    Color.Piratic.background
+#if os(macOS)
+      // Same reason as `ambientBackground`: ignoring horizontally paints under the
+      // sidebar and makes every rail look clipped.
+      .ignoresSafeArea(edges: .top)
+#else
+      .ignoresSafeArea()
+#endif
+  }
+
+  private var ambientBackground: some View {
+    ZStack {
+      Color.Piratic.background
+/// TODO IT MUST BE SAME IDENTICAL PICTURE - WIDE ONE. TVOS, IOS, MACOS, etc
+      MediaItemPosterWash(url: URL(string: verticalCover(itemModel.mediaItem.posters.medium)))
+        .opacity(0.55)
+
+      Color.Piratic.background.opacity(0.55)
+    }
+    .clipped()
+#if os(macOS)
+    // Horizontal ignore paints the wash under the sidebar and makes every rail
+    // look clipped; keep the bleed on tvOS/iOS only.
+    .ignoresSafeArea(edges: .top)
+#else
+    .ignoresSafeArea()
+#endif
+  }
+
+#if os(tvOS)
+  /// This title's picture for the stack's backdrop. The id is the title, so a payload
+  /// that only adds a palette later animates in place rather than crossfading.
+  /// Published even with no candidates: an unpublished key keeps the previous page's
+  /// picture up, and an empty backdrop is what says "system background".
+  private var tvBackdrop: PageBackdrop? {
+    _ = coverLanguage
+    let urls = MediaItemHeroView.backdropCandidates(
+      for: itemModel.mediaItem,
+      preferredBackdropURL: itemModel.heroBackdropURL
+    )
+    return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItemId),
+                        imageURLs: urls,
+                        placeholderURLs: backdropPlaceholders)
+  }
+
+  /// The art the card that opened this page drew — its cover in the viewer's cover
+  /// language, either size, then kino.pub's own — blurred under the hero until the
+  /// backdrop is in. Nothing to fetch in the usual case: the card decoded it already.
+  private var backdropPlaceholders: [URL] {
+    let posters = itemModel.mediaItem.posters
+    guard itemModel.hasPaintedItem else { return [] }
+    var seen = Set<String>()
+    return [verticalCover(posters.medium), verticalCover(posters.big), posters.medium, posters.big]
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+      .compactMap(URL.init(string:))
+  }
+#endif
+
+  /// A vertical cover (`medium` / `big` / `small`) in the viewer's cover language.
+  /// Wide art is left alone: this only runs when the caller already chose a poster size.
+  private func verticalCover(_ url: String) -> String {
+    _ = coverLanguage
+    return CoverArtwork.resolve(url: url, kinopoiskID: itemModel.mediaItem.kinopoisk)
+  }
+
+
+  private static func openWatchlist(_ navigationState: NavigationState) {
+#if os(macOS)
+    navigationState.selectedTab = .watchlist
+#else
+    navigationState.selectedTab = SectionVisibilityStore.shared.isTabVisible(.watchlist) ? .watchlist : .library
+#endif
+  }
+}
+
+extension View {
+  /// One focus section per detail-page content section, so Up/Down travels
+  /// section-to-section instead of creeping element-by-element, and a section holds
+  /// focus internally while you move across it. The hero is the same shape one level up.
+  ///
+  /// Only applied to sections that do not already declare their own: the ratings row
+  /// and `SeasonsRailView` build theirs internally, and nesting would fight them.
+  @ViewBuilder
+  func detailFocusSection() -> some View {
+#if os(tvOS)
+    focusSection()
+#else
+    self
+#endif
+  }
+}
+
+/// The vote chooser. tvOS's system dialog drops the image on a button, so the thumbs
+/// are drawn here. Everywhere else the system dialog keeps them.
+private struct VoteChoicePresentation: ViewModifier {
+  @Binding var isPresented: Bool
+  var onVote: (Bool) -> Void
+
+  func body(content: Content) -> some View {
+#if os(tvOS)
+    content.fullScreenCover(isPresented: $isPresented) {
+      VoteChoiceDialog(onUp: { choose(true) },
+                       onDown: { choose(false) },
+                       onCancel: { isPresented = false })
+        .presentationBackground(.clear)
+    }
+#else
+    content.confirmationDialog("MediaItem_VoteChoice".localized,
+                               isPresented: $isPresented,
+                               titleVisibility: .visible) {
+      Button("Like".localized, systemImage: "hand.thumbsup") { onVote(true) }
+      Button("Dislike".localized, systemImage: "hand.thumbsdown") { onVote(false) }
+      Button("Cancel".localized, role: .cancel) {}
+    } message: {
+      Text("MediaItem_VoteLocked".localized)
+    }
+#endif
+  }
+
+  private func choose(_ up: Bool) {
+    isPresented = false
+    onVote(up)
+  }
+}
+
+#if os(tvOS)
+private struct VoteChoiceDialog: View {
+  var onUp: () -> Void
+  var onDown: () -> Void
+  var onCancel: () -> Void
+
+  var body: some View {
+    ZStack {
+      Color.black.opacity(0.55).ignoresSafeArea()
+      VStack(spacing: 28) {
+        Text("MediaItem_VoteChoice")
+          .font(.title2.weight(.semibold))
+        Text("MediaItem_VoteLocked")
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: 560)
+        VStack(spacing: 16) {
+          choice("Like", systemImage: "hand.thumbsup", action: onUp)
+          choice("Dislike", systemImage: "hand.thumbsdown", action: onDown)
+          Button("Cancel".localized, role: .cancel, action: onCancel)
+            .buttonStyle(.bordered)
+        }
+        .frame(width: 520)
+      }
+      .padding(48)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 40, style: .continuous))
+    }
+    .onExitCommand(perform: onCancel)
+  }
+
+  private func choice(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Label(title.localized, systemImage: systemImage)
+        .frame(maxWidth: .infinity)
+    }
+    .buttonStyle(.bordered)
+  }
+}
+#endif
+
+struct MediaItemView_Previews: PreviewProvider {
+  struct Preview: View {
+    var body: some View {
+      MediaItemView(model: MediaItemModel(mediaItemId: MediaItem.mock().id,
+                                          itemsService: VideoContentServiceMock(),
+                                          downloadManager: DownloadManager<DownloadMeta>(fileSaver: FileSaver(),
+                                                                                      database: DownloadedFilesDatabase<DownloadMeta>(fileSaver: FileSaver())),
+                                          linkProvider: AppRoutesLinkProvider(),
+                                          errorHandler: ErrorHandler()))
+    }
+  }
+  static var previews: some View {
+    NavigationStack {
+      Preview()
+    }
+  }
+}
+
+/// The title's vertical poster as a wash of its colours: decoded into a tiny buffer,
+/// blurred opaque there and scaled up, so the blur costs a 160×90 pass, not a
+/// screen-sized one. Behind the page (`ambientBackground`) and under the hero's picture
+/// until it arrives — or when it never does (`MediaItemHeroView.scrollingBackdrop`).
+///
+/// No `drawingGroup()`: compositing the blur into a Metal offscreen buffer asked for
+/// RGBA on iPhone Duo and crashed with `CVPixelBufferCreate … -6680` when opening a
+/// title from the Home banner (Sasha, 2026-11-26). GPU scales the small blurred still.
+struct MediaItemPosterWash: View {
+  let url: URL?
+  /// Whether the poster drew: the hero dims it and darkens its chrome only once it has —
+  /// a dim over a poster still loading, or one that failed, was a flat grey band with
+  /// white text on the light page (2026-11-09).
+  var onOutcome: ((Bool) -> Void)? = nil
+
+  var body: some View {
+    Color.clear
+      .overlay {
+        // Paints from the memory cache on the first frame, as `CachedRemoteImage` did.
+        FallbackRemoteImage(urls: url.map { [$0] } ?? [], contentMode: .fill,
+                            size: Self.buffer,
+                            onLoaded: { onOutcome?(true) },
+                            onFailed: { onOutcome?(false) })
+          .frame(width: Self.buffer.width, height: Self.buffer.height)
+          .clipped()
+          .blur(radius: Self.blur, opaque: true)
+          .saturation(1.6)
+          .scaleEffect(Self.scale)
+      }
+      .clipped()
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+
+  private static let buffer = CGSize(width: 160, height: 90)
+  private static let blur: CGFloat = 10
+  private static let scale: CGFloat = 14
+}
+
+#if os(macOS)
+extension MediaItemView {
+  /// The original name under the toolbar title when it is not the same words.
+  fileprivate var macToolbarSubtitle: String {
+    let item = itemModel.mediaItem
+    return item.originalTitle != item.localizedTitle ? item.originalTitle : ""
+  }
+}
+
+/// The title page's toolbar: dark over the picture, nameless while the hero is on screen,
+/// the system's own once the hero has gone under it. Reads the phase itself, so only
+/// this modifier — not the page — re-runs when the hero crosses.
+private struct MacTitlePageToolbar: ViewModifier {
+  let phase: MediaItemHeroPhase
+  let title: String
+  let subtitle: String
+  @Environment(\.colorScheme) private var colorScheme
+
+  func body(content: Content) -> some View {
+    let past = phase.isHeroPastToolbar
+    content
+      // `nil` off the picture: a scheme by value backs the toolbar across the whole
+      // window, over the sidebar too.
+      .toolbarColorScheme(phase.showsPicture && !past ? .dark : nil, for: .windowToolbar)
+      .navigationTitle(past ? title : "")
+      .navigationSubtitle(past ? subtitle : "")
+      // The system's soft edge under the toolbar arrives with the title and leaves with
+      // it: over the picture the toolbar floats bare.
+      .scrollEdgeEffectStyle(.soft, for: .top)
+      .scrollEdgeEffectHidden(!past, for: .top)
+      // A hidden toolbar background took the scroll edge with it: hidden over the
+      // picture only, the system's own once the rows are under the toolbar.
+      .toolbarBackgroundVisibility(past ? .automatic : .hidden, for: .windowToolbar)
+  }
+}
+#endif
+
+#if os(iOS)
+/// The title page's navigation bar on iPhone and iPad. Over the hero: no title (the hero
+/// spells it out; a blank key drew a lone «.» there), a clear bar and no scroll-edge
+/// effect, so the picture runs to the top edge unbroken as the Home banner's does — the
+/// soft edge had drawn a blurred strip across the picture (Sasha, 2026-11-10). Light
+/// controls while a picture is under them. Once the hero has gone under the bar, the
+/// system's bar, its edge effect and the title. Reads the phase itself, so only this
+/// modifier re-runs when the hero crosses.
+private struct PhoneTitlePageBar: ViewModifier {
+  let phase: MediaItemHeroPhase
+  let title: String
+  @Environment(\.colorScheme) private var colorScheme
+
+  func body(content: Content) -> some View {
+    let past = phase.isHeroPastToolbar
+    content
+      .navigationTitle(Text(verbatim: past ? title : ""))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(past ? AnyShapeStyle(.bar) : AnyShapeStyle(Color.clear), for: .navigationBar)
+      // Always visible, only its style changes: switching the visibility too reset the
+      // bar's backing and the scroll view's edge in the frame the title crossed.
+      .toolbarBackground(.visible, for: .navigationBar)
+      .toolbarColorScheme(!past && phase.showsPicture ? .dark : colorScheme, for: .navigationBar)
+      .scrollEdgeEffectHidden(!past, for: .top)
+  }
+}
+#endif

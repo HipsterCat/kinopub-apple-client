@@ -1,0 +1,140 @@
+//
+//  SettingsCategory.swift
+//  Piratic
+//
+
+import SwiftUI
+
+/// Shared settings catalog for macOS (sidebar) and iOS (list). tvOS keeps its own chrome.
+enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
+  /// macOS: the profile row at the top of the sidebar, a row like any other, as the
+  /// account is in System Settings. Never listed with the categories below it.
+  case account
+  case general
+  case playback
+  case integrations
+  case downloads
+  case devices
+  case appearance
+  case sidebar
+  case notifications
+  case details
+  case backups
+  case network
+  case advanced
+  case about
+
+  var id: String { rawValue }
+
+  var titleKey: LocalizedStringKey {
+    switch self {
+    case .account: return "Account"
+    case .general: return "General"
+    case .playback: return "Playback"
+    case .integrations: return "Integrations"
+    case .downloads: return "Downloads"
+    case .devices: return "Devices"
+    case .appearance: return "Appearance"
+    case .sidebar: return "Sidebar"
+    case .notifications: return "Notifications"
+    case .details: return "Details"
+    case .backups: return "Backups"
+    case .network: return "Network"
+    case .advanced: return "Advanced"
+    case .about: return "About"
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .account: return "person.crop.circle.fill"
+    case .general: return "gear"
+    case .playback: return "play.fill"
+    case .integrations: return "puzzlepiece.extension.fill"
+    case .downloads: return "arrow.down.circle.fill"
+    case .devices: return "laptopcomputer.and.iphone"
+    case .appearance: return "paintbrush.fill"
+    case .sidebar: return "sidebar.left"
+    case .notifications: return "bell.badge.fill"
+    case .details: return "doc.text.magnifyingglass"
+    case .backups: return "externaldrive.fill.badge.icloud"
+    case .network: return "network"
+    case .advanced: return "wrench.and.screwdriver.fill"
+    case .about: return "info"
+    }
+  }
+
+  /// Fill for the rounded Settings icon tile (Apple-style colored squares).
+  var iconColor: Color {
+    switch self {
+    case .account, .general:
+      return Color(red: 0.56, green: 0.56, blue: 0.58)
+    case .playback:
+      return Color(red: 0.20, green: 0.48, blue: 0.96)
+    case .integrations:
+      return Color(red: 0.56, green: 0.35, blue: 0.90)
+    case .downloads:
+      return Color(red: 0.18, green: 0.55, blue: 0.95)
+    case .devices:
+      return Color(red: 0.25, green: 0.52, blue: 0.95)
+    case .appearance:
+      return Color(red: 0.35, green: 0.55, blue: 0.98)
+    case .sidebar:
+      return Color(red: 0.45, green: 0.50, blue: 0.58)
+    case .notifications:
+      return Color(red: 0.95, green: 0.28, blue: 0.30)
+    case .details:
+      return Color(red: 0.95, green: 0.55, blue: 0.15)
+    case .backups:
+      return Color(red: 0.25, green: 0.70, blue: 0.85)
+    case .network:
+      return Color(red: 0.20, green: 0.48, blue: 0.96)
+    case .advanced:
+      return Color(red: 0.45, green: 0.45, blue: 0.48)
+    case .about:
+      return Color(red: 0.56, green: 0.56, blue: 0.58)
+    }
+  }
+
+  /// Whether this row appears in the catalog on the current platform / flags.
+  var isAvailable: Bool {
+    switch self {
+    case .account:
+#if os(macOS)
+      return true
+#else
+      return false
+#endif
+    case .downloads:
+#if os(tvOS)
+      return false
+#else
+      return FeatureFlags.downloadsEnabled
+#endif
+    case .sidebar:
+#if os(macOS)
+      return true
+#else
+      return false
+#endif
+    case .about:
+      // iOS already has About as a footer row; macOS needs it in the sidebar.
+#if os(macOS)
+      return true
+#else
+      return false
+#endif
+    default:
+      return true
+    }
+  }
+
+  static var availableCategories: [SettingsCategory] {
+    allCases.filter(\.isAvailable)
+  }
+
+  /// The rows under the profile row: everything available but the account itself.
+  static var listedCategories: [SettingsCategory] {
+    availableCategories.filter { $0 != .account }
+  }
+}

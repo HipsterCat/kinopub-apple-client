@@ -12,7 +12,7 @@
 
 import XCTest
 @testable import KinoPubBackend
-import KinoPubMedia
+import PiraticMedia
 
 final class ConcertItemTests: XCTestCase {
 

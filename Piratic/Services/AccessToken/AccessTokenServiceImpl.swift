@@ -1,0 +1,296 @@
+//
+//  AccessTokenServiceImpl.swift
+//  Piratic
+//
+//  Created by Kirill Kunst on 27.07.2023.
+//
+
+import Foundation
+import Synchronization
+import KinoPubBackend
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+import CryptoKit
+import PiraticLogging
+import OSLog
+#endif
+
+extension Key where Value: Token {
+  static var token: Key { .init(rawValue: "com.soda.kinopub.token") }
+}
+
+extension Key where Value == Date {
+  /// Absolute access-token expiry, written beside the token on every `set`.
+  static var tokenExpiresAt: Key { .init(rawValue: "com.soda.kinopub.token.expiresAt") }
+}
+
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+/// Dev-loop convenience, DEBUG only: mirrors the activated token to **one** dotfile in
+/// the Mac user's home — `~/.kinopub-dev-session.json`, outside the repo, never
+/// committed. Every debug build reads and writes that same file, so the macOS app, the
+/// tvOS Simulator and the iOS Simulator share a single kino.pub session instead of
+/// burning a device slot each (the account has five) and asking for a new activation
+/// code after every reinstall or DerivedData wipe.
+///
+/// Never compiled into a device or Release build.
+enum DevSessionMirror {
+  private static let fileName = ".kinopub-dev-session.json"
+
+  /// Both branches must resolve the **real** Mac home, not a sandbox container, or the
+  /// platforms stop sharing a file and the whole point is lost.
+  ///
+  /// `nil` inside a unit-test host: those tests drive `AccessTokenServiceImpl` with fake
+  /// tokens, and through this file they used to overwrite the real session for every
+  /// debug build on the Mac (the 73-byte "dead session" of 2026-10-22). An app launched
+  /// by a UI test is a separate process without this variable and keeps the file.
+  static let fileURL: URL? = {
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return nil }
+#if targetEnvironment(simulator)
+    // `homeDirectoryForCurrentUser` is unavailable on iOS/tvOS; Simulator sets this env
+    // var on every child process to the real Mac user's home, which is the standard way
+    // a simulator binary reaches outside its container.
+    return ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"].map {
+      URL(fileURLWithPath: $0).appendingPathComponent(fileName)
+    }
+#else
+    // Debug macOS runs unsandboxed (`Piratic-Debug.entitlements`), so this is
+    // already the real home. Asking the password database anyway costs nothing and keeps
+    // the path correct if the sandbox is ever turned back on for Debug.
+    guard let pw = getpwuid(getuid())?.pointee.pw_dir else { return nil }
+    return URL(fileURLWithPath: String(cString: pw)).appendingPathComponent(fileName)
+#endif
+  }()
+
+  static var exists: Bool {
+    guard let fileURL else { return false }
+    return FileManager.default.fileExists(atPath: fileURL.path)
+  }
+
+  /// `Token: Codable`, so this encodes straight from the generic parameter — no
+  /// need to construct an `AccessToken` (its memberwise init isn't public).
+  ///
+  /// A token without both halves is never written: every debug build on this Mac reads
+  /// this file, so one bad write signs all of them out.
+  static func save<T: Token>(_ token: T, reason: String) {
+    guard isComplete(token) else {
+      record("refused write (\(reason)): empty token", token)
+      return
+    }
+    guard let fileURL, let data = try? JSONEncoder().encode(token) else { return }
+    do {
+      try data.write(to: fileURL, options: .atomic)
+      record("write (\(reason))", token)
+    } catch {
+      record("write failed (\(reason)): \(error.localizedDescription)", token)
+    }
+  }
+
+  static func load() -> AccessToken? {
+    // A UI test launches through testmanagerd, which does not pass SIMULATOR_HOST_HOME
+    // down — the mirror file is unreachable from there. A test that needs a session
+    // hands the same JSON over directly.
+    if let raw = ProcessInfo.processInfo.environment["KINOPUB_DEV_SESSION"],
+       let data = raw.data(using: .utf8) {
+      return try? JSONDecoder().decode(AccessToken.self, from: data)
+    }
+    guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return nil }
+    return try? JSONDecoder().decode(AccessToken.self, from: data)
+  }
+
+  static func isComplete(_ token: any Token) -> Bool {
+    !token.accessToken.isEmpty && !token.refreshToken.isEmpty
+  }
+
+  static func delete(reason: String) {
+    guard let fileURL else { return }
+    try? FileManager.default.removeItem(at: fileURL)
+    record("delete (\(reason))")
+  }
+
+  // MARK: - Who touched the session
+
+  /// `~/.kinopub-dev-session.log`, beside the session file: one timeline for every
+  /// debug build on this Mac — the macOS app and each simulator — so when the shared
+  /// session dies, the log says which build rotated or overwrote it. Tokens appear only
+  /// as fingerprints (first 8 hex of SHA-256), never in full.
+  private static let logURL: URL? = fileURL?.deletingLastPathComponent()
+    .appendingPathComponent(".kinopub-dev-session.log")
+  private static let logLimit = 512 * 1024
+  private static let logQueue = DispatchQueue(label: "piratic.dev-session-log")
+
+  static func record(_ event: String, _ token: (any Token)? = nil) {
+    let line = "\(Date().ISO8601Format()) \(writer) \(event)\(token.map { " " + describe($0) } ?? "")"
+    Logger.app.info("dev-session: \(line, privacy: .public)")
+    guard let logURL else { return }
+    logQueue.async {
+      let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path)[.size] as? Int) ?? 0
+      if size > logLimit { try? FileManager.default.removeItem(at: logURL) }
+      guard let data = (line + "\n").data(using: .utf8) else { return }
+      if let handle = try? FileHandle(forWritingTo: logURL) {
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: data)
+      } else {
+        try? data.write(to: logURL, options: .atomic)
+      }
+    }
+  }
+
+  static func describe(_ token: any Token) -> String {
+    "rt=\(fingerprint(token.refreshToken)) at=\(fingerprint(token.accessToken)) expires_in=\(token.expiresIn)"
+  }
+
+  static func fingerprint(_ secret: String) -> String {
+    guard !secret.isEmpty else { return "<empty>" }
+    let digest = SHA256.hash(data: Data(secret.utf8))
+    return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// Which build wrote the line: platform, simulator (short UDID), process, and whether
+  /// it was launched by a UI test.
+  private static let writer: String = {
+    let environment = ProcessInfo.processInfo.environment
+#if os(tvOS)
+    let platform = "tvOS"
+#elseif os(iOS)
+    let platform = "iOS"
+#else
+    let platform = "macOS"
+#endif
+    let device = environment["SIMULATOR_UDID"].map { "sim:" + $0.prefix(8) } ?? "mac"
+    let uiTest = ProcessInfo.processInfo.arguments.contains("-ui-testing") ? " ui-test" : ""
+    return "[\(platform) \(device) pid:\(ProcessInfo.processInfo.processIdentifier)\(uiTest)]"
+  }()
+}
+#endif
+
+public final class AccessTokenServiceImpl: AccessTokenService {
+
+  private let storage: KeychainStorage
+  /// The last token baseline observed or written by this process, used to detect when
+  /// another Apple device refreshed the token in iCloud Keychain underneath us.
+  private let lastObservedToken = Mutex<AccessToken?>(nil)
+
+  init(storage: KeychainStorage) {
+    self.storage = storage
+  }
+
+  func set<T>(token: T) where T: Token {
+    storage.setObject(token, for: .token)
+    // kino.pub gives `expires_in` as seconds from *now* on every grant/refresh.
+    let expiresAt = Date().addingTimeInterval(TimeInterval(max(token.expiresIn, 0)))
+    storage.setObject(expiresAt, for: .tokenExpiresAt)
+    lastObservedToken.withLock {
+      $0 = AccessToken(
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        expiresIn: token.expiresIn
+      )
+    }
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+    DevSessionMirror.save(token, reason: "set")
+#endif
+  }
+
+  func token<T>() -> T? where T: Token {
+    if let stored: T = storage.object(for: .token) {
+      lastObservedToken.withLock {
+        if $0 == nil {
+          $0 = AccessToken(
+            accessToken: stored.accessToken,
+            refreshToken: stored.refreshToken,
+            expiresIn: stored.expiresIn
+          )
+        }
+      }
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+      // Seed the shared file from an already-activated Keychain. Without this the
+      // mirror only fills on the *next* activation or refresh, so the first build to
+      // adopt it would still burn a device slot.
+      if !DevSessionMirror.exists {
+        DevSessionMirror.save(stored, reason: "seed from keychain")
+      }
+#endif
+      return stored
+    }
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+    // Keychain came back empty (fresh install/reinstall lost it) — fall back to
+    // the mirrored dev session and reseed the real Keychain from it, so this
+    // fallback only ever fires once per reinstall.
+    if let dev = DevSessionMirror.load(), let seeded = dev as? T {
+      // `set` also writes expiresAt from expiresIn relative to now — the mirror
+      // file has no absolute clock, so "now + expires_in" is the best we can do.
+      set(token: dev)
+      return seeded
+    }
+#endif
+    return nil
+  }
+
+  func reloadFromKeychain() -> (token: AccessToken?, didChangeExternally: Bool) {
+    guard let stored: AccessToken = storage.object(for: .token) else {
+      return (nil, false)
+    }
+
+    let didChange: Bool = lastObservedToken.withLock { observed in
+      defer { observed = stored }
+      guard let previous = observed else { return false }
+      return previous.refreshToken != stored.refreshToken
+        || previous.accessToken != stored.accessToken
+    }
+
+    if didChange {
+      // If another device wrote a fresh token to iCloud Keychain and our local expiry
+      // clock is missing or already inside the refresh window, advance the expiry clock
+      // from the synced token's `expiresIn` so we do not immediately re-refresh it.
+      if isAccessTokenExpiring(within: 90) {
+        let expiresAt = Date().addingTimeInterval(TimeInterval(max(stored.expiresIn, 0)))
+        storage.setObject(expiresAt, for: .tokenExpiresAt)
+      }
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+      DevSessionMirror.save(stored, reason: "keychain changed externally")
+#endif
+    }
+
+    return (stored, didChange)
+  }
+
+  var accessTokenExpiresAt: Date? {
+    storage.object(for: .tokenExpiresAt)
+  }
+
+  func isAccessTokenExpiring(within interval: TimeInterval) -> Bool {
+    guard let expiresAt = accessTokenExpiresAt else { return true }
+    return expiresAt.timeIntervalSinceNow <= interval
+  }
+
+  /// `userInitiated` is the difference between "the user signed out" and "the backend
+  /// rejected our refresh token". Only the first may unconditionally wipe shared
+  /// sessions: kino.pub rotates refresh tokens, so when several Apple devices share
+  /// iCloud Keychain (or debug builds share one file) the slowest of them can get a 400
+  /// for a token another device already replaced.
+  func clear(userInitiated: Bool) {
+    if !userInitiated {
+      // Never wipe the Keychain if another device already synced a newer token into it.
+      let reloaded = reloadFromKeychain()
+      if reloaded.didChangeExternally {
+        return
+      }
+    }
+    lastObservedToken.withLock { $0 = nil }
+    storage.clear()
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+    if userInitiated {
+      DevSessionMirror.delete(reason: "user signed out")
+    } else {
+      DevSessionMirror.record(DevSessionMirror.exists
+                              ? "keychain cleared (session rejected); file kept"
+                              : "keychain cleared (session rejected); no file")
+    }
+#endif
+  }
+
+  func clear() {
+    clear(userInitiated: true)
+  }
+
+}

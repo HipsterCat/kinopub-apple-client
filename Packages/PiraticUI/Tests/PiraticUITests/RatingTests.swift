@@ -1,0 +1,216 @@
+import XCTest
+@testable import PiraticUI
+
+final class RatingTests: XCTestCase {
+
+  func testAveragesBothSources() {
+    XCTAssertEqual(Rating(imdb: 8.0, kinopoisk: 7.0)?.value ?? 0, 7.5, accuracy: 0.001)
+  }
+
+  /// 6.0 from 4,867 voters next to 1.0 from 7 is a 6.0 title. A plain mean printed 3.5.
+  func testWeightsSourcesByVoteCount() {
+    let rating = Rating(imdb: 6.0, imdbVotes: 4_867, kinopoisk: 1.0, kinopoiskVotes: 7)
+    XCTAssertEqual(rating?.value ?? 0, 5.993, accuracy: 0.001)
+    XCTAssertEqual(rating?.formatted, "6.0")
+  }
+
+  /// A source that reports no count still counts — as one vote, so it cannot outweigh
+  /// a real audience, and two countless sources still average evenly.
+  func testMissingVoteCountsWeighAsOne() {
+    XCTAssertEqual(Rating(imdb: 9.0, imdbVotes: 1_000, kinopoisk: 4.0)?.value ?? 0,
+                   8.995, accuracy: 0.001)
+    XCTAssertEqual(Rating(imdb: 8.0, kinopoisk: 7.0)?.value ?? 0, 7.5, accuracy: 0.001)
+  }
+
+  /// Votes on an unrated source are not a score: they must not enter the average.
+  func testVotesWithoutAScoreAreIgnored() {
+    XCTAssertEqual(Rating(imdb: 7.4, imdbVotes: 300, kinopoisk: 0, kinopoiskVotes: 90_000)?.value ?? 0,
+                   7.4, accuracy: 0.001)
+  }
+
+  func testUsesTheOnlyRatedSource() {
+    XCTAssertEqual(Rating(imdb: 7.4, kinopoisk: nil)?.value ?? 0, 7.4, accuracy: 0.001)
+    XCTAssertEqual(Rating(imdb: nil, kinopoisk: 6.2)?.value ?? 0, 6.2, accuracy: 0.001)
+  }
+
+  /// The API sends 0 for "not rated", so it must not drag the average down.
+  func testZeroCountsAsUnrated() {
+    XCTAssertEqual(Rating(imdb: 0, kinopoisk: 9.0)?.value ?? 0, 9.0, accuracy: 0.001)
+    XCTAssertEqual(Rating(imdb: 9.0, kinopoisk: 0)?.value ?? 0, 9.0, accuracy: 0.001)
+  }
+
+  func testNoRatingWhenBothAreMissingOrZero() {
+    XCTAssertNil(Rating(imdb: nil, kinopoisk: nil))
+    XCTAssertNil(Rating(imdb: 0, kinopoisk: 0))
+  }
+
+  func testTierBoundaries() {
+    XCTAssertEqual(Rating(imdb: 8.0, kinopoisk: nil)?.tier, .awarded)
+    XCTAssertEqual(Rating(imdb: 7.94, kinopoisk: nil)?.tier, .good)
+    XCTAssertEqual(Rating(imdb: 7.0, kinopoisk: nil)?.tier, .good)
+    XCTAssertEqual(Rating(imdb: 6.94, kinopoisk: nil)?.tier, .average)
+    XCTAssertEqual(Rating(imdb: 6.0, kinopoisk: nil)?.tier, .average)
+    XCTAssertEqual(Rating(imdb: 5.94, kinopoisk: nil)?.tier, .poor)
+  }
+
+  /// Whatever number is on screen decides the colour — a 7.95 reads "8.0", so it is
+  /// tiered as 8.0 rather than showing a gold-adjacent number in green.
+  func testTierFollowsTheDisplayedValue() {
+    let rating = Rating(imdb: 7.95, kinopoisk: nil)
+    XCTAssertEqual(rating?.formatted, "8.0")
+    XCTAssertEqual(rating?.tier, .awarded)
+  }
+
+  func testOnlyTheTopTierGetsWings() {
+    XCTAssertTrue(Rating(imdb: 8.5, kinopoisk: nil)!.tier.showsWings)
+    XCTAssertFalse(Rating(imdb: 7.5, kinopoisk: nil)!.tier.showsWings)
+  }
+
+  func testFormattedToOneDecimal() {
+    XCTAssertEqual(Rating(imdb: 8.25, kinopoisk: 8.25)?.formatted, "8.3")
+    XCTAssertEqual(Rating(imdb: 7.0, kinopoisk: nil)?.formatted, "7.0")
+  }
+
+  func testSmartRankingKinopoiskWithHigherTurnoutPrecedesImdb() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 6, kinopoisk: 8.1, kinopoiskVotes: 4200)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.first?.source, .kinopoisk)
+    XCTAssertEqual(ranked.last?.source, .imdb)
+  }
+
+  func testKnownScorePrecedesUnknownScoreRegardlessOfVotes() {
+    let scores = MediaScores(imdb: 7.9, imdbVotes: 45, kinopoisk: nil, kinopoiskVotes: 2500)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.first?.source, .imdb)
+    XCTAssertEqual(ranked.last?.source, .kinopoisk)
+    XCTAssertTrue(ranked.first?.hasKnownScore ?? false)
+    XCTAssertFalse(ranked.last?.hasKnownScore ?? true)
+  }
+
+  func testKinopubIsAlwaysPlacedLast() {
+    let scores = MediaScores(imdb: 8.0, imdbVotes: 500, tmdb: 7.5, tmdbVotes: 1000, kinopubLikes: 200, kinopubDislikes: 10)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.last?.source, .kinopub)
+  }
+
+  func testDetailLineSortsRelayedScoresInByVotes() {
+    let scores = MediaScores(imdb: 7.7, imdbVotes: 3_203, tmdb: 7.2, tmdbVotes: 70)
+      .adding(extras: [.init(source: .trakt, score: 7.9, votes: 685),
+                       .init(source: .metacritic, score: 77),
+                       .init(source: .rottenTomatoesFresh, score: 94)])
+    XCTAssertEqual(scores.detailLine().map(\.source),
+                   [.imdb, .trakt, .tmdb, .metacritic, .rottenTomatoesFresh])
+  }
+
+  /// Rick and Morty on a narrow window (Sasha, 2026-11-09): the sources with a tenth of
+  /// the votes stay, the critics stay at the end, the Popcornmeter and the rest go.
+  func testCompactDetailLineKeepsTheBigAudiencesAndTheCritics() {
+    let scores = MediaScores(imdb: 9.0, imdbVotes: 718_000, kinopoisk: 8.8, kinopoiskVotes: 1_000_000,
+                             tmdb: 8.7, tmdbVotes: 11_000)
+      .adding(extras: [.init(source: .douban, score: 9.7, votes: 251_000),
+                       .init(source: .myShows, score: 9.4, votes: 71_000),
+                       .init(source: .trakt, score: 8.7, votes: 29_000),
+                       .init(source: .metacriticFavorable, score: 8.4),
+                       .init(source: .rottenTomatoesCertified, score: 9.1),
+                       .init(source: .rottenTomatoesAudienceUpright, score: 8.3)])
+    XCTAssertEqual(scores.compactDetailLine().map(\.source),
+                   [.kinopoisk, .imdb, .douban, .metacriticFavorable, .rottenTomatoesCertified])
+    XCTAssertEqual(scores.compactDetailLine(limit: 2).map(\.source),
+                   [.kinopoisk, .imdb, .metacriticFavorable, .rottenTomatoesCertified])
+  }
+
+  func testKinopubThumbsDoNotMoveTheAggregate() {
+    let without = MediaScores(imdb: 8.0, imdbVotes: 1000)
+    let withThumbs = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopubLikes: 10, kinopubDislikes: 0)
+    XCTAssertEqual(without.aggregate?.value, withThumbs.aggregate?.value)
+    XCTAssertEqual(withThumbs.aggregate?.value ?? 0, 8.0, accuracy: 0.001)
+  }
+
+  func testDetailLineSortsByTurnoutAndDropsAScoreUnderAFifth() {
+    let scores = MediaScores(imdb: 7.7, imdbVotes: 588,
+                             kinopoisk: nil, kinopoiskVotes: 214,
+                             tmdb: 7.2, tmdbVotes: 4,
+                             kinopubLikes: 0, kinopubDislikes: 1)
+    let line = scores.detailLine()
+    // A published 4 stays. A silent Kinopoisk is not a reason to drop it.
+    XCTAssertEqual(line.map(\.source), [.imdb, .kinopoisk, .tmdb])
+    XCTAssertEqual(line.map(\.displayScore), ["7.7", "?", "72%"])
+    XCTAssertFalse(line[0].drawsFaint)
+    XCTAssertTrue(line[1].drawsFaint)
+
+    let shown = MediaScores(imdb: 6.2, imdbVotes: 78, kinopoisk: nil, kinopoiskVotes: 4, tmdb: 6.7, tmdbVotes: 10)
+    XCTAssertEqual(shown.detailLine().map(\.source), [.imdb, .tmdb, .kinopoisk])
+
+    let kinopoiskSilent = MediaScores(imdb: 7.0, imdbVotes: 8, kinopoisk: nil, kinopoiskVotes: 29, tmdb: 6.0, tmdbVotes: 2)
+    XCTAssertEqual(kinopoiskSilent.detailLine().map(\.source), [.kinopoisk, .imdb, .tmdb])
+
+    let huge = MediaScores(imdb: 8, imdbVotes: 600_000, kinopoisk: nil, kinopoiskVotes: 1_000, tmdb: 7, tmdbVotes: 500_000)
+    XCTAssertEqual(huge.detailLine().map(\.source), [.imdb, .tmdb])
+
+    let stillUseful = MediaScores(imdb: 8, imdbVotes: 600_000, kinopoisk: 7, kinopoiskVotes: 5_000, tmdb: 6, tmdbVotes: 500_000)
+    XCTAssertEqual(stillUseful.detailLine().map(\.source), [.imdb, .tmdb, .kinopoisk])
+    XCTAssertEqual(MediaScoreItem(source: .kinopub, score: 0, votes: 1).displayScore, "0%")
+    XCTAssertTrue(MediaScoreItem(source: .kinopub, score: 0, votes: 1).drawsFaint)
+    XCTAssertFalse(MediaScoreItem(source: .tmdb, score: 7.2, votes: 6).drawsFaint)
+  }
+
+  func testTMDBPrintsAsAPercentageAndIMDbStaysOneDecimal() {
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 7.54, votes: 10).displayScore, "75%")
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 10, votes: 1).displayScore, "100%")
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 7.55, votes: 1).displayScore, "76%")
+    XCTAssertEqual(MediaScoreItem(source: .kinopub, score: 8.8, votes: 10).displayScore, "88%")
+    XCTAssertEqual(MediaScoreItem(source: .imdb, score: 7.54, votes: 10).displayScore, "7.5")
+  }
+
+  func testKinopubScoresCleanZeroAndHundredPercent() {
+    let hundred = MediaScores(kinopubLikes: 50, kinopubDislikes: 0)
+    XCTAssertEqual(hundred.kinopubScore, 10.0)
+    let zero = MediaScores(kinopubLikes: 0, kinopubDislikes: 50)
+    XCTAssertEqual(zero.kinopubScore, 0.0)
+  }
+
+  func testBannerFiltersNoiseUnderTenVotes() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 6, kinopoisk: 8.1, kinopoiskVotes: 4200)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: false)
+    XCTAssertEqual(banner.count, 1)
+    XCTAssertEqual(banner.first?.source, .kinopoisk)
+  }
+
+  func testBannerCollapsesWhenDominantTurnoutExceedsNinetyPercent() {
+    let scores = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopoisk: 8.4, kinopoiskVotes: 50_000)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: true)
+    XCTAssertEqual(banner.count, 1)
+    XCTAssertEqual(banner.first?.source, .kinopoisk)
+  }
+
+  func testSingleSourceDeduplicationOmitsDuplicateDigit() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 38)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: true, deduplicateAgainstAggregate: true)
+    XCTAssertEqual(banner.first?.displayScore, "")
+    XCTAssertEqual(banner.first?.votesCompact, "38")
+  }
+
+  func testCompactCountRoundsAndUsesLatinSuffixes() {
+    XCTAssertEqual(CompactCountFormat.string(999), "999")
+    XCTAssertEqual(CompactCountFormat.string(1_000), "1K")
+    XCTAssertEqual(CompactCountFormat.string(9_400), "9.4K")
+    // From 10K: no decimals.
+    XCTAssertEqual(CompactCountFormat.string(10_000), "10K")
+    XCTAssertEqual(CompactCountFormat.string(12_000), "12K")
+    XCTAssertEqual(CompactCountFormat.string(554_600), "555K")
+    XCTAssertEqual(CompactCountFormat.string(1_100_000), "1.1M")
+    XCTAssertEqual(CompactCountFormat.string(1_450_000), "1.45M")
+    XCTAssertEqual(CompactCountFormat.string(15_560_000), "15.56M")
+    XCTAssertEqual(CompactCountFormat.string(999_950), "1M")
+    // Truncation used to print "1M" for 1.1M and "15M" for 15.56M.
+    XCTAssertEqual(MediaScoreItem(source: .imdb, score: 8.0, votes: 1_100_000).votesCompact, "1.1M")
+    XCTAssertEqual(MediaScoreItem(source: .imdb, score: 8.0, votes: 15_560_000).votesCompact, "15.56M")
+    XCTAssertEqual(MediaScores.formatVotesWholeThousands(12_400), "12K")
+  }
+
+  func testCompactViewCountKeepsFullUnderHundredThousand() {
+    XCTAssertEqual(CompactCountFormat.views(99_999),
+                   99_999.formatted(.number.grouping(.automatic)))
+    XCTAssertEqual(CompactCountFormat.views(554_600), "555K")
+  }
+}

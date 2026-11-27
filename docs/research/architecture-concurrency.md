@@ -12,6 +12,6 @@ One multiplatform target + 6 SPM packages; `ObservableObject` mostly (8 `@Observ
 | Swiftfin | Factory DI, StatefulMacro, CoreStore. | [Swiftfin](https://github.com/jellyfin/Swiftfin) |
 
 ## Proposal — M · P2
-1. Move packages to the Swift 6 language mode one at a time (start with `KinoPubMedia` / `KinoPubMetadata`); the 2026-10-02 review's static/race issues were invisible in Swift 5 mode.
+1. Move packages to the Swift 6 language mode one at a time (start with `PiraticMedia` / `PiraticMetadata`); the 2026-10-02 review's static/race issues were invisible in Swift 5 mode.
 2. Mutation generations for optimistic toggles (see [detail-page.md](detail-page.md)).
 3. Audit `HomeCatalog` for serial awaits that could be `async let` (Sodalite [0434a21](https://github.com/superuser404notfound/Sodalite/commit/0434a2178154b4e7ce036715bd97410e36e5b7f1)).

@@ -67,7 +67,7 @@ The long form of [AGENTS.md › Data and continuity](../../AGENTS.md#data-and-co
   and `NetworkDiagnostics.store` is ours rather than `LoggerStore.shared` because Pulse's defaults
   — 256 MB of store, 8 MB per body — are what produced 50 MB log files. Ours: 32 MB store, 512 KB
   per body, in `Caches/`. Adding a media host to the app means adding it to `excludedHosts`.
-- **"What are we waiting for" is `NetworkActivity`** (`KinoPubLogging`), hooked once in
+- **"What are we waiting for" is `NetworkActivity`** (`PiraticLogging`), hooked once in
   `URLSessionImpl` so no call site has to remember to report. Pulse logs completed tasks; this is
   the live one. It feeds the debug overlay (and `LaunchStatusLabel` where a surface wants the same
   copy). Entries carry a **localization key**, never a path: a raw `/v1/items/…` on a user's TV is

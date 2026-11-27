@@ -7,7 +7,7 @@
 
 import Foundation
 import OSLog
-import KinoPubLogging
+import PiraticLogging
 
 public final class CURLLoggingPlugin: APIClientPlugin {
 

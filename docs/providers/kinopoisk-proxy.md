@@ -17,7 +17,7 @@ there is no credential to configure.
 carry a content hash segment, so they are stable per image but **not** reconstructible — store the
 URL, do not build it.
 
-**Where it is used:** `KinopoiskProxySource` (`Packages/KinoPubMetadata/…/Kinopoisk/`). The keyed
+**Where it is used:** `KinopoiskProxySource` (`Packages/PiraticMetadata/…/Kinopoisk/`). The keyed
 `KinopoiskSource` covers the same ground when the user has their own API key; this fills the gaps
 and is the only path most users ever hit.
 

@@ -15,7 +15,7 @@ semantic component is fine; two components for one idea on one platform is a def
 
 ## Quick reference
 
-- **Target:** `KinoPubAppleClient` (product `KinoPub`), tvOS · iOS · iPadOS · macOS. Mark
+- **Target:** `Piratic` (product `KinoPub`), tvOS · iOS · iPadOS · macOS. Mark
   27-only API explicitly. **tvOS floor 26.5** (the oldest tvOS 26 simulator runtime; packages
   declare `.tvOS("26.5")`). iOS and macOS are **26.5** too: Xcode 26.6 GM ships SDK 26.5, so a
   26.6 floor cannot compile without Xcode 27. Packages stay `.v26`.
@@ -24,9 +24,9 @@ semantic component is fine; two components for one idea on one platform is a def
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.
   No custom transport chrome.
 - **Appearance:** Settings › Appearance › Theme is System (default) / Light / Dark
-  (`AppearancePreference`, applied by `kinopubAppearancePreference()`). System omits
+  (`AppearancePreference`, applied by `piraticAppearancePreference()`). System omits
   `.preferredColorScheme` — on tvOS even `nil` pinned Dark. DEBUG
-  `-KINOPUBForceColorScheme light|dark` still wins (`LaunchAppearance`). Like the Apple TV
+  `-PIRATICForceColorScheme light|dark` still wins (`LaunchAppearance`). Like the Apple TV
   app: what is drawn over a title's picture (hero text, scrim, Play) is forced dark; with
   no picture the hero follows the chosen / system scheme.
 - **Distribution:** personal builds and internal TestFlight. App Store review is not a target,
@@ -34,10 +34,10 @@ semantic component is fine; two components for one idea on one platform is a def
 - **Docs are English.** A vendor's own documentation stays **verbatim in its language**
   (`docs/providers/kinopub/` is Russian) — do not translate or delete it. UI strings are RU + EN
   through `Localizable.xcstrings`. Asana tasks are in Russian.
-- **Repo:** `KinoPubAppleClient/` (app), `KinoPubTopShelf/` (extension),
+- **Repo:** `Piratic/` (app), `PiraticTopShelf/` (extension),
   `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`, `workers/` (Cloudflare), `tools/`.
 - **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability` (app target); `Nuke`, `Pulse`
-  (`KinoPubUI`). See [Dependencies](#dependencies).
+  (`PiraticUI`). See [Dependencies](#dependencies).
 
 ### Where things live
 
@@ -56,7 +56,7 @@ semantic component is fine; two components for one idea on one platform is a def
 | Measuring scroll / hitch / artwork | [docs/engineering/performance.md](docs/engineering/performance.md) |
 | TestFlight pipeline | [docs/testflight.md](docs/testflight.md) |
 | Community fork | [docs/community-fork.md](docs/community-fork.md) |
-| Viewer-facing release notes | `KinoPubAppleClient/Resources/WhatsNew/entries/` (new bullets) — never recreate `CHANGELOG.md` |
+| Viewer-facing release notes | `Piratic/Resources/WhatsNew/entries/` (new bullets) — never recreate `CHANGELOG.md` |
 | Research and history — evidence, never law | [docs/research/](docs/research/README.md), [docs/archive/](docs/archive/) |
 
 ## Authority
@@ -145,7 +145,7 @@ MediaCard                        HomeMediaCard / DetailMediaCard / SearchMediaCa
 Platforms may render one component differently; screens may not. While a look is unsettled, 2–4
 variants *of one component* behind a switch, in one file, are fine — delete the losers with it.
 
-- Reusable UI lives in `KinoPubUI`; screen composition stays in the app target.
+- Reusable UI lives in `PiraticUI`; screen composition stays in the app target.
 - Semantic tokens only — `Color.KinoPub.*`, `TypeScale`. `Color.KinoPub.background` is **opaque**;
   layer a scrim explicitly.
 - **Dynamic Type text styles, never `.system(size:)`** — except where a glyph lines up with fixed
@@ -185,7 +185,7 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 
 ## Chrome
 
-- All `glassEffect` goes through `kinoGlass` / `kinoGlassGroup` (degrades under Reduce
+- All `glassEffect` goes through `piraticGlass` / `piraticGlassGroup` (degrades under Reduce
   Transparency). `.buttonStyle(.glass)` / `.glassProminent` are system-owned and stay direct.
 - Glass samples what is behind it; a flat page fill degrades it to a slab.
 - Navigation bar and tab bar are the system's: system `TabView` (adaptive on iPad), no hiding, no
@@ -233,10 +233,10 @@ Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail
 ## Build, run, verify
 
 ```bash
-xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
+xcodebuild -scheme Piratic -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **The project file is `KinoPubAppleClient.xcodeproj/project.pbxproj`** (Xcode 14-compatible;
+- **The project file is `Piratic.xcodeproj/project.pbxproj`** (Xcode 14-compatible;
   objectVersion 56). Xcode 26.x opens it; do not convert back to Xcode 27's `project.xcproj`
   (that pinned CI to the scarce `xcode-27` runner pool). A new `.swift` file is not compiled
   until it is a `PBXBuildFile` in the target's Sources phase — the symptom is
@@ -246,9 +246,9 @@ xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name
   Apple TV through TestFlight.
 - **Shared debug session:** DEBUG builds mirror the session to `~/.kinopub-dev-session.json`
   (`DevSessionMirror`) so reinstalls need no new code — the account has five device slots. Release
-  keeps `KinoPubAppleClient.entitlements`; only Debug gets the sandbox exception.
-- **Fixtures, not the live account, for UI tests:** `-KINOPUBDetailFixture film`,
-  `-KINOPUBLibraryFixture YES`, `-KINOPUBTVChannelsFixture YES`, `-KINOPUBFixtureInTabs YES`. A
+  keeps `Piratic.entitlements`; only Debug gets the sandbox exception.
+- **Fixtures, not the live account, for UI tests:** `-PIRATICDetailFixture film`,
+  `-PIRATICLibraryFixture YES`, `-PIRATICTVChannelsFixture YES`, `-PIRATICFixtureInTabs YES`. A
   live UI run can rotate the token and kill the dev session. Run tvOS checks on both simulator
   runtimes, 27.2 and 26.5 — they differ.
 - The simulator window lives in Device Hub; arrows + Return are the D-pad, Escape is **not** Menu.
@@ -267,16 +267,16 @@ Deferred verification is allowed; silent "everything landed" claims are not.
 
 | Purpose | File |
 | --- | --- |
-| Feature flags | `KinoPubAppleClient/Services/Configuration/FeatureFlags.swift` |
-| Type scale / shelf sizing / glass | `Packages/KinoPubUI/Sources/KinoPubUI/Layout/{TypeScale,ShelfMetrics}.swift`, `DesignSystem/KinoGlass.swift` |
-| tvOS cells, rails, pages | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
-| tvOS detail sections | `KinoPubAppleClient/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
-| Artwork (the only Nuke import) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
-| Scroll / hitch / artwork signposts | `Packages/KinoPubLogging/Sources/KinoPubLogging/PerfSignpost.swift`, `docs/engineering/performance.md` |
-| Rows / per-item library | `KinoPubAppleClient/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
-| Network log (the only Pulse import) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
-| Routes / player / API | `KinoPubAppleClient/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |
-| In-app What's New | `KinoPubAppleClient/Resources/WhatsNew/entries/` only — never edit or re-read the frozen `Resources/whats-new.json` for routine work |
+| Feature flags | `Piratic/Services/Configuration/FeatureFlags.swift` |
+| Type scale / shelf sizing / glass | `Packages/PiraticUI/Sources/PiraticUI/Layout/{TypeScale,ShelfMetrics}.swift`, `DesignSystem/PiraticGlass.swift` |
+| tvOS cells, rails, pages | `Packages/PiraticUI/Sources/PiraticUI/Components/TVUIKit/` |
+| tvOS detail sections | `Piratic/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
+| Artwork (the only Nuke import) | `Packages/PiraticUI/Sources/PiraticUI/Components/Content/ArtworkPipeline.swift` |
+| Scroll / hitch / artwork signposts | `Packages/PiraticLogging/Sources/PiraticLogging/PerfSignpost.swift`, `docs/engineering/performance.md` |
+| Rows / per-item library | `Piratic/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
+| Network log (the only Pulse import) | `Packages/PiraticUI/Sources/PiraticUI/Diagnostics/NetworkDiagnostics.swift` |
+| Routes / player / API | `Piratic/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |
+| In-app What's New | `Piratic/Resources/WhatsNew/entries/` only — never edit or re-read the frozen `Resources/whats-new.json` for routine work |
 
 ## Working agreement
 
@@ -287,7 +287,7 @@ Deferred verification is allowed; silent "everything landed" claims are not.
    (name the missing API and the cost).
 3. **Borrow before build.** Code from any watched or reference repo may be used — the project is
    experimental and open; the commit names the source.
-4. **Ambiguous visible UI gets 2–3 real variants** in `KinoPubUI/Previews/` behind `#if DEBUG`;
+4. **Ambiguous visible UI gets 2–3 real variants** in `PiraticUI/Previews/` behind `#if DEBUG`;
    promote one, delete the file.
 5. **Fixes and most changes go straight to `main`**, as small commits with detailed messages. A
    branch or PR only when Sasha asks or the environment cannot push to `main`.
@@ -299,7 +299,7 @@ Deferred verification is allowed; silent "everything landed" claims are not.
    in a `.md` file. **Keep this file short** — a new rule replaces or shortens an old one; never
    dump What's New history here. There is no `CHANGELOG.md`.
 8. **If a viewer can see the change**, add **one new file**
-   `KinoPubAppleClient/Resources/WhatsNew/entries/YYYY-MM-DD-short-slug.json` with ru + en
+   `Piratic/Resources/WhatsNew/entries/YYYY-MM-DD-short-slug.json` with ru + en
    bullets (in-app What's New and TestFlight notes). That is the only release-notes surface —
    do **not** edit the legacy `Resources/whats-new.json`, and do **not** maintain a CHANGELOG.
    See `entries/README.md` and [docs/product/whats-new.md](docs/product/whats-new.md).

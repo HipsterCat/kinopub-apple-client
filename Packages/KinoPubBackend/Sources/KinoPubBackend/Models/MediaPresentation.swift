@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// What kind of thing a title is, as far as *presentation* is concerned — not the same
 /// question as `MediaType`, which is the API's filing cabinet.

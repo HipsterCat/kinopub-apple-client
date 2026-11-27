@@ -1,0 +1,241 @@
+//
+//  MediaItemSeriesFacts.swift
+//  Piratic
+//
+//  Where a series is in its run and how much of it there is — said once, for the SwiftUI
+//  info columns and for the table under the tvOS detail page, so the two cannot disagree about
+//  whether a show has ended.
+//
+
+import Foundation
+import KinoPubBackend
+import PiraticMetadata
+import PiraticMedia
+
+enum SeriesFacts {
+
+  /// TMDB's word for the run when it has one, kino.pub's `finished` flag when it does not.
+  static func isFinished(_ item: MediaItem, _ metadata: TitleMetadata) -> Bool {
+    switch metadata.status?.lowercased() {
+    case "ended", "canceled": return true
+    case "returning series", "in production", "pilot", "planned": return false
+    default: return item.finished
+    }
+  }
+
+  /// The hero's word for where the series stands, after its season count: «окончен»,
+  /// «отменён», «продолжается», «в производстве»… TMDB's status for every title whenever
+  /// it has one — kino.pub's flag is not to be trusted (Sasha, 2026-11-09) — and kino.pub
+  /// only to say a series it marks finished is. Nil when nobody knows.
+  /// A returning series is «в эфире» / "airing now" only while its episodes come out —
+  /// TMDB's last episode or its next one within `airingDays` — and «продлён» /
+  /// "returning" between seasons (Sasha, 2026-11-16).
+  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata, now: Date = Date()) -> String? {
+    switch metadata.status?.lowercased() {
+    case "ended": return "MediaItem_StatusEndedShort"
+    case "canceled": return "MediaItem_StatusCanceledShort"
+    case "returning series":
+      return isAiring(metadata, now: now) ? "MediaItem_StatusAiringShort" : "MediaItem_StatusReturningShort"
+    case "in production": return "MediaItem_StatusInProductionShort"
+    case "planned": return "MediaItem_StatusPlannedShort"
+    case "pilot": return "MediaItem_StatusPilotShort"
+    default: return item.finished ? "MediaItem_StatusEndedShort" : nil
+    }
+  }
+
+  /// How near the last or next episode keeps a series «в эфире».
+  static let airingDays = 14
+
+  /// An episode out within `airingDays`, or one coming within them.
+  static func isAiring(_ metadata: TitleMetadata, now: Date = Date()) -> Bool {
+    let window = TimeInterval(airingDays * 24 * 60 * 60)
+    if let last = metadata.lastEpisode?.airDate, last <= now, now.timeIntervalSince(last) <= window { return true }
+    if let next = metadata.nextEpisode?.airDate, next >= now, next.timeIntervalSince(now) <= window { return true }
+    return false
+  }
+
+  /// The hero's years: «2019–26» once it has ended, «с 2006» / «2006–» while it airs
+  /// (Sasha, 2026-11-09). TMDB's air dates first, kino.pub's year and last-episode year
+  /// (`fallbackSpan`) when it has none.
+  static func heroYears(_ item: MediaItem, _ metadata: TitleMetadata, fallbackSpan: String?) -> String? {
+    let calendar = Calendar.current
+    let start = metadata.firstAirDate.map { calendar.component(.year, from: $0) }
+      ?? (item.year > 0 ? item.year : nil)
+    guard let start else { return fallbackSpan }
+    guard isFinished(item, metadata) else {
+      return String(format: "MediaItem_YearsOngoing".localized, "\(start)")
+    }
+    guard let last = metadata.lastAirDate else { return fallbackSpan ?? "\(start)" }
+    let end = calendar.component(.year, from: last)
+    guard end > start else { return "\(start)" }
+    return start / 100 == end / 100
+      ? "\(start)–\(String(format: "%02d", end % 100))"
+      : "\(start)–\(end)"
+  }
+
+  /// The localization key of the status line. Nil for anything that is not a series — by its
+  /// payload (it has seasons) or by its type, which a listing card has before the details land.
+  static func statusKey(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
+    guard item.isSeries || item.isEpisodicType else { return nil }
+    switch metadata.status?.lowercased() {
+    case "ended": return "MediaItem_StatusEnded"
+    case "canceled": return "MediaItem_StatusCanceled"
+    case "returning series", "in production", "pilot", "planned":
+      return "MediaItem_StatusInProduction"
+    default: return item.seriesStatusKey
+    }
+  }
+
+  /// The years it aired, as a line: "с 2026" while it is still airing, "с 2019 по 2026" once it has
+  /// ended, the one year when it began and ended in it. Falls back to kino.pub's year when TMDB
+  /// has no air dates. Nil when neither knows.
+  static func years(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
+    let calendar = Calendar.current
+    let start = metadata.firstAirDate.map { calendar.component(.year, from: $0) }
+      ?? (item.year > 0 ? item.year : nil)
+    guard let start else { return nil }
+    guard isFinished(item, metadata) else {
+      return String(format: "MediaItem_SinceDate".localized, "\(start)")
+    }
+    let end = metadata.lastAirDate.map { calendar.component(.year, from: $0) } ?? start
+    return end == start
+      ? "\(start)"
+      : String(format: "MediaItem_YearsRange".localized, "\(start)", "\(end)")
+  }
+
+  /// "18 сезонов, 386 серий" — TMDB's totals (specials excluded); what kino.pub carries when TMDB
+  /// has none. Nil when nobody has counted.
+  static func volume(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
+    if let seasons = metadata.numberOfSeasons, seasons > 0 {
+      var text = "\(seasons) \(unit(seasons, .season))"
+      if let episodes = metadata.numberOfEpisodes, episodes > 0 {
+        text += ", \(episodes) \(unit(episodes, .episode))"
+      }
+      return text
+    }
+    guard let counts = item.volumeCounts, counts.seasons > 0 else { return nil }
+    var text = "\(counts.seasons) \(unit(counts.seasons, .season))"
+    if counts.episodes > 0 { text += ", \(counts.episodes) \(unit(counts.episodes, .episode))" }
+    return text
+  }
+
+  enum Unit { case season, episode, special }
+
+  /// Grammatically correct unit for the running locale.
+  static func unit(_ count: Int, _ kind: Unit) -> String {
+    let form = localizedPluralForm(count)
+    let key: String
+    switch (kind, form) {
+    case (.season, 0): key = "MediaItem_UnitSeasonOne"
+    case (.season, 1): key = "MediaItem_UnitSeasonFew"
+    case (.season, 2): key = "MediaItem_UnitSeasonMany"
+    case (.episode, 0): key = "MediaItem_UnitEpisodeOne"
+    case (.episode, 1): key = "MediaItem_UnitEpisodeFew"
+    case (.episode, 2): key = "MediaItem_UnitEpisodeMany"
+    case (.special, 0): key = "MediaItem_UnitSpecialOne"
+    case (.special, 1): key = "MediaItem_UnitSpecialFew"
+    case (.special, 2): key = "MediaItem_UnitSpecialMany"
+    default: key = "MediaItem_UnitSeasonMany"
+    }
+    return key.localized
+  }
+}
+
+/// The one written badge the title page leads its facts with (`TitleStatusBadge`): what is
+/// new about this title right now. The first rule that holds wins; nil draws nothing.
+///
+/// Sasha's list (2026-11-08): «Новый сезон», «Новые серии», «Новая серия через 5 дней»,
+/// «Последний сезон», «Недавно на Кинопабе», «Новинка», «Премьера», «Все серии». Each is
+/// read from what kino.pub and TMDB already sent the page — no request of its own.
+///
+/// 2026-11-16 (Sasha): the badge kept changing its words while the page loaded («Новинка»,
+/// then «Новые серии», then the next episode) and said «новые серии» to someone who had
+/// watched none. Until a badge can be shown for sure, only TMDB dates speak, in short
+/// windows: «Новый сезон» while a later season's episodes air (last one at most a week
+/// ago or the next at most a week ahead), the next episode within two days. «Недавно добавлен», «Новые серии» and «Новинка» (kino.pub's
+/// added/updated dates, a four-month release window) are off.
+enum TitleStatus: Equatable {
+  case newEpisode(inDays: Int)
+  case premiere
+  case finalSeason
+  case allEpisodes
+  case newSeason
+
+  /// - Parameter awaitedEpisodeAirDate: the next episode of the season kino.pub is on
+  ///   (`MediaItemModel.awaitedEpisodeAirDate`).
+  static func resolve(_ item: MediaItem, _ metadata: TitleMetadata,
+                      awaitedEpisodeAirDate: Date?, now: Date = Date(),
+                      calendar: Calendar = .current) -> TitleStatus? {
+    /// Whole days from `date` to today: negative when it is still ahead.
+    func days(since date: Date?) -> Int? {
+      guard let date else { return nil }
+      return calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
+                                     to: calendar.startOfDay(for: now)).day
+    }
+
+    if item.isSeries {
+      let seasons = metadata.seasonSummaries.filter { $0.seasonNumber > 0 }
+      // A season is new while its episodes come out: TMDB's last aired episode at most a
+      // week ago, or its next one at most a week ahead — the two episodes the series'
+      // own record carries, no episode list fetched (Sasha, 2026-11-16).
+      let seasonCount = max(seasons.count, item.seasons?.count ?? 0)
+      let lastAired = days(since: metadata.lastEpisode?.airDate)
+      let nextAirs = days(since: metadata.nextEpisode?.airDate).map { -$0 }
+      let isNewSeason = seasonCount > 1
+        && (lastAired.map { (0...Rules.newSeasonDays).contains($0) } == true
+          || nextAirs.map { (0...Rules.newSeasonDays).contains($0) } == true)
+      let premiered = days(since: metadata.firstAirDate).map { (0...Rules.premiereDays).contains($0) } == true
+      let episodeAhead = days(since: awaitedEpisodeAirDate).map { -$0 }
+        .flatMap { (0...Rules.aheadDays).contains($0) ? $0 : nil }
+      // The next episode's date matters to someone already into the latest season. To
+      // anyone who has not started it — or the series — the news is the new season or
+      // the premiere (Sasha, 2026-11-09).
+      if hasStartedLatestSeason(item), let episodeAhead { return .newEpisode(inDays: episodeAhead) }
+      if premiered { return .premiere }
+      if isNewSeason { return .newSeason }
+      if let episodeAhead { return .newEpisode(inDays: episodeAhead) }
+      if SeriesFacts.isFinished(item, metadata),
+         let ended = days(since: metadata.lastAirDate), (0...Rules.endedDays).contains(ended) {
+        return seasonCount > 1 ? .finalSeason : .allEpisodes
+      }
+      return nil
+    }
+
+    if let released = days(since: metadata.releaseDate), (0...Rules.premiereDays).contains(released) {
+      return .premiere
+    }
+    return nil
+  }
+
+  /// Any episode of the series' last season watched or in progress.
+  private static func hasStartedLatestSeason(_ item: MediaItem) -> Bool {
+    guard let latest = item.seasons?.max(by: { $0.number < $1.number }) else { return false }
+    return latest.episodes.contains { $0.watched > 0 || $0.watching.time > 0 }
+  }
+
+  var text: String {
+    switch self {
+    case .newEpisode(let days):
+      let formatter = RelativeDateTimeFormatter()
+      formatter.dateTimeStyle = .named
+      formatter.unitsStyle = .full
+      formatter.locale = Locale(identifier: MediaLanguage.current.rawValue)
+      let when = formatter.localizedString(from: DateComponents(day: days))
+      return String(format: "TitleStatus_NewEpisodeWhen".localized, when)
+    case .premiere: return "TitleStatus_Premiere".localized
+    case .finalSeason: return "TitleStatus_FinalSeason".localized
+    case .allEpisodes: return "TitleStatus_AllEpisodes".localized
+    case .newSeason: return "TitleStatus_NewSeason".localized
+    }
+  }
+
+  /// How fresh "new" is, in days. One place, so the badge is tuned here.
+  enum Rules {
+    /// How far ahead a coming season or episode is announced.
+    static let aheadDays = 2
+    static let premiereDays = 14
+    static let endedDays = 60
+    /// How near TMDB's last or next episode keeps a later season «Новый сезон».
+    static let newSeasonDays = 7
+  }
+}

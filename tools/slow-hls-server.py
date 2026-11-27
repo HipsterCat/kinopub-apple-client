@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # A slow CDN for the real-player fixtures: `python3 tools/slow-hls-server.py [seconds]`,
-# then launch with `-KINOPUBFixtureStream http://127.0.0.1:8765/slow.m3u8`.
+# then launch with `-PIRATICFixtureStream http://127.0.0.1:8765/slow.m3u8`.
 # PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown needs it running.
 import http.server, time, sys
 # Holds the master playlist back DELAY seconds, then redirects to Apple's sample. Variant

@@ -12,7 +12,7 @@
 //
 
 import Foundation
-import KinoPubLogging
+import PiraticLogging
 
 // MARK: - Models
 

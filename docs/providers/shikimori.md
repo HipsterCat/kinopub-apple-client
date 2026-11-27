@@ -18,7 +18,7 @@ request (including token exchange). Mimicking a browser gets the IP banned.
 | `SHIKIMORI_CLIENT_ID` | Info.plist `ShikimoriClientID` = `$(SHIKIMORI_CLIENT_ID)`, or process / CI env |
 | `SHIKIMORI_CLIENT_SECRET` | CI env, Keychain, or worker secret only — **never Info.plist, never committed xcconfig** |
 
-Code constants: `ShikimoriOAuth` in `KinoPubMetadata`.
+Code constants: `ShikimoriOAuth` in `PiraticMetadata`.
 
 ## OAuth flow (prepared)
 
@@ -57,6 +57,6 @@ mutations are not enough; prefer GraphQL for catalogue and list reads.
 
 ## Code
 
-- `Packages/KinoPubMetadata/.../Shikimori/ShikimoriOAuth.swift` — URLs, User-Agent, credential names, redirect, GraphQL starter
+- `Packages/PiraticMetadata/.../Shikimori/ShikimoriOAuth.swift` — URLs, User-Agent, credential names, redirect, GraphQL starter
 - Settings › Integrations › Shikimori — listed as coming soon
 - App URL scheme `piratic` absorbs `piratic://shikimori` (token exchange TBD)

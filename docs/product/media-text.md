@@ -1,6 +1,6 @@
 # Media text — how a fact is worded, per surface
 
-One wording per fact and length, in both languages. Implemented once in `KinoPubMedia`
+One wording per fact and length, in both languages. Implemented once in `PiraticMedia`
 (`EpisodeText`, `SeasonText`, `RuntimeText`, `RemainingText`); which surface uses which
 length is `MediaSurface` — the one table. A difference between two surfaces is a row there,
 never a second helper. Everything below is **prd** (user, 2026-10-03) unless tagged.

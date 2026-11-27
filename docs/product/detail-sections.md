@@ -132,7 +132,7 @@ page and its people are a section of their own, as text (below).
   own Dexter. If ranking would leave them out they open the row. #50 narrowed this to unmatched
   series only so a fixture's billed extras stayed gone; that workaround is gone.
 - **A person without a photo is their initials**, as in search. A fixture page draws no
-  network portraits (`-KINOPUBFixtureRealArt YES` brings them back), so the no-photo state is what a
+  network portraits (`-PIRATICFixtureRealArt YES` brings them back), so the no-photo state is what a
   fixture shows.
 
 **prd — Similar (Sasha, 2026-10-11).** One heading, *Similar*, over **up to three groups** of
@@ -290,6 +290,6 @@ Sasha has not confirmed any of them.**
 
 Everything above is **prd** or **idea** as tagged and **seen only in the tvOS simulators** (27.2, and
 26.5 — which showed a bug of its own in the poster shelves, see CHANGELOG) on a fixture title
-(`-KINOPUBDetailFixture film`, full of every kind of row) — never on a device, never on a live
+(`-PIRATICDetailFixture film`, full of every kind of row) — never on a device, never on a live
 payload. Not looked at on a real Apple TV: how the strips feel under the remote, whether
 the info cards are readable at couch distance.

@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// kino.pub's item payload (`/v1/items/{id}`, listings), as the API sends it. The app's own
 /// description of a title is the media model's (`KinoPubMediaMapping` → `MediaEntity`);

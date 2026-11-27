@@ -30,7 +30,7 @@ Not in phase 1: Play, watchlist toggle, bookmarks submenu, Share, Download wirin
 
 Call sites pass optional handlers / flags. A missing handler means that item is omitted. No second copy of keys/icons in `MainView`, banner code, or seasons.
 
-`KinoPubUI` stays presentation-only: `MediaCardContextAction` (+ section/divider support if needed) and `MediaCardContextMenuModifier`. Banners use the same `contextMenuProvider` as shelf cards.
+`PiraticUI` stays presentation-only: `MediaCardContextAction` (+ section/divider support if needed) and `MediaCardContextMenuModifier`. Banners use the same `contextMenuProvider` as shelf cards.
 
 ### Image URL for debug
 

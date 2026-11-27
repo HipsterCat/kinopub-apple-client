@@ -32,7 +32,7 @@ def pushbr_url(name: str | None) -> str | None:
     Free: no fetch, no quota, no matching problem — the URL is a pure function
     of a name we already hold. A miss (no such photo) is a 403 at *display*
     time, same as any other candidate in an ordered fallback list. This mirrors
-    KinoPubAppleClient/Services/ActorImages/ActorImageProvider.swift; the server
+    Piratic/Services/ActorImages/ActorImageProvider.swift; the server
     computing it too is what lets the API's own document carry it, instead of
     every client re-deriving the same hash.
     """

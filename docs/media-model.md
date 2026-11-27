@@ -19,13 +19,13 @@ Each layer reads only the one below it. A layer is a package or a folder of plai
 
 | # | Layer | Answers | Lives in | State |
 | --- | --- | --- | --- | --- |
-| 0 | **Sources** | "what did kino.pub / TMDB / Kinopoisk / Trakt say" | `KinoPubBackend` (kino.pub), `KinoPubMetadata` (TMDB, Kinopoisk); our worker's `/v1/title` (next) | done |
-| 1 | **Facts** | "what is this thing, according to whom" | `KinoPubMedia`: `MediaFragment` → `MediaAggregator` → `MediaEntity` / `MediaContext` | done |
-| 2 | **Identity** | "which thing" — one key every store agrees on | `KinoPubMedia`: `MediaRef` | done |
+| 0 | **Sources** | "what did kino.pub / TMDB / Kinopoisk / Trakt say" | `KinoPubBackend` (kino.pub), `PiraticMetadata` (TMDB, Kinopoisk); our worker's `/v1/title` (next) | done |
+| 1 | **Facts** | "what is this thing, according to whom" | `PiraticMedia`: `MediaFragment` → `MediaAggregator` → `MediaEntity` / `MediaContext` | done |
+| 2 | **Identity** | "which thing" — one key every store agrees on | `PiraticMedia`: `MediaRef` | done |
 | 3 | **Viewer state** | "what has the viewer done with it" | `KinoPubBackend`: `ViewerState` + rules; app: `ViewerStateReader` over the stores | done (detail page reads it) |
 | 4 | **Selection** | "which things belong in this list, in what order" | pure functions: Continue Watching, Up Next, Unwatched, History, Watchlist, Bookmarks, shelves, banners | later |
-| 5 | **Presentation** | "what does this surface say about it, in which words" | `KinoPubMedia/Presentation`: formatters + `MediaSurface` table | started |
-| 6 | **Views** | drawing | `KinoPubUI`, `Views/` — no string building, no source knowledge | — |
+| 5 | **Presentation** | "what does this surface say about it, in which words" | `PiraticMedia/Presentation`: formatters + `MediaSurface` table | started |
+| 6 | **Views** | drawing | `PiraticUI`, `Views/` — no string building, no source knowledge | — |
 
 ### 0 · Sources — adapters only
 
@@ -150,7 +150,7 @@ Duplicates this replaces (audit 2026-10-03):
 | Concept | Separate implementations today | Differences |
 | --- | --- | --- |
 | Episode reference | `ContinueWatchingEpisode.overlayLabel` ("S2, E5", not localized), `HistoryView` ("S2, E5"), `MediaActionCopy.episodeLabel` (RU «2 сезон, 5 серия»), `PlaybackMediaContext.labels` (RU «Сезон 2, Серия 5»), `SeasonsRailView.episodeLabel` / `SeasonView` / `PlayerManager` («Серия 5»), `TrackMemorySections` + `TVSettingsCatalog` + `TVProfileSettingsView` ("S2E5", three copies), `SeasonDownloadManager` / `MediaItem.downloadableItems` ("S2E5" file names), `MediaItemHeroView` ("S2, E5") | four formats for one thing → **D6** |
-| "Episode 1" is not a name | `EpisodeTitle` (KinoPubMedia), `MediaCard.isOwnNumber` (KinoPubUI) | different word lists |
+| "Episode 1" is not a name | `EpisodeTitle` (PiraticMedia), `MediaCard.isOwnNumber` (PiraticUI) | different word lists |
 | Runtime | `Duration.compact` (KinoPubBackend), `MediaActionCopy.compactDuration`, `LandscapeTimeBadge.compactLabel`, `MediaCard.durationLabel` | «53 мин» vs «53m» → **D8** |
 | Time left | `MediaActionCopy.remainingLabel` (`MediaAction_TimeLeft`), `LandscapeTimeBadge` (`"%@ left"`) | two string keys |
 | Genres on a line | `MediaItem.metadataLine` (two, comma-joined), `MediaCard.genreLine` (two), `PlayerInfo` (one, primary) | **D7** |

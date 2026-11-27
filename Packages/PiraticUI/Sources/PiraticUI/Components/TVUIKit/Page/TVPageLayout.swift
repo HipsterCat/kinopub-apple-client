@@ -1,0 +1,1036 @@
+#if os(tvOS)
+//
+//  TVPageLayout.swift
+//  PiraticUI
+//
+//  Turns a `TVPageSection` into an `NSCollectionLayoutSection` at the width the
+//  collection view actually has. Nothing here is passed in from SwiftUI geometry: the
+//  section provider reads `environment.container.effectiveContentSize`, so the first
+//  layout pass is already the right one — no 1920-default-then-relayout, no tile that
+//  paints small and then grows.
+//
+//  The HIG grid describes the **unfocused** card: `TVHIGGrid.cardWidth(columns:)` wide,
+//  40 apart, 80 from the screen edge. The system cells do not all take that as their
+//  frame — `TVPosterView` treats its frame as the *focused envelope* and draws the
+//  unfocused art inset by its own `focusSizeIncrease` (measured 2026-09-21 on tvOS 27.2:
+//  13 / 20 pt for a 260 × 390 poster, and 0 when it has no image, so a lockup that gets
+//  its art late jumps). `TVPageCellMetrics` measures each cell family once per width
+//  and reports where the unfocused art sits inside the layout item; the layout then
+//  places *envelopes* so that the *art* lands on the HIG grid.
+//
+
+import TVUIKit
+import UIKit
+
+public enum TVPageLayout {
+  public static let headerKind = "TVPageSectionHeader"
+
+  /// Height of the row title strip: `.headline` on tvOS plus breathing room.
+  public static let headerHeight: CGFloat = 52
+  /// Grid headers travel with the content. `true` overlays the title on the first
+  /// row of covers. Focusing a cover still does not nudge a grid header —
+  /// `headerDodge` is identity on `.grid`.
+  public static let headersPinToVisibleBounds = false
+  /// Under a grid that has more pages coming (`TVPageSection.loadsMore`): a spinner.
+  public static let loadingFooterKind = "TVPageSectionLoadingFooter"
+  public static let loadingFooterHeight: CGFloat = 120
+
+  /// Unfocused row-to-row spacing inside a grid, art bottom to art top.
+  public static let gridRowSpacing: CGFloat = 64
+  /// Wide cards carry their text inside the platter, so their rows sit closer — the
+  /// gutter, as in the search mock.
+  public static let cardRowSpacing: CGFloat = TVHIGGrid.gutter
+
+  /// A chip row's height: the system bordered button at the current Dynamic Type size
+  /// (`TVPageChipCell.rowHeight`). Width is whatever the title needs.
+  @MainActor
+  public static var chipHeight: CGFloat { TVPageChipCell.rowHeight }
+  public static let chipSpacing: CGFloat = 24
+
+  /// A wide text card: the title's poster fills the platter's leading edge top to
+  /// bottom, so the card is as tall as that thumbnail; a person's circle sits inside it
+  /// with `cardPadding` around. The width is the column's, like every other card.
+  /// 160 at the default text size, scaled with Dynamic Type like the text inside it.
+  @MainActor
+  public static var cardHeight: CGFloat {
+    let traits = UITraitCollection(preferredContentSizeCategory: TVPageCellMetrics.contentSizeCategory)
+    return UIFontMetrics(forTextStyle: .body).scaledValue(for: 160, compatibleWith: traits).rounded()
+  }
+  public static let cardPadding: CGFloat = 16
+
+  /// Width over height of a banner platter: the backdrop's own 16:9; the scrims carry the words.
+  public static let bannerAspect: CGFloat = 16 / 9
+
+  /// Half the screen: the platter width `TVPageBannerChrome.width == .halfScreen` uses,
+  /// so a neighbour still peeks once the row is aligned with the other rails.
+  public static func bannerWidth(containerWidth: CGFloat) -> CGFloat {
+    let sideInset = TVHIGGrid.sideInset
+    let content = max(containerWidth - sideInset * 2, 1)
+    let usable = max(content - TVPageBannerChrome.bannerGutter, 1)
+    return (usable / 2).rounded(.down)
+  }
+
+  /// An info card (a score, a review, a fact, the stills, a column of specs): tall enough
+  /// for a review's headline, four lines of its text and its footer. Scaled with Dynamic
+  /// Type like the text inside it.
+  @MainActor
+  public static var infoCardHeight: CGFloat {
+    let traits = UITraitCollection(preferredContentSizeCategory: TVPageCellMetrics.contentSizeCategory)
+    return UIFontMetrics(forTextStyle: .body).scaledValue(for: 276, compatibleWith: traits).rounded()
+  }
+
+  /// The layout for one page: a section provider that resolves the section at that
+  /// index from `sections()` at layout time, so a snapshot swap and its geometry can
+  /// never disagree.
+  /// `adjustedLeading` is how far from the screen edge the collection's content already
+  /// starts. A tab page is full screen and it is 0; the search container lays its
+  /// results out inside its 80 pt safe area, and adding the section's own 80 on top put
+  /// the first card at 160 (2026-09-25). The HIG 80 is from the screen edge, so the
+  /// section adds only what is missing. The live value is the collection's
+  /// `safeAreaInsets` (overscan), not a hardcoded 1920 canvas.
+  ///
+  /// `stripScrolled` hears, for the strip at a section index, where its group titles should
+  /// stand as the row scrolls (`TVPageStripPlan.stickyShifts`), so the page can put it on
+  /// the title cells.
+  ///
+  /// `screenContentWidth`, when it returns a width, is what a grid or a rail resolves
+  /// its column count against — the window minus the side insets, not the collection's
+  /// current bounds. The grid keyboard narrows the results; fitting that pane wraps
+  /// posters onto the next row and they jump when the keyboard hides. The cards stay
+  /// the full-screen size and the last column clips. Nil uses the container, so a page
+  /// beside a sidebar still reflows.
+  @MainActor
+  public static func makeLayout(sideInset: @escaping () -> CGFloat = { TVHIGGrid.sideInset },
+                                adjustedLeading: @escaping () -> CGFloat = { 0 },
+                                stripScrolled: (@MainActor (Int, [Int: CGFloat]) -> Void)? = nil,
+                                heroHeight: @escaping () -> CGFloat = { 0 },
+                                screenContentWidth: @escaping () -> CGFloat? = { nil },
+                                sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
+    let configuration = UICollectionViewCompositionalLayoutConfiguration()
+    configuration.scrollDirection = .vertical
+    configuration.interSectionSpacing = 0
+    // Sections carry the side insets. The collection view's adjusted content inset
+    // (the tab bar on top) is the container's frame of reference; the safe area itself
+    // is not referenced here, or the bar's region would be counted twice.
+    configuration.contentInsetsReference = .none
+    let layout = UICollectionViewCompositionalLayout(
+      sectionProvider: { index, environment in
+        let all = sections()
+        guard all.indices.contains(index) else { return fallback }
+        let inset = max(sideInset() - adjustedLeading(), 0)
+        let next = all.indices.contains(index + 1) ? all[index + 1] : nil
+        let scrolled: (@MainActor ([Int: CGFloat]) -> Void)? = stripScrolled.map { report in
+          { @MainActor shifts in report(index, shifts) }
+        }
+        let containerWidth = environment.container.effectiveContentSize.width
+        let contentWidth = screenContentWidth() ?? max(containerWidth - inset * 2, 1)
+        let built = section(for: all[index], environment: environment, sideInset: inset, next: next,
+                            contentWidth: contentWidth, stripScrolled: scrolled, heroHeight: heroHeight())
+        if DebugLaunch.layoutDebug {
+          built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
+        }
+        return built
+      },
+      configuration: configuration
+    )
+    if DebugLaunch.layoutDebug {
+      layout.register(TVPageDebugSectionBackground.self, forDecorationViewOfKind: debugBackgroundKind)
+    }
+    return layout
+  }
+
+  @MainActor
+  public static func section(for section: TVPageSection,
+                             environment: NSCollectionLayoutEnvironment,
+                             sideInset: CGFloat,
+                             next: TVPageSection? = nil,
+                             contentWidth fixedContentWidth: CGFloat? = nil,
+                             stripScrolled: (@MainActor ([Int: CGFloat]) -> Void)? = nil,
+                             heroHeight: CGFloat = 0) -> NSCollectionLayoutSection {
+    let containerWidth = environment.container.effectiveContentSize.width
+    let contentWidth = fixedContentWidth ?? max(containerWidth - sideInset * 2, 1)
+
+    let layoutSection: NSCollectionLayoutSection
+    switch (section.kind, section.flow) {
+    case (.masthead, _):
+      layoutSection = masthead(section, sideInset: sideInset)
+    case (.chip, _):
+      let centered = section.items.contains(where: Self.isCenterChip)
+      let pinned = section.items.contains(where: Self.isTrailingChip)
+      let bottom = chipRowBottom(before: next, contentWidth: contentWidth,
+                                 otherwise: pinned || centered ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
+      if centered {
+        layoutSection = centeredChipRow(section, sideInset: sideInset, bottom: bottom)
+      } else if pinned {
+        layoutSection = chipRow(section, sideInset: sideInset, bottom: bottom)
+      } else {
+        layoutSection = chipRail(section, sideInset: sideInset, bottom: bottom)
+      }
+    case (.banner, _):
+      layoutSection = bannerRail(containerWidth: containerWidth, sideInset: sideInset)
+    case (.hero, _):
+      layoutSection = hero(containerWidth: containerWidth, height: heroHeight)
+    case (.strip, _):
+      layoutSection = strip(section, contentWidth: contentWidth, sideInset: sideInset, scrolled: stripScrolled)
+    case (_, .rail):
+      layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
+    case (_, .grid):
+      layoutSection = grid(section, contentWidth: contentWidth, sideInset: sideInset)
+    }
+
+    if section.title != nil {
+      let height = section.headerActions.isEmpty ? headerHeight : chipHeight
+      let header = NSCollectionLayoutBoundarySupplementaryItem(
+        layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                           heightDimension: .absolute(height)),
+        elementKind: headerKind,
+        alignment: .top
+      )
+      // The header aligns to the *art* column, not the envelope's: it does not follow
+      // the section insets (which are envelope-relative) and takes the page inset.
+      header.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: sideInset, bottom: 0, trailing: sideInset)
+      // Scrolls with the grid. Pinning (`pinToVisibleBounds`) overlays the title on
+      // the first row of covers. Focusing a cover still does not nudge a grid header
+      // (`headerDodge` is identity on `.grid`).
+      header.pinToVisibleBounds = headersPinToVisibleBounds
+      layoutSection.supplementaryContentInsetsReference = .none
+      layoutSection.boundarySupplementaryItems = [header]
+    }
+    if section.loadsMore, section.flow == .grid {
+      let footer = NSCollectionLayoutBoundarySupplementaryItem(
+        layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                           heightDimension: .absolute(loadingFooterHeight)),
+        elementKind: loadingFooterKind,
+        alignment: .bottom
+      )
+      layoutSection.boundarySupplementaryItems.append(footer)
+    }
+    return layoutSection
+  }
+
+  // MARK: - Templates
+
+  /// One row, orthogonal. The group is one envelope; envelopes are placed so the
+  /// unfocused art is `cardWidth` wide, 40 apart, and `sideInset` from the edge. The
+  /// trailing inset mirrors the leading one, so cards passing under either margin while
+  /// scrolling are symmetrical — HIG "make partially hidden content look symmetrical".
+  @MainActor
+  private static func rail(_ section: TVPageSection,
+                           contentWidth: CGFloat,
+                           sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let art = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
+    let size = NSCollectionLayoutSize(widthDimension: .absolute(recipe.itemSize.width),
+                                      heightDimension: .absolute(recipe.itemSize.height))
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    let group: NSCollectionLayoutGroup
+    if section.rows > 1 {
+      // A column of `rows` envelopes, scrolled sideways as one — the art stacks
+      // `gridRowSpacing` apart, like a grid's rows.
+      let between = section.kind == .card ? cardRowSpacing : gridRowSpacing
+      let spacing = between - recipe.artInsets.top - recipe.artInsets.bottom
+      let rows = CGFloat(section.rows)
+      let column = NSCollectionLayoutSize(
+        widthDimension: .absolute(recipe.itemSize.width),
+        heightDimension: .absolute(recipe.itemSize.height * rows + spacing * (rows - 1))
+      )
+      group = NSCollectionLayoutGroup.vertical(layoutSize: column, repeatingSubitem: item, count: section.rows)
+      group.interItemSpacing = .fixed(spacing)
+    } else {
+      group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.orthogonalScrollingBehavior = .continuous
+    layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
+                                         captioned: hasStandingCaption(section))
+    return layoutSection
+  }
+
+  /// The still rail a `TVPage` builds for a `.stills` row, for a rail that lives outside
+  /// a `TVPage` — the detail page's episodes and film versions, which sit in a SwiftUI
+  /// page (`TVUIKitMediaItemRail(columns:)`). Same HIG columns, envelope, gutter, focus
+  /// room and bottom gap as the Home row; the section is untitled (the caller draws its
+  /// own header) and scrolls sideways.
+  @MainActor
+  public static func stillRail(columns: Int,
+                               caption: TVPageCaption,
+                               containerWidth: CGFloat,
+                               sideInset: CGFloat) -> NSCollectionLayoutSection {
+    rail(stillRailSection(columns: columns, caption: caption),
+         contentWidth: max(containerWidth - sideInset * 2, 1), sideInset: sideInset)
+  }
+
+  /// The height `stillRail` takes at this width: focus room, the envelope, and the gap
+  /// under it.
+  @MainActor
+  public static func stillRailHeight(columns: Int,
+                                     caption: TVPageCaption,
+                                     containerWidth: CGFloat,
+                                     sideInset: CGFloat) -> CGFloat {
+    let section = stillRailSection(columns: columns, caption: caption)
+    let contentWidth = max(containerWidth - sideInset * 2, 1)
+    let art = TVHIGGrid.resolve(columns: columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: .still, artWidth: art, caption: caption)
+    let edges = insets(for: recipe, sideInset: sideInset, titled: false,
+                       captioned: hasStandingCaption(section))
+    return (edges.top + recipe.itemSize.height + edges.bottom).rounded(.up)
+  }
+
+  /// The same still row for a collection view that **is** the row: its own scroll
+  /// direction is horizontal, so the section is not orthogonal and the rail's offset
+  /// belongs to us. `scrollToItem` on an orthogonal section drives a private inner scroll
+  /// view that ignores the section's insets — the target landed flush against the
+  /// screen edge, or the rail did not move at all (Sasha, 2026-10-11).
+  ///
+  /// Use with `stillRunConfiguration()`; same height as `stillRail` (`stillRailHeight`).
+  @MainActor
+  public static func stillRun(columns: Int,
+                              caption: TVPageCaption,
+                              containerWidth: CGFloat,
+                              sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let section = stillRail(columns: columns, caption: caption, containerWidth: containerWidth,
+                            sideInset: sideInset)
+    section.orthogonalScrollingBehavior = .none
+    return section
+  }
+
+  /// The configuration a `stillRun` collection view is built with: it scrolls sideways,
+  /// and the section's insets are measured from the view's edge — with the default
+  /// `.safeArea` reference tvOS adds its own 80 pt on top of ours, and the first still
+  /// sat a whole margin right of the section title (2026-10-11).
+  public static func stillRunConfiguration() -> UICollectionViewCompositionalLayoutConfiguration {
+    let configuration = UICollectionViewCompositionalLayoutConfiguration()
+    configuration.scrollDirection = .horizontal
+    configuration.contentInsetsReference = .none
+    return configuration
+  }
+
+  private static func stillRailSection(columns: Int, caption: TVPageCaption) -> TVPageSection {
+    .stills(id: "still-rail", title: nil, columns: columns, caption: caption, cards: [])
+  }
+
+  /// The banner row. Alignment and platter width come from `TVPageBannerChrome`:
+  /// leading uses the same inset and continuous scroll as the other rails; centred
+  /// is the old paging, one platter in the middle.
+  @MainActor
+  private static func bannerRail(containerWidth: CGFloat, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let chrome = TVPageBannerChrome.current
+    let recipe = TVPageCellMetrics.recipe(
+      kind: .banner,
+      artWidth: chrome.cardWidth(containerWidth: containerWidth, sideInset: sideInset),
+      caption: .always
+    )
+    let size = NSCollectionLayoutSize(widthDimension: .absolute(recipe.itemSize.width),
+                                      heightDimension: .absolute(recipe.itemSize.height))
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
+                                                   subitems: [NSCollectionLayoutItem(layoutSize: size)])
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.interGroupSpacing = TVPageBannerChrome.bannerGutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    switch chrome.row {
+    case .leading:
+      layoutSection.orthogonalScrollingBehavior = .continuous
+      layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: false)
+    case .centered:
+      layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
+      let side = max(((containerWidth - recipe.itemSize.width) / 2).rounded(.down), 0)
+      let standard = insets(for: recipe, sideInset: TVHIGGrid.sideInset, titled: false)
+      layoutSection.contentInsets = NSDirectionalEdgeInsets(top: standard.top, leading: side,
+                                                            bottom: standard.bottom, trailing: side)
+    }
+    return layoutSection
+  }
+
+  /// The hero: one item, the container's full width. Its height is the page's — the
+  /// controller knows the visible height and the tab bar's inset (`heroHeight`), the
+  /// section provider does not. No insets: the cell lays its words out on the page's
+  /// side inset itself, and the backdrop behind it is the screen's, not the cell's.
+  private static func hero(containerWidth: CGFloat, height: CGFloat) -> NSCollectionLayoutSection {
+    let size = NSCollectionLayoutSize(widthDimension: .absolute(max(containerWidth, 1)),
+                                      heightDimension: .absolute(max(height, 1)))
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
+                                                   subitems: [NSCollectionLayoutItem(layoutSize: size)])
+    return NSCollectionLayoutSection(group: group)
+  }
+
+  /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
+  /// short last group, and a poster lockup then draws its 2:3 art across the whole
+  /// cell — the footer title disappears (collection grids, 2026-10-01). One custom
+  /// group places every cell at the measured envelope (`recipe.itemSize`): a short
+  /// last row keeps the same poster size as a full one, leftover width stays empty,
+  /// and the recipe cache key always matches what the cell is given.
+  @MainActor
+  private static func grid(_ section: TVPageSection,
+                           contentWidth: CGFloat,
+                           sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
+    let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
+    let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    let itemW = recipe.itemSize.width
+    let itemH = recipe.itemSize.height
+    let rowGap: CGFloat
+    if hasStandingCaption(section) {
+      rowGap = captionedRowGap
+    } else if section.kind == .still {
+      // A still draws its line under the art (`TVMediaItemContentConfiguration`), outside
+      // the item — `belowItem` — and then gets the air a captioned cover row has. The text
+      // block used to be counted twice on top of `gridRowSpacing`: 160 pt from one row of
+      // art to the next, 112 of them empty (the Library's Continue, Sasha 2026-10-17).
+      rowGap = recipe.belowItem + captionedRowGap
+    } else {
+      rowGap = gridRowSpacing + recipe.belowItem - recipe.artInsets.top - recipe.artInsets.bottom
+    }
+    let count = max(section.items.count, 1)
+    let cols = max(columns, 1)
+    let rows = Int(ceil(Double(count) / Double(cols)))
+    let height = CGFloat(rows) * itemH + CGFloat(max(rows - 1, 0)) * rowGap
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                         heightDimension: .absolute(max(height, itemH)))
+    ) { _ in
+      (0..<count).map { index in
+        let col = index % cols
+        let row = index / cols
+        let frame = CGRect(x: CGFloat(col) * (itemW + spacing),
+                           y: CGFloat(row) * (itemH + rowGap),
+                           width: itemW,
+                           height: itemH)
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    var edges = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
+                       captioned: hasStandingCaption(section))
+    if section.kind == .still {
+      // The same air under the last row as between rows — the text line, then
+      // `captionedRowGap` — before the next title. `insets` already had the line in it,
+      // and the text block went on again here.
+      edges.bottom = recipe.belowItem + captionedRowGap
+    }
+    layoutSection.contentInsets = edges
+    return layoutSection
+  }
+
+  /// One full-width focusable header that scrolls with the page. Estimated height is
+  /// Rest height is estimated; the cell measures for Dynamic Type so a long title
+  /// or larger content size does not overflow into the sort row.
+  @MainActor
+  private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let height = mastheadRestHeight(section)
+    let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                      heightDimension: .estimated(height))
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: sideInset, bottom: 8, trailing: sideInset)
+    return layoutSection
+  }
+
+  /// Starting estimate only. The cell's `preferredLayoutAttributesFitting` is the
+  /// measured height (avatar + Dynamic Type labels, or title + stats).
+  static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
+    guard case .masthead(let header) = section.items.first else { return 180 }
+    switch header.style {
+    case .person:
+      return 180
+    case .collection:
+      return header.stats.isEmpty ? 120 : 200
+    }
+  }
+
+  static let debugBackgroundKind = "TVPageDebugSectionBackground"
+
+  private static func isTrailingChip(_ item: TVPageItem) -> Bool {
+    if case .chip(let chip) = item { return chip.alignment == .trailing }
+    return false
+  }
+
+  private static func isCenterChip(_ item: TVPageItem) -> Bool {
+    if case .chip(let chip) = item { return chip.alignment == .center }
+    return false
+  }
+
+  /// A filter row: the pills at their measured widths (`TVPageChipCell.fittingWidth`),
+  /// the leading ones from the left edge, the trailing ones (the sort) flush with the
+  /// right one. A custom group places them outright: flexible edge spacing in a
+  /// horizontal group left most of the leftover width unspent (measured 2026-09-25 —
+  /// the sort sat 45 pt after Filters instead of at the edge). It does not scroll.
+  @MainActor
+  private static func chipRow(_ section: TVPageSection, sideInset: CGFloat,
+                              bottom: CGFloat) -> NSCollectionLayoutSection {
+    let chips: [(width: CGFloat, trailing: Bool)] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return (180, false) }
+      return (TVPageChipCell.fittingWidth(for: chip), chip.alignment == .trailing)
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(chipHeight))
+    ) { environment in
+      // The environment here is the collection's full width, not the section's content
+      // box (measured: the sort ran 80 pt past the edge), so the insets come off here.
+      let width = environment.container.effectiveContentSize.width - sideInset * 2
+      var frames = [CGRect](repeating: .zero, count: chips.count)
+      var x: CGFloat = 0
+      for (index, chip) in chips.enumerated() where !chip.trailing {
+        frames[index] = CGRect(x: x, y: 0, width: chip.width, height: chipHeight)
+        x += chip.width + chipSpacing
+      }
+      var end = width
+      for (index, chip) in chips.enumerated().reversed() where chip.trailing {
+        end -= chip.width
+        frames[index] = CGRect(x: end, y: 0, width: chip.width, height: chipHeight)
+        end -= chipSpacing
+      }
+      return frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: bottom, trailing: sideInset
+    )
+    return layoutSection
+  }
+
+  /// One non-scrolling row, the pills as a group in the middle of the content width.
+  /// A collection's sort sits under a centered title; a leading row would look stranded.
+  @MainActor
+  private static func centeredChipRow(_ section: TVPageSection, sideInset: CGFloat,
+                                      bottom: CGFloat) -> NSCollectionLayoutSection {
+    let widths: [CGFloat] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return 180 }
+      return TVPageChipCell.fittingWidth(for: chip)
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(chipHeight))
+    ) { environment in
+      let width = environment.container.effectiveContentSize.width - sideInset * 2
+      let total = widths.reduce(0, +) + chipSpacing * CGFloat(max(widths.count - 1, 0))
+      var x = max((width - total) / 2, 0)
+      return widths.map { chipWidth in
+        let frame = CGRect(x: x, y: 0, width: chipWidth, height: chipHeight)
+        x += chipWidth + chipSpacing
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: bottom, trailing: sideInset
+    )
+    return layoutSection
+  }
+
+  /// Air under a filter row, set so the next untitled section's *art* starts where a
+  /// poster grid's does. Sections are laid out in envelopes, and a wide card's envelope
+  /// (the platter's focus room, centred) is taller above the art than a poster's — the
+  /// same inset put search's cards 30 pt lower than the browse grid (2026-09-26).
+  @MainActor
+  private static func chipRowBottom(before next: TVPageSection?, contentWidth: CGFloat,
+                                    otherwise: CGFloat) -> CGFloat {
+    guard let next, next.kind != .chip, next.title == nil else { return otherwise }
+    let standard = TVHIGGrid.titledRowGap / 2
+    let poster = TVPageCellMetrics.recipe(
+      kind: .poster,
+      artWidth: TVHIGGrid.resolve(columns: 6, contentWidth: contentWidth).cardWidth,
+      caption: .always
+    )
+    let reference = artTop(poster)
+    let art = TVHIGGrid.resolve(columns: next.columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: next.kind, artWidth: art, caption: next.caption)
+    return max(standard + reference - artTop(recipe), 0)
+  }
+
+  /// How far below an untitled section's top its art begins.
+  private static func artTop(_ recipe: TVPageCellRecipe) -> CGFloat {
+    insets(for: recipe, sideInset: 0, titled: false).top + recipe.artInsets.top
+  }
+
+  /// Pills in one row that scrolls sideways, each at its measured width
+  /// (`TVPageChipCell.fittingWidth`, one line of text). Estimated widths self-sized
+  /// against a compressed fit and wrapped a long title onto a second line
+  /// ("Названия, актёры, режиссёры", 2026-09-26).
+  @MainActor
+  private static func chipRail(_ section: TVPageSection, sideInset: CGFloat, bottom: CGFloat) -> NSCollectionLayoutSection {
+    let widths: [CGFloat] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return 180 }
+      return TVPageChipCell.fittingWidth(for: chip)
+    }
+    var frames: [CGRect] = []
+    var x: CGFloat = 0
+    for width in widths {
+      frames.append(CGRect(x: x, y: 0, width: width, height: chipHeight))
+      x += width + chipSpacing
+    }
+    let total = max(x - chipSpacing, 1)
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .absolute(total), heightDimension: .absolute(chipHeight))
+    ) { _ in frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) } }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.orthogonalScrollingBehavior = .continuous
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: bottom, trailing: sideInset
+    )
+    return layoutSection
+  }
+
+  /// Section insets in envelope space, chosen so that the *art* keeps the HIG numbers:
+  /// `sideInset` from the edge, `headerToItems` under the title, `titledRowGap` above
+  /// the next title (measured from the unfocused art bottom, past any text that hangs
+  /// below the item).
+  private static func insets(for recipe: TVPageCellRecipe,
+                             sideInset: CGFloat,
+                             titled: Bool,
+                             captioned: Bool = false) -> NSDirectionalEdgeInsets {
+    let top = titled ? TVHIGGrid.headerToItems : TVHIGGrid.focusRoom(cardHeight: recipe.itemSize.height)
+    // A caption that is always drawn sits inside the envelope's bottom (the lockup's
+    // footer, which also drops with the focus lift). Measuring the row gap from the art
+    // let that caption eat it and touch the next row's title (2026-09-26); from the
+    // envelope, the text keeps clear air under it at any Dynamic Type size.
+    let bottom = captioned
+      ? captionedRowGap
+      : TVHIGGrid.titledRowGap + recipe.belowItem - recipe.artInsets.bottom
+    return NSDirectionalEdgeInsets(
+      top: max(top - recipe.artInsets.top, 0),
+      leading: max(sideInset - recipe.artInsets.leading, 0),
+      bottom: max(bottom, 0),
+      trailing: max(sideInset - recipe.artInsets.trailing, 0)
+    )
+  }
+
+  /// Air under a row whose captions always show, from the bottom of its envelopes
+  /// (caption and focus drop included) to the next row's title or cards.
+  public static let captionedRowGap: CGFloat = 48
+
+  private static func hasStandingCaption(_ section: TVPageSection) -> Bool {
+    section.kind.isLockup && section.caption == .always
+  }
+
+  private static var fallback: NSCollectionLayoutSection {
+    let size = NSCollectionLayoutSize(widthDimension: .absolute(1), heightDimension: .absolute(1))
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    return NSCollectionLayoutSection(group: .horizontal(layoutSize: size, subitems: [item]))
+  }
+}
+
+/// How one cell family occupies a layout item at a given unfocused art width.
+public struct TVPageCellRecipe: Equatable {
+  /// The layout item — a `TVPosterView` envelope, or the still's image box.
+  public var itemSize: CGSize
+  /// Where the unfocused art sits inside `itemSize`. Zero for cells that draw the art
+  /// edge to edge and grow outward on focus (the media-item content view).
+  public var artInsets: NSDirectionalEdgeInsets
+  /// Text the cell draws *under* its item frame (the media-item content view lays its
+  /// lines below the image, outside the item). Reserved in the section's bottom inset.
+  public var belowItem: CGFloat
+  /// The box the artwork is decoded into.
+  public var artSize: CGSize
+  /// `TVPosterView.contentSize` that yields `artSize` unfocused.
+  public var posterContentSize: CGSize
+  /// The two caption lines under a captioned cover, inside `itemSize` (`TVPageCaptionView`).
+  /// Zero for a cover without a caption and for every other family. The lockup itself is the
+  /// item minus these and the air above them: it never has a footer of its own.
+  public var captionHeight: CGFloat = 0
+
+  /// The lockup's height inside the item: the whole item for everything but a captioned cover.
+  public var lockupHeight: CGFloat {
+    captionHeight > 0 ? itemSize.height - TVPageLockupPosterCell.footerGap - captionHeight : itemSize.height
+  }
+
+  public static func == (lhs: TVPageCellRecipe, rhs: TVPageCellRecipe) -> Bool {
+    lhs.itemSize == rhs.itemSize
+      && lhs.artInsets.top == rhs.artInsets.top && lhs.artInsets.leading == rhs.artInsets.leading
+      && lhs.artInsets.bottom == rhs.artInsets.bottom && lhs.artInsets.trailing == rhs.artInsets.trailing
+      && lhs.belowItem == rhs.belowItem && lhs.artSize == rhs.artSize
+      && lhs.posterContentSize == rhs.posterContentSize && lhs.captionHeight == rhs.captionHeight
+  }
+}
+
+/// Accepted adapter. The system cells publish neither their focus envelope nor their
+/// text-block height, so each family is probed once per art width with representative
+/// content and the answer cached. The probe is the real view type; whatever Apple
+/// changes about a lockup's proportions, the next launch measures it.
+///
+/// A poster or card probe builds a real UIKit view and sets its frame. That lays the
+/// window out, so it cannot run inside a press: the grid keyboard changes the results'
+/// width on every frame, and Select on its globe key does it from `pressesBegan`. An
+/// unmeasured width returns an estimate; the view is measured once the width has
+/// stayed still, then `didMeasureNotification` asks pages to lay out again.
+@MainActor
+public enum TVPageCellMetrics {
+  /// Posted on the main queue after a poster or card width has been measured. Pages
+  /// invalidate layout so the estimate is replaced by the probed envelope.
+  public static let didMeasureNotification = Notification.Name("piratic.tvPageCellMetrics.didMeasure")
+
+  private struct Key: Hashable {
+    let kind: TVPageCellKind
+    let width: CGFloat
+    let caption: TVPageCaption
+    /// Text size: a caption under a poster, the lines in a card, grow with it.
+    let category: UIContentSizeCategory
+  }
+
+  /// The app's Dynamic Type size — one setting for the whole screen on tvOS.
+  static var contentSizeCategory: UIContentSizeCategory {
+    UIApplication.shared.preferredContentSizeCategory
+  }
+
+  private static var cache: [Key: TVPageCellRecipe] = [:]
+  /// Widths whose cache entry came from `TVPosterView` / `TVCardView`, not the estimate.
+  private static var measuredKeys: Set<Key> = []
+  /// Inside `measureCover` / `measureCard`. A poster's `setFrame` lays the window
+  /// out again; a recipe asked for from there must not build another poster.
+  private static var probing = false
+  private static var settleQueued = false
+  /// Bumped to drop a measurement already handed to the main queue.
+  private static var settleGeneration = 0
+  private struct PendingProbe {
+    var key: Key
+    var caption: TVPageCaption
+    var requestedAt: CFTimeInterval
+  }
+  private static var pendingProbe: PendingProbe?
+  /// Real poster or card builds. A width sweep must leave this at zero.
+  static var probeCount = 0
+
+  /// Drop a measurement waiting for the width to settle. The synchronous recipe
+  /// path never builds a view; tests call this so a queued build does not run
+  /// while the runner is tearing down.
+  static func cancelPendingMeasurement() {
+    settleGeneration += 1
+    pendingProbe = nil
+    settleQueued = false
+  }
+
+  /// True once this width has had a real `TVPosterView` / `TVCardView` probe, not
+  /// the estimate. Cover tests wait on this; they must not call `recipe` while
+  /// waiting — each call resets `pendingProbe.requestedAt` and `drainSettle`
+  /// postpones the probe forever.
+  static func isMeasured(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> Bool {
+    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
+                  category: contentSizeCategory)
+    return measuredKeys.contains(key)
+  }
+
+  public static func recipe(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
+    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
+                  category: contentSizeCategory)
+    // Only a lockup or a card builds a real UIKit view. Chips and stills are arithmetic.
+    let expensive = kind == .poster || kind == .square || kind == .card || kind == .infoCard
+    if let cached = cache[key] {
+      if expensive, !probing, !measuredKeys.contains(key) {
+        scheduleSettle(key, caption: caption)
+      }
+      return cached
+    }
+    if expensive {
+      // Never build the view on this call. The grid keyboard's width sweep, and Select
+      // on its globe key, ask for a new width from inside the press; `setFrame` on the
+      // probe spins the run loop and the press never came back (2026-10-25).
+      let estimate = estimated(key)
+      cache[key] = estimate
+      if !probing { scheduleSettle(key, caption: caption) }
+      return estimate
+    }
+    let recipe = measureStored(key, caption: caption)
+    cache[key] = recipe
+    return recipe
+  }
+
+  /// Remember the latest unmeasured width and probe it once it has stopped changing.
+  /// Requests during a slide only push the deadline; they do not build a view.
+  private static func scheduleSettle(_ key: Key, caption: TVPageCaption) {
+    pendingProbe = PendingProbe(key: key, caption: caption, requestedAt: CACurrentMediaTime())
+    guard !settleQueued, !probing else { return }
+    settleQueued = true
+    let generation = settleGeneration
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      guard generation == settleGeneration else { return }
+      drainSettle(generation: generation)
+    }
+  }
+
+  private static func drainSettle(generation: Int) {
+    guard generation == settleGeneration, !probing else {
+      settleQueued = false
+      return
+    }
+    guard let pending = pendingProbe else {
+      settleQueued = false
+      return
+    }
+    // A newer width arrived while this wait was queued: the slide has not stopped.
+    if CACurrentMediaTime() - pending.requestedAt < 0.15 {
+      settleQueued = false
+      scheduleSettle(pending.key, caption: pending.caption)
+      return
+    }
+    pendingProbe = nil
+    settleQueued = false
+    guard cache[pending.key] != nil, !measuredKeys.contains(pending.key) else { return }
+    probing = true
+    probeCount += 1
+    let recipe = measureStored(pending.key, caption: pending.caption)
+    cache[pending.key] = recipe
+    measuredKeys.insert(pending.key)
+    probing = false
+    NotificationCenter.default.post(name: didMeasureNotification, object: nil)
+    if let pending = pendingProbe {
+      scheduleSettle(pending.key, caption: pending.caption)
+    }
+  }
+
+  private static func measureStored(_ key: Key, caption: TVPageCaption) -> TVPageCellRecipe {
+    switch key.kind {
+    case .poster: return measurePoster(artWidth: key.width, caption: caption, aspect: .poster)
+    case .square: return measurePoster(artWidth: key.width, caption: caption, aspect: .square)
+    case .still: return still(artWidth: key.width)
+    case .person: return person(artWidth: key.width)
+    case .chip:
+      let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
+    case .masthead:
+      let size = CGSize(width: key.width, height: 220)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
+    case .card: return measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
+    case .infoCard: return measureCard(artWidth: key.width, height: TVPageLayout.infoCardHeight)
+    case .strip:
+      // A strip is sized item by item (`TVPageStripPlan`); there is no one recipe for it.
+      let size = CGSize(width: key.width, height: TVPageLayout.infoCardHeight)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
+    case .banner, .hero:
+      let height = (key.width / TVPageLayout.bannerAspect).rounded()
+      let size = CGSize(width: key.width, height: height)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
+    }
+  }
+
+  /// The focus margin as a fraction of the art, with no `TVPosterView`. Used when a
+  /// probe is already on the stack, so the layout pass can finish.
+  private static func estimated(_ key: Key) -> TVPageCellRecipe {
+    switch key.kind {
+    case .poster, .square:
+      let aspect: CardAspect = key.kind == .square ? .square : .poster
+      let art = CGSize(width: key.width, height: (key.width / aspect.ratio).rounded())
+      let pad = (art.width * TVHIGGrid.focusGrowth / 2).rounded()
+      var recipe = TVPageCellRecipe(
+        itemSize: CGSize(width: art.width + pad * 2, height: art.height + pad * 2),
+        artInsets: NSDirectionalEdgeInsets(top: pad, leading: pad, bottom: pad, trailing: pad),
+        belowItem: 0, artSize: art, posterContentSize: art
+      )
+      guard key.caption != .never else { return recipe }
+      let captionHeight = TVPageCaptionView.height(category: key.category)
+      let block = TVPageLockupPosterCell.footerGap + captionHeight
+      recipe.itemSize.height += block
+      recipe.artInsets.bottom += block
+      recipe.captionHeight = captionHeight
+      return recipe
+    case .card:
+      return box(key, height: TVPageLayout.cardHeight)
+    case .infoCard:
+      return box(key, height: TVPageLayout.infoCardHeight)
+    case .chip:
+      return box(key, height: TVPageLayout.chipHeight)
+    case .person:
+      return box(key, height: key.width + 96)
+    default:
+      return box(key, height: (key.width / CardAspect.landscape.ratio).rounded())
+    }
+  }
+
+  private static func box(_ key: Key, height: CGFloat) -> TVPageCellRecipe {
+    let size = CGSize(width: key.width, height: height)
+    return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                            artSize: size, posterContentSize: size)
+  }
+
+  /// A `TVCardView` platter of any size, measured like the wide card: its resting platter
+  /// is `artWidth` × `height` and the recipe says what envelope the cell is given around it.
+  public static func cardRecipe(artWidth: CGFloat, height: CGFloat) -> TVPageCellRecipe {
+    let key = CardKey(width: artWidth.rounded(), height: height.rounded(), category: contentSizeCategory)
+    if let cached = cardCache[key] { return cached }
+    let recipe = measureCard(artWidth: key.width, height: key.height)
+    cardCache[key] = recipe
+    return recipe
+  }
+
+  /// The recipe behind a dequeued card: the cell only knows the envelope the layout gave
+  /// it. Every recipe the layout hands out is cached first, so this is a hit for any cell
+  /// on screen.
+  public static func cardRecipe(itemSize: CGSize) -> TVPageCellRecipe {
+    let category = contentSizeCategory
+    if let hit = cardCache.first(where: { entry in
+      entry.key.category == category
+        && abs(entry.value.itemSize.width - itemSize.width) < 1
+        && abs(entry.value.itemSize.height - itemSize.height) < 1
+    }) {
+      return hit.value
+    }
+    return cardRecipe(artWidth: itemSize.width, height: itemSize.height)
+  }
+
+  private struct CardKey: Hashable {
+    let width: CGFloat
+    let height: CGFloat
+    let category: UIContentSizeCategory
+  }
+
+  private static var cardCache: [CardKey: TVPageCellRecipe] = [:]
+
+  /// A cover — `.never` — measured as the lockup draws it, plus, when it is captioned, the two
+  /// lines of `TVPageCaptionView` under it. The lockup never gets a footer: the system's
+  /// came out one line or two depending on a first layout we do not control (see
+  /// `TVPageCaptionView`), so a captioned cover is the same rigid lockup a rail has and the
+  /// caption is ours.
+  private static func measurePoster(artWidth: CGFloat, caption: TVPageCaption,
+                                    aspect: CardAspect) -> TVPageCellRecipe {
+    var recipe = measureCover(artWidth: artWidth, aspect: aspect)
+    guard caption != .never else { return recipe }
+    // A lockup with a footer put 12 pt between art and footer (`contentViewInsets`); without
+    // one it has no such air, so the caption block brings its own.
+    let captionHeight = TVPageCaptionView.height(category: contentSizeCategory)
+    let block = TVPageLockupPosterCell.footerGap + captionHeight
+    recipe.itemSize.height += block
+    recipe.artInsets.bottom += block
+    recipe.captionHeight = captionHeight
+    return recipe
+  }
+
+  /// `TVPosterView` draws the unfocused art at `contentSize` minus its own
+  /// `focusSizeIncrease` (≈5% per side, computed from the image). Ask for a content
+  /// size a tenth larger, then read back where the art actually landed.
+  private static func measureCover(artWidth: CGFloat, aspect: CardAspect) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: (artWidth / aspect.ratio).rounded())
+    var contentSize = CGSize(width: (art.width / (1 - TVHIGGrid.focusGrowth)).rounded(),
+                             height: (art.height / (1 - TVHIGGrid.focusGrowth)).rounded())
+
+    // The increase is not a flat percentage (260 → 13, 289 → 13), so converge on the
+    // content size whose unfocused art is exactly `art` — two passes are enough.
+    var envelope = CGSize.zero
+    var landed = CGRect.zero
+    for _ in 0..<3 {
+      let probe = TVPosterView(image: TVUIKitTileArtwork.placeholder(size: contentSize))
+      probe.traitOverrides.preferredContentSizeCategory = contentSizeCategory
+      probe.contentSize = contentSize
+      probe.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -TVPageLockupPosterCell.footerGap, trailing: 0)
+      envelope = probe.intrinsicContentSize
+      probe.frame = CGRect(origin: .zero, size: envelope)
+      probe.layoutIfNeeded()
+      landed = probe.contentView.frame
+      guard landed.width > 1 else { break }
+      let dw = art.width - landed.width
+      let dh = art.height - landed.height
+      if abs(dw) < 1, abs(dh) < 1 { break }
+      contentSize.width += dw
+      contentSize.height += dh
+    }
+
+    guard envelope.width > 1, envelope.height > 1, landed.width > 1 else {
+      // The probe reported nothing: fall back to the art box itself, no envelope.
+      return TVPageCellRecipe(itemSize: art, artInsets: .zero, belowItem: 0,
+                              artSize: art, posterContentSize: art)
+    }
+    let insets = NSDirectionalEdgeInsets(
+      top: landed.minY,
+      leading: landed.minX,
+      bottom: envelope.height - landed.maxY,
+      trailing: envelope.width - landed.maxX
+    )
+    return TVPageCellRecipe(itemSize: envelope,
+                            artInsets: insets,
+                            belowItem: 0,
+                            artSize: landed.size,
+                            posterContentSize: contentSize)
+  }
+
+  /// `TVCardView` is a lockup like the poster: its frame is the *focused* envelope and
+  /// the platter sits inside it at rest (measured 2026-09-25: a 557 × 160 frame drew a
+  /// 464 × 120 platter). Same method as the poster — ask, read back where the platter
+  /// landed, correct, repeat — so the resting platter is the HIG column.
+  private static func measureCard(artWidth: CGFloat, height: CGFloat) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: height)
+    var contentSize = art
+    var envelope = CGSize.zero
+    var landed = CGRect.zero
+    for _ in 0..<4 {
+      let probe = TVCardView()
+      probe.contentSize = contentSize
+      envelope = probe.intrinsicContentSize
+      if envelope.width < 1 || envelope.height < 1 { envelope = contentSize }
+      probe.frame = CGRect(origin: .zero, size: envelope)
+      probe.layoutIfNeeded()
+      landed = probe.contentView.frame
+      guard landed.width > 1 else { break }
+      let dw = art.width - landed.width
+      let dh = art.height - landed.height
+      if abs(dw) < 1, abs(dh) < 1 { break }
+      contentSize.width += dw
+      contentSize.height += dh
+    }
+    guard landed.width > 1, envelope.width >= landed.width, envelope.height >= landed.height else {
+      return TVPageCellRecipe(itemSize: art, artInsets: .zero, belowItem: 0,
+                              artSize: art, posterContentSize: art)
+    }
+    // Centred, not read from `landed.origin`: off screen the probe reports the platter at
+    // the envelope's origin, on screen it sits in the middle (layout-debug shot
+    // 2026-09-25: platter 20 pt inside a yellow cell that started on the 80 pt line).
+    let dx = ((envelope.width - landed.width) / 2).rounded()
+    let dy = ((envelope.height - landed.height) / 2).rounded()
+    let insets = NSDirectionalEdgeInsets(top: dy, leading: dx, bottom: dy, trailing: dx)
+    return TVPageCellRecipe(itemSize: envelope, artInsets: insets, belowItem: 0,
+                            artSize: landed.size, posterContentSize: contentSize)
+  }
+
+  /// `TVMediaItemContentView` fills its bounds with the image and lays its text lines
+  /// *below* the bounds. Apple's own `orthogonalLayoutSectionForMediaItems()` at 1920
+  /// measures 320 × 180 items — the HIG 5-column still — with 130 pt of section
+  /// padding around them for the text and the focus lift.
+  private static func still(artWidth: CGFloat) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: (artWidth / CardAspect.landscape.ratio).rounded())
+    return TVPageCellRecipe(itemSize: art, artInsets: .zero, belowItem: stillTextBlock,
+                            artSize: art, posterContentSize: art)
+  }
+
+  /// One caption line under a still: measured 9 pt gap + 39 pt label on tvOS 27.2.
+  static let stillTextBlock: CGFloat = 48
+
+  /// Circle the width of the art, two text lines under it inside the item.
+  private static func person(artWidth: CGFloat) -> TVPageCellRecipe {
+    let size = CGSize(width: artWidth, height: artWidth + 96)
+    // The monogram cell lays its two text lines partly below its own frame — without
+    // this the next row's title sat on the "Actor" line (gallery walk, 2026-09-23).
+    return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 100,
+                            artSize: CGSize(width: artWidth, height: artWidth),
+                            posterContentSize: size)
+  }
+
+  /// The recipe behind a dequeued cell: the cell only knows its item width (the
+  /// envelope the layout gave it), so look the recipe up by that. Every recipe the
+  /// layout hands out is cached first, so this is a hit for any cell on screen.
+  public static func recipe(kind: TVPageCellKind, itemWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
+    let captionKey: TVPageCaption = kind.isLockup ? caption : .always
+    let category = contentSizeCategory
+    if let hit = cache.first(where: { $0.key.kind == kind && $0.key.caption == captionKey
+                                        && $0.key.category == category
+                                        && abs($0.value.itemSize.width - itemWidth) < 1 }) {
+      return hit.value
+    }
+    return recipe(kind: kind, artWidth: itemWidth, caption: caption)
+  }
+
+  /// DEBUG readout for the templates gallery.
+  public static func debugDescription(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> String {
+    let r = recipe(kind: kind, artWidth: artWidth, caption: caption)
+    return "\(kind) art \(Int(artWidth)) → item \(Int(r.itemSize.width))×\(Int(r.itemSize.height)) insets \(Int(r.artInsets.top))/\(Int(r.artInsets.leading))/\(Int(r.artInsets.bottom))/\(Int(r.artInsets.trailing))"
+  }
+}
+
+extension TVPageCellKind {
+  /// Drawn by `TVPosterView`: the envelope is the focused size, the caption is the
+  /// lockup's footer, and whether it shows changes the measured height.
+  var isLockup: Bool { self == .poster || self == .square }
+}
+#endif

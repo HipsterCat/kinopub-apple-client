@@ -3,7 +3,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// How local resume points paint the Continue Watching row **without** touching
 /// `ContentStore`'s TTL. The cached cards stay the last server-backed snapshot;

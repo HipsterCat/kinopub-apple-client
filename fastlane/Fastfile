@@ -36,14 +36,14 @@ opt_out_usage
 
 default_platform(:ios)
 
-PROJECT = File.expand_path("../KinoPubAppleClient.xcodeproj", __dir__)
+PROJECT = File.expand_path("../Piratic.xcodeproj", __dir__)
 PBXPROJ = File.join(PROJECT, "project.pbxproj")
-SCHEME = "KinoPubAppleClient"
-APP_TARGET = "KinoPubAppleClient"
+SCHEME = "Piratic"
+APP_TARGET = "Piratic"
 BUNDLE_ID = "com.soda.kinopub"
 # The tvOS Top Shelf extension: embedded in the tvOS build only, signed with its own
 # App Store profile. Both App IDs carry the App Group group.com.soda.kinopub.
-TOPSHELF_TARGET = "KinoPubTopShelf"
+TOPSHELF_TARGET = "PiraticTopShelf"
 TOPSHELF_BUNDLE_ID = "com.soda.kinopub.topshelf"
 TEAM_ID = "Z2PQ733PSP"
 APP_NAME = "Piratic"
@@ -55,7 +55,7 @@ PLATFORMS = {
     sdk: "iphoneos",
     testflight: "ios",
     sigh: "ios",
-    output: "KinoPub-iOS",
+    output: "Piratic-iOS",
     mac: false
   },
   "tvos" => {
@@ -63,7 +63,7 @@ PLATFORMS = {
     sdk: "appletvos",
     testflight: "appletvos",
     sigh: "tvos",
-    output: "KinoPub-tvOS",
+    output: "Piratic-tvOS",
     mac: false
   },
   "macos" => {
@@ -71,7 +71,7 @@ PLATFORMS = {
     sdk: "macosx",
     testflight: "osx",
     sigh: "macos",
-    output: "KinoPub-macOS",
+    output: "Piratic-macOS",
     mac: true
   }
 }.freeze
@@ -187,7 +187,7 @@ def whats_new_notes
 end
 
 def whats_new_legacy_bullets(version)
-  path = File.expand_path("../KinoPubAppleClient/Resources/whats-new.json", __dir__)
+  path = File.expand_path("../Piratic/Resources/whats-new.json", __dir__)
   return [] unless File.exist?(path)
 
   payload = JSON.parse(File.read(path))
@@ -204,7 +204,7 @@ rescue JSON::ParserError => e
 end
 
 def whats_new_fragment_bullets(version)
-  dir = File.expand_path("../KinoPubAppleClient/Resources/WhatsNew/entries", __dir__)
+  dir = File.expand_path("../Piratic/Resources/WhatsNew/entries", __dir__)
   return [] unless Dir.exist?(dir)
 
   fragments = Dir.glob(File.join(dir, "*.json")).filter_map do |path|
@@ -406,7 +406,7 @@ def xml_escape(value)
 end
 
 def write_export_options!(profile_name:, mac:, extension_profiles: {})
-  path = File.join(Dir.tmpdir, mac ? "KinoPub-macOS-ExportOptions.plist" : "KinoPub-ExportOptions.plist")
+  path = File.join(Dir.tmpdir, mac ? "Piratic-macOS-ExportOptions.plist" : "Piratic-ExportOptions.plist")
   # macOS Release 38228644573 compiled, then exportArchive used the installer
   # cert as the app identity against the App Store profile. Pin Apple
   # Distribution for the app and 3rd Party Mac Developer Installer for the pkg.
@@ -465,7 +465,7 @@ def write_release_notes_to!(path)
 end
 
 def write_release_notes!
-  write_release_notes_to!(File.expand_path("../KinoPubAppleClient/Info.plist", __dir__))
+  write_release_notes_to!(File.expand_path("../Piratic/Info.plist", __dir__))
 end
 
 def archive_and_export!(spec:, build_number:, profile_name:, extension_profiles: {})
@@ -653,7 +653,7 @@ platform :ios do
 
     Dir.mktmpdir do |dir|
       plist_copy = File.join(dir, "Info.plist")
-      FileUtils.cp(File.expand_path("../KinoPubAppleClient/Info.plist", __dir__), plist_copy)
+      FileUtils.cp(File.expand_path("../Piratic/Info.plist", __dir__), plist_copy)
       write_release_notes_to!(plist_copy)
       UI.user_error!("KPReleaseNotes was not written") unless File.read(plist_copy).include?("KPReleaseNotes")
     end

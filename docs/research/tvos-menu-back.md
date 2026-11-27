@@ -57,7 +57,7 @@ the hero still pops the title (`985564d`).
 ## Status — tab roots in main (`8562dd9`); lists extension pending device (2026-10-06)
 
 1. Probe: our shell is `.tabBarOnly`, not Rivulet's `.sidebarAdaptable`. CI walks
-   `-KINOPUBMenuBackProbe` (templates gallery inside a matching `TabView`) in
+   `-PIRATICMenuBackProbe` (templates gallery inside a matching `TabView`) in
    `TVMenuBackUITests`. Menu reaches the page; do not add `sendEvent`.
 2. Device: Sasha walked tab roots on Apple TV ("all tolerable, put it in main").
    Search / collection / person wait on a device check of this follow-up. After

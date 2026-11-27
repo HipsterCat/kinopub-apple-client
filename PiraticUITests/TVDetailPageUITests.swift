@@ -1,0 +1,415 @@
+#if os(tvOS)
+//
+//  TVDetailPageUITests.swift
+//  PiraticUITests
+//
+//  The detail page walked with the remote against the DEBUG fixtures
+//  (`-PIRATICDetailFixture`, see `DetailFixture` in the app): no session, a stand-in
+//  player that marks what it opens as watched.
+//
+//  Sasha's list of 2026-10-03:
+//  - after watching the last episode from the hero's Play and coming back, *something*
+//    has focus — the main button, which is now labelled Follow («Отслеживать»);
+//  - a series caught up on kino.pub with the next episode dated opens on Follow;
+//  - Replay, when it leads, has the focus on opening and after the player too;
+//  - episodes TMDB lists and kino.pub does not have: a lock, «Сегодня» … «3 дня назад»,
+//    «Позже» (the screenshots are the check; the badge is drawn, not an element);
+//  - a multi-version film has one Play («Смотреть фильм»); Select opens Choose a
+//    Version with the first row focused. Concerts still use version pills.
+//
+//  Runs in Russian so the labels are the ones Sasha reads. Screenshots go to the result
+//  and to /tmp/piratic-detail-shots/, which CI prints into the job log.
+//
+
+import XCTest
+
+final class TVDetailPageUITests: XCTestCase {
+  private var app: XCUIApplication!
+
+  override func setUpWithError() throws {
+    continueAfterFailure = false
+  }
+
+  // MARK: - Focus
+
+  func testFollowHasFocusAfterWatchingTheLastEpisode() throws {
+    launch("awaiting")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    try shoot("awaiting-0-open")
+    if control("follow").exists {
+      XCTAssertGreaterThan(control("follow").frame.minX, control("play").frame.minX,
+                           "Follow should not lead while S2E4 is still unwatched")
+    }
+
+    // Play opens S2E4; the stand-in player marks it watched to the end.
+    XCUIRemote.shared.press(.select)
+    let player = app.descendants(matching: .any).matching(identifier: "piratic.fixture.player").firstMatch
+    XCTAssertTrue(player.waitForExistence(timeout: 10), "Play did not open the player")
+    Thread.sleep(forTimeInterval: 1.0)
+    try shoot("awaiting-1-player")
+
+    // Back: everything is watched and S2E5 has a date, so Follow is the main button —
+    // and it has the focus. Before the fix nothing had focus here.
+    XCUIRemote.shared.press(.menu)
+    try waitForFocus(on: "follow", timeout: 10, "back from the player")
+    try shoot("awaiting-2-back")
+    XCTAssertTrue(control("follow").label.contains("Отслеживать"), control("follow").label)
+    XCTAssertLessThan(control("follow").frame.minX, control("play").frame.minX,
+                      "Follow should lead the row")
+
+    // And it stays there: nothing takes it back a moment later.
+    Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(focused("follow").exists, "focus left Follow: \(focusedDescription)")
+    try shoot("awaiting-3-settled")
+  }
+
+  func testCaughtUpSeriesOpensOnFollow() throws {
+    launch("missing")
+    try waitForFocus(on: "follow", timeout: 20, "open")
+    XCTAssertTrue(control("follow").label.contains("Отслеживать"), control("follow").label)
+    try shoot("missing-0-open")
+  }
+
+  /// Replay leading is still the main button: focus on opening, and again after the player.
+  func testReplayHasFocusOnOpeningAndAfterThePlayer() throws {
+    launch("rewatch")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    try shoot("rewatch-0-open")
+
+    XCUIRemote.shared.press(.select)
+    let player = app.descendants(matching: .any).matching(identifier: "piratic.fixture.player").firstMatch
+    XCTAssertTrue(player.waitForExistence(timeout: 10), "Replay did not open the player")
+    Thread.sleep(forTimeInterval: 1.0)
+
+    XCUIRemote.shared.press(.menu)
+    try waitForFocus(on: "play", timeout: 10, "back from the player")
+    Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(focused("play").exists, "focus left Replay: \(focusedDescription)")
+    try shoot("rewatch-1-back")
+  }
+
+  /// Menu from the trailer brings focus back to Trailer, not to the first button of the
+  /// row (Sasha, 2026-11-22). The main player still hands focus back to Play.
+  func testTrailerKeepsFocusAfterThePlayer() throws {
+    launch("concert")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    for _ in 0..<3 where !focused("trailer").exists {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.8)
+    }
+    try waitForFocus(on: "trailer", timeout: 5, "right to the trailer")
+
+    XCUIRemote.shared.press(.select)
+    let player = app.descendants(matching: .any).matching(identifier: "piratic.fixture.player").firstMatch
+    XCTAssertTrue(player.waitForExistence(timeout: 10), "Trailer did not open the player")
+    Thread.sleep(forTimeInterval: 1.0)
+
+    XCUIRemote.shared.press(.menu)
+    try waitForFocus(on: "trailer", timeout: 10, "back from the trailer")
+    Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(focused("trailer").exists, "focus left Trailer: \(focusedDescription)")
+    try shoot("trailer-1-back")
+  }
+
+  // MARK: - Episodes kino.pub does not have
+
+  func testMissingEpisodesInTheRail() throws {
+    launch("missing")
+    try waitForFocus(on: "follow", timeout: 20, "open")
+
+    // Down into the episodes; the rail opens on the last one kino.pub has (E2).
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertFalse(anyHeroControlHasFocus, "Down did not leave the hero: \(focusedDescription)")
+    try shoot("missing-1-rail")
+
+    // E3 (aired long ago: lock only), E4–E7 (3 days ago … today), E8 (in two days),
+    // E9 (in twenty), E10 (undated: «Позже»).
+    for step in 1...8 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.9)
+      try shoot("missing-2-right-\(step)")
+    }
+
+    // Select says why it cannot play: E9 is ahead (a clock, the date), E5 aired two days
+    // ago and kino.pub does not have it yet (a lock).
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 0.9)
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.4)
+    try shoot("missing-3-toast-ahead")
+    Thread.sleep(forTimeInterval: 2.5)
+    for _ in 1...4 {
+      XCUIRemote.shared.press(.left)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.4)
+    try shoot("missing-4-toast-aired")
+  }
+
+  // MARK: - Versions of one film
+
+  func testMultiVersionFilmOpensChooserFromSinglePlay() throws {
+    launch("versions")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    XCTAssertTrue(control("play").label.contains("Смотреть"), control("play").label)
+    XCTAssertFalse(control("playAlternate").exists, "multi-version film: one Play, not pills")
+    try shoot("versions-0-open")
+
+    XCUIRemote.shared.press(.select)
+    let first = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "piratic.versionPicker."))
+      .firstMatch
+    XCTAssertTrue(first.waitForExistence(timeout: 5), "Choose a Version sheet did not appear")
+    try shoot("versions-1-sheet")
+  }
+
+  /// Select on the synopsis opens the info card: «Информация», over the hero.
+  func testFilmSynopsisOpensInfoCard() throws {
+    launch("film")
+    try waitForFocus(on: "play", timeout: 20, "info-open")
+    XCUIRemote.shared.press(.up)
+    let plot = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "hero.plot"))
+      .firstMatch
+    XCTAssertTrue(plot.waitForExistence(timeout: 3), "Up from Play did not land on the synopsis: \(focusedDescription)")
+    XCUIRemote.shared.press(.select)
+    let information = app.staticTexts["Информация"]
+    XCTAssertTrue(information.waitForExistence(timeout: 5), "info card did not appear")
+    Thread.sleep(forTimeInterval: 0.6)
+    try shoot("info-1-sheet")
+  }
+
+  /// Unnamed multi-version film: still one Play; the sheet lists Version 1…N.
+  func testUnnamedMultiVersionFilmUsesSinglePlay() throws {
+    launch("versionsUnnamed")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    XCTAssertTrue(control("play").label.contains("Смотреть"), control("play").label)
+    XCTAssertFalse(control("playAlternate").exists)
+    XCTAssertFalse(control("playThird").exists)
+    XCTAssertFalse(control("moreVersions").exists)
+    try shoot("versions-unnamed-0-open")
+  }
+
+  /// A concert with a trailer: the show, a 33-minute set and three songs, the first song
+  /// watched. The main video leads, then Trailer, then the extras: Концерт · Трейлер ·
+  /// Don't Look Down · «+ ещё 2». The watched song has no pill. «+ ещё 2» takes focus down to
+  /// the «Видео» rail, onto the first extra without a pill. The runtime in the metadata row is
+  /// the focused video's (the screenshots are the check: 1ч 26м on opening, 33м on the set).
+  func testConcertMoreVideosTakesFocusToTheRail() throws {
+    launch("concert")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    XCTAssertTrue(control("play").label.contains("Концерт"), control("play").label)
+    XCTAssertTrue(control("playAlternate").label.contains("Don't Look Down"), control("playAlternate").label)
+    XCTAssertTrue(control("moreVersions").label.localizedCaseInsensitiveContains("ещё 2"),
+                  control("moreVersions").label)
+    XCTAssertLessThan(control("trailer").frame.minX, control("playAlternate").frame.minX,
+                      "Trailer follows the main video, before the extras")
+    XCTAssertGreaterThan(control("trailer").frame.minX, control("play").frame.minX)
+    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Wherever")).firstMatch.exists,
+                   "a watched song keeps no pill")
+    try shoot("concert-0-open")
+
+    XCUIRemote.shared.press(.right)
+    XCUIRemote.shared.press(.right)
+    try waitForFocus(on: "playAlternate", timeout: 5, "Right ×2")
+    try shoot("concert-1-set-runtime")
+
+    XCUIRemote.shared.press(.right)
+    try waitForFocus(on: "moreVersions", timeout: 5, "Right")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertFalse(focused("moreVersions").exists, "focus stayed on «+ ещё»: \(focusedDescription)")
+    // «Counting Stars», the first choice with no pill of its own.
+    XCTAssertTrue(focusedDescription.contains("piratic.rail.item.99000094"), focusedDescription)
+    try shoot("concert-2-rail")
+
+    // Under the videos, the setlist: a card per song. One Down is not always enough when
+    // another rail sits between «Видео» and the setlist — keep walking until a track.
+    var onTrack = focusedDescription.contains("piratic.track.")
+    for _ in 0..<6 where !onTrack {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.8)
+      onTrack = focusedDescription.contains("piratic.track.")
+    }
+    XCTAssertTrue(onTrack, "Down from the videos never reached the setlist: \(focusedDescription)")
+    try shoot("concert-3-setlist")
+  }
+
+  /// Down from the hero lands on the episode Play stands for, on screen, including
+  /// the second time, after Menu has returned to the hero.
+  ///
+  /// The numbered rail is the one on screen (`FeatureFlag.rivuletSeasonRail` is off).
+  /// This fixture's Play is S2E4.
+  func testSeasonRailDownKeepsFocusOnScreen() throws {
+    launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
+    try waitForFocus(on: "play", timeout: 20, "open")
+    try shoot("rail-0-hero")
+    let entry = "piratic.rail.item.\(9_900_008 * 1000 + 204)"
+    XCTAssertTrue(app.descendants(matching: .any).matching(identifier: entry)
+                    .firstMatch.waitForExistence(timeout: 15),
+                  "S2E4 never appeared on the rail: \(focusedDescription)")
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("rail-1-down")
+    let first = try requireOnScreenFocus("first down")
+    XCTAssertEqual(first.identifier, entry, "first down: \(focusedDescription)")
+
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("rail-2-menu")
+    XCTAssertTrue(anyHeroControlHasFocus, "menu did not return to the hero: \(focusedDescription)")
+    let play = control("play")
+    XCTAssertGreaterThan(play.frame.maxY, 80, "hero is above the screen: \(play.frame)")
+    XCTAssertLessThan(play.frame.minY, app.frame.height - 80, "hero is below the screen: \(play.frame)")
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("rail-3-down-again")
+    let second = try requireOnScreenFocus("second down")
+    XCTAssertEqual(second.identifier, entry, "second down: \(focusedDescription)")
+  }
+
+  /// Down from the episodes reaches the shelves under them and keeps going to the
+  /// bottom of the page, every stop on screen, and Up comes all the way back. The dead
+  /// end of 2026-11-05: past the episodes the page stopped scrolling at Similar, and
+  /// focus walked on below the screen. Shots carry the focus overlay
+  /// (`-PIRATICFocusDebug`).
+  func testSeasonRailDownReachesTheBottomOfThePage() throws {
+    try walkToTheBottomAndBack("awaiting", leavesRail: true)
+  }
+
+  /// The same walk with no season rail on the page — the control for the one above.
+  func testFilmDownReachesTheBottomOfThePage() throws {
+    try walkToTheBottomAndBack("film", leavesRail: false)
+  }
+
+  private func walkToTheBottomAndBack(_ fixture: String, leavesRail: Bool) throws {
+    launch(fixture, extra: ["-PIRATICFocusDebug", "YES"])
+    try waitForFocus(on: "play", timeout: 20, "open")
+
+    var previous = ""
+    var stops = 0
+    for step in 1...14 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 1.2)
+      try shoot("\(fixture)-down-\(step)")
+      let item = try requireOnScreenFocus("\(fixture) down \(step)")
+      if item.identifier == previous { break }
+      previous = item.identifier
+      stops += 1
+    }
+    if leavesRail {
+      let stillOnRail = previous.hasPrefix("piratic.rivulet.")
+        || previous.hasPrefix("piratic.rail.item.")
+        || previous.hasPrefix("piratic.season.")
+      XCTAssertFalse(stillOnRail, "Down never left the season rail")
+    }
+    XCTAssertGreaterThan(stops, 2, "Down stopped after \(stops) moves: \(focusedDescription)")
+
+    for step in 1...(stops + 2) {
+      XCUIRemote.shared.press(.up)
+      Thread.sleep(forTimeInterval: 1.0)
+      _ = try requireOnScreenFocus("\(fixture) up \(step)")
+    }
+    try shoot("\(fixture)-back-up")
+    let onHero = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier CONTAINS 'hero.' AND hasFocus == true"))
+      .firstMatch.exists
+    XCTAssertTrue(onHero, "Up never got back to the hero: \(focusedDescription)")
+  }
+
+  /// Focus must be a view the screen actually shows. An off-screen platter still
+  /// reports hasFocus, which is the dead end.
+  private func requireOnScreenFocus(_ moment: String) throws -> XCUIElement {
+    let focused = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true"))
+      .allElementsBoundByIndex
+    guard let item = focused.first else {
+      try shoot("no-focus-\(moment.replacingOccurrences(of: " ", with: "-"))")
+      XCTFail("\(moment): nothing focused")
+      throw NoFocus()
+    }
+    let screen = app.frame
+    let onScreen = item.frame.minY >= -8 && item.frame.minY < screen.height - 48
+      && item.frame.maxY > 48
+    if !onScreen {
+      try shoot("offscreen-\(moment.replacingOccurrences(of: " ", with: "-"))")
+    }
+    XCTAssertTrue(onScreen, "\(moment): focus at \(item.frame) on \(screen) — \(focusedDescription)")
+    return item
+  }
+
+  // MARK: - Helpers
+
+  private func launch(_ fixture: String, extra: [String] = []) {
+    app = XCUIApplication()
+    app.launchArguments += extra
+    app.launchArguments += ["-ui-testing",
+                            "-PIRATICDetailFixture", fixture,
+                            "-PIRATICForceColorScheme", "dark",
+                            "-AppleLanguages", "(ru)",
+                            "-AppleLocale", "ru_RU",
+                            "-UIFocusLoggingEnabled", "YES"]
+    app.launch()
+  }
+
+  /// The hero control by id — the button itself, in case SwiftUI also hands the
+  /// identifier to a wrapper around it.
+  private func control(_ id: String) -> XCUIElement {
+    let identifier = "piratic.hero.\(id)"
+    let button = app.buttons.matching(identifier: identifier).firstMatch
+    return button.exists ? button : app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+  }
+
+  /// That control, only while it has focus.
+  private func focused(_ id: String) -> XCUIElement {
+    app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "piratic.hero.\(id)"))
+      .firstMatch
+  }
+
+  private var anyHeroControlHasFocus: Bool {
+    app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "piratic.hero."))
+      .firstMatch.exists
+  }
+
+  /// What has focus right now, for failure messages.
+  private var focusedDescription: String {
+    let focused = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true"))
+      .allElementsBoundByIndex
+    guard !focused.isEmpty else { return "nothing" }
+    return focused.map { "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)'" }
+      .joined(separator: ", ")
+  }
+
+  private struct NoFocus: Error {}
+
+  private func waitForFocus(on id: String, timeout: TimeInterval, _ moment: String) throws {
+    let landed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"),
+                                           object: focused(id))
+    guard XCTWaiter().wait(for: [landed], timeout: timeout) == .completed else {
+      try shoot("no-focus-\(moment.replacingOccurrences(of: " ", with: "-"))")
+      XCTFail("\(moment): \(id) does not have focus — focused: \(focusedDescription)")
+      throw NoFocus()
+    }
+    // Let the focus animation settle before a screenshot.
+    Thread.sleep(forTimeInterval: 0.6)
+  }
+
+  private func shoot(_ name: String) throws {
+    let screenshot = app.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "detail-\(name)"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    let dir = URL(fileURLWithPath: "/tmp/piratic-detail-shots", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try screenshot.pngRepresentation.write(to: dir.appendingPathComponent("detail-\(name).png"))
+  }
+}
+#endif

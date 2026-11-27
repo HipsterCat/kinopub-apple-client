@@ -1,0 +1,503 @@
+//
+//  NavigationState.swift
+//  Piratic
+//
+//  Created by Kirill Kunst on 31.07.2023.
+//
+
+import Foundation
+import SwiftUI
+import KinoPubBackend
+import PiraticLogging
+
+/// Filter + display title handed to Search when opening from an item-page chip.
+struct PendingSearch: Equatable {
+  var filter: LibraryFilter
+  var title: String
+}
+
+/*
+ PARKED — HomeBrowseSegment (macOS sidebar Home + For You/Movies/Series segmented).
+ Only needed if we revive sidebarAdaptable / locked Home without Movies/Shows tabs.
+ enum HomeBrowseSegment: String, CaseIterable, Identifiable, Hashable {
+   case forYou, movies, series
+ }
+*/
+
+/// `@Observable`, not `ObservableObject`: a view now depends only on the properties it
+/// reads. As an `ObservableObject` every push, pop, tab switch or keystroke in the Mac
+/// search field invalidated every view holding it — each tab's root, every `RouteStack`,
+/// every mounted detail page — whether or not it read what changed. A view that only
+/// calls `push` reads nothing and never re-renders for navigation.
+@Observable
+final class NavigationState {
+  var selectedTab: NavigationTabs = .home
+  var mainRoutes: [Route] = []
+  var searchRoutes: [Route] = []
+  var catalogRoutes: [Route] = []
+  var moviesRoutes: [Route] = []
+  var seriesRoutes: [Route] = []
+  var collectionsRoutes: [Route] = []
+  var tvRoutes: [Route] = []
+  var libraryRoutes: [Route] = []
+  var watchlistRoutes: [Route] = []
+  var recentlyWatchedRoutes: [Route] = []
+  var bookmarksRoutes: [Route] = []
+  var downloadsRoutes: [Route] = []
+  var continueWatchingRoutes: [Route] = []
+  var genresRoutes: [Route] = []
+  /// Applied once when Search becomes active — genre / country / year from the
+  /// item page land here so Search opens already filtered, titled, and labeled.
+  var pendingSearch: PendingSearch?
+  /// Applied once when the Catalog tab becomes active from a quick preset chip.
+  var pendingCatalogFilter: LibraryFilter?
+  /// Tab to restore when the user backs out of a filter-driven Search jump.
+  private(set) var searchReturnTab: NavigationTabs?
+#if os(macOS)
+  /// Shared with the always-visible trailing toolbar search field (Finder/Photos style).
+  var macSearchFieldText = ""
+  /// Recent queries for the searchable suggestion menu (Photos-style dropdown).
+  private(set) var macSearchRecents: [String] = MacSearchRecentsStore.load()
+#endif
+
+#if os(macOS)
+  /// Bumped instead of appending whenever `push` redirects a `.player` / `.trailerPlayer`
+  /// route to the dedicated window (see `push`). `RootView` holds the `openWindow`
+  /// environment action and observes this to actually raise that window — `NavigationState` is a
+  /// model, not a view, so it cannot call `openWindow` itself. A fresh
+  /// UUID on every redirect makes a repeat request for the same item still fire the
+  /// observer.
+  private(set) var playerWindowRequestID: UUID?
+#endif
+
+#if DEBUG
+  /// `-PIRATICInitialTab catalog|library|watching|tv|settings` opens on that tab (the simulator's
+  /// remote is too unreliable to walk there for every check; on iPhone the simulator does
+  /// not always take a tap on the tab bar). `-PIRATICInitialRoute history` then pushes
+  /// History onto it.
+  init() {
+    switch UserDefaults.standard.string(forKey: "PIRATICInitialTab") {
+    case "search": selectedTab = .search
+    case "catalog": selectedTab = .catalog
+    case "series": selectedTab = .series
+    case "library": selectedTab = .library
+    case "watching": selectedTab = .watchlist
+    case "tv": selectedTab = .tv
+    case "settings": selectedTab = .settings
+    case "genres": selectedTab = .genres
+    case "history": selectedTab = .recentlyWatched
+    case let raw? where raw.hasPrefix("bookmark:"):
+      if let id = Int(raw.dropFirst("bookmark:".count)) { selectedTab = .bookmark(id) }
+    default: break
+    }
+    if let route = UserDefaults.standard.string(forKey: "PIRATICInitialRoute"),
+       route.hasPrefix("item:"), let id = Int(route.dropFirst("item:".count)),
+       let keyPath = Self.routes(for: selectedTab) {
+      self[keyPath: keyPath] = [.detailsById(id)]
+    }
+    // `collection:<id>` — a collection page (title as the API gives it once loaded).
+    if let route = UserDefaults.standard.string(forKey: "PIRATICInitialRoute"),
+       route.hasPrefix("collection:"), let id = Int(route.dropFirst("collection:".count)),
+       let keyPath = Self.routes(for: selectedTab) {
+      self[keyPath: keyPath] = [.collection(Collection(id: id, title: ""))]
+    }
+    if UserDefaults.standard.string(forKey: "PIRATICInitialRoute") == "history" {
+      libraryRoutes = [.history]
+    }
+  }
+#endif
+
+  var canReturnFromSearch: Bool { searchReturnTab != nil }
+
+  /// Drops every pushed route before a shell remount (language or launch-time
+  /// feature flags). Keeps the selected tab so Settings stays under the loader.
+  func clearStacksForShellRemount() {
+    mainRoutes = []
+    searchRoutes = []
+    catalogRoutes = []
+    moviesRoutes = []
+    seriesRoutes = []
+    collectionsRoutes = []
+    tvRoutes = []
+    libraryRoutes = []
+    watchlistRoutes = []
+    recentlyWatchedRoutes = []
+    bookmarksRoutes = []
+    downloadsRoutes = []
+    continueWatchingRoutes = []
+    genresRoutes = []
+    pendingSearch = nil
+    pendingCatalogFilter = nil
+    searchReturnTab = nil
+#if os(macOS)
+    macSearchFieldText = ""
+#endif
+  }
+
+  /// Switch to Search with a filter already selected (and the stack at root).
+  func openSearch(filter: LibraryFilter, title: String) {
+    if selectedTab != .search {
+      searchReturnTab = selectedTab
+    }
+    pendingSearch = PendingSearch(filter: filter, title: title)
+    searchRoutes = []
+#if os(macOS)
+    macSearchFieldText = title
+    rememberMacSearchRecent(title)
+#endif
+    selectedTab = .search
+  }
+
+  /// Switch to Catalog with a filter already selected if the Catalog tab is visible;
+  /// otherwise falls back to `openSearch`.
+  @MainActor
+  func openCatalog(filter: LibraryFilter, title: String) {
+    if SectionVisibilityStore.shared.isTabVisible("catalog") {
+      pendingCatalogFilter = filter
+      catalogRoutes = []
+      selectedTab = .catalog
+    } else {
+      openSearch(filter: filter, title: title)
+    }
+  }
+
+  /// Focus the search surface (toolbar field / Search tab) without a preselected filter.
+  func enterSearch() {
+    if selectedTab != .search {
+      searchReturnTab = selectedTab
+    }
+    selectedTab = .search
+  }
+
+#if os(macOS)
+  /// The first character opens the results surface. `LibraryCatalog` already debounces
+  /// `$query` by 0.5 s and refreshes, so results follow the typing — but only once
+  /// `SearchView` is *mounted*, and nothing mounted it until Return. That is why the
+  /// field looked dead while you typed: the catalog it feeds did not exist yet.
+  ///
+  /// Deliberately not the Finder/Photos "typing stays on the tab" model. kino.pub's
+  /// own site answers from the first letters, and matching Finder here meant every
+  /// query cost a Return before it showed anything.
+  func beginToolbarSearchIfNeeded() {
+    guard !macSearchFieldText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    enterSearch()
+  }
+
+  /// Return still commits the query to Recents — the surface is usually already open.
+  func submitToolbarSearch() {
+    let query = macSearchFieldText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return }
+    rememberMacSearchRecent(query)
+    enterSearch()
+  }
+
+  func clearMacSearchRecents() {
+    macSearchRecents = []
+    MacSearchRecentsStore.save([])
+  }
+
+  private func rememberMacSearchRecent(_ raw: String) {
+    let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return }
+    var next = macSearchRecents.filter { $0.caseInsensitiveCompare(query) != .orderedSame }
+    next.insert(query, at: 0)
+    if next.count > MacSearchRecentsStore.limit {
+      next = Array(next.prefix(MacSearchRecentsStore.limit))
+    }
+    macSearchRecents = next
+    MacSearchRecentsStore.save(next)
+  }
+#endif
+
+  /// Leave Search and restore the tab the filter jump came from.
+  func returnFromSearch() {
+    guard let tab = searchReturnTab else {
+      selectedTab = .home
+#if os(macOS)
+      macSearchFieldText = ""
+#endif
+      return
+    }
+    searchReturnTab = nil
+    pendingSearch = nil
+#if os(macOS)
+    macSearchFieldText = ""
+#endif
+    selectedTab = tab
+  }
+
+  /// Leave Search for an explicit browse tab (toolbar tab click while Search is up).
+  func selectBrowseTab(_ tab: NavigationTabs) {
+    searchReturnTab = nil
+    pendingSearch = nil
+    searchRoutes = []
+#if os(macOS)
+    macSearchFieldText = ""
+#endif
+    selectedTab = tab
+  }
+
+  /// Which array backs which tab. One table, because `push` and `popToRoot` used to
+  /// carry a `switch` each over the same ten cases — two places to forget a tab in.
+  /// `.settings` has no shared stack: tvOS Settings owns a local `NavigationPath`.
+  private static func routes(for tab: NavigationTabs) -> ReferenceWritableKeyPath<NavigationState, [Route]>? {
+    switch tab {
+    case .search: \.searchRoutes
+    case .home: \.mainRoutes
+    case .catalog: \.catalogRoutes
+    case .movies: \.moviesRoutes
+    case .series: \.seriesRoutes
+    case .collections: \.collectionsRoutes
+    case .tv: \.tvRoutes
+    case .library: \.libraryRoutes
+    case .watchlist: \.watchlistRoutes
+    case .recentlyWatched: \.recentlyWatchedRoutes
+    case .bookmarks, .bookmark: \.bookmarksRoutes
+    case .downloads: \.downloadsRoutes
+    case .continueWatching: \.continueWatchingRoutes
+    case .genres: \.genresRoutes
+    case .settings: nil
+    }
+  }
+
+#if os(tvOS)
+  /// The picture in front: the selected tab's top title, read from the path itself, so it
+  /// changes on Select and on Menu — before any transition (`PageBackdropStage`).
+  var backdropFront: String? {
+    Route.backdropFront(of: self[path: selectedTab])
+  }
+
+  /// Every title any tab's path still holds; the stage forgets the rest.
+  var backdropLiveKeys: Set<String> {
+    let paths = [searchRoutes, mainRoutes, catalogRoutes, moviesRoutes, seriesRoutes,
+                 collectionsRoutes, tvRoutes, libraryRoutes,
+                 watchlistRoutes, recentlyWatchedRoutes, bookmarksRoutes, downloadsRoutes]
+    return paths.reduce(into: Set<String>()) { $0.formUnion(Route.backdropKeys(in: $1)) }
+  }
+#endif
+
+  /// Whether a tab has a stack a route can be pushed on — Settings does not.
+  func hasStack(_ tab: NavigationTabs) -> Bool {
+    Self.routes(for: tab) != nil
+  }
+
+  /// A tab's path, bound by `path(for:)`. A key path, not a `Binding(get:set:)`: a closure binding is a new
+  /// location every time the stack's parent is evaluated, so SwiftUI saw a "changed" path
+  /// on each pass and updated the stack's bound path and destination registry several
+  /// times in one frame (`Update NavigationAuthority bound path tried to update multiple
+  /// times per frame`). A key path into this object compares equal from pass to pass.
+  /// A tab with no shared stack reads empty and ignores writes — see `routes(for:)`.
+  subscript(path tab: NavigationTabs) -> [Route] {
+    get {
+      guard let keyPath = Self.routes(for: tab) else { return [] }
+      return self[keyPath: keyPath]
+    }
+    set {
+      guard let keyPath = Self.routes(for: tab) else { return }
+      let routes = newValue
+      // A section's stack torn down on leaving it writes back an empty path; that is
+      // not the viewer going back. Its titles stay for the next visit (Sasha,
+      // 2026-10-31: a title opened in Search was gone).
+      if routes.isEmpty, tab != selectedTab, !self[keyPath: keyPath].isEmpty { return }
+      guard self[keyPath: keyPath] != routes else { return }
+      let previous = self[keyPath: keyPath]
+      self[keyPath: keyPath] = routes
+      if PerfSignpost.page.isEnabled,
+         routes.count > previous.count,
+         let id = routes.last?.detailsItemID {
+        PerfSignpost.beginTitleOpen(id: "\(id)")
+      }
+      let ids = MediaItemModelCache.itemIDs(in: routes)
+      MainActor.assumeIsolated {
+        MediaItemModelCache.shared.keep(only: ids, on: tab)
+      }
+    }
+  }
+
+  /// The path a tab's `NavigationStack` binds to — the key-path binding above.
+  func path(for tab: NavigationTabs) -> Binding<[Route]> {
+    Bindable(self)[path: tab]
+  }
+
+  /// Clears the selected tab's stack so a second click on the same tab
+  /// returns to that tab's root (Apple Music / Apple TV behaviour).
+  func popToRoot(for tab: NavigationTabs) {
+    guard let keyPath = Self.routes(for: tab) else { return }
+    self[keyPath: keyPath] = []
+    MainActor.assumeIsolated {
+      MediaItemModelCache.shared.keep(only: [], on: tab)
+    }
+  }
+
+  /// Bumped per section when it is chosen again at its root; its page scrolls to the top
+  /// (`scrollToTopRequest`).
+  private(set) var scrollToTopRequests: [NavigationTabs: Int] = [:]
+
+  /// The shown section chosen again — its tab, its sidebar row: back to its root, and at
+  /// the root to the top of the page, as Apple's tab bars do (Sasha, 2026-10-31).
+  func reselect(_ tab: NavigationTabs) {
+    if let keyPath = Self.routes(for: tab), !self[keyPath: keyPath].isEmpty {
+      popToRoot(for: tab)
+    } else {
+      scrollToTopRequests[tab, default: 0] += 1
+    }
+  }
+
+  /// Appends onto the selected tab's navigation stack (context-menu Play, etc.).
+  ///
+  /// `.player` / `.trailerPlayer` never join that stack on macOS — the player is always
+  /// its own window there (see `ROADMAP.md`, "macOS
+  /// presentation"). Every push-based Play entry point (card context menus, etc.) goes
+  /// through this one function, so redirecting here covers all of them without having to
+  /// track down each call site individually.
+  @MainActor
+  func push(_ route: Route) {
+#if os(macOS)
+    switch route {
+    case .player(let item, _):
+      PlaybackWindowState.shared.show(item: item, mode: .media, from: self)
+      playerWindowRequestID = UUID()
+      return
+    case .trailerPlayer(let item, _):
+      PlaybackWindowState.shared.show(item: item, mode: .trailer, from: self)
+      playerWindowRequestID = UUID()
+      return
+    case .livePlayer(let channel, _):
+      PlaybackWindowState.shared.show(item: channel, mode: .live, from: self)
+      playerWindowRequestID = UUID()
+      return
+    default:
+      break
+    }
+#endif
+    guard let keyPath = Self.routes(for: selectedTab) else { return }
+    self[keyPath: keyPath].append(route)
+    if PerfSignpost.page.isEnabled, let id = route.detailsItemID {
+      PerfSignpost.beginTitleOpen(id: "\(id)")
+    }
+  }
+}
+
+extension View {
+  /// Sibling `NavigationStack`s in one column can steal `NavigationLink`s when multiple
+  /// tab roots stay mounted. Only the selected tab may expose a stack; classic tab bars
+  /// already isolate content on most platforms. Keep the root mounted so `@StateObject`
+  /// catalogs survive switches.
+  @ViewBuilder
+  func navigationStackActive(for tab: NavigationTabs, selected: NavigationTabs) -> some View {
+#if os(macOS)
+    if selected == tab {
+      self
+    }
+#else
+    self
+#endif
+  }
+}
+
+#if os(macOS)
+enum MacSearchRecentsStore {
+  static let limit = 8
+  private static let key = "macSearchRecents"
+
+  static func load() -> [String] {
+    UserDefaults.standard.stringArray(forKey: key) ?? []
+  }
+
+  static func save(_ values: [String]) {
+    UserDefaults.standard.set(values, forKey: key)
+  }
+}
+
+extension View {
+  /// Finder/Photos: compact trailing toolbar search on a `NavigationStack` (never on
+  /// `TabView` — that renders a giant under-tab field). Use `placement: .toolbar`
+  /// (probe-confirmed on macOS 26/27 with `.tabBarOnly`). Suggestions open as a menu
+  /// under the field; Return opens the Search results surface.
+  func macToolbarSearch() -> some View {
+    modifier(MacToolbarSearchModifier())
+  }
+}
+
+private struct MacToolbarSearchModifier: ViewModifier {
+  @Environment(NavigationState.self) private var navigationState
+
+  func body(content: Content) -> some View {
+    // With the sidebar, Search is a place of its own, as in the TV app: the field is on
+    // that page alone, not over every other one.
+    // The field at the top of the sidebar instead (`macSidebarSearch`), Settings-style.
+    if FeatureFlags.macSidebarEnabled && !FeatureFlags.macLegacySearchChrome {
+      content
+    } else if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
+      content
+    } else {
+      field(content)
+    }
+  }
+
+  private func field(_ content: Content) -> some View {
+    content.modifier(MacSearchField(inSidebar: false))
+  }
+}
+
+extension View {
+  /// The Mac's search field at the top of the sidebar, as System Settings and Infuse have
+  /// it: focusing it opens the Search page, typing searches there.
+  func macSidebarSearch() -> some View {
+    modifier(MacSearchField(inSidebar: true))
+  }
+}
+
+/// The one search field, wherever it sits: its suggestions, recents, and what typing and
+/// Return do.
+private struct MacSearchField: ViewModifier {
+  let inSidebar: Bool
+  @Environment(NavigationState.self) private var navigationState
+  @FocusState private var isFocused: Bool
+
+  func body(content: Content) -> some View {
+    @Bindable var navigationState = navigationState
+    return content
+      // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
+      // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
+      .searchable(
+        text: $navigationState.macSearchFieldText,
+        placement: inSidebar ? .sidebar : .toolbar,
+        prompt: "Search"
+      ) {
+        // A field that has just been focused has something to offer even on a first
+        // run — recents cannot answer until there are recents. Examples only while the
+        // field is empty; once there is a query the results are the better answer.
+        if navigationState.macSearchFieldText.isEmpty {
+          Section("Try Searching") {
+            ForEach(SearchStarters.queries, id: \.self) { starter in
+              Text(starter).searchCompletion(starter)
+            }
+          }
+        }
+
+        if !navigationState.macSearchRecents.isEmpty {
+          Section("Recents") {
+            ForEach(navigationState.macSearchRecents, id: \.self) { recent in
+              Text(recent).searchCompletion(recent)
+            }
+            Button("Clear") {
+              navigationState.clearMacSearchRecents()
+            }
+          }
+        }
+      }
+      .onChange(of: navigationState.macSearchFieldText) { _, _ in
+        navigationState.beginToolbarSearchIfNeeded()
+      }
+      .onSubmit(of: .search) {
+        navigationState.submitToolbarSearch()
+      }
+      // In the sidebar the field is the way to Search: a click into it opens the page.
+      .searchFocused($isFocused)
+      .onChange(of: isFocused) { _, focused in
+        if focused, inSidebar { navigationState.enterSearch() }
+      }
+  }
+}
+#endif

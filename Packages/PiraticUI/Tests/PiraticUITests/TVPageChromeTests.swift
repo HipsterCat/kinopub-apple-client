@@ -1,0 +1,102 @@
+import XCTest
+@testable import PiraticUI
+
+#if os(tvOS)
+@MainActor
+final class TVPageChromeTests: XCTestCase {
+
+  func testFullBleedHostKeeps80ptLeadingAndUsesCollectionWidthForPeek() {
+    let chrome = ShelfMetrics.tvPageChrome(
+      viewFrameInWindow: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+      windowWidth: 1920
+    )
+    XCTAssertEqual(chrome.leadingConstant, 80)
+    XCTAssertEqual(chrome.trailingOverflow, 0)
+  }
+
+  func testSafeAreaHostDoesNotDoubleCutAndOverflowsTrailingForPeek() {
+    let chrome = ShelfMetrics.tvPageChrome(
+      viewFrameInWindow: CGRect(x: 80, y: 0, width: 1760, height: 1080),
+      windowWidth: 1920
+    )
+    XCTAssertEqual(chrome.leadingConstant, 0)
+    XCTAssertEqual(chrome.trailingOverflow, 80)
+  }
+
+  func testHeaderActionsMatchTheSearchChipSize() {
+    let chip = TVPageChip(id: "type", title: "Фильмы и сериалы")
+    let size = TVPageHeaderView.actionSize(for: chip)
+    XCTAssertEqual(size.width, TVPageChipCell.fittingWidth(for: chip))
+    XCTAssertEqual(size.height, TVPageLayout.chipHeight)
+    XCTAssertGreaterThan(size.width, TVPageLayout.chipHeight,
+                         "a titled pill is wider than the round icon it used to be squeezed to")
+  }
+
+  func testGridHeadersWithActionsScrollWithTheContent() {
+    XCTAssertFalse(TVPageLayout.headersPinToVisibleBounds,
+                   "pinning overlays the title on the first row of covers")
+  }
+
+  func testScreenWideColumnsIgnoreTheKeyboardPane() {
+    let screen = TVHIGGrid.spanningContentWidth(screenWidth: 1920)
+    XCTAssertEqual(screen, TVHIGGrid.referenceContentWidth)
+    let full = TVHIGGrid.resolve(columns: 6, contentWidth: screen)
+    // Results start at 590; the pane the keyboard leaves is not the content box.
+    let pane = TVHIGGrid.resolve(columns: 6, contentWidth: 1920 - 590 - 80)
+    XCTAssertEqual(full.columns, 6)
+    XCTAssertLessThan(pane.columns, full.columns)
+    XCTAssertEqual(full.cardWidth, TVHIGGrid.cardWidth(columns: 6, contentWidth: screen))
+  }
+
+  func testPosterRecipeSurvivesAKeyboardWidthSweep() {
+    defer { TVPageCellMetrics.cancelPendingMeasurement() }
+    let probesBefore = TVPageCellMetrics.probeCount
+    let start = CACurrentMediaTime()
+    var previous: CGFloat = 0
+    for offset in 0..<40 {
+      let recipe = TVPageCellMetrics.recipe(kind: .poster, artWidth: 240 + CGFloat(offset), caption: .always)
+      XCTAssertGreaterThan(recipe.itemSize.width, previous, "width \(240 + offset) collapsed onto a neighbour")
+      previous = recipe.itemSize.width
+    }
+    XCTAssertEqual(TVPageCellMetrics.probeCount, probesBefore, "the sweep built a poster")
+    XCTAssertLessThan(CACurrentMediaTime() - start, 2, "each keyboard frame built a poster")
+  }
+
+  func testLeadingConstantIsNeverNegative() {
+    let chrome = ShelfMetrics.tvPageChrome(
+      viewFrameInWindow: CGRect(x: 120, y: 0, width: 1680, height: 1080),
+      windowWidth: 1920
+    )
+    XCTAssertEqual(chrome.leadingConstant, 0)
+    XCTAssertGreaterThanOrEqual(chrome.leadingConstant, 0)
+  }
+
+  func testBannerChromeTextColorIsForcedDark() {
+    let chrome = TVPageBannerChrome.current
+    let lightColor = chrome.resolvedTextColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+    let darkColor = chrome.resolvedTextColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+    XCTAssertEqual(lightColor, darkColor, "Banner text color must stay vivid and not degrade in light appearance")
+
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    XCTAssertTrue(lightColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+    XCTAssertGreaterThan(red, 0.9, "Red channel must remain bright")
+    XCTAssertGreaterThan(green, 0.9, "Green channel must remain bright")
+    XCTAssertGreaterThan(blue, 0.9, "Blue channel must remain bright")
+  }
+
+  func testHeroBannerOverlayTextureLoadsAndMatchesLegibilityStops() {
+    let image = HeroLegibilityTexture.templateUIImage()
+    XCTAssertNotNil(image, "HeroBannerOverlay asset must load from Bundle.module")
+
+    let bottomStops = HeroLegibilityScrim.calculatedEdgeStops(
+      edgePeak: 0.55,
+      startsDark: false,
+      endsDark: true,
+      bottomFadeTop: 0.58
+    )
+    XCTAssertEqual(bottomStops.count, 9)
+    XCTAssertEqual(bottomStops.first?.opacity ?? -1, 0, accuracy: 0.0001)
+    XCTAssertEqual(bottomStops.last?.opacity ?? -1, 0.55, accuracy: 0.0001)
+  }
+}
+#endif

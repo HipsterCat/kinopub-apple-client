@@ -17,10 +17,10 @@ on:
       - '.github/workflows/testflight-lint.yml'
       - '.github/scripts/testflight-gate.sh'
       - '.github/scripts/select-xcode-26.sh'
-      - 'KinoPubAppleClient.xcodeproj/**'
-      - 'KinoPubAppleClient/Resources/whats-new.json'
-      - 'KinoPubAppleClient/Resources/WhatsNew/**'
-      - 'KinoPubAppleClient/Info.plist'
+      - 'Piratic.xcodeproj/**'
+      - 'Piratic/Resources/whats-new.json'
+      - 'Piratic/Resources/WhatsNew/**'
+      - 'Piratic/Info.plist'
   pull_request:
     paths:
       - 'fastlane/**'
@@ -30,10 +30,10 @@ on:
       - '.github/workflows/testflight-lint.yml'
       - '.github/scripts/testflight-gate.sh'
       - '.github/scripts/select-xcode-26.sh'
-      - 'KinoPubAppleClient.xcodeproj/**'
-      - 'KinoPubAppleClient/Resources/whats-new.json'
-      - 'KinoPubAppleClient/Resources/WhatsNew/**'
-      - 'KinoPubAppleClient/Info.plist'
+      - 'Piratic.xcodeproj/**'
+      - 'Piratic/Resources/whats-new.json'
+      - 'Piratic/Resources/WhatsNew/**'
+      - 'Piratic/Info.plist'
   workflow_dispatch:
 
 concurrency:
@@ -79,4 +79,4 @@ jobs:
         run: .github/scripts/select-xcode-26.sh
 
       - name: xcodebuild -list
-        run: xcodebuild -list -project KinoPubAppleClient.xcodeproj
+        run: xcodebuild -list -project Piratic.xcodeproj

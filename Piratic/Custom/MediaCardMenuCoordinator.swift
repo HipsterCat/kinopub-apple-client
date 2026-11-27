@@ -1,0 +1,330 @@
+//
+//  MediaCardMenuCoordinator.swift
+//  Piratic
+//
+//  Shared side effects for card context menus: play, watchlist, bookmark folders,
+// mark watched, hide from Continue Watching. Views only pass navigation / openURL.
+//
+
+import Foundation
+import KinoPubBackend
+import PiraticUI
+import PiraticMetadata
+import OSLog
+import PiraticLogging
+
+@MainActor
+final class MediaCardMenuCoordinator: ObservableObject {
+
+  @Published private(set) var folders: [Bookmark] = []
+  /// When set, the hosting view should present the New Folder alert for this item.
+  @Published var newFolderItemID: Int?
+  @Published var newFolderName: String = ""
+  /// What a bookmark toggle says, the same HUD the detail page shows.
+  @Published var hudToast: HudToast?
+  /// The Change Images sheet a card's menu asked for (admin only).
+  @Published var imagePickerTarget: TitleImagePickerTarget?
+
+  private let contentService: VideoContentService
+  private let actionsService: UserActionsService
+  private let contentStore: ContentStore
+  private let membership: BookmarkMembershipStore
+  private weak var errorHandler: ErrorHandler?
+
+  init(contentService: VideoContentService,
+       actionsService: UserActionsService,
+       contentStore: ContentStore,
+       membership: BookmarkMembershipStore = .shared) {
+    self.contentService = contentService
+    self.actionsService = actionsService
+    self.contentStore = contentStore
+    self.membership = membership
+  }
+
+  /// Convenience from the shared app context. Call `bind(errorHandler:)` from the view.
+  convenience init(appContext: AppContextProtocol = AppContext.shared) {
+    self.init(contentService: appContext.contentService,
+              actionsService: appContext.actionsService,
+              contentStore: appContext.contentStore)
+  }
+
+  func bind(errorHandler: ErrorHandler) {
+    self.errorHandler = errorHandler
+  }
+
+  /// Bookmark folders, from the store shared by every coordinator in the app.
+  ///
+  /// Each screen that can show a card menu owns its own coordinator, and each one calls
+  /// this on `.task` — so opening the app used to fire `GET /v1/bookmarks` twenty-odd
+  /// times for the same 519 bytes, and every navigation fired more. The call sites are
+  /// not wrong (a view should be able to ask for what it needs); fetching per-caller
+  /// was. `BookmarkFoldersStore` keeps the list across launches and only goes to the
+  /// network when it has nothing, so an ordinary screen — a detail page above all —
+  /// opens without a bookmarks request at all.
+  func refreshFolders() async {
+    folders = await BookmarkFoldersStore.shared.ensureLoaded(using: contentService)
+      .recentlyUpdatedFirst()
+  }
+
+  /// Refetch after a mutation that changed the folder list itself. Every other
+  /// coordinator picks the new list up from the store on its next `refreshFolders()`.
+  func reloadFolders() async {
+    folders = await BookmarkFoldersStore.shared.reload(using: contentService)
+      .recentlyUpdatedFirst()
+  }
+
+  /// Folder ids that contain this card's title — `ViewerStateReader`: this device's
+  /// membership over what the card's payload said. Never hits the network
+  /// (`get-item-folders` is gone on purpose).
+  func containingFolders(for card: MediaCard) -> Set<Int> {
+    AppContext.shared.viewerState.state(for: card.ref, reported: card.reportedState)
+      .bookmarkFolderIDs ?? []
+  }
+
+  func containingFolders(itemID: Int, serverHint: Set<Int> = []) -> Set<Int> {
+    membership.folderIDs(for: itemID, serverHint: serverHint)
+  }
+
+  func promptNewFolder(for itemID: Int) {
+    newFolderName = ""
+    newFolderItemID = itemID
+  }
+
+  func cancelNewFolder() {
+    newFolderItemID = nil
+    newFolderName = ""
+  }
+
+  func confirmNewFolder() {
+    let title = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let itemID = newFolderItemID, !title.isEmpty else {
+      cancelNewFolder()
+      return
+    }
+    newFolderItemID = nil
+    newFolderName = ""
+    Task {
+      do {
+        let folderId = try await actionsService.createBookmarkFolder(title: title)
+        try await contentService.toggleBookmark(itemId: itemID, folderId: folderId)
+        _ = membership.toggle(itemID: itemID, folderID: folderId)
+        objectWillChange.send()
+        // The folder list itself changed, so this is the one place a card menu is
+        // allowed to go and fetch it again.
+        await reloadFolders()
+        contentStore.invalidate(family: .bookmarks)
+      } catch {
+        errorHandler?.setError(error)
+      }
+    }
+  }
+
+  // MARK: - Actions
+
+  /// Change Images is there only with a worker admin token.
+  var canChangeImages: Bool {
+    WorkerImageAdminTokenStore.isConfigured && AppContext.shared.metadataService.images.isConfigured
+  }
+
+  func changeImages(_ card: MediaCard) {
+    // The sheet opens on what the card shows: a poster card on Poster, a wide title
+    // card on Cover (Sasha, 2026-11-26).
+    imagePickerTarget = TitleImagePickerTarget(kinopubID: card.itemID, imdb: card.imdbID,
+                                               title: card.title,
+                                               initialKind: card.isLandscape ? .cover : .poster)
+  }
+
+  func play(_ card: MediaCard, push: @escaping (Route) -> Void) {
+    Task {
+      do {
+        let (item, playable) = try await Self.resolve(card, using: contentService)
+        membership.seed(from: item)
+        push(.player(playable, token: UUID()))
+      } catch {
+        errorHandler?.setError(error)
+      }
+    }
+  }
+
+  /// **What Play on a card plays** — the title's details, its seasons stamped, cached for
+  /// the player, and the episode the card points at (or the title's next one). One answer
+  /// for every surface that plays a card: Home, and the player's own Up Next tab.
+  static func resolve(_ card: MediaCard, using contentService: VideoContentService)
+    async throws -> (item: MediaItem, playable: any PlayableItem) {
+    var item = try await contentService.fetchDetails(for: "\(card.itemID)").item
+    // Stamp the seasons before an episode leaves this scope: `/v1/watching*` keys
+    // on the item id and an episode carries it only from here.
+    item.stampSeasons()
+    AppContext.shared.localProgressStore.cacheItem(item)
+    return (item, playable(from: item, preferring: card))
+  }
+
+  func toggleWatchlist(_ card: MediaCard) {
+    let library = AppContext.shared.libraryState
+    let previous = AppContext.shared.viewerState
+      .state(for: card.ref, reported: card.reportedState).isFollowing == true
+    let next = !previous
+    // Optimistic: the next menu open must already say «Отслеживать» / «Не отслеживать».
+    library.setWatchlist(itemId: card.itemID, value: next)
+    hudToast = HudToast(
+      systemImage: next ? "plus" : "minus",
+      title: (next ? "Added to Watchlist" : "Removed from Watchlist").localized
+    )
+    objectWillChange.send()
+    Task {
+      do {
+        try await actionsService.toggleWatchlist(id: card.itemID)
+        contentStore.invalidate(family: .watch)
+        await WatchingListCache.shared.refreshFollowed(using: contentService)
+      } catch {
+        library.setWatchlist(itemId: card.itemID, value: previous)
+        objectWillChange.send()
+        errorHandler?.setError(error)
+      }
+    }
+  }
+
+  func toggleBookmark(itemID: Int, folder: Bookmark, serverHint: Set<Int> = []) {
+    let outcome = BookmarkFolderToggle.toggle(
+      itemID: itemID, folderID: folder.id,
+      current: membership.folderIDs(for: itemID, serverHint: serverHint),
+      service: contentService, contentStore: contentStore, membership: membership
+    ) { [weak self] _, error in
+      self?.objectWillChange.send()
+      self?.errorHandler?.setError(error)
+    }
+    hudToast = outcome.hud
+    objectWillChange.send()
+  }
+
+  /// Mark watched / new. `removeFromContinueWatching` for CW / episode rails only.
+  func toggleWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
+    let video = card.video ?? (card.isSeries ? nil : 1)
+    guard let video else { return }
+    let markingWatched = !card.isWatched
+    if removeFromContinueWatching {
+      contentStore.removeCard(id: card.id, from: .continueWatching)
+      AppContext.shared.localProgressStore.clear(id: card.itemID)
+    }
+    presentWatchedHud(nowWatched: markingWatched)
+    Task {
+      do {
+        try await actionsService.toggleWatching(id: card.itemID, video: video, season: card.season)
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+        if removeFromContinueWatching {
+          contentStore.invalidate(family: .watch)
+        }
+      }
+    }
+  }
+
+  /// Bulk season toggle — same `/v1/watching/toggle` shape as the detail «…» menu.
+  func markSeasonWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
+    guard let season = card.season else { return }
+    if removeFromContinueWatching {
+      contentStore.removeCard(id: card.id, from: .continueWatching)
+      AppContext.shared.localProgressStore.clear(id: card.itemID)
+    }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season)
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+        if removeFromContinueWatching {
+          contentStore.invalidate(family: .watch)
+        }
+      }
+    }
+  }
+
+  /// Completes remaining episodes in the card's season (detail «Отметить непросмотренные»).
+  func markUnwatchedInSeason(_ card: MediaCard) {
+    guard let season = card.season else { return }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season)
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+      }
+    }
+  }
+
+  /// Marks every incomplete season watched — fetches details for the season list.
+  func markAllEpisodesWatched(_ card: MediaCard, removeFromContinueWatching: Bool) {
+    if removeFromContinueWatching {
+      contentStore.removeCard(id: card.id, from: .continueWatching)
+      AppContext.shared.localProgressStore.clear(id: card.itemID)
+    }
+    presentWatchedHud(nowWatched: true)
+    Task {
+      do {
+        let item = try await contentService.fetchDetails(for: "\(card.itemID)").item
+        for season in item.seasons ?? [] where season.episodes.contains(where: { !$0.isWatched }) {
+          _ = try await actionsService.toggleWatching(id: card.itemID, video: nil, season: season.number)
+        }
+        contentStore.invalidate(family: .watch)
+      } catch {
+        errorHandler?.setError(error)
+        if removeFromContinueWatching {
+          contentStore.invalidate(family: .watch)
+        }
+      }
+    }
+  }
+
+  private func presentWatchedHud(nowWatched: Bool) {
+    if nowWatched {
+      hudToast = HudToast(systemImage: "checkmark", title: "Watched".localized)
+    } else {
+      hudToast = HudToast(systemImage: "eye", title: "Marked as New".localized)
+    }
+  }
+
+  func hideFromContinueWatching(_ card: MediaCard) {
+    contentStore.removeCard(id: card.id, from: .continueWatching)
+    AppContext.shared.localProgressStore.clear(id: card.itemID)
+    Task {
+      do {
+        try await actionsService.clearHistoryForItem(id: card.itemID)
+      } catch {
+        errorHandler?.setError(error)
+        contentStore.invalidate(family: .watch)
+      }
+    }
+  }
+
+  // MARK: - Play target
+
+  private static func playable(from item: MediaItem, preferring card: MediaCard) -> any PlayableItem {
+    if let seasonNum = card.season, let video = card.video,
+       let season = item.seasons?.first(where: { $0.number == seasonNum }),
+       let episode = season.episodes.first(where: { $0.number == video }) {
+      return episode.stamped(season: season.number, mediaId: season.mediaId,
+                             seriesTitle: item.localizedTitle)
+    }
+    if let (season, episode) = item.primaryEpisode {
+      return episode.stamped(season: season.number, mediaId: season.mediaId,
+                             seriesTitle: item.localizedTitle)
+    }
+    // A title in several videos: the one the card says, else the one its first play button
+    // offers — the next set of a concert. `item` alone plays `primaryVideo`, which is the
+    // first set again once it is watched.
+    let variants = item.playbackVariants
+    if !variants.isEmpty {
+      if card.season == nil, let video = card.video,
+         let offered = variants.first(where: { $0.number == video }) {
+        return offered
+      }
+      if let next = item.playChoices.first(where: { !$0.isWatched }) ?? item.playChoices.first {
+        return next
+      }
+    }
+    return item
+  }
+}

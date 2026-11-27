@@ -14,8 +14,8 @@ debug dylibs, disables some inlining, and inflates hitch time.
 
 ```bash
 xcodebuild \
-  -project KinoPubAppleClient.xcodeproj \
-  -scheme KinoPubAppleClient \
+  -project Piratic.xcodeproj \
+  -scheme Piratic \
   -configuration Release \
   -destination 'platform=tvOS Simulator,name=Apple TV' \
   -skipMacroValidation \
@@ -34,13 +34,13 @@ Destinations that matter:
 | Mac | `platform=macOS,arch=arm64` |
 
 UI performance tests (`PerformanceUITests`) run in **Debug** on purpose: the
-fixture roots (`-KINOPUBTemplatesGallery`, `-KINOPUBDetailFixture`) compile out
+fixture roots (`-PIRATICTemplatesGallery`, `-PIRATICDetailFixture`) compile out
 of Release. Use them for a CI / simulator baseline. Repeat the same walks in
 Instruments on a Release device build with a real session.
 
 ## 2. Signposts
 
-Subsystem **`com.soda.kinopub.perf`**. Zero cost unless a recording or an
+Subsystem **`com.soda.piratic.perf`**. Zero cost unless a recording or an
 `XCTOSSignpostMetric` is attached (`OSSignposter.isEnabled`).
 
 | Category | Interval name | What it covers | Where |
@@ -55,13 +55,13 @@ Subsystem **`com.soda.kinopub.perf`**. Zero cost unless a recording or an
 | `page` | `page.search` | Search tab selected → first on-screen layout | `TVSearchChrome.takePrepared` → host on-screen layout |
 | `page` | `page.resize` | iPad / Mac window size bucket changed, then 0.3 s settle | `MediaRowsView` |
 
-Instruments → **os_signpost** instrument → filter subsystem `com.soda.kinopub.perf`.
+Instruments → **os_signpost** instrument → filter subsystem `com.soda.piratic.perf`.
 The Points of Interest template only shows the `.pointsOfInterest` category; ours
 are named categories, so add the os_signpost instrument (or Time Profiler with
 signposts overlay).
 
 ```bash
-log stream --predicate 'subsystem == "com.soda.kinopub.perf"' --style compact
+log stream --predicate 'subsystem == "com.soda.piratic.perf"' --style compact
 ```
 
 ## 3. Instruments templates (Release, device)
@@ -101,7 +101,7 @@ or a finger, on a signed-in account.
 ### A. Home shelves — down and back up
 
 - **tvOS:** Watch Now. Focus on a hero button. Down through five rows, Up back.
-  Fixture stand-in: `-KINOPUBTemplatesGallery`.
+  Fixture stand-in: `-PIRATICTemplatesGallery`.
 - **iPhone:** Fast vertical flick through Home, then back to the top.
 - **Mac:** Trackpad scroll through Home, then back.
 
@@ -112,7 +112,7 @@ on tvOS XCTest, `XCTOSSignpostMetric` duration of `scroll.home` +
 ### B. Hero carousel paging × 10
 
 - **tvOS:** Focus Next, Select ten times (or Right past Next). Fixture:
-  `-KINOPUBTemplatesGallery -KINOPUBTemplatesHero`.
+  `-PIRATICTemplatesGallery -PIRATICTemplatesHero`.
 - **iPhone / Mac:** Swipe the Home hero sideways ten titles.
 
 Signposts: `hero.page`, `artwork.request` (look at `bytes` and `tier`).
@@ -120,7 +120,7 @@ Signposts: `hero.page`, `artwork.request` (look at `bytes` and `tier`).
 ### C. Title page open + season / episode rail
 
 - **tvOS:** Open a series. Wait for Play. Down onto the season rail, Right along
-  four episodes, Menu back to Play. Fixture: `-KINOPUBDetailFixture seasonStrip`
+  four episodes, Menu back to Play. Fixture: `-PIRATICDetailFixture seasonStrip`
   and, to hit the CADisplayLink slide, `-featureFlag.rivuletSeasonRail <true/>`
   (plist boolean; a string `YES` is ignored and the flag stays off).
 - **iPhone:** Open a series from Home, scroll the episode row.
@@ -129,8 +129,8 @@ Signposts: `page.title`, `hero.backdrop`, `scroll.season`.
 
 ### D. Search tab first paint (tvOS)
 
-From Watch Now, Left onto Search. Fixture: `-KINOPUBSearchFixture
--KINOPUBSearchFixtureStartOnWatchNow`. Signpost: `page.search` (takePrepared →
+From Watch Now, Left onto Search. Fixture: `-PIRATICSearchFixture
+-PIRATICSearchFixtureStartOnWatchNow`. Signpost: `page.search` (takePrepared →
 first on-screen layout). XCTest discards a warmup iteration; the test returns
 to Watch Now before the measured Left so take runs inside the recorded block.
 Catalog posters are not part of this interval.
@@ -187,7 +187,7 @@ xcrun xctrace record \
 Launch arguments for a fixture walk, appended after `--launch com.soda.kinopub --`:
 
 ```
--- -ui-testing -KINOPUBTemplatesGallery -KINOPUBTemplatesHero -KINOPUBForceColorScheme dark
+-- -ui-testing -PIRATICTemplatesGallery -PIRATICTemplatesHero -PIRATICForceColorScheme dark
 ```
 
 Export hitch stats from a trace (Instruments 26+):
@@ -201,24 +201,24 @@ Prefer reading the `.trace` in Instruments; the XML is a fallback.
 
 ## 6. XCTest UI performance tests
 
-`KinoPubAppleClientUITests/PerformanceUITests.swift`.
+`PiraticUITests/PerformanceUITests.swift`.
 
 ```bash
 xcodebuild \
-  -project KinoPubAppleClient.xcodeproj \
-  -scheme KinoPubAppleClient \
+  -project Piratic.xcodeproj \
+  -scheme Piratic \
   -destination 'platform=tvOS Simulator,name=Apple TV' \
   -skipMacroValidation \
   CODE_SIGNING_ALLOWED=NO \
-  -only-testing:KinoPubAppleClientUITests/PerformanceUITests \
+  -only-testing:PiraticUITests/PerformanceUITests \
   test
 ```
 
 | Test | Platform | Fixture / skip |
 | --- | --- | --- |
-| `testHomeShelfScroll` | tvOS | `-KINOPUBTemplatesGallery` |
-| `testHeroCarouselPaging` | tvOS | + `-KINOPUBTemplatesHero` |
-| `testTitlePageOpen` | tvOS | `-KINOPUBDetailFixture list`, Select `awaiting` |
+| `testHomeShelfScroll` | tvOS | `-PIRATICTemplatesGallery` |
+| `testHeroCarouselPaging` | tvOS | + `-PIRATICTemplatesHero` |
+| `testTitlePageOpen` | tvOS | `-PIRATICDetailFixture list`, Select `awaiting` |
 | `testSeasonRailScroll` | tvOS | `seasonStrip` + `-featureFlag.rivuletSeasonRail <true/>` |
 | `testHomeShelfScroll` | iOS | live session, else `XCTSkip` |
 | `testHeroCarouselPaging` | iOS | live session, else `XCTSkip` |

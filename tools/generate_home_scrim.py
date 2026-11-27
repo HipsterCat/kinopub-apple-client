@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSETS = ROOT / "Packages/KinoPubUI/Sources/KinoPubUI/Media.xcassets"
+ASSETS = ROOT / "Packages/PiraticUI/Sources/PiraticUI/Media.xcassets"
 SIDE_STOPS = [(0, 0), (0.34, 0.35), (0.62, 1)]
 BOTTOM_STOPS = [
     (0, 0), (0.538, 0), (0.5968, 0.0055), (0.6556, 0.022),

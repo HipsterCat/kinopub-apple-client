@@ -2,7 +2,7 @@
 
 We forked [leoru/kinopub-apple-client](https://github.com/leoru/kinopub-apple-client). So did they.
 Both trees share an old common ancestor (`d5cab98`), then diverge hard: ~100 of our commits
-(tvOS-first UI, Liquid Glass, `KinoPubMetadata`, workers) vs ~200 of theirs (iOS/macOS features,
+(tvOS-first UI, Liquid Glass, `PiraticMetadata`, workers) vs ~200 of theirs (iOS/macOS features,
 AltStore, Sport, richer device/download stack).
 
 ## Strategy: remote + manual port — not rebase
@@ -102,7 +102,7 @@ List/remove are on `DeviceService` — Profile chrome is `// DESIGN:` stub only.
 - [x] `CatalogPeriod` / `period` on `/v1/items` (`LibraryFilter` + `ItemsRequest`)
 - [x] `ResponseCache` for genres/countries (year TTL; **not** cleared on logout)
 - [x] `clear-for-season` history API
-- [x] `NetworkMonitor` (`KinoPubKit`) + app `environmentObject` (banner = DESIGN)
+- [x] `NetworkMonitor` (`PiraticKit`) + app `environmentObject` (banner = DESIGN)
 - [x] Raise marktimes — local resume ~10s, server `marktime` ~30s (was gated at >60s)
 - [x] `MediaLibraryStore` — per-item optimistic library (watchlist / watched / votes /
       download façade). Does **not** replace `ContentStore` or the bookmark stores.
@@ -119,9 +119,9 @@ This branch ports the architecture that was actually missing, not their renderer
 | Per-item optimistic library | `MediaLibraryStore` | **ported** as façade; bookmarks stay on our two stores |
 | Continue Watching | hide finished + `WatchProgress` | **already ahead** (`ContinueWatchingEpisode` / order / local merge) |
 | Lazy lists | `LazyHStack`/`LazyVStack` in SwiftUI shelves | **already** in `MediaPosterShelf` / `MediaRowsView` / grids; tvOS is UIKit collections |
-| Glass | iOS 26 `glassEffect` experiments | **ours** via `kinoGlass` — do not take theirs |
+| Glass | iOS 26 `glassEffect` experiments | **ours** via `piraticGlass` — do not take theirs |
 | Genres/countries | disk cache | year TTL, **not** cleared on logout |
-| API / metadata | kpapp.link only, no TMDB | **ours is ahead** (`KinoPubMetadata`, identity map, workers) |
+| API / metadata | kpapp.link only, no TMDB | **ours is ahead** (`PiraticMetadata`, identity map, workers) |
 | Sport / EPG / Comments / `FilterDataService` | present | **leave** (`FilterDataService` is just genres/countries — already on `VideoContentService` + year TTL) |
 
 ## Continue Watching — why ours is ahead, and what would actually make it better

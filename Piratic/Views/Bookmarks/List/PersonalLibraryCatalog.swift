@@ -1,0 +1,196 @@
+//
+//  PersonalLibraryCatalog.swift
+//  Piratic
+//
+
+import Foundation
+import KinoPubBackend
+import PiraticUI
+import OSLog
+import PiraticLogging
+import Combine
+
+/// Watchlist + history + bookmark folders as rows — the combined Library tab on
+/// tvOS / iOS / iPad. (Search keeps its own `LibraryCatalog`.)
+@MainActor
+class PersonalLibraryCatalog: ObservableObject {
+
+  private var authState: AuthState
+  private var contentService: VideoContentService
+  private var errorHandler: ErrorHandler
+  private var store: ContentStore
+  private var bag = Set<AnyCancellable>()
+
+  @Published public private(set) var rows: [MediaRow] = []
+  @Published public private(set) var isLoaded: Bool = false
+  /// True when nothing could be loaded and there's no cache to show — the view swaps
+  /// the blank screen for a retry state. Cached rows always win over this flag.
+  @Published public private(set) var loadFailed: Bool = false
+  /// The failure behind `loadFailed`, so the retry state can say what actually went wrong.
+  @Published public private(set) var loadError: Error?
+
+  /// The folder *list* itself (ids, titles, counts) isn't row-cached — it's one
+  /// cheap call, and we need it live to know which folders even exist. Only the
+  /// per-folder item fetch (the N-per-folder fanout) goes through the store.
+  @Published private(set) var folders: [Bookmark] = []
+  private var foldersFetchFailed = false
+  private var foldersError: Error?
+
+  init(itemsService: VideoContentService,
+       authState: AuthState,
+       errorHandler: ErrorHandler,
+       store: ContentStore = AppContext.shared.contentStore) {
+    self.contentService = itemsService
+    self.authState = authState
+    self.errorHandler = errorHandler
+    self.store = store
+  }
+
+  func fetch() async {
+    guard authState.userState == .authorized else {
+      subscribeForAuth()
+      return
+    }
+
+    folders = await fetchFolders()
+    assembleRows()
+    isLoaded = !rows.isEmpty
+
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask { [weak self, store] in
+        await store.refreshIfStale(.watchlist) { [weak self] in
+          guard let self else { throw CancellationError() }
+          return try await self.fetchWatchlistCards().map(RowItem.card)
+        }
+      }
+      group.addTask { [weak self, store] in
+        await store.refreshIfStale(.history) { [weak self] in
+          guard let self else { throw CancellationError() }
+          return try await self.fetchHistoryCards().map(RowItem.card)
+        }
+      }
+      group.addTask { [weak self, store] in
+        await store.refreshIfStale(.unfinishedSerials) { [weak self] in
+          guard let self else { throw CancellationError() }
+          return try await LibrarySectionCatalog.continueCards(using: self.contentService).map(RowItem.card)
+        }
+      }
+      for folder in folders {
+        group.addTask { [weak self, store] in
+          await store.refreshIfStale(.folder(folder.id)) { [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.fetchFolderItems(folder)
+          }
+        }
+      }
+    }
+
+    assembleRows()
+    isLoaded = true
+    let firstError = [self.store.lastError(.watchlist), self.store.lastError(.history)].lazy
+      .compactMap { $0 }
+      .first
+    loadFailed = rows.isEmpty && (foldersFetchFailed || firstError != nil)
+    loadError = rows.isEmpty ? (firstError ?? foldersError) : nil
+  }
+
+  /// Pull-to-refresh: forces every row to refetch regardless of TTL.
+  @Sendable @MainActor
+  func refresh() async {
+    errorHandler.reset()
+    loadFailed = false
+    loadError = nil
+    store.invalidate(family: .watch)
+    store.invalidate(family: .bookmarks)
+    await fetch()
+  }
+
+  private func assembleRows() {
+    var assembled: [MediaRow] = []
+
+    // Not here when Watching is a tab of its own (iPhone's default): it would be the same
+    // list twice. Elsewhere its header opens the full list — it opened nothing before.
+    let watchlistCards = store.cards(.watchlist)
+    if !watchlistCards.isEmpty, !SectionVisibilityStore.shared.isTabVisible(.watchlist) {
+      assembled.append(MediaRow(id: "watchlist",
+                                title: "Watchlist".localized,
+                                count: "\(watchlistCards.count)",
+                                cards: watchlistCards,
+                                destination: Route.watchlist))
+    }
+
+    let continueCards = store.cards(.unfinishedSerials)
+    if !continueCards.isEmpty {
+      assembled.append(MediaRow(id: "continue",
+                                title: "Continue".localized,
+                                count: "\(continueCards.count)",
+                                cards: continueCards,
+                                destination: Route.continueWatching))
+    }
+
+    let historyCards = store.cards(.history)
+    if !historyCards.isEmpty {
+      assembled.append(MediaRow(id: "history",
+                                title: "Recently Watched".localized,
+                                count: "\(historyCards.count)",
+                                cards: historyCards,
+                                destination: Route.history))
+    }
+
+    for folder in folders {
+      let cards = store.cards(.folder(folder.id))
+      guard !cards.isEmpty else { continue }
+      assembled.append(MediaRow(id: "bookmark-\(folder.id)",
+                                title: folder.title,
+                                count: folder.count,
+                                cards: cards,
+                                destination: BookmarksRoutes.bookmark(folder)))
+    }
+
+    rows = assembled
+  }
+
+  private func fetchWatchlistCards() async throws -> [MediaCard] {
+    let items = try await WatchingListCache.shared.serials(subscribedOnly: true, using: contentService)
+    return items.map { item in
+      let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
+      return MediaCard(id: item.id,
+               posterURL: item.posters.medium,
+               title: item.localizedTitle,
+               subtitle: item.originalTitle,
+               backdropURL: item.posters.wideURL ?? item.posters.big,
+               isSeries: true,
+               viewerState: ViewerState(isFollowing: true),
+               unwatchedEpisodes: left,
+               kinopoiskID: item.kinopoisk)
+    }
+  }
+
+  private func fetchHistoryCards() async throws -> [MediaCard] {
+    let history = try await contentService.fetchHistory(page: nil, perPage: 20).history
+    // Always collapsed here: this is a preview shelf, and twenty cards of the same
+    // series in a row would crowd out every other title the user has watched.
+    return HistoryView.cards(from: history, grouping: .byShow)
+  }
+
+  private func fetchFolders() async -> [Bookmark] {
+    let all = await BookmarkFoldersStore.shared.refreshIfStale(using: contentService)
+    let fetched = all
+      .filter { $0.count != "0" }
+      .recentlyUpdatedFirst()
+    // Failure inside reload keeps the previous store list — still something to paint.
+    foldersFetchFailed = false
+    foldersError = nil
+    return fetched.isEmpty ? folders : fetched
+  }
+
+  private func fetchFolderItems(_ folder: Bookmark) async throws -> [RowItem] {
+    try await contentService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items.map(RowItem.title)
+  }
+
+  private func subscribeForAuth() {
+    authState.$userState.filter({ $0 == .authorized }).first().sink { [weak self] _ in
+      Task { await self?.fetch() }
+    }.store(in: &bag)
+  }
+}

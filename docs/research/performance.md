@@ -2,7 +2,7 @@
 
 ## How we do it now
 Playbook and harness: [docs/engineering/performance.md](../engineering/performance.md).
-`PerfSignpost` (`com.soda.kinopub.perf`) plus `PerformanceUITests` (fixture walks on tvOS, session-gated on iOS/Mac). This file stays as the competitive evidence that led there.
+`PerfSignpost` (`com.soda.piratic.perf`) plus `PerformanceUITests` (fixture walks on tvOS, session-gated on iOS/Mac). This file stays as the competitive evidence that led there.
 
 ## What others do
 | Repo | What | Link |

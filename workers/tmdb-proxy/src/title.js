@@ -1844,7 +1844,7 @@ async function kinopoiskIdFromImdb(imdb) {
   const search = await fetch(searchURL, {
     headers: {
       Accept: "application/json",
-      "User-Agent": "KinoPubAppleClient/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
+      "User-Agent": "Piratic/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
     },
     cf: { cacheTtl: 60 * 60 * 24 * 7, cacheEverything: true },
   });
@@ -1861,7 +1861,7 @@ async function kinopoiskIdFromWikidataEntity(qid) {
   const response = await fetch(entityURL, {
     headers: {
       Accept: "application/json",
-      "User-Agent": "KinoPubAppleClient/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
+      "User-Agent": "Piratic/1.0 (https://github.com/HipsterCat/kinopub-apple-client)",
     },
     cf: { cacheTtl: 60 * 60 * 24 * 7, cacheEverything: true },
   });

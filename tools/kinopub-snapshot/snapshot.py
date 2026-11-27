@@ -41,7 +41,7 @@ BASE_URL = "https://api.service-kp.com"
 KEYCHAIN_SERVICE = "com.kunst.kinopub"
 KEYCHAIN_ACCOUNT = "com.kunst.kinopub.token"
 # Public device-auth client used by every kino.pub client (Kodi addon included) —
-# the same pair already baked into KinoPubAppleClient/Info.plist. Only needed here
+# the same pair already baked into Piratic/Info.plist. Only needed here
 # to refresh an expired access token via grant_type=refresh_token.
 CLIENT_ID = "xbmc"
 CLIENT_SECRET = "cgg3gtifu46urtfp2zp1nqtba0k2ezxh"

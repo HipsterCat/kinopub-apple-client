@@ -65,8 +65,8 @@ Hybrid catalog (Sasha, 2026-11-26):
 
 | Path | Role |
 | --- | --- |
-| `KinoPubAppleClient/Resources/WhatsNew/entries/<id>.json` | **New bullets.** One file per PR / visible change. Filename `YYYY-MM-DD-short-slug.json`. |
-| `KinoPubAppleClient/Resources/whats-new.json` | **Frozen legacy archive.** Do not add new bullets here. |
+| `Piratic/Resources/WhatsNew/entries/<id>.json` | **New bullets.** One file per PR / visible change. Filename `YYYY-MM-DD-short-slug.json`. |
+| `Piratic/Resources/whats-new.json` | **Frozen legacy archive.** Do not add new bullets here. |
 
 `AppChangelog.load` merges both: entry files sort by date (then id), newest first, and
 prepend onto their marketing-version group. `WhatsNew` is an Xcode **folder reference**,

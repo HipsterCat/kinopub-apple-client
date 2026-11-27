@@ -1,0 +1,351 @@
+//
+//  MediaActionControl.swift
+//  PiraticUI
+//
+//  The button that draws a `MediaActionAppearance`. Owns spacing, the loading
+//  swap, symbol transitions, and the system chrome application so callers do
+//  not re-pad or restyle each time. Behaviour (Menu / PlayerLink / plain action)
+//  stays at the call site — wrap `MediaActionLabel` or use `MediaActionButton`.
+//
+
+import SwiftUI
+
+// MARK: - Label
+
+/// Glyph + optional progress + title, with loading replacing the content. Spacing
+/// and type come from `MediaActionMetrics` — do not pad around this.
+public struct MediaActionLabel: View {
+  public var appearance: MediaActionAppearance
+
+  public init(_ appearance: MediaActionAppearance) {
+    self.appearance = appearance
+  }
+
+
+  public var body: some View {
+    Group {
+      if appearance.isLoading {
+        if appearance.chrome == .circle {
+          MediaActionGlyphSlot {
+            ProgressView()
+#if !os(tvOS)
+              .controlSize(.small)
+#endif
+          }
+        } else {
+          ProgressView()
+#if !os(tvOS)
+            .controlSize(.small)
+#endif
+        }
+      } else {
+        content
+      }
+    }
+    .font(MediaActionMetrics.labelFont)
+    // The white Play's dark label (`mediaActionPlayPillStyle`), set on the label.
+    .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))
+#if os(tvOS)
+    // UIKit draws a button's symbol at the large scale of its title font; SwiftUI's
+    // default (medium) left the detail page's glyphs ~25% smaller than the Home hero's
+    // at the same type size (measured 2026-10-25).
+    .imageScale(.medium)
+#endif
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
+    .animation(.easeOut(duration: 0.2), value: appearance.isLoading)
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    switch appearance.chrome {
+    case .circle:
+      if let circular = appearance.circularProgress {
+        MediaActionGlyphSlot {
+          ZStack {
+            Circle()
+              .stroke(.tertiary, lineWidth: 4)
+            Circle()
+              .trim(from: 0, to: min(max(circular, 0), 1))
+              .stroke(.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+              .rotationEffect(.degrees(-90))
+            Image(systemName: appearance.systemImage)
+          }
+        }
+      } else {
+        MediaActionGlyphSlot {
+          Image(systemName: appearance.systemImage)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, value: appearance.systemImage)
+            .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+        }
+      }
+    case .playPill, .pill:
+      HStack(spacing: MediaActionMetrics.contentSpacing) {
+        // A text-only pill («+ ещё 2») names no symbol.
+        if !appearance.systemImage.isEmpty {
+          Image(systemName: appearance.systemImage)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, value: appearance.systemImage)
+        }
+        if let progress = appearance.progress {
+          MediaActionProgressTrack(progress: progress)
+        }
+        if let title = appearance.title {
+          Text(title)
+            .fixedSize(horizontal: true, vertical: false)
+            .contentTransition(.opacity)
+        }
+      }
+      .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+      .animation(.easeOut(duration: 0.25), value: appearance.title)
+    }
+  }
+}
+
+extension EnvironmentValues {
+  /// The colour a label's words were given, when it was given one (the Play pill), so
+  /// its progress bar is drawn in the same colour. A shape filled with `.primary` in a
+  /// glass button did not come out as the words' colour: the bar stayed a greyish white
+  /// over the grey pill while the words were black.
+  @Entry var mediaActionLabelColor: Color? = nil
+}
+
+/// Only the Play pill: any other label keeps the colour its button style gives it.
+/// The pill is filled with `.primary`, so its label is the other end of the scheme —
+/// black on the white pill over a picture or in dark, white on the black one in light.
+/// Not `.background`: inside a button label it resolves to the button's own fill, and
+/// the label vanished into the pill (white on white on iOS, black on black on a Mac).
+/// In an inactive Mac window the system greys the fill, and the label greys with it.
+private struct PlayPillLabelColor: ViewModifier {
+  let isPlayPill: Bool
+
+  @Environment(\.colorScheme) private var colorScheme
+#if os(macOS)
+  @Environment(\.appearsActive) private var appearsActive
+#else
+  private let appearsActive = true
+#endif
+
+  func body(content: Content) -> some View {
+    if isPlayPill {
+      if appearsActive {
+        // Black on the white Play (hero is forced dark); white on the black Play in light.
+        // tvOS always black: a focused button hands its label the inverted appearance,
+        // and the scheme rule painted white on white under focus.
+#if os(tvOS)
+        let label = Color.black
+#else
+        let label = colorScheme == .dark ? Color.black : Color.white
+#endif
+        content
+          .foregroundStyle(label)
+          .environment(\.mediaActionLabelColor, label)
+      } else {
+        content.foregroundStyle(.secondary)
+      }
+    } else {
+      content
+    }
+  }
+}
+
+/// One box for every circle's glyph, so `bell` → `bell.and.waves…` (or a spinner)
+/// cannot widen the button and look like the row's spacing grew.
+///
+/// tvOS: the measured slot. iOS / macOS: the square of the label's own type — a hidden
+/// `square` symbol at the current font and Dynamic Type size — with the glyph centred
+/// over it, so every circle is the same size and grows with the control's type.
+private struct MediaActionGlyphSlot<Content: View>: View {
+  @ViewBuilder var content: Content
+
+  var body: some View {
+#if os(tvOS)
+    content
+      .frame(width: MediaActionMetrics.circleGlyphSlot,
+             height: MediaActionMetrics.circleGlyphSlot)
+#else
+    Image(systemName: "square")
+      .hidden()
+      .overlay { content }
+#endif
+  }
+}
+
+// MARK: - Plain button
+
+/// `Button` + label + chrome. Prefer this for actions that are not a `Menu` or
+/// `PlayerLink`. Those wrap `MediaActionLabel` and call `mediaActionStyle(_:)`.
+public struct MediaActionButton: View {
+  public var appearance: MediaActionAppearance
+  public var action: () -> Void
+
+  public init(_ appearance: MediaActionAppearance, action: @escaping () -> Void) {
+    self.appearance = appearance
+    self.action = action
+  }
+
+  public var body: some View {
+    Button(action: action) {
+      MediaActionLabel(appearance)
+    }
+    .mediaActionStyle(appearance)
+    .disabled(appearance.isLoading)
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
+  }
+}
+
+// MARK: - Row
+
+/// Horizontal stack with catalog row spacing. Insert/remove transitions match the
+/// Mark Watched "scale out on success" sketch — animate **ids only**, not glyph
+/// swaps, so a bell toggle cannot look like the gaps grew.
+public struct MediaActionRow<Content: View>: View {
+  private let content: Content
+  /// Where each line of controls sits: leading, or centred (the phone hero).
+  private let alignment: HorizontalAlignment
+
+  public init(alignment: HorizontalAlignment = .leading, @ViewBuilder content: () -> Content) {
+    self.alignment = alignment
+    self.content = content()
+  }
+
+  public var body: some View {
+#if os(tvOS)
+    HStack(alignment: .center, spacing: MediaActionMetrics.rowSpacing) {
+      content
+    }
+#else
+    // One line while the labels fit. When they do not, the next ones drop to
+    // another line — a label is never cut down to "Play…".
+    ActionWrapLayout(spacing: MediaActionMetrics.rowSpacing, centersRows: alignment == .center) {
+      content
+    }
+#endif
+  }
+}
+
+/// Left-to-right rows that wrap once the next control does not fit.
+private struct ActionWrapLayout: Layout {
+  var spacing: CGFloat
+  var centersRows = false
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let limit = proposal.width ?? .greatestFiniteMagnitude
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var rowHeight: CGFloat = 0
+    var used: CGFloat = 0
+    for subview in subviews {
+      let size = subview.sizeThatFits(.unspecified)
+      if x > 0, x + size.width > limit {
+        used = max(used, x - spacing)
+        x = 0
+        y += rowHeight + spacing
+        rowHeight = 0
+      }
+      rowHeight = max(rowHeight, size.height)
+      x += size.width + spacing
+    }
+    used = max(used, max(0, x - spacing))
+    return CGSize(width: proposal.width ?? used, height: y + rowHeight)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    // Lines first, then each placed from where its alignment starts it.
+    var lines: [[(Subviews.Element, CGSize)]] = [[]]
+    var x: CGFloat = 0
+    for subview in subviews {
+      let size = subview.sizeThatFits(.unspecified)
+      if x > 0, x + size.width > bounds.width {
+        lines.append([])
+        x = 0
+      }
+      lines[lines.count - 1].append((subview, size))
+      x += size.width + spacing
+    }
+    var y = bounds.minY
+    for line in lines where !line.isEmpty {
+      let used = line.map(\.1.width).reduce(0, +) + spacing * CGFloat(line.count - 1)
+      var x = centersRows ? bounds.minX + max(0, (bounds.width - used) / 2) : bounds.minX
+      let rowHeight = line.map(\.1.height).max() ?? 0
+      for (subview, size) in line {
+        subview.place(at: CGPoint(x: x, y: y + (rowHeight - size.height) / 2),
+                      proposal: ProposedViewSize(size))
+        x += size.width + spacing
+      }
+      y += rowHeight + spacing
+    }
+  }
+}
+
+/// Typed row over appearances — use when every slot is a plain `MediaActionButton`.
+/// Hero / detail pass a custom content builder because Play is a `PlayerLink` and
+/// Bookmark is a `Menu`.
+public struct MediaActionButtonRow: View {
+  public var appearances: [MediaActionAppearance]
+  public var action: (MediaActionID) -> Void
+
+  public init(
+    _ appearances: [MediaActionAppearance],
+    action: @escaping (MediaActionID) -> Void
+  ) {
+    self.appearances = appearances
+    self.action = action
+  }
+
+  public var body: some View {
+    MediaActionRow {
+      ForEach(appearances) { appearance in
+        MediaActionButton(appearance) {
+          action(appearance.id)
+        }
+        .transition(.asymmetric(
+          insertion: .scale(scale: 0.85).combined(with: .opacity),
+          removal: .scale(scale: 0.85).combined(with: .opacity)
+        ))
+      }
+    }
+//    .animation(.easeOut(duration: 0.25), value: appearances.map(\.id))
+  }
+}
+
+// MARK: - Chrome application
+
+public extension View {
+  /// Apply the catalog chrome to a `Button`, `Menu`, or `PlayerLink` label host.
+  @ViewBuilder
+  func mediaActionStyle(_ chrome: MediaActionChrome) -> some View {
+    switch chrome {
+    case .playPill:
+      self.mediaActionPlayPillStyle()
+    case .pill:
+      self.mediaActionPillStyle()
+    case .circle:
+      self.mediaActionCircleStyle()
+    }
+  }
+
+  /// The chrome, plus on a Mac the action's name as a tooltip on the icon-only circles:
+  /// hovering a glyph is the only way to learn what it does there.
+  @ViewBuilder
+  func mediaActionStyle(_ appearance: MediaActionAppearance) -> some View {
+#if os(macOS)
+    if appearance.chrome == .circle {
+      mediaActionStyle(appearance.chrome)
+        .help(Text(appearance.accessibilityLabel))
+    } else {
+      mediaActionStyle(appearance.chrome)
+    }
+#elseif os(tvOS)
+    switch appearance.id {
+    case .play:
+      // One view type in both chromes, so a chrome change keeps the control (and focus).
+      mediaActionPlayControlStyle(primary: appearance.chrome == .playPill)
+    default:
+      mediaActionStyle(appearance.chrome)
+    }
+#else
+    mediaActionStyle(appearance.chrome)
+#endif
+  }
+}

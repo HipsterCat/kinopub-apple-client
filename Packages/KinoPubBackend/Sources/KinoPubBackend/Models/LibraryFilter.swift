@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// How the library listing is sorted.
 ///

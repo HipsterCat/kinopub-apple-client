@@ -3,7 +3,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// Which episode Continue Watching should offer for a series, and whether that episode
 /// is one the viewer is in the middle of.

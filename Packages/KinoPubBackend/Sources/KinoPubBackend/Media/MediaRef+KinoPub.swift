@@ -5,7 +5,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 public extension WatchingMetadata {
   /// Nil for an episode never stamped with its series id (`isResolved`): a ref to item 0

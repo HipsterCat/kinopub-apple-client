@@ -1,0 +1,38 @@
+//
+//  SeasonsView.swift
+//  Piratic
+//
+//  Created by Kirill Kunst on 4.11.2023.
+//
+
+import Foundation
+import SwiftUI
+import PiraticUI
+import KinoPubBackend
+
+struct SeasonsView: View {
+  @StateObject private var model: SeasonsModel
+
+  init(model: @autoclosure @escaping () -> SeasonsModel) {
+    _model = StateObject(wrappedValue: model())
+  }
+
+  var body: some View {
+    VStack {
+      listView
+    }
+    .platformNavigationTitle("Seasons")
+    .background(Color.Piratic.background)
+  }
+
+  var listView: some View {
+    List(model.seasons) { season in
+      NavigationLink(value: model.linkProvider.season(for: season)) {
+        Text(season.fixedTitle)
+      }
+    }
+#if !os(tvOS)
+    .scrollContentBackground(.hidden)
+#endif
+  }
+}

@@ -7,7 +7,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// A series' episodes in reading order, each with what the viewer has done with it.
 ///

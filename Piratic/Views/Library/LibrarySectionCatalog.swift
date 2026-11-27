@@ -1,0 +1,529 @@
+//
+//  LibrarySectionCatalog.swift
+//  Piratic
+//
+
+import Foundation
+import Combine
+import KinoPubBackend
+import PiraticMedia
+import PiraticUI
+import PiraticLogging
+import OSLog
+
+/// The grid behind one Library sidebar section.
+///
+/// Page 1 lives in `ContentStore`, so switching back to a section paints instantly
+/// (and still paints offline). Pages past the first are session-only: `RowState` has
+/// no pagination, and caching a half-scrolled folder to disk would mean deciding what
+/// a partially-cached list even means on the next launch. Scroll position is not
+/// restored across section switches either, so the extra pages have nothing to serve.
+@MainActor
+final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
+
+  /// Page 1 (from the store) followed by any pages this session has paged in.
+  @Published private(set) var cards: [MediaCard] = []
+  /// True while the first page is on its way — the grid draws placeholders.
+  @Published private(set) var isLoading = false
+  @Published private(set) var isLoaded = false
+  /// Nothing to show *and* the fetch failed — the view swaps to a retry state. A
+  /// cached page always wins over this.
+  @Published private(set) var loadFailed = false
+  @Published private(set) var loadError: Error?
+  /// A page past the first failed: keep what is on screen, offer an inline retry.
+  @Published private(set) var paginationFailed = false
+  /// A page past the first is in flight.
+  @Published private(set) var isLoadingMore = false
+
+  /// What the grid footer should say. `.complete` needs a `pagination` to be sure —
+  /// the unpaginated sections never reach it and stay `.idle`.
+  var paginationState: PaginationState {
+    if isLoadingMore { return PaginationState(phase: .loading, loadedCount: cards.count) }
+    if paginationFailed { return PaginationState(phase: .failed, loadedCount: cards.count) }
+    guard section.isPaginated, let pagination, pagination.current >= pagination.total
+    else { return .idle }
+    return PaginationState(phase: .complete, loadedCount: cards.count)
+  }
+
+  /// Another page may exist: the grid ends on a skeleton row and a spinner. Page 1 from
+  /// the store carries no pagination, so a paginated section counts as "maybe more"
+  /// until page 2 answers.
+  var hasMorePages: Bool {
+    guard section.isPaginated, !paginationFailed, !cards.isEmpty else { return false }
+    guard let pagination else { return true }
+    return pagination.current < pagination.total
+  }
+
+  private(set) var section: LibrarySection = .watchlist
+
+  /// Following's header switch: Unwatched (default) or All. All keeps unwatched
+  /// series first, then a section of fully watched series.
+  @Published var followingScope: LibraryFollowingScope = .unwatched
+
+  /// Sort / type / year the header chips drive. Bookmark folders have no filter
+  /// parameters on the wire, so picks apply to what is already loaded.
+  @Published var filter = LibraryFilter()
+  @Published private(set) var genres: [MediaGenre] = []
+  @Published private(set) var countries: [Country] = []
+  /// Nil until the user picks a sort — the server's order stays until then.
+  private var userSorted = false
+
+  private var pagedCards: [MediaCard] = []
+  private var pagination: Pagination?
+  private var isFetchingPage = false
+
+  private let contentService: VideoContentService
+  private let authState: AuthState
+  private let errorHandler: ErrorHandler
+  private let store: ContentStore
+  private var bag = Set<AnyCancellable>()
+  /// Progress ticks while the player is up only set this; the invalidate runs once
+  /// when the session clears so Library's next `activate` sees stale rows without
+  /// bumping generation on every ~10 s mark.
+  private var pendingWatchInvalidate = false
+
+  init(contentService: VideoContentService,
+       authState: AuthState,
+       errorHandler: ErrorHandler,
+       store: ContentStore = AppContext.shared.contentStore) {
+    self.contentService = contentService
+    self.authState = authState
+    self.errorHandler = errorHandler
+    self.store = store
+    // Watching something changes what the server lists here: a subscription whose last
+    // new episode was just watched leaves Subscriptions, a film finished leaves
+    // Unwatched, and History gains a row. The player writes local progress as it goes;
+    // the next `activate` — coming back to the Library — refetches instead of painting
+    // the cached page for the rest of its TTL (Sasha, 2026-10-03).
+    //
+    // While the player is active, only mark the need — do not invalidate on every
+    // progress tick (that used to notify Home and flood watching/history/bookmarks).
+    NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        self?.noteWatchProgressChanged()
+      }
+      .store(in: &bag)
+    PlaybackSession.shared.$manager
+      .receive(on: RunLoop.main)
+      .sink { [weak self] manager in
+        guard manager == nil else { return }
+        self?.flushPendingWatchInvalidate()
+      }
+      .store(in: &bag)
+  }
+
+  /// The Library rows that playback changes on the server.
+  static let rowsWatchingChanges: [RowKey] = [.watchlist, .unfinishedSerials, .history]
+
+  private func noteWatchProgressChanged() {
+    if PlaybackSession.shared.currentManager != nil {
+      pendingWatchInvalidate = true
+      return
+    }
+    store.invalidate(Self.rowsWatchingChanges)
+  }
+
+  private func flushPendingWatchInvalidate() {
+    guard pendingWatchInvalidate else { return }
+    pendingWatchInvalidate = false
+    store.invalidate(Self.rowsWatchingChanges)
+  }
+
+  // MARK: - Section switching
+
+  /// Point the catalog at a section: paint whatever is cached for it, then refresh in
+  /// the background if that cache is stale. Safe to call again for the same section.
+  func activate(_ section: LibrarySection) async {
+    if section != self.section {
+      self.section = section
+      pagedCards = []
+      pagination = nil
+      paginationFailed = false
+      loadFailed = false
+      loadError = nil
+      isLoaded = false
+      filter = LibraryFilter()
+      userSorted = false
+      followingScope = .unwatched
+    }
+    await loadPickerDataIfNeeded()
+    await load(force: false)
+  }
+
+  @Sendable
+  func refresh() async {
+    errorHandler.reset()
+    pagedCards = []
+    pagination = nil
+    paginationFailed = false
+    await load(force: true)
+  }
+
+  private func load(force: Bool) async {
+    guard section.usesCardGrid else {
+      cards = []
+      isLoaded = true
+      return
+    }
+    guard authState.userState == .authorized else {
+      subscribeForAuth()
+      return
+    }
+    guard let key = section.rowKey else { return }
+
+    // Paint first, fetch second — even a stale page beats an empty pane.
+    publishCards()
+    isLoading = cards.isEmpty
+    isLoaded = !cards.isEmpty
+
+    let section = self.section
+    let service = contentService
+    let fetch: @Sendable () async throws -> [RowItem] = {
+      try await Self.firstPage(of: section, using: service).cards.map(RowItem.card)
+    }
+    if force {
+      await store.refresh(key, fetch: fetch)
+    } else {
+      await store.refreshIfStale(key, fetch: fetch)
+    }
+    // A slow switch can resolve after the user has moved on — don't paint someone
+    // else's section over the current one.
+    guard section == self.section else { return }
+
+    publishCards()
+    isLoading = false
+    isLoaded = true
+    let error = store.lastError(key)
+    loadFailed = cards.isEmpty && error != nil
+    loadError = cards.isEmpty ? error : nil
+    if !cards.isEmpty, let error {
+      errorHandler.setError(error)
+    }
+  }
+
+  private func publishCards() {
+    let cached = section.rowKey.map { store.cards($0) } ?? []
+    // Page 2 can return while the store is still refreshing page 1, and the two
+    // lists then share an id. The grid's identity is that id, so the first copy wins.
+    var seen = Set<Int>()
+    let merged = (cached + pagedCards).filter { seen.insert($0.id).inserted }
+    cards = Self.apply(filter, to: merged, sorted: userSorted)
+  }
+
+  func update(_ transform: (inout LibraryFilter) -> Void) {
+    var updated = filter
+    transform(&updated)
+    guard updated != filter else { return }
+    if updated.sort != filter.sort { userSorted = true }
+    filter = updated
+    publishCards()
+  }
+
+  func clearFilters() {
+    filter = LibraryFilter(sort: filter.sort)
+    publishCards()
+  }
+
+  private func loadPickerDataIfNeeded() async {
+    guard genres.isEmpty || countries.isEmpty else { return }
+    async let genresTask = try? contentService.fetchGenres(for: nil).items
+    async let countriesTask = try? contentService.fetchCountries().items
+    genres = (await genresTask) ?? genres
+    countries = (await countriesTask) ?? countries
+  }
+
+  /// Type, year and genre from the header chips; sort only after the user picks one.
+  nonisolated static func apply(_ filter: LibraryFilter,
+                                to cards: [MediaCard],
+                                sorted: Bool) -> [MediaCard] {
+    var result = cards
+    if !filter.kinds.isEmpty {
+      let episodic = filter.kinds.contains(where: \.isEpisodic)
+      let films = filter.kinds.contains { !$0.isEpisodic }
+      if episodic != films {
+        result = result.filter { $0.isSeries == episodic }
+      }
+    }
+    if let from = filter.yearFrom {
+      result = result.filter { ($0.year ?? 0) >= from }
+    }
+    if let to = filter.yearTo {
+      result = result.filter { let year = $0.year ?? $0.yearEnd ?? 0; return year <= to }
+    }
+    if !filter.genreIDs.isEmpty {
+      // By the model's genre ids: kino.pub's ids for each of the card's genres.
+      let wanted = Set(filter.genreIDs)
+      result = result.filter { card in
+        card.genres.contains { !wanted.isDisjoint(with: GenreVocabulary.kinopubIDs(ofGenre: $0.id)) }
+      }
+    }
+    guard sorted else { return result }
+    switch filter.sort {
+    case .title: return result.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    case .year: return result.sorted { ($0.year ?? 0) > ($1.year ?? 0) }
+    case .kinopoiskRating: return result.sorted { ($0.scores.kinopoiskScore ?? 0) > ($1.scores.kinopoiskScore ?? 0) }
+    case .imdbRating: return result.sorted { ($0.scores.imdbScore ?? 0) > ($1.scores.imdbScore ?? 0) }
+    case .recentlyAdded, .recentlyUpdated, .views, .watchers, .rating: return result
+    }
+  }
+
+  // MARK: - Pagination
+
+  func loadMoreContent(after card: MediaCard) {
+    guard section.isPaginated,
+          CatalogLoadMore.isThresholdID(card.id, lastID: cards.last?.id),
+          !isFetchingPage else { return }
+    if let pagination, pagination.current >= pagination.total { return }
+    // Page 1 came from the store, which keeps no pagination — ask for page 2 and let
+    // the response tell us whether there is more after that.
+    let next = pagination.map { $0.current + 1 } ?? 2
+    Task { await loadPage(next) }
+  }
+
+  func retryPagination() {
+    paginationFailed = false
+    let next = pagination.map { $0.current + 1 } ?? 2
+    Task { await loadPage(next) }
+  }
+
+  /// Raw history *entries* per request on the Library History grid. History is one row
+  /// per play, and under `HistoryGrouping.byShow` those collapse to one card per title
+  /// — so a page of 20 entries can easily be three cards for someone part-way through
+  /// a season. 50 keeps that grid filling in one round trip instead of three.
+  static let historyPerPage = 50
+
+  /// A page that adds nothing new must not end the list, but chasing it forever is
+  /// worse. Three consecutive all-duplicate pages and we stop until the user scrolls
+  /// again.
+  private static let emptyPageBudget = 3
+
+  private func loadPage(_ page: Int) async {
+    guard !isFetchingPage else { return }
+    isFetchingPage = true
+    defer { isFetchingPage = false }
+    isLoadingMore = true
+    defer { isLoadingMore = false }
+
+    var page = page
+    var barren = 0
+
+    while true {
+      let section = self.section
+      do {
+        let result = try await Self.page(page, of: section, using: contentService)
+        guard section == self.section else { return }
+
+        // Appending blind put duplicate ids into the grid, where `ForEach` keeps the
+        // first and silently drops the rest: three requests, nothing new on screen —
+        // and, because the last card never changed, its `onAppear` kept asking. Still
+        // needed with grouping off: two pages can carry the same play, and ids are
+        // synthesised from the entry precisely so identical plays collide here. One
+        // response can repeat an id too, so the set grows as the page is accepted.
+        var seen = Set(cards.map(\.id))
+        let fresh = result.cards.filter { seen.insert($0.id).inserted }
+
+        pagedCards.append(contentsOf: fresh)
+        pagination = result.pagination
+        paginationFailed = false
+        publishCards()
+
+        guard fresh.isEmpty else { return }
+        // Nothing new, and the threshold card is unchanged — no further `onAppear`
+        // will fire, so the grid would sit there looking finished. Walk forward
+        // ourselves rather than stalling.
+        barren += 1
+        guard barren < Self.emptyPageBudget,
+              let pagination, pagination.current < pagination.total else { return }
+        page = pagination.current + 1
+      } catch {
+        guard section == self.section else { return }
+        paginationFailed = true
+        Logger.app.debug("Library section page \(page) failed, keeping loaded cards: \(error)")
+        errorHandler.setError(error)
+        return
+      }
+    }
+  }
+ 
+  // MARK: - Fetching
+
+
+  private struct PageResult {
+    var cards: [MediaCard]
+    var pagination: Pagination?
+  }
+
+  private nonisolated static func firstPage(of section: LibrarySection,
+                                            using service: VideoContentService) async throws -> PageResult {
+    try await page(nil, of: section, using: service)
+  }
+
+  private nonisolated static func page(_ page: Int?,
+                                       of section: LibrarySection,
+                                       using service: VideoContentService) async throws -> PageResult {
+    switch section {
+    case .watchlist:
+      let items = try await WatchingListCache.shared.serials(subscribedOnly: true, using: service)
+      return PageResult(cards: items.map { followingCard(for: $0) }, pagination: nil)
+    case .unwatched:
+      return PageResult(cards: try await continueCards(using: service), pagination: nil)
+    case .history:
+      let data = try await service.fetchHistory(page: page, perPage: historyPerPage)
+      return PageResult(cards: HistoryView.cards(from: data.history, grouping: HistoryGrouping.current),
+                        pagination: data.pagination)
+    case .folder(let id):
+      let data = try await service.fetchBookmarkItems(id: "\(id)", page: page)
+      return PageResult(cards: data.items.map(MediaCard.init), pagination: data.pagination)
+    case .allBookmarks:
+      return try await allBookmarkCards(page: page, using: service)
+    case .downloads:
+      // Local files — `DownloadsView` owns that section, this catalog never fetches it.
+      return PageResult(cards: [], pagination: nil)
+    }
+  }
+
+  /// `/v1/watching/serials?subscribed=1` — the Library's Following. Unwatched count
+  /// lives on `unwatchedEpisodes` (Appearance chrome / tvOS caption); subtitle stays
+  /// the original title like every other poster.
+  nonisolated static func followingCard(for item: WatchingItem) -> MediaCard {
+    let left = item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
+    return MediaCard(id: item.id,
+                     posterURL: item.posters.medium,
+                     title: item.localizedTitle,
+                     subtitle: item.originalTitle,
+                     progress: item.progress,
+                     backdropURL: item.posters.wideURL ?? item.posters.big,
+                     isSeries: true,
+                     viewerState: ViewerState(isFollowing: true),
+                     unwatchedEpisodes: left,
+                     kinopoiskID: item.kinopoisk)
+  }
+
+  /// Every folder's titles, first page of each in parallel, then the same page
+  /// number on load-more. Duplicates (a title in two folders) keep the first copy.
+  private nonisolated static func allBookmarkCards(page: Int?,
+                                                   using service: VideoContentService) async throws -> PageResult {
+    let folders = try await service.fetchBookmarks().items
+    guard !folders.isEmpty else {
+      return PageResult(cards: [], pagination: Pagination(total: 1, current: 1, perpage: 20))
+    }
+    return try await withThrowingTaskGroup(of: ([MediaCard], Int, Int).self) { group in
+      for folder in folders {
+        group.addTask {
+          let data = try await service.fetchBookmarkItems(id: "\(folder.id)", page: page)
+          let current = data.pagination?.current ?? page ?? 1
+          let total = data.pagination?.total ?? current
+          return (data.items.map(MediaCard.init), current, total)
+        }
+      }
+      var seen = Set<Int>()
+      var merged: [MediaCard] = []
+      var current = page ?? 1
+      var total = current
+      for try await (cards, pageCurrent, pageTotal) in group {
+        current = max(current, pageCurrent)
+        total = max(total, pageTotal)
+        for card in cards where seen.insert(card.id).inserted {
+          merged.append(card)
+        }
+      }
+      return PageResult(cards: merged,
+                        pagination: Pagination(total: total, current: current, perpage: 20))
+    }
+  }
+
+  /// Continue: kino.pub's unfinished films (`/v1/watching/movies`, the reference client's
+  /// «Недосмотренные › Фильмы») and unfinished series (`/v1/watching/serials?subscribed=0`)
+  /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
+  /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
+  nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
+    // Hop onto the main actor for `WatchingListCache` (#125).
+    try await continueCardsMain(using: service)
+  }
+
+  @MainActor
+  private static func continueCardsMain(using service: VideoContentService) async throws -> [MediaCard] {
+    let watching = WatchingListCache.shared
+    async let moviesTask = watching.movies(using: service)
+    async let unfinishedTask = watching.serials(subscribedOnly: false, using: service)
+    async let followedTask = watching.serials(subscribedOnly: true, using: service)
+    let movies = try await moviesTask
+    let unfinished = (try? await unfinishedTask) ?? []
+    let followed = Set(((try? await followedTask) ?? []).map(\.id))
+    var seen = Set<Int>()
+    // The three lists are the section; no `/v1/history` (Sasha, 2026-11-23).
+    return (movies + unfinished.filter { !followed.contains($0.id) })
+      .filter { seen.insert($0.id).inserted }
+      .map { continueCard(for: $0, history: nil) }
+  }
+
+  /// `/v1/watching/*` plus the newest history / local resume point for remaining time.
+  nonisolated static func continueCard(for item: WatchingItem,
+                                       history: HistoryEntry?,
+                                       local: LocalWatchEntry? = nil) -> MediaCard {
+    let isSeries = item.type.contains("serial")
+    let wide = MediaCard.titleWideArtwork(posters: item.posters)
+      ?? MediaCard.titleWideArtwork(posters: history?.item.posters)
+      ?? MediaCard.titleWideArtwork(posters: local?.item.posters)
+    let progress = history?.progress ?? local?.progress
+    let duration = history?.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
+      ?? local.flatMap { $0.duration >= 60 ? Int($0.duration) : nil }
+    let remaining: String?
+    if let progress, let duration {
+      remaining = RemainingText(progress: progress, durationSeconds: duration).formatted(.medium)
+    } else {
+      remaining = nil
+    }
+    return MediaCard(id: item.id,
+                     posterURL: item.posters.medium,
+                     title: item.localizedTitle,
+                     subtitle: remaining,
+                     progress: progress,
+                     backdropURL: wide,
+                     landscapeImageURL: wide,
+                     itemID: item.id,
+                     video: history?.media?.number ?? local?.episode ?? (isSeries ? nil : 1),
+                     season: history?.isEpisode == true ? history?.media?.snumber : local?.season,
+                     mediaID: history?.media?.id,
+                     isSeries: isSeries,
+                     durationSeconds: duration,
+                     primaryAction: .play,
+                     kinopoiskID: item.kinopoisk)
+  }
+
+  /// A followed series with nothing left to watch. `nil` unwatched counts stay with
+  /// the unwatched group — hiding an unknown row is worse than showing it.
+  nonisolated static func isCaughtUp(_ card: MediaCard) -> Bool {
+    card.unwatchedEpisodes == 0
+  }
+
+  /// Following: Unwatched is the default listing; All keeps that group first, then
+  /// fully watched series under their own heading.
+  nonisolated static func followingPageGroups(
+    from cards: [MediaCard],
+    scope: LibraryFollowingScope
+  ) -> [(id: String, isWatched: Bool, cards: [MediaCard])] {
+    let unwatched = cards.filter { !isCaughtUp($0) }
+    let watched = cards.filter(isCaughtUp)
+    switch scope {
+    case .unwatched:
+      return [("following.unwatched", false, unwatched)]
+    case .all:
+      var groups: [(id: String, isWatched: Bool, cards: [MediaCard])] = []
+      if !unwatched.isEmpty {
+        groups.append(("following.unwatched", false, unwatched))
+      }
+      if !watched.isEmpty {
+        groups.append(("following.watched", true, watched))
+      }
+      return groups
+    }
+  }
+
+  private func subscribeForAuth() {
+    authState.$userState.filter({ $0 == .authorized }).first().sink { [weak self] _ in
+      Task { await self?.load(force: false) }
+    }.store(in: &bag)
+  }
+}

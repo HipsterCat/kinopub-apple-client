@@ -7,7 +7,7 @@
 //
 
 import Foundation
-import KinoPubMedia
+import PiraticMedia
 
 /// **What the viewer has done with one thing** (`MediaRef`): how far they got, whether it
 /// is watched, whether they follow it, in which bookmark folders, downloaded, voted on.

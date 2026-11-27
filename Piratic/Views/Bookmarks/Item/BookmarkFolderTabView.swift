@@ -1,0 +1,31 @@
+//
+//  BookmarkFolderTabView.swift
+//  Piratic
+//
+
+import SwiftUI
+import PiraticUI
+import KinoPubBackend
+
+/// One bookmark folder as a sidebar tab — own stack so folder switches stay isolated.
+struct BookmarkFolderTabView: View {
+  @Environment(NavigationState.self) var navigationState
+  @Environment(ErrorHandler.self) var errorHandler
+  @EnvironmentObject var authState: AuthState
+  @Environment(\.appContext) var appContext
+
+  let bookmark: Bookmark
+  @State private var path: [BookmarksRoutes] = []
+
+  var body: some View {
+    NavigationStack(path: $path) {
+      BookmarkView(model: BookmarkModel(bookmark: bookmark,
+                                        itemsService: appContext.contentService,
+                                        errorHandler: errorHandler))
+        .appRouteDestinations()
+    }
+    .navigationStackActive(for: .bookmark(bookmark.id), selected: navigationState.selectedTab)
+    .id(bookmark.id)
+  }
+
+}

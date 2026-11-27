@@ -6,7 +6,7 @@
 //
 
 import XCTest
-import KinoPubMedia
+import PiraticMedia
 @testable import KinoPubBackend
 
 final class EpisodeQueueTests: XCTestCase {

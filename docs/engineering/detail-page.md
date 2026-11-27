@@ -10,7 +10,7 @@ How the title page is built and why. The short rules are in [AGENTS.md](../../AG
     content changes over it (Sasha, overruling the 2026-09-27 "artwork is part of the hero").
     The hero and the sections stay one scroll and one focus graph.
   - Sasha will supply mean colours / gradients per title and wants them crossfaded, Apple-style.
-  What is merely there now (`PageBackdrop` in KinoPubUI, `Route.backdrop`): a stage around the
+  What is merely there now (`PageBackdrop` in PiraticUI, `Route.backdrop`): a stage around the
   tab view showing the picture of the selected tab's top route; the title's page publishes it;
   the hero reports focus in the sections (`pageBackdropDetails`) and the picture fades out to
   the system background there. Rejected on the way, with Sasha's reasons: a lifecycle-claimed
@@ -35,15 +35,15 @@ How the title page is built and why. The short rules are in [AGENTS.md](../../AG
   (Sasha, 2026-10-01). Coming back from the player the hero claims the same entry control
   again — Follow when it leads, else Play, Replay included — because the row usually changed
   under the control that had focus (Sasha, 2026-10-03).
-- **Detail page UI tests run on fixtures.** `-KINOPUBDetailFixture <name>` (DEBUG, tvOS) makes
+- **Detail page UI tests run on fixtures.** `-PIRATICDetailFixture <name>` (DEBUG, tvOS) makes
   the root a stack of local titles served by stand-ins for the API, TMDB and the player
   (`DetailFixture.swift`); `TVDetailPageUITests` walks them with the remote and CI prints the
   screenshots into the tvOS test job's log. `film` is the one with every row populated and local
   artwork, so a layout is looked at with no session and no network (`TVDetailLayoutUITests`).
-  Companions: `-KINOPUBFixtureRealArt YES` (the shelves' posters come over the network and are
-  cached, as a signed-in session's do), `-KINOPUBFixtureInTabs YES` (the stack sits under
-  production's tab bar) and `-KINOPUBSlowShelves <s>` (the shelves arrive late, while the hero
-  holds focus). `-KINOPUBLibraryFixture YES` is the same idea for the Library: the real page on a
+  Companions: `-PIRATICFixtureRealArt YES` (the shelves' posters come over the network and are
+  cached, as a signed-in session's do), `-PIRATICFixtureInTabs YES` (the stack sits under
+  production's tab bar) and `-PIRATICSlowShelves <s>` (the shelves arrive late, while the hero
+  holds focus). `-PIRATICLibraryFixture YES` is the same idea for the Library: the real page on a
   stand-in API listing twelve followed series (`LibraryFixture`, `TVDetailLayoutUITests`) — how the
   *Following* captions («2 серии») look, with no session. **Run it on both simulator runtimes, tvOS 27.2 and 26.5 — and once on an Apple TV 4K device that is not "(at 1080p)"** (scale 2; it is the first device CI picks, and a lockup computes its focus growth in whole points there: art 254 where 1080p reads 256) — they differ: on 26.5
   the poster art's focus bug above (and, before captions became ours, a system footer's height changed how tall art grew — see Troubleshooting).
