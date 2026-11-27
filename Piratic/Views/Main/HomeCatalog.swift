@@ -809,13 +809,12 @@ class HomeCatalog: ObservableObject {
     assembleRows()
   }
 
-  /// Force a Continue Watching refetch and paint. Used when a watch-family
-  /// invalidate fires (mark / toggle / follow / hide) — not on every foreground.
-  /// Foreground only calls `repaintFromLocalProgress`.
+  /// A watch-family invalidate forces a refresh. Foreground checks the row's TTL
+  /// so activity on another device can show up without restarting the app.
   ///
   /// While the player is active, only re-apply local progress: the watch-mark
   /// path is the only network that should run then.
-  func refreshContinueWatching() async {
+  func refreshContinueWatching(onlyIfStale: Bool = false) async {
     guard includesContinueWatching, authState.userState == .authorized else {
       assembleRows()
       return
@@ -824,6 +823,7 @@ class HomeCatalog: ObservableObject {
       assembleRows()
       return
     }
+    guard !onlyIfStale || store.isStale(.continueWatching) else { return }
     await store.refresh(.continueWatching) { [weak self] in
       guard let self else { throw CancellationError() }
       return try await self.fetchContinueWatchingCards().map(RowItem.card)
@@ -1248,7 +1248,9 @@ class HomeCatalog: ObservableObject {
     // "When did the new episode come out" is only on the title's payload (`updated_at`);
     // the list carries none. It is sorted by that date, newest first (live 2026-10-25),
     // so the row's worth from its top is all that can make the row.
-    let released = Array(watchlist.filter(\.hasNewEpisodes).prefix(rules.maxItems))
+    let released = Array(watchlist.filter {
+      $0.hasNewEpisodes && (lastSeen[$0.id] != nil || ($0.new ?? 0) <= ContinueWatchingOrder.followedBacklog)
+    }.prefix(cap))
     var details = await titleDetails(for: released,
                                      serverListed: serverListed,
                                      versions: Dictionary(uniqueKeysWithValues: released.map { ($0.id, version($0)) }))
@@ -1261,7 +1263,7 @@ class HomeCatalog: ObservableObject {
         isSubscribed: watchlistIDs.contains(item.id),
         updatedAt: details[item.id].flatMap { $0.updatedAt > 0 ? Date(timeIntervalSince1970: TimeInterval($0.updatedAt)) : nil },
         bookmarkedAt: bookmarkedAt[item.id],
-        isListedUnfinished: !watchlistIDs.contains(item.id) && unfinishedIDs.contains(item.id)
+        isListedUnfinished: unfinishedIDs.contains(item.id)
       )
     }
     // The whole ranking, drawn from the top until the row is full: a series whose every
@@ -1294,7 +1296,11 @@ class HomeCatalog: ObservableObject {
         return card
       }
     }
-    return Array(cards.prefix(cap))
+    // The draw order reserves space for playback and subscriptions. Display the
+    // selected cards on the same activity timeline as the local progress overlay.
+    return cards.prefix(cap).sorted {
+      ($0.continueWatchingActivityDate ?? .distantPast) > ($1.continueWatchingActivityDate ?? .distantPast)
+    }
   }
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.

@@ -16,7 +16,7 @@ import PiraticMetadata
 /// type pull-down. Elsewhere the same filters sit over the shared list.
 ///
 /// TMDB `combined_credits` fill titles Kinopub does not carry — same chronological
-/// grid as the Kinopub listing, with a «Нет на Кинопабе» badge (not a second rail).
+/// grid as the Kinopub listing, with a «Недоступно» badge (not a second rail).
 /// Matched against the **loaded** Kinopub window only — no page prefetch, no false
 /// unavailable for titles that may still appear later. Catalog queries use
 /// `MediaPerson.catalogNames` / `also_known_as`, not display localization alone.

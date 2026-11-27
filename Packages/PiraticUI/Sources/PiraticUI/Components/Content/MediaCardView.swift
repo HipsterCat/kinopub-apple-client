@@ -137,7 +137,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Single-click / Select on the still. Continue Watching and Recently Watched
   /// landscape use `.play`; the title under the still opens detail separately.
   public let primaryAction: MediaCardPrimaryAction
-  /// Lock chip for content not on kino.pub («Нет на Кинопабе»). Artwork stays full
+  /// Lock chip for content not on kino.pub («Недоступно»). Artwork stays full
   /// opacity — chip only. Not encoded; the rail / person page builds it every time.
   public var unavailableNotice: String? = nil
   /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
@@ -1298,13 +1298,7 @@ public struct MediaCardView: View {
             .accessibilityHidden(true)
         }
         if let notice = card.unavailableNotice {
-          Label(notice, systemImage: "lock.fill")
-            .font(.caption2.weight(.medium))
-            .labelStyle(.titleAndIcon)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+          unavailableBadge(notice)
             .padding(.leading, 6)
             .padding(.bottom, 6)
         }
@@ -1406,9 +1400,11 @@ public struct MediaCardView: View {
           .foregroundStyle(.white)
           .padding(.horizontal, MediaCapabilityBadgesView.horizontalPadding)
           .padding(.vertical, MediaCapabilityBadgesView.verticalPadding)
-          // Opaque plate — not `.ultraThinMaterial`. Materials on every poster
-          // re-sample the backdrop while Home scrolls (Mac hitch).
-          .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+          .modifier(ArtworkBadgeBackground(
+            shape: RoundedRectangle(cornerRadius: 4),
+            tint: .black,
+            opacity: 0.55
+          ))
           .accessibilityLabel(Text(chip))
       }
     }
@@ -1425,10 +1421,14 @@ public struct MediaCardView: View {
       .padding(.vertical, 3)
       .background {
         GeometryReader { geo in
-          Capsule()
-            .fill(Color.Piratic.accent)
+          Color.clear
             .frame(width: max(geo.size.width, geo.size.height),
                    height: geo.size.height)
+            .modifier(ArtworkBadgeBackground(
+              shape: Capsule(),
+              tint: Color.Piratic.accent,
+              opacity: editorialBadgeOpacity
+            ))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
       }
@@ -1436,6 +1436,14 @@ public struct MediaCardView: View {
 //#if !os(tvOS)
 //      .shadow(radius: 4)
 //#endif
+  }
+
+  private var editorialBadgeOpacity: Double {
+#if os(tvOS)
+    1
+#else
+    0.85
+#endif
   }
 
   /// Points box for Nuke downsample. Wait for the width probe — decoding at
@@ -1588,18 +1596,23 @@ public struct MediaCardView: View {
     }
     .overlay(alignment: .topLeading) {
       if let notice = card.unavailableNotice {
-        // Same opaque chip language as `LandscapeTimeBadge` — no material sampling
-        // while the rail scrolls under the pointer.
-        Label(notice, systemImage: "lock.fill")
-          .font(.caption2.weight(.medium))
-          .labelStyle(.titleAndIcon)
-          .foregroundStyle(.white)
-          .padding(.horizontal, 6)
-          .padding(.vertical, 3)
-          .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
+        unavailableBadge(notice)
           .padding(6)
       }
     }
+  }
+
+  private func unavailableBadge(_ notice: String) -> some View {
+    HStack(spacing: 4) {
+      Image(systemName: "lock.fill")
+        .accessibilityHidden(true)
+      Text(notice)
+    }
+    .font(.caption2.weight(.medium))
+    .foregroundStyle(.white)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 3)
+    .modifier(ArtworkBadgeBackground(shape: Capsule(), tint: .black, opacity: 0.55))
   }
 
   private func progressBar(_ progress: Double) -> some View {

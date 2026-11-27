@@ -22,6 +22,9 @@ tile at rest, not only on focus.
 
 ## Interaction
 
+**prd** — On iPhone, iPad and Mac the rail scrolls freely during the gesture and aligns
+with a card when it settles. A fast swipe can pass multiple cards.
+
 **prd** — The landscape still (screenshot) opens the **player**, not the title page — Home,
 Continue Watching, and Recently Watched, on Mac / iPad / iPhone / tvOS. The play chrome is
 there for that reason.
@@ -41,6 +44,9 @@ the title — that line is for Following posters.
 device last played it, the release of a new episode on kino.pub for a followed series (the title's
 `updated_at`), and the time it was added to bookmarks. Kino.pub gives a folder timestamp for
 the newest bookmark in that folder. For bookmarks added in the app, use the locally recorded time.
+
+**prd** — When the row fills, titles qualified by playback or a subscription get space before
+bookmark-only titles. The cards that fit are shown in activity order.
 
 **prd** — A series included only because it was saved says «В закладках» / “Bookmarked”.
 Series in progress and followed series with new episodes show the episode the card offers.
@@ -64,7 +70,7 @@ the detail page), never a card that advertises the future episode number.
 **prd** — Dated interactions use the window chosen in Settings (eight weeks by default). A
 sample below the entry threshold counts as a viewing event for up to 14 days. A new release
 qualifies within the window when the viewer follows the series and either played it recently
-or is at most three episodes behind. The row can include up to four bookmark-only titles when
+or is at most five episodes behind. The row can include up to four bookmark-only titles when
 the viewer enables bookmarks.
 
 The Library tab still has the whole watching list.
@@ -99,11 +105,9 @@ The cached snapshot is a 60 s TTL on the Continue Watching *row*. Watching-list 
 are shared through `WatchingListCache` (~3 min, coalesced) across Home, Library and the
 sidebar badge.
 
-- **Foreground** (Watch Now `scenePhase == .active`) only re-applies local progress —
-  it does **not** re-request `/v1/watching/*` within the app session. Cross-device sync
-  waits for cold start, pull-to-refresh, or the next process. During playback only
-  `marktime` / local progress run; watching lists, history and bookmarks stay quiet
-  (ban risk, #110).
+- **Foreground** (Watch Now `scenePhase == .active`) applies local progress immediately
+  and refreshes an expired row through the shared watching-list cache if the player is idle.
+  During playback only `marktime` and local progress run.
 - **Mark watched / hide / follow** on the detail page invalidates the `.watch` family
   (and `WatchingListCache`). That posts `contentStoreDidInvalidateWatch`; Home
   refetches instead of painting the cached cards. Marking a film watched also writes a

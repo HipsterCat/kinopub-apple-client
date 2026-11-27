@@ -3,7 +3,7 @@
 //  Piratic
 //
 //  Merge Kinopub person listings with TMDB combined_credits into **one chronological
-//  grid** — titles missing from the catalog keep a «Нет на Кинопабе» badge in the
+//  grid** — titles missing from the catalog keep a «Недоступно» badge in the
 //  same timeline (no second rail). Keyed by TMDB id for a later ID join.
 //
 //  Matching uses the **loaded Kinopub window only** — never prefetch every page.
@@ -91,7 +91,7 @@ enum PersonFilmography {
       // Future / unreleased (Avatar 5 · 2031): art often doesn't exist anywhere — a
       // «Not on Kinopub» chip would imply Kinopub alone is missing it (Sasha, 2026-11-26).
       if !isUnreleased(credit) {
-        // Same chip copy as the episode rail (`MediaItem_NotOnKinoPubChip` → «Нет на Кинопабе»).
+        // Same chip copy as the episode rail (`MediaItem_NotOnKinoPubChip` → «Недоступно»).
         card.unavailableNotice = "MediaItem_NotOnKinoPubChip".localized
       }
       out.append(card)

@@ -1582,6 +1582,7 @@ struct SeasonsRailView: View {
     // Content margins, not padding: `scrollTo(anchor: .leading)` would otherwise park
     // the first episode of a season under the page inset instead of beside it.
     .pageContentMargins(fallback: pageInset)
+    .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
     .scrollPosition($railPosition, anchor: .leading)
     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
       // A season card stands for its season's first entry.
@@ -2193,7 +2194,7 @@ enum MissingEpisodeAirState: Equatable {
   /// aired: the lock takes the corner instead.
   @MainActor var badgeText: String? { badge() }
 
-  /// Aired, and kino.pub does not have it: the lock and «Нет на Кинопабе» on the still.
+  /// Aired, and kino.pub does not have it: the lock and «Недоступно» on the still.
   var isAired: Bool {
     switch self {
     case .justAired, .aired: true

@@ -39,7 +39,7 @@ public enum ContinueWatchingOrder {
   /// the history page we read has no play of it. More than that, and nothing watched in
   /// the window, is a subscription abandoned — a hundred and seventy waiting episodes
   /// are not "up next".
-  public static let followedBacklog: Int = 3
+  public static let followedBacklog: Int = 5
 
   /// The viewer's choices (Settings › Home › Continue Watching), like Plex's
   /// "Weeks to consider for Continue Watching" and "Include bookmarks".
@@ -161,7 +161,9 @@ public enum ContinueWatchingOrder {
     item.new ?? 0
   }
 
-  /// The row: titles with a reason, newest activity first, at most
+  /// Draw order: allocate space to active playback and subscriptions first, then
+  /// bookmark-only titles, then undated unfinished titles outside subscriptions.
+  /// Within each group use the newest activity first. At most
   /// ``Rules/maxItems`` (and ``maxBookmarks`` of those bookmarks). `limit` overrides the
   /// length, so a caller can take a few spare in case a card cannot be drawn.
   public static func ranked(_ candidates: [Candidate],
@@ -169,9 +171,18 @@ public enum ContinueWatchingOrder {
                             limit: Int? = nil,
                             now: Date = Date()) -> [Ranked] {
     let scored = candidates.enumerated().compactMap { offset, candidate in
-      score(candidate, rules: rules, now: now).map { (offset: offset, entry: $0) }
+      score(candidate, rules: rules, now: now).map { entry in
+        let priority: Int
+        switch entry.reason {
+        case .watched, .released: priority = 0
+        case .unfinished: priority = candidate.isSubscribed ? 0 : 2
+        case .bookmarked: priority = 1
+        }
+        return (offset: offset, entry: entry, priority: priority)
+      }
     }
     let sorted = scored.sorted { lhs, rhs in
+      if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
       if lhs.entry.activityDate != rhs.entry.activityDate {
         return lhs.entry.activityDate > rhs.entry.activityDate
       }
@@ -183,7 +194,7 @@ public enum ContinueWatchingOrder {
     var bookmarks = 0
     var result: [Ranked] = []
     let length = limit ?? rules.maxItems
-    for (_, entry) in sorted {
+    for (_, entry, _) in sorted {
       guard result.count < length else { break }
       if case .bookmarked = entry.reason {
         guard bookmarks < maxBookmarks else { continue }

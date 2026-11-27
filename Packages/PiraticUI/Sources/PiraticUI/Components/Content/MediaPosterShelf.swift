@@ -343,8 +343,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       .padding(.leading, leadingInset)
       .padding(.bottom, railFocusPadding)
 #else
-      .padding(.leading, leadingInset)
-      .padding(.trailing, pageMargins?.trailing ?? metrics.inset)
+      .scrollTargetLayout(isEnabled: isLandscape)
       .padding(.vertical, railFocusPadding)
 #endif
     }
@@ -353,6 +352,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .scrollClipDisabled()
     .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
     .focusSection()
+#else
+    .pageContentMargins(fallback: metrics.inset)
+    .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
 #endif
   }
 

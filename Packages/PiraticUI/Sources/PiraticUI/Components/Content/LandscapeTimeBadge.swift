@@ -72,13 +72,11 @@ public struct LandscapeTimeBadge: View {
     .foregroundStyle(isWatchedStyle ? Color.black : Color.white)
     .padding(.horizontal, 4)
     .padding(.vertical, 3)
-    // Opaque capsule — not `.thinMaterial`. Continue Watching puts one of these on
-    // every still; materials re-sample while the rail scrolls and hitch Mac Home.
-    // Watched stays light-on-still, the rest dark-on-still (Sasha, 2026-10-30).
-    .background(
-      (isWatchedStyle ? Color.white.opacity(0.92) : Color.black.opacity(0.55)),
-      in: Capsule(style: .continuous)
-    )
+    .modifier(ArtworkBadgeBackground(
+      shape: Capsule(),
+      tint: isWatchedStyle ? .white : .black,
+      opacity: isWatchedStyle ? 0.92 : 0.55
+    ))
     .accessibilityLabel(Text(accessibilityLabel))
   }
 
@@ -116,4 +114,28 @@ public struct LandscapeTimeBadge: View {
     return label
   }
 
+}
+
+/// Keeps the badge's foreground legible as the artwork changes underneath it.
+struct ArtworkBadgeBackground<BadgeShape: Shape>: ViewModifier {
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+  let shape: BadgeShape
+  let tint: Color
+  let opacity: Double
+
+  func body(content: Content) -> some View {
+    content.background {
+#if os(tvOS)
+      shape.fill(tint.opacity(opacity))
+#else
+      if reduceTransparency {
+        shape.fill(tint)
+      } else {
+        shape.fill(.regularMaterial)
+          .overlay { shape.fill(tint.opacity(opacity)) }
+      }
+#endif
+    }
+  }
 }

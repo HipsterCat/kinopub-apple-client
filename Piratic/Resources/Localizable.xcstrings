@@ -11670,13 +11670,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not on Kinopub"
+            "value" : "Unavailable"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Нет на Кинопабе"
+            "value" : "Недоступно"
           }
         }
       }
