@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "tmdb_small_black.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
