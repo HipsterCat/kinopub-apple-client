@@ -134,10 +134,15 @@ enum KinoEpisodeGrid {
       isSeasonFinale: schedule.isSeasonFinale)
   }
 
+  private static func preferredName(_ titles: [String]) -> String? {
+    let names = titles.compactMap { EpisodeTitle.meaningful($0) }
+    return MediaLanguage.current == .en ? names.last : names.first
+  }
+
   static func schedule(_ episode: EpisodeGridMatch.OfficialEpisode) -> EpisodeSchedule {
     EpisodeSchedule(episodeNumber: episode.number,
                     seasonNumber: episode.season,
-                    name: episode.titles.first { !$0.isEmpty },
+                    name: preferredName(episode.titles),
                     overview: episode.overview,
                     airDate: episode.airDate,
                     runtime: episode.runtimeMinutes,
@@ -2027,7 +2032,7 @@ struct SeasonsRailView: View {
   /// kino.pub's name, else TMDB's — and neither when it is only the number spelled out
   /// («Эпизод 1»): the caption already says which episode it is (`EpisodeTitle`).
   private static func displayTitle(episode: Episode, schedule: EpisodeSchedule?) -> String {
-    EpisodeTitle.meaningful(episode.title) ?? EpisodeTitle.meaningful(schedule?.name) ?? ""
+    EpisodeTitle.preferred(kinopub: episode.title, metadata: schedule?.name) ?? ""
   }
 
   /// Unique still only (worker, then TMDB). kino.pub thumb and series backdrop are

@@ -33,7 +33,12 @@ public struct MediaCardCaptionStat: Hashable, Codable, Sendable {
 public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let id: Int
   public let posterURL: String
-  public let title: String
+  let catalogTitle: String
+  let originalTitle: String?
+  public var title: String {
+    guard let originalTitle else { return catalogTitle }
+    return MediaTitleText.preferred(localized: catalogTitle, original: originalTitle) ?? catalogTitle
+  }
   public let subtitle: String?
   /// When this was watched, for history surfaces. **On the card, not beside it**: the
   /// card is what `ContentStore` snapshots, so a date kept in a parallel map is lost
@@ -380,10 +385,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               opensCollection: Bool = false,
               captionStats: [MediaCardCaptionStat] = [],
               imdbID: Int? = nil,
-              kinopoiskID: Int? = nil) {
+              kinopoiskID: Int? = nil,
+              originalTitle: String? = nil) {
     self.id = id
     self.posterURL = posterURL
-    self.title = title
+    catalogTitle = title
+    self.originalTitle = originalTitle
     self.subtitle = subtitle
     self.watchedAt = watchedAt
     self.scores = scores ?? MediaScores(
@@ -435,10 +442,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
                                    season: Int?,
                                    video: Int?,
                                    overlayLabel: String?,
-                                   durationSeconds: Int? = nil) -> MediaCard {
+                                   durationSeconds: Int? = nil,
+                                   hoverStillURL: String? = nil) -> MediaCard {
+    let sameVideo = season == self.season && video == self.video
     var card = MediaCard(id: id,
               posterURL: posterURL,
-              title: title,
+              title: catalogTitle,
               subtitle: subtitle,
               watchedAt: watchedAt,
               scores: scores,
@@ -450,7 +459,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
               offeredName: offeredName,
-              hoverStillURL: hoverStillURL,
+              hoverStillURL: sameVideo ? self.hoverStillURL : hoverStillURL,
               itemID: itemID,
               video: video,
               season: season,
@@ -469,14 +478,14 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               year: year,
               yearEnd: yearEnd,
               unwatchedEpisodes: unwatchedEpisodes,
-              durationSeconds: durationSeconds ?? self.durationSeconds,
+              durationSeconds: durationSeconds ?? (sameVideo ? self.durationSeconds : nil),
               genres: genres,
               country: country,
               primaryAction: primaryAction,
               opensCollection: opensCollection,
               captionStats: captionStats,
               imdbID: imdbID,
-              kinopoiskID: kinopoiskID)
+              kinopoiskID: kinopoiskID, originalTitle: originalTitle)
     card.continuePeekHint = continuePeekHint
     card.continueWatchingActivityDate = continueWatchingActivityDate
     card.fallbackLandscapeURL = fallbackLandscapeURL
@@ -487,7 +496,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public func withBackdropURL(_ backdropURL: String?) -> MediaCard {
     MediaCard(id: id,
               posterURL: posterURL,
-              title: title,
+              title: catalogTitle,
               subtitle: subtitle,
               watchedAt: watchedAt,
               scores: scores,
@@ -525,7 +534,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               opensCollection: opensCollection,
               captionStats: captionStats,
               imdbID: imdbID,
-              kinopoiskID: kinopoiskID)
+              kinopoiskID: kinopoiskID, originalTitle: originalTitle)
   }
 
   /// Prefer the worker's `/img/poster/by/kinopub/{id}` over the listing's
@@ -533,7 +542,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public func withPosterURL(_ posterURL: String) -> MediaCard {
     var card = MediaCard(id: id,
               posterURL: posterURL,
-              title: title,
+              title: catalogTitle,
               subtitle: subtitle,
               watchedAt: watchedAt,
               scores: scores,
@@ -571,7 +580,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               opensCollection: opensCollection,
               captionStats: captionStats,
               imdbID: imdbID,
-              kinopoiskID: kinopoiskID)
+              kinopoiskID: kinopoiskID, originalTitle: originalTitle)
     card.continuePeekHint = continuePeekHint
     card.continueWatchingActivityDate = continueWatchingActivityDate
     card.fallbackLandscapeURL = fallbackLandscapeURL
@@ -583,7 +592,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(Int.self, forKey: .id)
     posterURL = try c.decode(String.self, forKey: .posterURL)
-    title = try c.decode(String.self, forKey: .title)
+    catalogTitle = try c.decode(String.self, forKey: .title)
+    originalTitle = try c.decodeIfPresent(String.self, forKey: .originalTitle)
     subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
     watchedAt = try c.decodeIfPresent(Date.self, forKey: .watchedAt)
     scores = MediaScores(
@@ -599,6 +609,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     overview = try c.decodeIfPresent(String.self, forKey: .overview)
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
+    continuePeekHint = try c.decodeIfPresent(String.self, forKey: .continuePeekHint)
     continueWatchingActivityDate = try c.decodeIfPresent(Date.self, forKey: .continueWatchingActivityDate)
     offeredName = try c.decodeIfPresent(String.self, forKey: .offeredName)
     hoverStillURL = try c.decodeIfPresent(String.self, forKey: .hoverStillURL)
@@ -653,7 +664,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(id, forKey: .id)
     try c.encode(posterURL, forKey: .posterURL)
-    try c.encode(title, forKey: .title)
+    try c.encode(catalogTitle, forKey: .title)
+    try c.encodeIfPresent(originalTitle, forKey: .originalTitle)
     try c.encodeIfPresent(subtitle, forKey: .subtitle)
     try c.encodeIfPresent(watchedAt, forKey: .watchedAt)
     try c.encodeIfPresent(scores.imdb, forKey: .imdbRating)
@@ -667,6 +679,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(overview, forKey: .overview)
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
+    try c.encodeIfPresent(continuePeekHint, forKey: .continuePeekHint)
     try c.encodeIfPresent(continueWatchingActivityDate, forKey: .continueWatchingActivityDate)
     try c.encodeIfPresent(offeredName, forKey: .offeredName)
     try c.encodeIfPresent(hoverStillURL, forKey: .hoverStillURL)
@@ -699,10 +712,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
+    case id, posterURL, title, originalTitle, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
     case landscapeImageURL, overlayLabel, offeredName, hoverStillURL, itemID, video, season, seasonCount, episodeCount, mediaID
-    case continueWatchingActivityDate
+    case continuePeekHint, continueWatchingActivityDate
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
     case genres, country, primaryAction
@@ -1526,8 +1539,8 @@ public struct MediaCardView: View {
     }
   }
 
-  /// What the pointer brings up over the title's cover — same rule as the sneak peek
-  /// (`MediaCard.pointerArtwork`). Needs a kino.pub thumb before anything swaps in.
+  /// What the pointer brings up over the title's cover. Sneak Peek shares this
+  /// route for episodes. Hover needs a KinoPub thumb before anything swaps in.
   private func hoverArtwork(points: CGFloat) -> (primary: URL, fallback: URL?)? {
     guard card.hoverStillURL?.isEmpty == false else { return nil }
     return card.pointerArtwork(images: titleImageRoute, points: points, scale: hoverScale)

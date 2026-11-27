@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PiraticMedia
 
 /// A value: whoever holds one holds its own copy. A page that changes a mark writes it into
 /// its own `MediaItem` (`MediaItem.updateEpisode`) and republishes that.
@@ -38,11 +39,10 @@ public struct Episode: Codable, Hashable, Identifiable, Sendable {
   /// title line can read "Breaking Bad" instead of just the episode's own title.
   public var seriesTitle: String?
 
+  public var displayName: String? { EpisodeTitle.localized(title) }
+
   public var fixedTitle: String {
-    if title.isEmpty {
-      return "Episode \(number)"
-    }
-    return title
+    displayName ?? EpisodeText(season: nil, number: number).listItem()
   }
   
   public init(id: Int, title: String, thumbnail: String, duration: Int, tracks: Int, number: Int, ac3: Int, audios: [EpisodeAudio], watched: Int, watching: EpisodeWatching, subtitles: [Subtitle], files: [FileInfo]) {
@@ -90,7 +90,6 @@ public extension Episode {
 
   /// Something to play on kino.pub: a files ladder (even `nolinks`, URLs still empty) or a
   /// runtime. Empty ladder + no duration is a placeholder for an episode that is not out
-  /// yet — the season rail shows «Через N дней», and Continue Watching / Play must not
   /// yet — the season rail shows «через N дней», and Continue Watching / Play must not
   /// advance to it. Same rule as `EpisodePlayability.onService` (duration ≥ 60 s).
   var isOnService: Bool {

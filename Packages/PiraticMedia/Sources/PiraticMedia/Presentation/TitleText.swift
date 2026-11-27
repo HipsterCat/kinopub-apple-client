@@ -1,5 +1,17 @@
 import Foundation
 
+/// Selects the supplied title for the interface language. KinoPub's second title
+/// can be an international name or a native-script original.
+public enum MediaTitleText {
+  public static func preferred(localized: String?, original: String?,
+                               language: MediaLanguage = .current) -> String? {
+    switch language {
+    case .ru: return localized.nonBlank ?? original.nonBlank
+    case .en: return original.nonBlank ?? localized.nonBlank
+    }
+  }
+}
+
 /// **How many seasons** — «3 сезона», «1 season». Plural-correct in both languages; the
 /// Apple TV app's own count where a series has no single runtime.
 public struct SeasonCountText: Hashable, Sendable {

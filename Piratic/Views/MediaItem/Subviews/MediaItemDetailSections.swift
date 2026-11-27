@@ -3624,7 +3624,7 @@ struct MediaItemInfoColumns: View {
   private var aboutContent: MediaItemAboutContent {
     MediaItemAboutContent(
       synopsis: mediaItem.plot.isEmpty ? nil : mediaItem.plot,
-      title: mediaItem.localizedTitle,
+      title: mediaItem.displayTitle,
       primaryGenre: mediaItem.genres.compactMap(\.title).first,
       ageRating: externalMetadata.ageRating,
       advisories: advisories,

@@ -96,7 +96,7 @@ struct MediaItemCastAndCrewPage: View {
     // stays on the cast sheet and does not open catalog Search.
     .searchable(text: $query, prompt: Text("MediaItem_CastAndCrewSearch"))
 #endif
-    .platformNavigationTitle(payload.item.localizedTitle)
+    .platformNavigationTitle(payload.item.displayTitle)
 #if os(iOS) || os(macOS)
     .navigationSubtitle("MediaItem_CastSection".localized)
 #endif

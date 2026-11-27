@@ -19,6 +19,10 @@ public struct HistoryEntry: Codable, Hashable, Sendable {
     /// Present when this row's item still carries it. Cover language needs it.
     public let kinopoisk: Int?
 
+    public var titleParts: (localized: String, original: String) {
+      KinoPubBilingualTitle.parts(from: title ?? "")
+    }
+
     public init(id: Int, type: String? = nil, title: String? = nil, posters: Posters? = nil,
                 kinopoisk: Int? = nil) {
       self.id = id

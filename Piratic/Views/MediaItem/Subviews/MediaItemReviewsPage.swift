@@ -76,7 +76,7 @@ struct MediaItemRatingsAndReviewsPage: View {
       .padding(.vertical, MediaItemLayout.sectionSpacing)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .platformNavigationTitle(payload.item.localizedTitle)
+    .platformNavigationTitle(payload.item.displayTitle)
     .background(Color.Piratic.background.ignoresSafeArea())
   }
 
@@ -177,7 +177,7 @@ struct MediaItemRatingsAndReviewsPage: View {
       .padding(.vertical, MediaItemLayout.sectionSpacing)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .platformNavigationTitle(payload.item.localizedTitle)
+    .platformNavigationTitle(payload.item.displayTitle)
     .background(Color.Piratic.background.ignoresSafeArea())
   }
 

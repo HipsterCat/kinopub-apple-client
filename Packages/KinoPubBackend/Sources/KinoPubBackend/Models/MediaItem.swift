@@ -482,6 +482,11 @@ public extension MediaItem {
     KinoPubBilingualTitle.parts(from: title).localized
   }
 
+  var displayTitle: String {
+    !presentation.hasBilingualTitle ? localizedTitle
+      : (MediaTitleText.preferred(localized: localizedTitle, original: originalTitle) ?? title)
+  }
+
   /// The show/album line the player window pairs with a part or version title
   /// (`Kraftwerk: Minimum-Maximum — Часть первая`). Prefer the international name the
   /// detail hero puts under the localized title when the two differ.

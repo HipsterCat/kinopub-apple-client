@@ -435,21 +435,21 @@ struct HistoryView: View {
 
   nonisolated static func card(for entry: HistoryEntry, id: Int) -> MediaCard {
     let posters = entry.item.posters
-    let wide = posters?.wideURL ?? posters?.big ?? posters?.medium ?? ""
     let isSeries = entry.isEpisode || (entry.item.type?.contains("serial") ?? false)
     // Episode thumb is parked (Sasha, 2026-10-10): History shows the title's wide art.
     // let still = entry.media?.thumbnail
     let landscape = MediaCard.titleWideArtwork(posters: posters)
-    let name = entry.item.title?.components(separatedBy: " / ").first?
-      .trimmingCharacters(in: .whitespaces)
-      ?? entry.item.title
-      ?? ""
+    let names = entry.item.titleParts
+    let profile = MediaPresentationProfile(type: entry.item.type ?? "", genres: [])
     let title: String
+    let original: String?
     if entry.isEpisode, let season = entry.media?.snumber, let episode = entry.media?.number {
-      let episodeText = EpisodeText(season: season, number: episode).text(for: .historyRow)
-      title = "\(name) · \(episodeText)"
+      let reference = EpisodeText(season: season, number: episode).text(for: .historyRow)
+      title = "\(names.localized) · \(reference)"
+      original = "\(names.original) · \(reference)"
     } else {
-      title = name
+      title = names.localized
+      original = profile.hasBilingualTitle ? names.original : nil
     }
     let durationSeconds = entry.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
     return MediaCard(
@@ -472,7 +472,8 @@ struct HistoryView: View {
       isInHistory: true,
       durationSeconds: durationSeconds,
       primaryAction: .play,
-      kinopoiskID: entry.item.kinopoisk
+      kinopoiskID: entry.item.kinopoisk,
+      originalTitle: original
     )
   }
 }

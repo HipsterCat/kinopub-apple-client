@@ -1899,9 +1899,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       return nil
     }
     PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
-    let section = sections[indexPath.section]
-    // Still rails paint landscape; poster rails paint 2:3. Title-level stills
-    // (Continue Watching) use `.shelf` so the peek footer is genre/reason, not «Ep. 1».
+    // Continue Watching keeps the episode reference and time in the preview footer.
     let preview = MediaCardContextPreviewSpec.from(
       card: card,
       surface: .shelf,

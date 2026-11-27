@@ -35,4 +35,20 @@ public enum EpisodeTitle {
     guard let title = title.nonBlank, !isPlaceholder(title) else { return nil }
     return title
   }
+
+  /// KinoPub's bilingual names put Russian first, then the international name.
+  public static func localized(_ title: String?, language: MediaLanguage = .current) -> String? {
+    guard let title else { return nil }
+    guard let separator = title.range(of: " / ") else { return meaningful(title) }
+    let russian = meaningful(String(title[..<separator.lowerBound]))
+    let original = meaningful(String(title[separator.upperBound...]))
+    return MediaTitleText.preferred(localized: russian, original: original, language: language)
+  }
+
+  public static func preferred(kinopub: String?, metadata: String?,
+                               language: MediaLanguage = .current) -> String? {
+    let supplied = localized(kinopub, language: language)
+    let scheduled = meaningful(metadata)
+    return language == .en ? scheduled ?? supplied : supplied ?? scheduled
+  }
 }

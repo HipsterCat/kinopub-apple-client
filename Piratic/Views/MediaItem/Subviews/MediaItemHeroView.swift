@@ -1024,7 +1024,7 @@ struct MediaItemHeroView: View {
         .overlay(alignment: .top) {
           if hasSynopsis {
             MediaItemPlotView(
-              title: mediaItem.localizedTitle,
+              title: mediaItem.displayTitle,
               plot: synopsis.plot,
               lead: synopsis.lead,
               maxLines: Self.phonePlotLines,
@@ -1573,7 +1573,7 @@ struct MediaItemHeroView: View {
       if hasSynopsis {
 #if os(tvOS)
         MediaItemPlotView(
-          title: mediaItem.localizedTitle,
+          title: mediaItem.displayTitle,
           plot: synopsis.plot,
           lead: synopsis.lead,
           focus: $focus,
@@ -1584,7 +1584,7 @@ struct MediaItemHeroView: View {
         .padding(.vertical, Self.contentSpacing / 2)
 #else
         MediaItemPlotView(
-          title: mediaItem.localizedTitle,
+          title: mediaItem.displayTitle,
           plot: synopsis.plot,
           lead: synopsis.lead,
           // Not on a phone: there the poster is above the words, not beside them.
@@ -1654,7 +1654,7 @@ struct MediaItemHeroView: View {
     .id(mediaItem.id)
     .padding(.top, Self.bottomInset / 1.5)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(mediaItem.localizedTitle)
+    .accessibilityLabel(mediaItem.displayTitle)
     .modifier(TitleBlockHorizontalBounds(reservePosterColumn: showsCornerPoster && !centersColumn,
                                          alignment: centersColumn ? .center : .leading))
   }
@@ -1675,7 +1675,7 @@ struct MediaItemHeroView: View {
   }
 
   private var titlePrimaryText: some View {
-    Text(mediaItem.localizedTitle)
+    Text(mediaItem.displayTitle)
       .font(Self.titleFont)
       .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(columnTextAlignment)
@@ -1758,7 +1758,7 @@ struct MediaItemHeroView: View {
   /// The other name, under the synopsis popup's title — whatever the hero's own subtitle
   /// line would say when the title is lettered, whether or not a logo replaced it.
   private var popupOriginalTitle: String? {
-    let localized = mediaItem.localizedTitle
+    let localized = mediaItem.displayTitle
     if let partner = titlePartnerLine, partner != localized { return partner }
     return mediaItem.originalTitle != localized ? mediaItem.originalTitle : nil
   }
@@ -2007,8 +2007,7 @@ struct MediaItemHeroView: View {
     guard isSeries, isSeriesUnderWay, let (_, episode) = mediaItem.primaryEpisode else {
       return (nil, mediaItem.plot)
     }
-    let name = EpisodeTitle.meaningful(primaryEpisodeSchedule?.name)
-      ?? EpisodeTitle.meaningful(episode.title)
+    let name = EpisodeTitle.preferred(kinopub: episode.title, metadata: primaryEpisodeSchedule?.name)
     // Multi-season: «1 сезон, 8 серия: Title» — Sasha circled the missing season (2026-11-14).
     let seasonCount = mediaItem.seasons?.count ?? 0
     let seasonNumber = mediaItem.primaryEpisode.map {
@@ -2610,7 +2609,7 @@ struct MediaItemHeroView: View {
     for season in seasons {
       for episode in season.episodes where !episode.isWatched {
         pool.append(episode.stamped(season: season.number, mediaId: season.mediaId,
-                                    seriesTitle: mediaItem.localizedTitle))
+                                    seriesTitle: mediaItem.displayTitle))
       }
     }
     return pool.randomElement()
@@ -2916,7 +2915,7 @@ struct MediaItemHeroView: View {
   private var playTarget: any PlayableItem {
     guard let (season, episode) = mediaItem.primaryEpisode else { return mediaItem }
     return episode.stamped(season: season.number, mediaId: season.mediaId,
-                           seriesTitle: mediaItem.localizedTitle)
+                           seriesTitle: mediaItem.displayTitle)
   }
 
   // MARK: - Metrics

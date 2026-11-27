@@ -9,6 +9,7 @@
 
 import XCTest
 import KinoPubBackend
+import PiraticMedia
 import PiraticUI
 @testable import Piratic
 
@@ -87,7 +88,7 @@ final class ContinueWatchingVersionsTests: XCTestCase {
       for: watching, detail: detail, history: nil, finishedEpisodes: [:], local: nil,
       isInHistory: false, isInWatchlist: false, cached: nil, reason: .unfinished
     ))
-    XCTAssertEqual(card.title, "Александр")
+    XCTAssertEqual(card.title, MediaLanguage.current == .en ? "Alexander" : "Александр")
     XCTAssertEqual(card.overlayLabel, "Режиссерская версия")
   }
 

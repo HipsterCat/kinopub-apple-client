@@ -33,7 +33,7 @@ public extension MediaCard {
     // Resume bar only while unfinished — a watched episode says so with the time chip.
     // `resumeFraction` already applied the start floor and the watched threshold.
     let progress = isWatched ? nil : episode.watchProgress.resumeFraction
-    let caption = Self.episodeCaption(name: title ?? episode.title,
+    let caption = Self.episodeCaption(name: title ?? episode.displayName ?? "",
                                       number: episode.number,
                                       episodeLabel: episodeLabel
                                         ?? EpisodeText(season: nil, number: episode.number)

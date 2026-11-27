@@ -762,6 +762,18 @@ public enum Artwork {
   }
 }
 
+extension MediaCardContextPreviewSpec {
+  func loadImage() async -> PlatformImage? {
+    for url in artworkURLs {
+      if Task.isCancelled { return nil }
+      if let image = try? await Artwork.image(for: url, size: artSize, mode: .fit) {
+        return image
+      }
+    }
+    return nil
+  }
+}
+
 /// Reports worker image routes and resolves direct kino.pub artwork mirrors inside
 /// the download, so Nuke still coalesces and caches under the requested URL.
 final class ArtworkDataLoader: DataLoading, Sendable {

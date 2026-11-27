@@ -704,13 +704,11 @@ class MediaItemModel: ObservableObject {
   private static func mergingOfficialEpisodes(_ existing: [EpisodeSchedule],
                                               _ fresh: [EpisodeSchedule]) -> [EpisodeSchedule] {
     guard !existing.isEmpty else { return fresh }
-    var byKey: [String: EpisodeSchedule] = [:]
     func key(_ episode: EpisodeSchedule) -> String {
       "\(episode.seasonNumber):\(episode.episodeNumber):\(episode.name ?? "")"
     }
-    for episode in existing { byKey[key(episode)] = episode }
-    for episode in fresh { byKey[key(episode)] = episode }
-    return Array(byKey.values)
+    let refreshed = Set(fresh.map(key))
+    return existing.filter { !refreshed.contains(key($0)) } + fresh
   }
 
   private func kinoSeason(for number: Int) -> Season? {

@@ -54,4 +54,19 @@ final class EpisodeTitleTests: XCTestCase {
     let film = MediaFragment(.kinopub, .movie) { $0.title = "1917" }
     XCTAssertEqual(try XCTUnwrap(MediaAggregator.merge([film])).title, "1917")
   }
+  func testBilingualEpisodeTitlesFollowInterfaceLanguage() {
+    XCTAssertEqual(EpisodeTitle.localized("Пилот / Pilot", language: .ru), "Пилот")
+    XCTAssertEqual(EpisodeTitle.localized("Пилот / Pilot", language: .en), "Pilot")
+    XCTAssertEqual(EpisodeTitle.localized("Эпизод 1 / Pilot", language: .ru), "Pilot")
+    XCTAssertEqual(EpisodeTitle.localized("Пилот / Episode 1", language: .en), "Пилот")
+    XCTAssertEqual(EpisodeTitle.localized("11/9", language: .en), nil)
+    XCTAssertEqual(EpisodeTitle.localized("9/11: A Day", language: .en), "9/11: A Day")
+  }
+
+  func testKnownTitlePairUsesSecondValueInEnglish() {
+    XCTAssertEqual(MediaTitleText.preferred(localized: "Тед Лассо", original: "Ted Lasso", language: .en), "Ted Lasso")
+    XCTAssertEqual(MediaTitleText.preferred(localized: "Тед Лассо", original: "Ted Lasso", language: .ru), "Тед Лассо")
+    XCTAssertEqual(MediaTitleText.preferred(localized: "Брат", original: nil, language: .en), "Брат")
+  }
+
 }

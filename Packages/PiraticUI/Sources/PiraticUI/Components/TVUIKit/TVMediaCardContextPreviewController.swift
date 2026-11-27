@@ -18,16 +18,20 @@ public final class TVMediaCardContextPreviewController: UIViewController {
   private let spinner = UIActivityIndicatorView(style: .large)
   private let titleLabel = UILabel()
   private let subtitleLabel = UILabel()
+  private let timeLabel = UILabel()
   private let footer = UIView()
+  private let captions = UIStackView()
   private let card = UIView()
   private var cardWidth: NSLayoutConstraint!
   private var cardHeight: NSLayoutConstraint!
   private var artHeight: NSLayoutConstraint!
+  private var artworkTask: Task<Void, Never>?
 
   public init(spec: MediaCardContextPreviewSpec) {
     self.spec = spec
     super.init(nibName: nil, bundle: nil)
-    preferredContentSize = spec.preferredSize
+    configureLabels()
+    preferredContentSize = previewSize(art: spec.artSize)
   }
 
   public convenience init(url: URL?, aspect: CardAspect, title: String = "", subtitle: String? = nil) {
@@ -36,6 +40,37 @@ public final class TVMediaCardContextPreviewController: UIViewController {
 
   @available(*, unavailable)
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  deinit { artworkTask?.cancel() }
+
+  private func configureLabels() {
+    titleLabel.text = spec.title
+    titleLabel.font = .preferredFont(forTextStyle: .headline)
+    titleLabel.adjustsFontForContentSizeCategory = true
+    titleLabel.textColor = .label
+    titleLabel.numberOfLines = 2
+
+    subtitleLabel.text = spec.subtitle
+    subtitleLabel.font = .preferredFont(forTextStyle: .subheadline)
+    subtitleLabel.adjustsFontForContentSizeCategory = true
+    subtitleLabel.textColor = .secondaryLabel
+    subtitleLabel.numberOfLines = 2
+    subtitleLabel.isHidden = spec.subtitle == nil
+
+    timeLabel.text = spec.time
+    timeLabel.font = .preferredFont(forTextStyle: .subheadline)
+    timeLabel.adjustsFontForContentSizeCategory = true
+    timeLabel.textColor = .secondaryLabel
+    timeLabel.isHidden = spec.time == nil
+  }
+
+  private func previewSize(art: CGSize) -> CGSize {
+    let bounds = CGSize(width: max(1, art.width - 28), height: .greatestFiniteMagnitude)
+    let labels = [titleLabel, subtitleLabel, timeLabel].filter { !$0.isHidden }
+    let textHeight = labels.reduce(CGFloat.zero) { $0 + $1.sizeThatFits(bounds).height }
+    let gaps = CGFloat(max(0, labels.count - 1)) * 2
+    return CGSize(width: art.width, height: art.height + ceil(textHeight + gaps) + 24)
+  }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
@@ -70,23 +105,16 @@ public final class TVMediaCardContextPreviewController: UIViewController {
     footer.translatesAutoresizingMaskIntoConstraints = false
     card.addSubview(footer)
 
-    titleLabel.text = spec.title
-    titleLabel.font = .preferredFont(forTextStyle: .headline)
-    titleLabel.textColor = .label
-    titleLabel.numberOfLines = 2
-    titleLabel.translatesAutoresizingMaskIntoConstraints = false
-    footer.addSubview(titleLabel)
-
-    subtitleLabel.text = spec.subtitle
-    subtitleLabel.font = .preferredFont(forTextStyle: .subheadline)
-    subtitleLabel.textColor = .secondaryLabel
-    subtitleLabel.numberOfLines = 2
-    subtitleLabel.isHidden = spec.subtitle == nil
-    subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-    footer.addSubview(subtitleLabel)
+    captions.axis = .vertical
+    captions.spacing = 2
+    captions.translatesAutoresizingMaskIntoConstraints = false
+    captions.addArrangedSubview(titleLabel)
+    captions.addArrangedSubview(subtitleLabel)
+    captions.addArrangedSubview(timeLabel)
+    footer.addSubview(captions)
 
     cardWidth = card.widthAnchor.constraint(equalToConstant: art.width)
-    cardHeight = card.heightAnchor.constraint(equalToConstant: spec.preferredSize.height)
+    cardHeight = card.heightAnchor.constraint(equalToConstant: preferredContentSize.height)
     artHeight = artContainer.heightAnchor.constraint(equalToConstant: art.height)
 
     NSLayoutConstraint.activate([
@@ -112,32 +140,21 @@ public final class TVMediaCardContextPreviewController: UIViewController {
       footer.leadingAnchor.constraint(equalTo: card.leadingAnchor),
       footer.trailingAnchor.constraint(equalTo: card.trailingAnchor),
       footer.bottomAnchor.constraint(equalTo: card.bottomAnchor),
-      footer.heightAnchor.constraint(equalToConstant: spec.footerHeight),
 
-      titleLabel.topAnchor.constraint(equalTo: footer.topAnchor, constant: 12),
-      titleLabel.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 14),
-      titleLabel.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -14),
-
-      subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-      subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-      subtitleLabel.bottomAnchor.constraint(lessThanOrEqualTo: footer.bottomAnchor, constant: -12)
+      captions.topAnchor.constraint(equalTo: footer.topAnchor, constant: 12),
+      captions.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 14),
+      captions.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -14)
     ])
 
     loadArtwork()
   }
 
   private func loadArtwork() {
-    Artwork.prefetch([spec.url])
-    let decodeBox = spec.decodeSize
-    if let cached = TVUIKitRemoteImage.cached(url: spec.url, size: decodeBox, mode: .fit) {
-      apply(image: cached)
-      return
-    }
+    guard !spec.artworkURLs.isEmpty else { return }
     spinner.startAnimating()
-    Task { [weak self] in
-      guard let self else { return }
-      let image = await TVUIKitRemoteImage.load(url: self.spec.url, size: decodeBox, mode: .fit)
+    artworkTask = Task { [weak self, spec] in
+      let image = await spec.loadImage()
+      guard !Task.isCancelled, let self else { return }
       self.spinner.stopAnimating()
       if let image {
         self.apply(image: image)
@@ -147,7 +164,7 @@ public final class TVMediaCardContextPreviewController: UIViewController {
 
   private func apply(image: UIImage) {
     let art = spec.artDisplaySize(forImageSize: image.size)
-    let peek = spec.preferredSize(art: art)
+    let peek = previewSize(art: art)
     preferredContentSize = peek
     cardWidth.constant = art.width
     cardHeight.constant = peek.height

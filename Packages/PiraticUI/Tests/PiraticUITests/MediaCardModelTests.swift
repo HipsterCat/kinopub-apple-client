@@ -35,7 +35,9 @@ final class MediaCardModelTests: XCTestCase {
   func testAFilmCard() {
     let card = MediaCard(ref: .title(124447), entity: film, state: .unknown)
     XCTAssertEqual(card.id, 124447)
-    XCTAssertEqual(card.title, "Побег из Шоушенка")
+    let expectedTitle = MediaLanguage.current == .en ? "The Shawshank Redemption" : "Побег из Шоушенка"
+    XCTAssertEqual(card.title, expectedTitle)
+    XCTAssertEqual(card.withViewerState(.unknown).title, expectedTitle)
     XCTAssertEqual(card.subtitle, "The Shawshank Redemption")
     XCTAssertEqual(card.posterURL, "https://kp/medium.jpg", "the grid's size first")
     XCTAssertEqual(card.backdropURL, "https://kp/wide.jpg")

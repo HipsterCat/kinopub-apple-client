@@ -955,25 +955,30 @@ class HomeCatalog: ObservableObject {
       guard let base else { return nil }
       guard let mutation = plan.mutations[id] else { return base }
       let updatedOverlay: String?
+      let updatedEpisode: Episode?
       let wasBookmarked = base.overlayLabel == String(localized: "Bookmarked")
       if base.isSeries,
          wasBookmarked || base.season != mutation.season || base.video != mutation.video {
         let seasons = entryByID[id]?.item.seasons
-        let episode = seasons?.first { $0.number == mutation.season }?.episodes
+        updatedEpisode = seasons?.first { $0.number == mutation.season }?.episodes
           .first { $0.number == mutation.video }
         updatedOverlay = Self.overlayLabel(isSeries: true, season: mutation.season,
                                            episode: mutation.video,
                                            seasonCount: seasons?.count ?? base.seasonCount,
-                                           name: episode?.title)
+                                           name: updatedEpisode?.displayName)
       } else if wasBookmarked, !base.isSeries, mutation.progress != nil {
         updatedOverlay = Self.continueReasonLabel(for: .unfinished)
+        updatedEpisode = nil
       } else {
         updatedOverlay = base.overlayLabel
+        updatedEpisode = nil
       }
       return base.withContinueWatching(progress: mutation.progress,
                                        season: mutation.season,
                                        video: mutation.video,
-                                       overlayLabel: updatedOverlay)
+                                       overlayLabel: updatedOverlay,
+                                       durationSeconds: updatedEpisode?.duration,
+                                       hoverStillURL: updatedEpisode?.thumbnail)
     }.prefix(ContinueWatchingPreferences.rules.maxItems))
   }
 
@@ -1514,26 +1519,28 @@ class HomeCatalog: ObservableObject {
     let offered = detail?.seasons?
       .first { $0.number == season }?.episodes
       .first { $0.number == video }
-    let localFraction = local?.watch.resumeFraction
-    // Episode resume only — never serial watched/total (that is not a scrubber) — and
-    // never the *previous* episode's progress under a fresh one.
-    let episodeProgress = offeredVersion.map { $0.watchProgress.hasStarted ? $0.watchProgress.fraction : nil }
-      ?? (isResuming
-          ? (offered?.watchProgress.fraction ?? localFraction ?? history?.progress)
-          : nil)
-    let durationSeconds = offered.map(\.duration)
-      ?? offeredVersion.map(\.duration)
-      ?? (isResuming
-          ? (cached?.durationSeconds ?? Self.durationSeconds(history: history, local: local))
-          : nil)
     let localSeasons = local?.item.seasons
     let seasonCount = (detail?.seasons ?? localSeasons)?.count
     let localEpisode = localSeasons?.first { $0.number == season }?.episodes
       .first { $0.number == video }
+    let filmVideo = detail?.videos?.first { $0.number == video }
+    let resumableLocal = isSeries && (local?.season != season || local?.episode != video) ? nil : local
+    let resumableHistory = isSeries && (history?.media?.snumber != season || history?.media?.number != video)
+      ? nil : history
+    let sameCachedVideo = cached?.season == season && cached?.video == video
+    // Episode resume only — never serial watched/total (that is not a scrubber) — and
+    // never the *previous* episode's progress under a fresh one.
+    let episodeProgress = (offeredVersion?.watchProgress.resumeFraction)
+      ?? (isResuming ? (offered?.watchProgress.resumeFraction ?? resumableLocal?.watch.resumeFraction
+        ?? filmVideo?.watchProgress.resumeFraction ?? resumableHistory?.progress) : nil)
+    let durationSeconds = [offered?.duration, offeredVersion?.duration, filmVideo?.duration,
+                           localEpisode?.duration, sameCachedVideo ? cached?.durationSeconds : nil,
+                           Self.durationSeconds(history: resumableHistory, local: resumableLocal)]
+      .compactMap { $0 }.first { $0 >= 60 }
     // The offered episode, named when the payload names it.
     let episodeOverlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
                                            seasonCount: seasonCount,
-                                           name: EpisodeTitle.meaningful(offered?.title) ?? localEpisode?.title)
+                                           name: offered?.displayName ?? localEpisode?.displayName)
     // The episodes after the one offered: `new` counts the offered one too, so «+ ещё 1»
     // showed with nothing past it (Sasha, 2026-10-30). The label itself is off for now
     // (`MediaCardView.showsMoreEpisodesCount`).
@@ -1541,7 +1548,10 @@ class HomeCatalog: ObservableObject {
 
     let posters = history?.item.posters ?? local?.item.posters ?? item.posters
     let presentation = MediaPresentationProfile(type: item.type, genres: detail?.genres ?? [])
-    var title = presentation.cardTitle(localized: item.localizedTitle, original: item.originalTitle)
+    let localized = detail?.localizedTitle ?? item.localizedTitle
+    let original = detail.flatMap { $0.originalTitle != $0.localizedTitle ? $0.originalTitle : nil }
+      ?? item.originalTitle
+    var title = presentation.cardTitle(localized: localized, original: original)
     var concertShow: String?
     if offeredVersion != nil {
       // Several videos: the title on one line, the one in progress under it.
@@ -1567,8 +1577,9 @@ class HomeCatalog: ObservableObject {
     )
     // kino.pub's frame of what the card offers. Under the pointer `MediaCardView` asks the
     // worker for the title page's own picture of it and keeps this as the fallback.
-    let hoverStill = offered?.thumbnail ?? offeredVersion?.thumbnail
-      ?? (isResuming ? history?.media?.thumbnail : nil)
+    let hoverStill = [offered?.thumbnail, offeredVersion?.thumbnail, localEpisode?.thumbnail,
+                      resumableHistory?.media?.thumbnail, sameCachedVideo ? cached?.hoverStillURL : nil]
+      .compactMap { $0 }.first { !$0.isEmpty }
     let unwatched = (isSeries && isInWatchlist)
       ? item.unwatchedCount.flatMap { $0 > 0 ? $0 : nil }
       : nil
@@ -1578,7 +1589,7 @@ class HomeCatalog: ObservableObject {
     var card = MediaCard(id: item.id,
                      posterURL: item.posters.medium,
                      title: title,
-                     subtitle: item.originalTitle,
+                     subtitle: original,
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
                      backdropURL: landscapeImageURL(for: item, history: history, local: local),
@@ -1602,7 +1613,8 @@ class HomeCatalog: ObservableObject {
                      genres: genres,
                      primaryAction: .play,
                      imdbID: detail?.imdb,
-                     kinopoiskID: item.kinopoisk)
+                     kinopoiskID: detail?.kinopoisk ?? item.kinopoisk,
+                     originalTitle: presentation.hasBilingualTitle ? original : nil)
     card.continuePeekHint = Self.continuePeekHint(for: cardReason)
     return card
   }

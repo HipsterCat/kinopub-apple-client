@@ -162,7 +162,8 @@ class PersonalLibraryCatalog: ObservableObject {
                isSeries: true,
                viewerState: ViewerState(isFollowing: true),
                unwatchedEpisodes: left,
-               kinopoiskID: item.kinopoisk)
+               kinopoiskID: item.kinopoisk,
+              originalTitle: item.originalTitle)
     }
   }
 

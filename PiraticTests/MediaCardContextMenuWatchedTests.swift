@@ -62,23 +62,6 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     )
   }
 
-  private func filmCard() -> MediaCard {
-    MediaCard(
-      id: 9,
-      posterURL: "https://example.com/film.jpg",
-      title: "Фильм",
-      landscapeImageURL: "https://example.com/film-wide.jpg",
-      itemID: 9,
-      video: 1,
-      isSeries: false,
-      year: 2023,
-      durationSeconds: 7200,
-      genres: [Genre(id: "thriller", domain: .video,
-                     name: LocalizedName(en: "Thriller", ru: "Триллер"))],
-      kinopoiskID: 100
-    )
-  }
-
   func testSeriesContinueWatchingUsesWatchedSubmenu() {
     var markedEpisode = false
     let entries = MediaCardContextMenus.entries(
@@ -140,7 +123,7 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     XCTAssertFalse(ids.contains(MediaCardContextMenus.watchedMenuID))
   }
 
-  func testPreviewSpecUsesLandscapeForWideCardWithoutEpisodeLine() {
+  func testSeriesPreviewKeepsEpisodeCaptionAndDuration() {
     let spec = MediaCardContextPreviewSpec.from(card: seriesCard(), surface: .shelf)
     XCTAssertEqual(spec.aspect, .landscape)
     // Series CW peek uses the episode still (`hoverStillURL` / pointerArtwork), same
@@ -148,30 +131,34 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
     XCTAssertEqual(spec.url?.absoluteString,
                    "https://m.staticpop.net/poster/episode/thumb/42.jpg")
     XCTAssertEqual(spec.title, "Альтруисты")
-    // Title-level CW peek: genre / year · genre — never «S1, E3» / «Ep. 1».
-    XCTAssertTrue(
-      spec.subtitle == "2024 · Драма" || spec.subtitle == "2024 · Drama",
-      "unexpected subtitle \(spec.subtitle ?? "nil")"
-    )
+    XCTAssertEqual(spec.subtitle, "S1, E3")
+    XCTAssertEqual(spec.time, MediaLanguage.current == .ru ? "50м" : "50m")
   }
 
-  func testFilmContinueWatchingPeekHasNoEpisodeLine() {
-    let spec = MediaCardContextPreviewSpec.from(card: filmCard(), surface: .shelf)
+  func testFilmContinueWatchingKeepsWideCoverAndShowsRemainingAndTotal() {
+    let card = MediaCard(
+      id: 9,
+      posterURL: "https://example.com/poster.jpg",
+      title: "Одиссея",
+      progress: 0.25,
+      landscapeImageURL: "https://example.com/wide.jpg",
+      overlayLabel: "Недосмотрено",
+      hoverStillURL: "https://example.com/still.jpg",
+      video: 1,
+      durationSeconds: 120 * 60
+    )
+    let images = TitleImageRoute(baseURL: URL(string: "https://proxy.example")!)
+    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf, images: images)
     XCTAssertEqual(spec.aspect, .landscape)
-    let subtitle = spec.subtitle ?? ""
-    XCTAssertFalse(subtitle.contains("Ep"), "film peek must not say Ep: \(subtitle)")
-    XCTAssertFalse(subtitle.contains("серия"), "film peek must not say серия: \(subtitle)")
-    XCTAssertTrue(
-      subtitle == "2023 · Триллер" || subtitle == "2023 · Thriller",
-      "unexpected subtitle \(subtitle)"
-    )
+    XCTAssertEqual(spec.artworkURLs, card.artworkLadder)
+    XCTAssertEqual(spec.subtitle, "Недосмотрено")
+    XCTAssertEqual(spec.time, MediaLanguage.current == .ru ? "Ещё 1ч 30м / 2ч" : "1h 30m left / 2h")
   }
 
-  func testContinuePeekHintBeatsGenre() {
+  func testUnfinishedHintDoesNotReplaceEpisodeCaption() {
     var card = seriesCard()
-    card.continuePeekHint = "В закладках"
-    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf)
-    XCTAssertEqual(spec.subtitle, "В закладках")
+    card.continuePeekHint = "Недосмотрено"
+    XCTAssertEqual(card.sneakPeekSubtitle(surface: .shelf, language: .ru), "S1, E3")
   }
 
   func testPreviewSpecUsesCoverURLForPortraitWhenRussian() {
@@ -190,16 +177,19 @@ final class MediaCardContextMenuWatchedTests: XCTestCase {
   }
 
   func testSeriesPeekPrefersWorkerEpisodeStill() {
-    let worker = URL(string: "https://proxy.example/img")!
-    let images = TitleImageRoute(baseURL: worker, language: nil)
-    let card = seriesCard()
-    let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf, images: images)
-    let expected = images.episodeStill(
-      kinopubID: 42, imdb: nil, season: 1, episode: 3,
-      pixelWidth: TitleImageRoute.episodeStillPixelWidth(points: 340, scale: 2),
-      kinopubThumb: card.hoverStillURL
-    )
-    XCTAssertEqual(spec.url, expected)
+    let images = TitleImageRoute(baseURL: URL(string: "https://proxy.example")!, language: nil)
+    for host in ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru"] {
+      let thumb = "https://\(host)/thumb/d/aa/hash/1000/480.jpg"
+      let card = MediaCard(id: 42, posterURL: "", title: "Show",
+                           landscapeImageURL: "https://cdn.example/wide.jpg",
+                           hoverStillURL: thumb, video: 3, season: 1, isSeries: true, imdbID: 9042)
+      let spec = MediaCardContextPreviewSpec.from(card: card, surface: .shelf, images: images)
+      XCTAssertEqual(spec.url?.path, "/img/thumbnail/by/kinopub/42")
+      let query = spec.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems }
+      XCTAssertEqual(query?.first { $0.name == "src" }?.value, thumb)
+      XCTAssertEqual(query?.first { $0.name == "imdb" }?.value, "tt0009042")
+      XCTAssertEqual(Array(spec.artworkURLs.dropFirst()), [URL(string: thumb)!] + card.artworkLadder)
+    }
   }
 
   func testPreviewSpecUsesPosterAspectAndYearGenre() {

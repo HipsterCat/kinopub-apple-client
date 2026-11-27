@@ -284,9 +284,9 @@ enum MediaCardContextMenus {
     return entries
   }
 
-  /// URL of the artwork the surface actually paints (shelf lockup vs banner backdrop).
+  /// First artwork request the preview makes, with the same worker route as the card.
   static func artworkURL(for card: MediaCard, surface: MediaCardContextSurface) -> String? {
-    card.sneakPeekArtworkURL(surface: surface)?.absoluteString
+    card.sneakPeekArtworkURL(surface: surface, images: AppContext.shared.metadataService.images)?.absoluteString
   }
 
   /// Builds entries for a card using the shared coordinator + navigation hooks.

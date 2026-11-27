@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": [
+    "По долгому нажатию в «Продолжить» видны сезон и серия, оставшееся и полное время. У фильма сохраняется обложка, у серии показывается её кадр.",
+    "Названия фильмов, сериалов и эпизодов учитывают язык приложения, когда доступны оба варианта."
+  ],
+  "en": [
+    "Press and hold a Continue Watching card to see the episode reference, time left and total runtime. Films keep their cover and episodes show their still.",
+    "Film, show and episode titles follow the app language when both names are available."
+  ]
+}

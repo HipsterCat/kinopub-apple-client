@@ -359,16 +359,19 @@ public actor MetadataService {
       let end = min(index + 4, jobs.count)
       let slice = Array(jobs[index..<end])
       index = end
-      await withTaskGroup(of: [EpisodeSchedule].self) { group in
-        for job in slice {
+      let batch = await withTaskGroup(of: (Int, [EpisodeSchedule]).self) { group in
+        for (offset, job) in slice.enumerated() {
           group.addTask {
-            await self.schedule(for: identity, season: job.0, language: job.1)
+            (offset, await self.schedule(for: identity, season: job.0, language: job.1))
           }
         }
-        for await part in group {
-          results.append(contentsOf: part)
+        var ordered = Array(repeating: [EpisodeSchedule](), count: slice.count)
+        for await (offset, part) in group {
+          ordered[offset] = part
         }
+        return ordered
       }
+      results.append(contentsOf: batch.joined())
     }
     return results
   }

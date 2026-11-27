@@ -167,6 +167,10 @@ public struct MediaPresentationProfile: Equatable, Sendable {
     return "\(localized) – \(original)"
   }
 
+  /// A concert's second value is the show or venue. For stand-up it can be the
+  /// name of the performance. Keep the catalogue's first value as the main title.
+  public var hasBilingualTitle: Bool { kind != .concert && kind != .standup }
+
   /// Whether kino.pub's `tracklist` is a setlist. Only a concert's is: a film or a series
   /// sends the field too, with its audio tracks in it.
   public var showsSetlist: Bool { kind == .concert }
@@ -279,6 +283,10 @@ public struct CastShelfPolicy: Equatable, Sendable {
 // MARK: - Reading the kind off an item
 
 public extension MediaPresentationProfile {
+
+  static func hasBilingualTitle(for entity: MediaEntity) -> Bool {
+    !entity.genres.contains { $0.id == "concert" || $0.id == "stand-up" }
+  }
 
   /// Read off our media model, not off kino.pub's strings: the type's shape and implied
   /// genre first (`KinoPubMediaMapping.typeMapping` — a `documovie` is a documentary

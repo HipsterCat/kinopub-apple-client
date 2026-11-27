@@ -297,13 +297,13 @@ struct MediaItemView: View {
       // Bare over the picture — no title, no edge effect, no bar — and the system's own
       // bar with the title once the hero has gone under it, as on Mac.
       .modifier(PhoneTitlePageBar(phase: itemModel.heroPhase,
-                                  title: itemModel.mediaItem.localizedTitle))
+                                  title: itemModel.mediaItem.displayTitle))
 #endif
 #if os(macOS)
       // No title over the hero — it spells the name out itself; once the hero has gone
       // under the toolbar, the toolbar takes the name (and the original one under it).
       .modifier(MacTitlePageToolbar(phase: itemModel.heroPhase,
-                                    title: itemModel.mediaItem.localizedTitle,
+                                    title: itemModel.mediaItem.displayTitle,
                                     subtitle: macToolbarSubtitle))
 #endif
 #if os(iOS) || os(macOS)
@@ -456,7 +456,7 @@ struct MediaItemView: View {
     guard itemModel.itemLoaded else { return nil }
     let item = itemModel.mediaItem
     let target = TitleImagePickerTarget(kinopubID: item.id, imdb: item.imdb,
-                                        title: item.localizedTitle)
+                                        title: item.displayTitle)
     return TitleImageAdminActions.make(
       target: target,
       kinopoisk: item.kinopoisk,
@@ -945,7 +945,7 @@ struct MediaItemView: View {
         SeasonsRailView(seasons: seasons,
                         memory: itemModel.seasonsRail,
                         linkProvider: itemModel.linkProvider,
-                        seriesTitle: itemModel.mediaItem.localizedTitle,
+                        seriesTitle: itemModel.mediaItem.displayTitle,
                         showsChrome: true,
                         openingEpisodeID: itemModel.mediaItem.primaryEpisode?.episode.id,
                         awaitsNextEpisode: itemModel.awaitedEpisodeAirDate != nil,
@@ -1397,7 +1397,7 @@ extension MediaItemView {
   /// The original name under the toolbar title when it is not the same words.
   fileprivate var macToolbarSubtitle: String {
     let item = itemModel.mediaItem
-    return item.originalTitle != item.localizedTitle ? item.originalTitle : ""
+    return item.originalTitle != item.displayTitle ? item.originalTitle : ""
   }
 }
 

@@ -41,7 +41,8 @@ public extension MediaCard {
               genres: entity.genres,
               country: entity.countries.first,
               imdbID: entity.id(.imdb).flatMap { Int($0.drop { !$0.isNumber }) },
-              kinopoiskID: entity.id(.kinopoisk).flatMap(Int.init))
+              kinopoiskID: entity.id(.kinopoisk).flatMap(Int.init),
+              originalTitle: MediaPresentationProfile.hasBilingualTitle(for: entity) ? entity.originalTitle : nil)
   }
 }
 
@@ -85,7 +86,7 @@ public extension MediaCard {
   /// The same card with the viewer's state replaced — watched, progress, follow, folders.
   /// Words and artwork are untouched.
   func withViewerState(_ state: ViewerState) -> MediaCard {
-    var card = MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+    var card = MediaCard(id: id, posterURL: posterURL, title: catalogTitle, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: state.resumeFraction ?? (state.isWatched ? nil : progress),
                      badge: badge, backdropURL: backdropURL,
@@ -100,7 +101,9 @@ public extension MediaCard {
                      unwatchedEpisodes: unwatchedEpisodes,
                      durationSeconds: durationSeconds, genres: genres, country: country,
                      primaryAction: primaryAction, opensCollection: opensCollection,
-                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID,
+                     originalTitle: originalTitle)
+    card.continuePeekHint = continuePeekHint
     card.continueWatchingActivityDate = continueWatchingActivityDate
     return card
   }
@@ -119,7 +122,7 @@ public extension MediaCard {
   func withUnwatchedEpisodes(_ count: Int?) -> MediaCard {
     let left = count.flatMap { $0 > 0 ? $0 : nil }
     guard left != unwatchedEpisodes else { return self }
-    var card = MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+    var card = MediaCard(id: id, posterURL: posterURL, title: catalogTitle, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: progress,
                      badge: badge, backdropURL: backdropURL,
@@ -134,7 +137,9 @@ public extension MediaCard {
                      unwatchedEpisodes: left,
                      durationSeconds: durationSeconds, genres: genres, country: country,
                      primaryAction: primaryAction, opensCollection: opensCollection,
-                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID,
+                     originalTitle: originalTitle)
+    card.continuePeekHint = continuePeekHint
     card.continueWatchingActivityDate = continueWatchingActivityDate
     return card
   }
