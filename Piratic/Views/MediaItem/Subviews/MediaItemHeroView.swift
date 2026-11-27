@@ -1026,7 +1026,7 @@ struct MediaItemHeroView: View {
       phoneLineSlot(lines: 1, font: Self.phoneMetaFont)
         .frame(maxWidth: .infinity)
         .overlay { scoresLine }
-      phoneLineSlot(lines: Self.phonePlotLines, font: MediaItemPlotView.font)
+      phoneLineSlot(lines: tabletHeroLineLimit ?? Self.phonePlotLines, font: MediaItemPlotView.font)
         .frame(maxWidth: .infinity)
         .overlay(alignment: .top) {
           if hasSynopsis {
@@ -1034,7 +1034,7 @@ struct MediaItemHeroView: View {
               title: mediaItem.displayTitle,
               plot: synopsis.plot,
               lead: synopsis.lead,
-              maxLines: Self.phonePlotLines,
+              maxLines: tabletHeroLineLimit ?? Self.phonePlotLines,
               centered: true,
               focus: $focus,
               popupSubtitle: popupOriginalTitle,
@@ -1136,6 +1136,14 @@ struct MediaItemHeroView: View {
     phoneHeroGrows
 #else
     false
+#endif
+  }
+
+  private var tabletHeroLineLimit: Int? {
+#if os(iOS)
+    UIDevice.current.userInterfaceIdiom == .pad ? 3 : nil
+#else
+    nil
 #endif
   }
 
@@ -1621,7 +1629,8 @@ struct MediaItemHeroView: View {
           plot: synopsis.plot,
           lead: synopsis.lead,
           // Not on a phone: there the poster is above the words, not beside them.
-          expandsFully: showsCornerPoster && !centersColumn,
+          expandsFully: tabletHeroLineLimit == nil && showsCornerPoster && !centersColumn,
+          maxLines: tabletHeroLineLimit,
           focus: $focus,
           popupSubtitle: popupOriginalTitle,
           summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
@@ -1731,11 +1740,11 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var titleSupplementaryBlock: some View {
     if centersColumn, let caption = phoneCaption {
-      // One text, one line, so the other name arriving morphs into it rather than
+      // One text, so the other name arriving morphs into it rather than
       // fading in over the country; a long name gives way in its middle and the
       // country at the end stays.
       Text(verbatim: caption)
-        .lineLimit(1)
+        .lineLimit(tabletHeroLineLimit ?? 1)
         .truncationMode(.middle)
         .contentTransition(.interpolate)
         .animation(.smooth, value: caption)
@@ -1744,6 +1753,7 @@ struct MediaItemHeroView: View {
         .shadow(color: .black.opacity(titleShadowOpacity), radius: 8, x: 0, y: 2)
     } else if let line = supplementaryUnderTitle {
       Text(line)
+        .lineLimit(tabletHeroLineLimit)
         .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(columnTextAlignment)

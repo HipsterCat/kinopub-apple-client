@@ -287,6 +287,9 @@ struct DeviceCodeSignInView<Logo: View>: View {
   private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Text(verbatim: title)
+#if !os(tvOS)
+        .font(TypeScale.largeActionLabel)
+#endif
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.glassProminent)
@@ -303,6 +306,7 @@ struct DeviceCodeSignInView<Logo: View>: View {
   private var shareButton: some View {
     ShareLink(item: shareURL, subject: Text(verbatim: title), message: Text(verbatim: shareMessage)) {
       Label("Auth_Share", systemImage: "square.and.arrow.up")
+        .font(TypeScale.largeActionLabel)
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.glass)

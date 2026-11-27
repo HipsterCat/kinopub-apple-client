@@ -4487,7 +4487,7 @@ struct MediaItemPlotView: View {
   /// System text styles rather than hand-picked point sizes: the synopsis sits next
   /// to real tvOS controls and has to be on the same scale they are. The label is a
   /// step below the paragraph.
-  static let moreFont: Font = TypeScale.detailBody.weight(.semibold)
+  static var moreFont: Font { font.weight(.semibold) }
 
 #if os(tvOS)
   /// Room between the glyphs and a focused shape's corner radius. Cancelled by the
@@ -4514,8 +4514,12 @@ struct MediaItemPlotView: View {
   static let inlineGapSpaces = "    "
 #endif
 
-  /// Same size as the metadata line above it and the information table below it.
-  static let font: Font = TypeScale.detailBody
+  static var font: Font {
+#if os(iOS)
+    if UIDevice.current.userInterfaceIdiom == .pad { return TypeScale.tabletHeroSynopsis }
+#endif
+    return TypeScale.detailBody
+  }
 
   static func moreCapsuleFill(contrast: ColorSchemeContrast) -> Color {
     Color.Piratic.text.opacity(contrast == .increased ? 0.35 : 0.2)

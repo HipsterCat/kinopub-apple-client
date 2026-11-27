@@ -158,7 +158,7 @@ struct LibraryFilterSheet<Catalog: FilterBarDriver>: View {
       }
     } label: {
       Text("Clear_Filters")
-        .font(.body.weight(.semibold))
+        .font(TypeScale.largeActionLabel)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
     }

@@ -113,8 +113,7 @@ public enum TypeScale {
   }()
     
 
-  /// **The** running-text size on an item page. Everything that is prose or a
-  /// label-and-value pair takes this: the hero's metadata row, synopsis and credit
+  /// The default running-text size on an item page, used by the metadata and credit
   /// lines, the vote counts under the rating tiles, and every row of the information
   /// table. They used to be four hand-picked point sizes between 12 and 15 that were
   /// never quite the same as each other; one token means they cannot drift apart again.
@@ -137,6 +136,8 @@ public enum TypeScale {
          #endif
     }()
      public static let filterControl: Font = .subheadline.weight(.medium)
+  public static let tabletHeroSynopsis: Font = .subheadline
+  public static let largeActionLabel: Font = .body.weight(.semibold)
   public static let actionLabel: Font = .subheadline.weight(.medium)
   public static let detailSection: Font = .title3.weight(.medium)
      public static let settingsTitle: Font = .largeTitle.weight(.semibold)

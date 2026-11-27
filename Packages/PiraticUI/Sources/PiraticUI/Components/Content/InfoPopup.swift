@@ -323,6 +323,7 @@ public struct InfoPopupView<Content: View>: View {
   private func continueButton(_ title: Text) -> some View {
     Button(action: close) {
       title
+        .font(TypeScale.largeActionLabel)
         // iOS keeps a white label on the white fill in dark: the label is the
         // opposite of the fill, as on the Mac.
         .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)

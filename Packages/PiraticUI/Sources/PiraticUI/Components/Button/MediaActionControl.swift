@@ -42,7 +42,7 @@ public struct MediaActionLabel: View {
         content
       }
     }
-    .font(MediaActionMetrics.labelFont)
+    .font(labelFont)
     // The white Play's dark label (`mediaActionPlayPillStyle`), set on the label.
     .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))
 #if os(tvOS)
@@ -53,6 +53,17 @@ public struct MediaActionLabel: View {
 #endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .animation(.easeOut(duration: 0.2), value: appearance.isLoading)
+  }
+
+  private var labelFont: Font? {
+    if appearance.chrome != .circle {
+#if os(macOS)
+      return TypeScale.largeActionLabel
+#elseif os(iOS)
+      if UIDevice.current.userInterfaceIdiom == .pad { return TypeScale.largeActionLabel }
+#endif
+    }
+    return MediaActionMetrics.labelFont
   }
 
   @ViewBuilder
