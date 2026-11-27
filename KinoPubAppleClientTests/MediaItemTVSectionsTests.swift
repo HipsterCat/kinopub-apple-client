@@ -283,7 +283,7 @@ final class MediaItemTVSectionsTests: XCTestCase {
   /// A score has two lines to say; it is not as tall as a review's card beside it.
   func testAScoreCardIsLowerThanTheCardsBesideIt() {
     let rating = TVPageInfoCard.rating(.init(id: "IMDb", source: .imdb, title: "IMDb", value: "6.5", caption: "1 567"))
-    let review = TVPageInfoCard.review(.init(id: "0", headline: "h", body: "b", sentiment: nil, tone: .neutral, date: nil))
+    let review = TVPageInfoCard.review(MediaItemTVSections.review(fixture.metadata.reviews[0], index: 0))
     XCTAssertLessThan(rating.height(forWidth: 256), review.height(forWidth: 256))
     XCTAssertEqual(review.height(forWidth: 256), TVPageLayout.infoCardHeight)
   }
@@ -312,13 +312,10 @@ final class MediaItemTVSectionsTests: XCTestCase {
     }), "nothing to count, no card")
   }
 
-  /// A review is a card on the page of their own — a headline, or the author when there is none.
-  func testAReviewWithNoHeadlineIsTitledByItsAuthor() {
+  func testReviewCardsCarryTheReviewSelectedInTheSheet() {
     let reviews = fixture.metadata.reviews.enumerated().map { MediaItemTVSections.review($1, index: $0) }
-    XCTAssertEqual(reviews.count, 3)
-    XCTAssertEqual(reviews[0].headline, "Крепкое возвращение")
-    XCTAssertEqual(reviews[1].headline, "Lintandil", "no headline: the author stands in")
-    XCTAssertEqual(reviews.map(\.tone), [.positive, .neutral, .negative])
+    XCTAssertEqual(reviews.map(\.id), ["0", "1", "2"])
+    XCTAssertEqual(reviews.map(\.presentation.review), fixture.metadata.reviews)
   }
 
   // MARK: - People

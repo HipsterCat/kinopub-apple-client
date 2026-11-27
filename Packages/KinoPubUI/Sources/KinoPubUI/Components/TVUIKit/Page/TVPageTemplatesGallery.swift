@@ -9,6 +9,7 @@
 //
 
 import CryptoKit
+import KinoPubMetadata
 import SwiftUI
 
 public struct TVPageTemplatesGallery: View {
@@ -216,17 +217,20 @@ public struct TVPageTemplatesGallery: View {
   }
 
   static var sampleReviews: [TVPageInfoCard.Review] {
-    [
-      .init(id: "0", headline: "A solid return",
-            body: "The film holds its pace from the first minutes and does not stop to explain itself. Good camera work, a decent soundtrack and, above all, a living hero worth following.",
-            sentiment: "Positive", tone: .positive, date: "18.07.2026"),
-      .init(id: "1", headline: "Lintandil",
-            body: "Loud, pretty and at times pointless. The first half works, the second drags.",
-            sentiment: "Neutral", tone: .neutral, date: "20.07.2026"),
-      .init(id: "2", headline: "Expected more",
-            body: "After the trailers I expected something else. The emotional scenes do not add up.",
-            sentiment: "Negative", tone: .negative, date: "22.07.2026")
+    let reviews = [
+      Review(author: "Viewer", title: "A solid return",
+             body: "The film holds its pace from the first minutes and does not stop to explain itself. Good camera work, a decent soundtrack and a living hero worth following.",
+             sentiment: "POSITIVE", postedAt: .now, helpfulVotes: 24),
+      Review(author: "Big Homie", title: "",
+             body: "[Hunter Schafer](https://app.trakt.tv/people/hunter-schafer) draws you in from the first scene.",
+             sentiment: "POSITIVE", postedAt: .now, helpfulVotes: 14, source: .trakt, replyCount: 1, authorRating: 8),
+      Review(author: "Viewer", title: "",
+             body: "After the trailers I expected something else. The emotional scenes do not add up.",
+             sentiment: "NEGATIVE", postedAt: .now, unhelpfulVotes: 7)
     ]
+    return reviews.enumerated().map { index, review in
+      .init(id: String(index), presentation: ReviewPresentation(review, locale: .current))
+    }
   }
 
   static var sampleGallery: TVPageInfoCard.Gallery {

@@ -8,25 +8,14 @@ import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
 
-/// What the Ratings and Reviews block opens — every card in it leads here.
-///
-/// The rail's cards are previews: one headline, five lines, a footer, cut to a fixed
-/// height. This is where a review is actually read, so the same `BlockCard` runs full
-/// width with no line limit, under the same ratings card and the review tally.
-///
-/// Nothing here fetches. It all travelled in the route, because it was already merged
-/// into the item's metadata before the header could be tapped — which is also why the
-/// destination exists even on a title nobody has reviewed: the block always leads
-/// somewhere, and here that somewhere is the scores plus an honest empty note.
-///
-/// Not this page on tvOS — a navigating section header is an iOS/macOS affordance, and a page of
-/// text with nothing focusable cannot be scrolled with a remote. The count card in the scores' row
-/// opens `MediaItemReviewsTVPage` instead (`RouteDestination`).
+#if !os(tvOS)
+/// The title's scores and reviews, from the metadata already carried in the route.
 struct MediaItemRatingsAndReviewsPage: View {
   let payload: RatingsAndReviews
 
   /// Opens where the card that led here says — the viewers', the critics' — or on all of it.
   @State private var tab: RatingsTab
+  @State private var selectedReview: Review?
 
   init(payload: RatingsAndReviews) {
     self.payload = payload
@@ -36,11 +25,14 @@ struct MediaItemRatingsAndReviewsPage: View {
   private var reviews: [Review] { payload.reviews }
 
   var body: some View {
-    if FeatureFlags.ratingsSummaryCards {
-      tabbedBody
-    } else {
-      legacyBody
+    Group {
+      if FeatureFlags.ratingsSummaryCards {
+        tabbedBody
+      } else {
+        legacyBody
+      }
     }
+    .mediaReviewSheet($selectedReview, item: payload.item)
   }
 
   // MARK: Tabs
@@ -134,15 +126,8 @@ struct MediaItemRatingsAndReviewsPage: View {
       if let insights = payload.reviewInsights, !insights.isEmpty {
         ReviewInsightsCard(insights: insights)
       }
-      if reviews.isEmpty {
-        emptyNote
-      } else {
-        LazyVStack(alignment: .leading, spacing: BlockMetrics.spacing) {
-          ForEach(reviews) { review in
-            ReviewCard(review: review, mode: .expanded,
-                       sourceURL: review.isFromTrakt ? review.traktCommentURL : kinopoiskReviewsURL)
-          }
-        }
+      LazyVStack(alignment: .leading, spacing: BlockMetrics.spacing) {
+        reviewCards
       }
     }
   }
@@ -186,14 +171,7 @@ struct MediaItemRatingsAndReviewsPage: View {
         if let summary = payload.summary, !summary.isEmpty, !reviews.isEmpty {
           ReviewsSummaryCard(summary: summary, width: nil)
         }
-        if reviews.isEmpty {
-          emptyNote
-        } else {
-          ForEach(reviews) { review in
-            ReviewCard(review: review, mode: .expanded,
-                       sourceURL: review.isFromTrakt ? review.traktCommentURL : kinopoiskReviewsURL)
-          }
-        }
+        reviewCards
       }
       .padding(.horizontal, MediaItemLayout.horizontalInset)
       .padding(.vertical, MediaItemLayout.sectionSpacing)
@@ -219,14 +197,15 @@ struct MediaItemRatingsAndReviewsPage: View {
                          dislikeCount: payload.dislikeCount)
   }
 
-  /// The title's review list at the source. **Not a permalink to one review** — the
-  /// proxy gives the review's id but Kinopoisk's own review URL is built from a user
-  /// id we never receive, so "where this came from" is as precise as we can be
-  /// (`docs/providers/kinopoisk-proxy.md`).
-  private var kinopoiskReviewsURL: URL? {
-    guard let id = payload.item.kinopoisk, id > 0 else { return nil }
-    let kind = payload.item.isSeries ? "series" : "film"
-    return URL(string: "https://www.kinopoisk.ru/\(kind)/\(id)/reviews/")
+  @ViewBuilder
+  private var reviewCards: some View {
+    if reviews.isEmpty {
+      emptyNote
+    } else {
+      ForEach(reviews) { review in
+        ReviewCard(review: review, width: nil, height: BlockMetrics.textCardHeight) { selectedReview = review }
+      }
+    }
   }
 
   private var emptyNote: some View {
@@ -258,7 +237,16 @@ struct MediaItemRatingsAndReviewsPage: View {
            date: "2015-02-28T12:57:52",
            postedAt: Date(timeIntervalSince1970: 1_425_124_672),
            helpfulVotes: 7,
-           unhelpfulVotes: 2)
+           unhelpfulVotes: 2),
+    Review(author: "Big Homie",
+           title: "",
+           body: "[Hunter Schafer](https://app.trakt.tv/people/hunter-schafer) carries the film.\n\nThe final scene stayed with me.",
+           sentiment: "POSITIVE",
+           postedAt: .now,
+           helpfulVotes: 24,
+           source: .trakt,
+           replyCount: 1,
+           authorRating: 8)
   ]
   metadata.reviewsSummary = ReviewsSummary(total: 11, positive: 7, negative: 1, neutral: 3)
   metadata.tmdbRating = 6.3
@@ -272,7 +260,56 @@ struct MediaItemRatingsAndReviewsPage: View {
                                  dislikeCount: 12)
     )
   }
-  // .preferredColorScheme(.dark)
+}
+#endif
+
+extension View {
+  func mediaReviewSheet(_ selection: Binding<Review?>, item: MediaItem) -> some View {
+    modifier(MediaReviewSheet(selection: selection, item: item))
+  }
+}
+
+private struct MediaReviewSheet: ViewModifier {
+  @Binding var selection: Review?
+  let item: MediaItem
+  @Environment(\.locale) private var locale
+
+  private var title: Text { Text("MediaItem_ReviewTitle") }
+
+  func body(content: Content) -> some View {
+#if os(tvOS)
+    content.infoPopup(title, isPresented: Binding(
+      get: { selection != nil },
+      set: { if !$0 { selection = nil } }
+    )) {
+      if let selection {
+        ReviewReadingContent(review: ReviewPresentation(selection, locale: locale))
+      }
+    }
+#else
+    content.sheet(item: $selection) { review in
+      InfoPopupView(title: title) {
+        ReviewReadingContent(review: ReviewPresentation(review, locale: locale), sourceURL: sourceURL(for: review))
+      }
+      .pageColorScheme()
+#if os(iOS)
+      .presentationSizing(.page)
+#else
+      .frame(idealWidth: InfoPopupMetrics.maxWidth)
+#endif
+    }
+#endif
+  }
+
+  private func sourceURL(for review: Review) -> URL? {
+    if review.isFromTrakt {
+      return review.sourceId.flatMap { URL(string: "https://trakt.tv/comments/\($0)") }
+    }
+    // Kinopoisk's permalink uses a user id the proxy does not provide.
+    guard let id = item.kinopoisk, id > 0 else { return nil }
+    let kind = item.isSeries ? "series" : "film"
+    return URL(string: "https://www.kinopoisk.ru/\(kind)/\(id)/reviews/")
+  }
 }
 
 // MARK: - Trakt

@@ -11937,6 +11937,27 @@
         }
       }
     },
+    "MediaItem_ReviewHelpful" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Helpful votes" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Голоса «полезно»" } }
+      }
+    },
+    "MediaItem_ReviewLikes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Likes" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Лайки" } }
+      }
+    },
+    "MediaItem_ReviewReplies" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replies" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ответы" } }
+      }
+    },
     "MediaItem_ReviewSourceKinopoisk" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11969,6 +11990,20 @@
             "value" : "Положительные"
           }
         }
+      }
+    },
+    "MediaItem_ReviewTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Review" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отзыв" } }
+      }
+    },
+    "MediaItem_ReviewUnhelpful" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unhelpful votes" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Голоса «неполезно»" } }
       }
     },
     "MediaItem_Runtime" : {

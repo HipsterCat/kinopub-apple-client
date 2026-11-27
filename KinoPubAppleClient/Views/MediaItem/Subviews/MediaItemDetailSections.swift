@@ -2057,10 +2057,9 @@ private struct FactCard: View {
 /// platforms; that row survives for tvOS, where individually focusable tiles beat one
 /// card the remote cannot step into.
 ///
-/// The rail is capped rather than complete on purpose — a card here is a *preview* of
-/// a review, and the page behind the header is where you read one. The cap is also
-/// what the source hands us in one page (`ReviewsSummary.total` is usually larger),
-/// so the tally card and the card count legitimately disagree.
+/// The rail previews the first reviews. Each opens in a sheet, and the header leads
+/// to the ratings and the rest of the list.
+#if !os(tvOS)
 struct MediaItemRatingsAndReviewsSection: View {
   let mediaItem: MediaItem
   var externalMetadata: TitleMetadata = TitleMetadata()
@@ -2069,13 +2068,11 @@ struct MediaItemRatingsAndReviewsSection: View {
   /// ratings card as a source rather than living as a pair of pills.
   var likeCount: Int = 0
   var dislikeCount: Int = 0
-  /// The section's page. Every card in the rail opens it too, so the whole block has
-  /// exactly one destination.
+  /// The section's page, reached from the header and ratings cards.
   var destination: (any Hashable)? = nil
-  /// The same page opened on one tab: the viewers' card opens the viewers, the critics' card
-  /// and the reviews the critics. Nil falls back to `destination`.
+  /// The same page opened on the tab for a ratings card.
   var tabDestination: ((RatingsTab) -> any Hashable)? = nil
-  @Environment(\.openURL) private var openURL
+  @State private var selectedReview: Review?
 
   private var reviews: [Review] { externalMetadata.reviews }
   private var visible: [Review] { Array(reviews.prefix(Self.limit)) }
@@ -2094,11 +2091,14 @@ struct MediaItemRatingsAndReviewsSection: View {
   }
 
   var body: some View {
-    if FeatureFlags.ratingsSummaryCards {
-      summaryBody
-    } else {
-      legacyBody
+    Group {
+      if FeatureFlags.ratingsSummaryCards {
+        summaryBody
+      } else {
+        legacyBody
+      }
     }
+    .mediaReviewSheet($selectedReview, item: mediaItem)
   }
 
   // MARK: Viewers and critics
@@ -2126,8 +2126,7 @@ struct MediaItemRatingsAndReviewsSection: View {
             summaryCard(summary)
           }
           ForEach(visible) { review in
-            ReviewCard(review: review, destination: link(.critics),
-                       width: ScoreSummaryMetrics.reviewWidth, tinted: true, growsText: true)
+            ReviewCard(review: review, width: ScoreSummaryMetrics.reviewWidth) { selectedReview = review }
           }
         }
       }
@@ -2173,8 +2172,7 @@ struct MediaItemRatingsAndReviewsSection: View {
                                  destination: destination)
           }
           ForEach(visible) { review in
-            ReviewCard(review: review,
-                       destination: destination)
+            ReviewCard(review: review) { selectedReview = review }
           }
         }
       }
@@ -2194,10 +2192,12 @@ struct MediaItemRatingsAndReviewsSection: View {
 /// the incumbent before the replacement is settled is how a comparison stops being
 /// possible. One of the two goes when the switch in `MediaItemView` does.
 struct MediaItemReviewsSection: View {
+  let mediaItem: MediaItem
   let reviews: [Review]
   var summary: ReviewsSummary? = nil
   /// The full-list page. `nil` leaves the header plain — see `MediaItemSectionHeader`.
   var destination: (any Hashable)? = nil
+  @State private var selectedReview: Review?
 
   private var visible: [Review] { Array(reviews.prefix(Self.limit)) }
 
@@ -2217,15 +2217,17 @@ struct MediaItemReviewsSection: View {
             ReviewsSummaryCard(summary: summary)
           }
           ForEach(visible) { review in
-            ReviewCard(review: review)
+            ReviewCard(review: review) { selectedReview = review }
           }
         }
       }
+      .mediaReviewSheet($selectedReview, item: mediaItem)
     }
   }
 
   static let limit = 10
 }
+#endif
 
 /// The rail's leading card: the aggregate — as a number and as stars — the votes and
 /// review counts under it, then the row of sources it was computed from.
@@ -2554,277 +2556,6 @@ struct ReviewsSummaryCard: View {
       .font(TypeScale.detailBody)
       .lineLimit(1)
     }
-  }
-}
-
-/// One review, in the two modes every block card is heading for.
-///
-/// - `.compact` — what fits in a rail: the headline, as much body as the height
-///   allows, and the two facts worth a glance (how it was meant, when). No nickname,
-///   no vote tallies, no source. A preview earns its space by being readable, not by
-///   carrying every field at four points smaller.
-/// - `.expanded` — the whole record: full body, who wrote it, when, how many people
-///   found it useful, where it came from, and the controls that go with it.
-///
-/// One component, configured. The rail passes `.compact`; the page passes `.expanded`.
-struct ReviewCard: View {
-
-  enum Mode {
-    case compact
-    case expanded
-  }
-
-  let review: Review
-  var mode: Mode = .compact
-  /// Where the card goes. `nil` leaves it flat rather than interactive-and-inert.
-  var destination: (any Hashable)? = nil
-  /// The title's page at the source, for "read the rest where it was written".
-  var sourceURL: URL? = nil
-  /// The compact card's width in its rail.
-  var width: CGFloat = BlockMetrics.textCardWidth
-  /// The compact card wears how the review was meant: greenish, grey, reddish (Sasha,
-  /// 2026-11-09).
-  var tinted: Bool = false
-  /// A short review's text grows to fill the card instead of leaving it half empty.
-  var growsText: Bool = false
-
-  @Environment(\.openURL) private var openURL
-
-  private var kind: BlockCardKind {
-    guard mode == .compact, let destination else { return .flat }
-    return .link(value: destination)
-  }
-
-  var body: some View {
-    switch mode {
-    case .compact:
-      BlockCard(kind, width: width, fillsHeight: true, tint: tinted ? review.toneTint : nil) {
-        compactBody
-      }
-#if os(tvOS)
-      .focusable(true)
-#endif
-    case .expanded:
-      BlockCard { expandedBody }
-    }
-  }
-
-  // MARK: Compact
-
-  private var compactBody: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      // Hugs: the headline is drawn at whatever length it is. Clamping it to one line
-      // cut half the titles mid-word for a line the body did not get back anyway.
-      Text(headline)
-        .font(TypeScale.detailBody.weight(.semibold))
-        .foregroundStyle(Color.Piratic.text)
-        .fixedSize(horizontal: false, vertical: true)
-
-      // Fills whatever is left between the headline and the footer, and ellipsises on
-      // the last line that fits — a fixed line count either stopped short of the
-      // bottom or got clipped mid-glyph, differently at every Dynamic Type size.
-      Group {
-        if growsText {
-          // The largest size at which the whole text fits; a long review falls back to the
-          // running size, cut at the last line that fits.
-          ViewThatFits(in: .vertical) {
-            grown(Self.grownFonts[0])
-            grown(Self.grownFonts[1])
-            grown(Self.grownFonts[2])
-            FillingText(collapsedBody, font: TypeScale.detailBody)
-          }
-          .frame(maxHeight: .infinity, alignment: .topLeading)
-        } else {
-          FillingText(collapsedBody, font: TypeScale.detailBody)
-        }
-      }
-      .foregroundStyle(Color.Piratic.text)
-
-      // One size for the whole card. The footer used to be `.caption`, which made the
-      // card read as three different documents stacked.
-      HStack(spacing: 8) {
-        if let sentiment = review.sentimentTitle {
-          Text(sentiment)
-            .font(TypeScale.detailBody.weight(.semibold))
-            .foregroundStyle(review.sentimentColor)
-        }
-        Spacer(minLength: 8)
-        // Trakt's comments sit beside Kinopoisk's reviews; the card says whose it is.
-        if review.isFromTrakt {
-          Text(verbatim: "Trakt")
-            .font(TypeScale.detailBody)
-            .foregroundStyle(.secondary)
-        }
-        if let date = review.displayDate {
-          Text(date)
-            .font(TypeScale.detailBody)
-            .foregroundStyle(.secondary)
-        }
-      }
-      .lineLimit(1)
-      .fixedSize(horizontal: false, vertical: true)
-    }
-  }
-
-  private func grown(_ font: Font) -> some View {
-    Text(collapsedBody)
-      .font(font)
-      .fixedSize(horizontal: false, vertical: true)
-      .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  /// Steps up from the running text, largest first.
-  private static let grownFonts: [Font] = {
-#if os(macOS)
-    [.title2, .title3, .body]
-#elseif os(tvOS)
-    [.callout, .caption, .caption2]
-#else
-    [.title3, .body, .callout]
-#endif
-  }()
-
-  // MARK: Expanded
-
-  private var expandedBody: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        if !review.title.isEmpty {
-          Text(review.title)
-            .font(TypeScale.detailBody.weight(.semibold))
-            .foregroundStyle(Color.Piratic.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        Spacer(minLength: 8)
-        if let sentiment = review.sentimentTitle {
-          Text(sentiment)
-            .font(TypeScale.detailBody.weight(.semibold))
-            .foregroundStyle(review.sentimentColor)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-        }
-      }
-
-      // `stripHTML` turns the source's `<br />` pairs back into blank lines, so the
-      // author's paragraphing survives here — which is the point of the expanded mode
-      // and exactly what the compact one collapses away.
-      Text(review.body)
-        .font(TypeScale.detailBody)
-        .foregroundStyle(Color.Piratic.text)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      // One size, one weight, all the way down — the footer is not a legal notice.
-      HStack(spacing: 12) {
-        Text(review.author)
-          .foregroundStyle(.secondary)
-        if let date = review.displayDate {
-          Text(date)
-            .foregroundStyle(.secondary)
-        }
-        Spacer(minLength: 8)
-        // The source's own tallies, not controls: nothing here posts a vote back to
-        // Kinopoisk, and a button that only looks like one is worse than a number.
-        if review.isFromTrakt {
-          // Trakt counts likes only.
-          if review.helpfulVotes > 0 {
-            Label(review.helpfulVotes.formatted(.number.grouping(.automatic)), systemImage: "heart")
-              .foregroundStyle(.secondary)
-          }
-        } else if review.helpfulVotes > 0 || review.unhelpfulVotes > 0 {
-          Label(review.helpfulVotes.formatted(.number.grouping(.automatic)),
-                systemImage: "hand.thumbsup")
-            .foregroundStyle(.secondary)
-          Label(review.unhelpfulVotes.formatted(.number.grouping(.automatic)),
-                systemImage: "hand.thumbsdown")
-            .foregroundStyle(.secondary)
-        }
-        if let sourceURL {
-          Button {
-            openURL(sourceURL)
-          } label: {
-            if review.isFromTrakt {
-              Label { Text(verbatim: "Trakt") } icon: { Image(systemName: "arrow.up.right") }
-            } else {
-              Label("MediaItem_ReviewSourceKinopoisk", systemImage: "arrow.up.right")
-            }
-          }
-          .buttonStyle(.plain)
-          .foregroundStyle(.secondary)
-#if !os(tvOS)
-//          .pointingHandCursorOnHover()
-#endif
-        }
-      }
-      .font(TypeScale.detailBody)
-      .lineLimit(1)
-      .fixedSize(horizontal: false, vertical: true)
-    }
-  }
-
-  /// Roughly half of a title's reviews carry no headline, so the author stands in —
-  /// a card whose first line is blank reads as a loading card.
-  private var headline: String {
-    review.title.isEmpty ? review.author : review.title
-  }
-
-  /// Paragraph breaks are what the expanded card is for. In a card four lines tall a
-  /// blank line is a quarter of the preview spent on nothing, so the compact mode
-  /// flattens them to single spaces.
-  private var collapsedBody: String {
-    review.body
-      .replacingOccurrences(of: "\\s*\\n+\\s*", with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
-extension Review {
-  /// The comment itself on Trakt.
-  var traktCommentURL: URL? {
-    guard isFromTrakt, let sourceId else { return nil }
-    return URL(string: "https://trakt.tv/comments/\(sourceId)")
-  }
-
-  /// `POSITIVE` / `NEGATIVE` / `NEUTRAL`, localized. Nil for anything else the source
-  /// starts sending.
-  var sentimentTitle: String? {
-    switch sentiment?.uppercased() {
-    case "POSITIVE": return "Positive".localized
-    case "NEGATIVE": return "Negative".localized
-    case "NEUTRAL": return "Neutral".localized
-    default: return nil
-    }
-  }
-
-  /// The one place colour is allowed on these cards. Sentiment is the only field a
-  /// reader scans rather than reads, and green/red is the convention it already has —
-  /// everything else on the card stays material and hierarchical styles.
-  /// The compact card's wash: green for a positive review, red for a negative one, none
-  /// (the card's grey) for the rest.
-  var toneTint: Color? {
-    switch sentiment?.uppercased() {
-    case "POSITIVE": return .green
-    case "NEGATIVE": return .red
-    default: return nil
-    }
-  }
-
-  var sentimentColor: Color {
-    switch sentiment?.uppercased() {
-    case "POSITIVE": return .green
-    case "NEGATIVE": return .red
-    default: return .secondary
-    }
-  }
-
-  /// The posting date in the reader's format. Falls back to the source's `YYYY-MM-DD`
-  /// prefix when the timestamp was in a shape we do not parse.
-  var displayDate: String? {
-    if let postedAt {
-      return postedAt.formatted(.dateTime.day().month(.abbreviated).year())
-    }
-    guard let date, date.count >= 10 else { return date }
-    return String(date.prefix(10))
   }
 }
 

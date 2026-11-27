@@ -93,17 +93,21 @@ the two outline thumbs at 0, because that card is the vote (Sasha, 2026-10-26). 
 **dash in secondary ink in place of the number** and still writes how many voted — it does not say
 "not enough ratings".
 
-**prd — Reviews, counted (Sasha, 2026-10-11).** The reviews' own words are **not on the detail
-page**. The last card of the scores' row — **the same height and style as a score**, a little wider
-because it carries two things — says how many there are and how they were meant: the speech bubbles
-before the total (a score's mark before its number), the title «Отзывы» under them, and on the right
-a face and a count for each tone that has any — **green smiling** (positive), **red frowning** (negative), **grey
-straight-mouthed** (neutral), largest first, zeros absent. When every review shares one reaction, that face replaces the speech bubbles. The total is the source's (the proxy pages its reviews, so it is more
-than the page carries), the tones are from its summary or, with none, tallied from the reviews we
-hold; nothing to count, no card. **Select opens a page of their own**: the review cards, three
-across, under the same count in the header, and Select on one reads it whole in the shared info
-popup. A card there is what the row used to hold: a headline (the author when there is none — about
-half have no headline), as much of the text as fits, how it was meant, the date.
+**prd — Review count (Sasha, 2026-10-11).** In the score-tile layout, the last card of the row
+matches the height and style of a score card. It shows speech bubbles beside the total and
+«Отзывы» below. To the right, each tone with at least one review gets a face and a count, largest
+first. Green smiles, red frowns, and grey has a straight mouth. When all reviews share a tone,
+its face replaces the speech bubbles. The card uses the source's total and tone breakdown when
+available and otherwise counts the reviews it holds. Select opens the reviews page, with three
+cards across on tvOS.
+
+**prd — Review cards (Sasha, 2026-11-27).** Ratings and Reviews previews the first reviews on the
+title page. Each card starts with the review's title and a face for its sentiment, or with the
+author's stars when the source provides a rating. An untitled review without either signal starts
+with its text. The source mark and posting date sit at the bottom left. Replies and reactions
+from the source sit at the bottom right. A Trakt person tag reads as the person's name.
+Selecting a review opens its full text with paragraph breaks in a scrollable sheet. Its web
+links are available in the sheet on iOS, iPadOS and macOS.
 
 **prd — Cast & Crew (Sasha, 2026-10-06; one row since 2026-10-11).** One heading, *Cast & Crew*, over
 **one row of people with no sections inside it**. Search's person card for everyone; **what each is to
@@ -234,7 +238,7 @@ the cast. The cards of words are only read: they take no focus.
 | a poster | opens the title |
 | a person | opens their page |
 | the count of reviews | opens the page of reviews |
-| a review (on that page), a fact, Audio, Subtitles, the cast's *Expand* | reads it whole in the info popup |
+| a review, a fact, Audio, Subtitles, the cast's *Expand* | reads it whole in the info popup |
 | a spoiler | shows it, in place |
 | the stills | opens the gallery |
 | the kino.pub rating | offers a vote (see below) |

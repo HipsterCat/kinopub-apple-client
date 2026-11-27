@@ -96,7 +96,6 @@ struct RouteDestination: View {
                                     errorHandler: errorHandler)
     case .ratingsAndReviews(let payload):
 #if os(tvOS)
-      // The scores' row ends in a card that counts the reviews; this is where they are read.
       MediaItemReviewsTVPage(payload: payload)
 #else
       MediaItemRatingsAndReviewsPage(payload: payload)

@@ -105,6 +105,19 @@ final class TraktSourceTests: XCTestCase {
     // An empty display name falls back to the username.
     XCTAssertEqual(reviews.first?.author, "user5")
     XCTAssertNotNil(reviews.first?.postedAt)
+    XCTAssertEqual(reviews.map(\.authorRating), [3, 8])
+  }
+
+  func testCommentKeepsItsReplyCountAndRatingFromUserStats() throws {
+    let json = """
+    {"comment": "A review", "replies": 3, "likes": 14,
+     "user_rating": null, "user_stats": {"rating": 9, "play_count": 1, "completed_count": 1}}
+    """
+    let dto = try JSONDecoder().decode(TraktCommentDTO.self, from: Data(json.utf8))
+    let review = TraktSource.review(from: dto)
+    XCTAssertEqual(review.authorRating, 9)
+    XCTAssertEqual(review.replyCount, 3)
+    XCTAssertEqual(review.helpfulVotes, 14)
   }
 
   func testTraktReviewsFollowKinopoisksAndJoinTheCounts() {

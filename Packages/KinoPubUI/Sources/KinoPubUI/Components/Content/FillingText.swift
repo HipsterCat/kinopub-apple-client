@@ -17,7 +17,7 @@ import SwiftUI
 /// The measurement view sits in a `background`, so it is laid out but contributes no
 /// size of its own.
 public struct FillingText: View {
-  private let text: String
+  private let text: Text
   private let font: Font
   /// Never fewer than this, even in a box too short for it — a card with no readable
   /// text at all is worse than one whose last line is tight.
@@ -26,14 +26,20 @@ public struct FillingText: View {
   @State private var lineHeight: CGFloat = 0
 
   public init(_ text: String, font: Font, minimumLines: Int = 1) {
-    self.text = text
+    self.text = Text(verbatim: text)
+    self.font = font
+    self.minimumLines = minimumLines
+  }
+
+  public init(_ text: AttributedString, font: Font, minimumLines: Int = 1) {
+    self.text = Text(text)
     self.font = font
     self.minimumLines = minimumLines
   }
 
   public var body: some View {
     GeometryReader { proxy in
-      Text(text)
+      text
         .font(font)
         .lineLimit(lineLimit(in: proxy.size.height))
         .truncationMode(.tail)

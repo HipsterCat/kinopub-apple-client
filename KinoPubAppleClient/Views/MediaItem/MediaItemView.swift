@@ -1095,7 +1095,8 @@ struct MediaItemView: View {
       // Ratings and Reviews block above, and the standalone Reviews section here,
       // where it shipped. Comparing them needs both visible; one of them goes with
       // this comment.
-      MediaItemReviewsSection(reviews: itemModel.externalMetadata.reviews,
+      MediaItemReviewsSection(mediaItem: itemModel.mediaItem,
+                              reviews: itemModel.externalMetadata.reviews,
                               summary: itemModel.externalMetadata.reviewsSummary,
                               destination: ratingsAndReviewsDestination)
       // Same rail shape as Facts/Reviews, for the two things worth a glance before

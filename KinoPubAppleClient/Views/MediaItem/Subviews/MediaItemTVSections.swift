@@ -115,7 +115,7 @@ enum MediaItemTVSections {
   /// Ratings and Reviews as on the other platforms (Sasha, 2026-11-09): the viewers' card, the
   /// critics' card, kino.pub's own score — the card the viewer votes with, as before — then the
   /// first reviews: one row, one height, the count of every vote and review beside the title.
-  /// Select on a summary card opens the reviews page on its side; on a review, on the critics'.
+  /// Select on a summary card opens the ratings page. Select on a review opens its sheet.
   static func ratingsAndReviews(_ input: Input) -> [TVPageSection] {
     let summaries = RatingSources.summaries(for: input.mediaItem,
                                             metadata: input.metadata,
@@ -240,30 +240,7 @@ enum MediaItemTVSections {
   }
 
   static func review(_ review: Review, index: Int) -> TVPageInfoCard.Review {
-    let tone: TVPageInfoCard.Review.Tone
-    switch review.sentiment?.uppercased() {
-    case "POSITIVE": tone = .positive
-    case "NEGATIVE": tone = .negative
-    default: tone = .neutral
-    }
-    let footer = [shortDate(of: review), review.isFromTrakt ? "Trakt" : nil]
-      .compactMap { $0 }.joined(separator: " · ")
-    return TVPageInfoCard.Review(
-      id: "\(index)",
-      // Roughly half of a title's reviews carry no headline, so the author stands in.
-      headline: review.title.isEmpty ? review.author : review.title,
-      body: review.body,
-      sentiment: review.sentimentTitle,
-      tone: tone,
-      // Trakt's comments sit among Kinopoisk's reviews; the card says whose it is.
-      date: footer.isEmpty ? nil : footer
-    )
-  }
-
-  /// Numeric, so it and the sentiment share one line of a 4-column card.
-  private static func shortDate(of review: Review) -> String? {
-    if let posted = review.postedAt { return posted.formatted(date: .numeric, time: .omitted) }
-    return review.displayDate
+    TVPageInfoCard.Review(id: "\(index)", presentation: ReviewPresentation(review, locale: AppLanguage.lookupLocale))
   }
 
   // MARK: - Cast & Crew

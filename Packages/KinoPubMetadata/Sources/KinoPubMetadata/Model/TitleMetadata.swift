@@ -276,9 +276,11 @@ public struct Review: Sendable, Hashable, Identifiable {
   /// Not the review's own sentiment: a negative review can be widely agreed with.
   public let helpfulVotes: Int
   public let unhelpfulVotes: Int
-  /// The **review's** id at the source, not the title's. Nothing links to a single
-  /// review yet — it is here because the payload carries it and the expanded card is
-  /// where a permalink would go.
+  /// Trakt's own count of replies to the comment.
+  public let replyCount: Int
+  /// The author's Trakt rating in its original 1…10 scale.
+  public let authorRating: Int?
+  /// The review's id at the source. Trakt uses it in the comment permalink.
   public let sourceId: Int?
   /// Where it was written. Nil is Kinopoisk (either path), which predates the field.
   public let source: MetadataSourceID?
@@ -296,7 +298,9 @@ public struct Review: Sendable, Hashable, Identifiable {
     unhelpfulVotes: Int = 0,
     sourceId: Int? = nil,
     source: MetadataSourceID? = nil,
-    language: String? = nil
+    language: String? = nil,
+    replyCount: Int = 0,
+    authorRating: Int? = nil
   ) {
     self.author = author
     self.title = title
@@ -309,6 +313,8 @@ public struct Review: Sendable, Hashable, Identifiable {
     self.sourceId = sourceId
     self.source = source
     self.language = language
+    self.replyCount = replyCount
+    self.authorRating = authorRating
   }
 
   public var isFromTrakt: Bool { source == .trakt }

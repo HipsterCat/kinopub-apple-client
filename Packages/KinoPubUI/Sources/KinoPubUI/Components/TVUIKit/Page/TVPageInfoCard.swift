@@ -185,25 +185,12 @@ public enum TVPageInfoCard: Hashable {
   // MARK: Review
 
   public struct Review: Hashable {
-    public enum Tone: String, Hashable {
-      case positive, neutral, negative
-    }
-
     public let id: String
-    public let headline: String
-    public let body: String
-    /// "Positive" / "Негативная" — the reader's word for how the review was meant.
-    public let sentiment: String?
-    public let tone: Tone
-    public let date: String?
+    public let presentation: ReviewPresentation
 
-    public init(id: String, headline: String, body: String, sentiment: String?, tone: Tone, date: String?) {
+    public init(id: String, presentation: ReviewPresentation) {
       self.id = id
-      self.headline = headline
-      self.body = body
-      self.sentiment = sentiment
-      self.tone = tone
-      self.date = date
+      self.presentation = presentation
     }
   }
 

@@ -433,9 +433,18 @@ enum DetailFixture: String, CaseIterable, Identifiable {
                sentiment: "POSITIVE", date: "2026-07-18T21:51:09",
                postedAt: Date(timeIntervalSince1970: 1_784_400_000), helpfulVotes: 12, unhelpfulVotes: 2),
         Review(author: "Lintandil", title: "",
-               body: "Красиво, шумно и местами бессмысленно. Первая половина работает, вторая тянется. Отдельное спасибо за второй план — актёры вытягивают сцену там, где сценарий сдаётся.",
+               body: """
+               [Hunter Schafer](https://app.trakt.tv/people/hunter-schafer) brings the quieter scenes to life. The film is at its best when it gives the cast room to work.
+
+               The first half finds a rhythm of its own. The city feels like a place the characters really know, and the camera stays close enough to catch small reactions. Some of the best moments are ordinary exchanges in the street or at the kitchen table.
+
+               The second half has a harder time holding that mood. It rushes through a few conversations that could have made the ending feel earned. There are still flashes of humour and a score that knows when to leave the scene alone.
+
+               I kept thinking about the final shot on the way home. It leaves an open question about which choice the characters will make next. The silence at the end was worth staying for.
+               """,
                sentiment: "NEUTRAL", date: "2026-07-20T12:57:52",
-               postedAt: Date(timeIntervalSince1970: 1_784_600_000), helpfulVotes: 7, unhelpfulVotes: 2),
+               postedAt: Date(timeIntervalSince1970: 1_784_600_000), helpfulVotes: 14,
+               source: .trakt, replyCount: 1, authorRating: 6),
         Review(author: "Мария К.", title: "Ожидала большего",
                body: "После трейлеров ждала другого. Эмоциональные сцены не складываются, шутки повторяются, а злодей остаётся набором реплик без мотивации.",
                sentiment: "NEGATIVE", date: "2026-07-22T09:12:40",

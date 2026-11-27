@@ -82,6 +82,30 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertFalse(focusedDescription == "nothing", "focus was lost on the way up")
   }
 
+  func testReviewOnTheTitleOpensItsFullTextAndRestoresFocus() throws {
+    launch("film", extra: ["-featureFlag.ratingsSummaryCards", "YES"])
+    try waitForHeroFocus()
+    XCTAssertTrue(seek(.down, until: "kinopub.summary.", limit: 3), focusedDescription)
+    XCTAssertTrue(seek(.right, until: "Hunter Schafer", limit: 7), focusedDescription)
+    let selectedID = focusedElement.identifier
+    XCTAssertTrue(selectedID.hasPrefix("kinopub.review."))
+    try shoot("review-cards")
+
+    XCUIRemote.shared.press(.select)
+    let body = app.descendants(matching: .any)["kinopub.review.sheet.body"].firstMatch
+    XCTAssertTrue(body.waitForExistence(timeout: 8))
+    XCTAssertTrue(body.label.contains("Hunter Schafer"))
+    XCTAssertTrue(body.label.contains("The silence at the end was worth staying for."))
+    XCTAssertFalse(body.label.contains("https://app.trakt.tv"))
+    try shoot("review-sheet")
+
+    XCUIRemote.shared.press(.menu)
+    let card = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", selectedID))
+      .firstMatch
+    XCTAssertTrue(card.waitForExistence(timeout: 8), focusedDescription)
+  }
+
   /// What Select does on each kind of card, one after another. The remote moves until the
   /// card it wants has focus, so the walk does not depend on how many cards fit a screen.
   func testFilmSelectingCards() throws {

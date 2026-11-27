@@ -50,7 +50,7 @@ extension UILabel {
   /// hyphenate. What does is tagging the run with a language that has no hyphenation
   /// data for Cyrillic — `NSLanguage` ("en") — so it is typeset by whole words. The font
   /// and colour stay the label's own.
-  func setUnhyphenated(_ text: String?) {
+  func setUnhyphenated(_ text: String?, underlining ranges: [NSRange] = []) {
     guard let text else {
       attributedText = nil
       return
@@ -60,12 +60,16 @@ extension UILabel {
     paragraph.usesDefaultHyphenation = false
     paragraph.lineBreakMode = lineBreakMode
     paragraph.alignment = textAlignment
-    attributedText = NSAttributedString(string: text, attributes: [
+    let styled = NSMutableAttributedString(string: text, attributes: [
       .font: font as Any,
       .foregroundColor: textColor as Any,
       .paragraphStyle: paragraph,
       NSAttributedString.Key(rawValue: "NSLanguage"): "en"
     ])
+    for range in ranges {
+      styled.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+    }
+    attributedText = styled
   }
 }
 
@@ -740,7 +744,7 @@ final class TVPageReviewsContent: TVPageCardContent {
 @MainActor
 final class TVPageReviewCell: TVPageInfoCardCell {
   private let body = TVPageReviewContent()
-  private var tone: TVPageInfoCard.Review.Tone = .neutral
+  private var tone: ReviewPresentation.Tone?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -755,71 +759,118 @@ final class TVPageReviewCell: TVPageInfoCardCell {
     switch tone {
     case .positive: return UIColor.systemGreen.withAlphaComponent(0.15)
     case .negative: return UIColor.systemRed.withAlphaComponent(0.15)
-    case .neutral: return TVPagePlatter.restingFill
+    case .neutral, nil: return TVPagePlatter.restingFill
     }
   }
 
   func configure(_ review: TVPageInfoCard.Review) {
-    tone = review.tone
+    let presentation = review.presentation
+    tone = presentation.tone
     if !isFocused { cardView.contentView.backgroundColor = restingFill }
-    body.configure(review)
+    body.configure(presentation)
     accessibilityIdentifier = "kinopub.review.\(review.id)"
-    accessibilityLabel = [review.headline, review.body].joined(separator: ". ")
+    let score = presentation.scoreText.map { "\($0) / 5" } ?? presentation.toneTitle
+    let details = [score, presentation.title, String(presentation.excerpt.characters),
+                   presentation.sourceName, presentation.date].compactMap { $0 }
+    accessibilityLabel = (details + presentation.counters.map { "\($0.label) \($0.value)" }).joined(separator: ". ")
   }
 }
 
-/// A review as a preview: the headline, as much of the text as the card has room for with
-/// an ellipsis on the last line that fits, and how it was meant and when at the foot. The
-/// whole review is where Select goes — this is never the place to read one.
+/// A review with its own title or rating, a text preview and a footer with the source and reactions.
 @MainActor
 final class TVPageReviewContent: TVPageCardContent {
   private let headlineLabel = UILabel()
   private let bodyLabel = UILabel()
-  private let sentimentLabel = UILabel()
+  private let sourceView = UIImageView()
   private let dateLabel = UILabel()
-  private var tone: TVPageInfoCard.Review.Tone = .neutral
+  private let countersLabel = UILabel()
+  private var review: ReviewPresentation?
+  private var excerptLinks: [NSRange] = []
   private var looksFocused = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    headlineLabel.font = TVPageFonts.font(.body, weight: .medium)
+    headlineLabel.font = TVPageFonts.font(.body, weight: .semibold)
     headlineLabel.numberOfLines = 2
     bodyLabel.font = .preferredFont(forTextStyle: .body)
-    sentimentLabel.font = TVPageFonts.font(.caption2, weight: .regular)
     dateLabel.font = .preferredFont(forTextStyle: .caption2)
-    dateLabel.textAlignment = .right
-    for label in [headlineLabel, bodyLabel, sentimentLabel, dateLabel] {
+    countersLabel.font = .preferredFont(forTextStyle: .caption2)
+    countersLabel.textAlignment = .right
+    sourceView.contentMode = .scaleAspectFit
+    addSubview(sourceView)
+    for label in [headlineLabel, bodyLabel, dateLabel, countersLabel] {
       label.adjustsFontForContentSizeCategory = true
       label.lineBreakMode = .byTruncatingTail
       addSubview(label)
     }
-    applyFocusLook(false)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func configure(_ review: TVPageInfoCard.Review) {
-    headlineLabel.text = review.headline
-    bodyLabel.setUnhyphenated(review.body
-      .replacingOccurrences(of: "\\s*\\n+\\s*", with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines))
-    sentimentLabel.text = review.sentiment
+  func configure(_ review: ReviewPresentation) {
+    self.review = review
+    sourceView.image = review.source.uiImage(style: .color)
     dateLabel.text = review.date
-    tone = review.tone
+    var offset = 0
+    excerptLinks = review.excerpt.runs.compactMap { run in
+      let length = String(review.excerpt[run.range].characters).utf16.count
+      defer { offset += length }
+      return run.link.map { _ in NSRange(location: offset, length: length) }
+    }
     applyFocusLook(looksFocused)
     setNeedsLayout()
   }
 
   override func applyFocusLook(_ focused: Bool) {
-    self.looksFocused = focused
-    headlineLabel.textColor = Self.ink(focused: focused)
-    bodyLabel.textColor = Self.ink(focused: focused)
-    dateLabel.textColor = Self.secondaryInk(focused: focused)
-    switch tone {
-    case .positive: sentimentLabel.textColor = focused ? UIColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1) : .systemGreen
-    case .negative: sentimentLabel.textColor = focused ? UIColor(red: 0.75, green: 0.1, blue: 0.1, alpha: 1) : .systemRed
-    case .neutral: sentimentLabel.textColor = Self.secondaryInk(focused: focused)
+    looksFocused = focused
+    guard let review else { return }
+    let ink = Self.ink(focused: focused)
+    let secondary = Self.secondaryInk(focused: focused)
+    headlineLabel.textColor = ink
+    bodyLabel.textColor = ink
+    dateLabel.textColor = secondary
+    countersLabel.textColor = secondary
+    bodyLabel.setUnhyphenated(String(review.excerpt.characters), underlining: excerptLinks)
+
+    let heading = NSMutableAttributedString()
+    let font = headlineLabel.font!
+    if let score = review.score, let scoreText = review.scoreText {
+      for index in 0..<5 {
+        let symbol = StarRatingRow.symbol(at: index, rating: score)
+        heading.append(Self.glyph(UIImage(systemName: symbol), font: font,
+                                  color: symbol == "star" ? secondary : ink))
+      }
+      heading.append(NSAttributedString(string: "  \(scoreText)/5"))
+    } else {
+      if let tone = review.tone {
+        let image = UIImage(named: tone.asset, in: .module, compatibleWith: nil)
+        let color: UIColor = switch tone {
+        case .positive: focused ? .systemGreen.resolvedColor(with: .init(userInterfaceStyle: .light)) : .systemGreen
+        case .negative: focused ? .systemRed.resolvedColor(with: .init(userInterfaceStyle: .light)) : .systemRed
+        case .neutral: secondary
+        }
+        heading.append(Self.glyph(image, font: font, color: color))
+        if review.title != nil { heading.append(NSAttributedString(string: " ")) }
+      }
+      if let title = review.title { heading.append(NSAttributedString(string: title)) }
     }
+    headlineLabel.attributedText = heading
+
+    let counters = NSMutableAttributedString()
+    for counter in review.counters {
+      if counters.length > 0 { counters.append(NSAttributedString(string: "    ")) }
+      counters.append(NSAttributedString(string: "\(counter.value) "))
+      counters.append(Self.glyph(UIImage(systemName: counter.kind.symbol), font: countersLabel.font, color: secondary))
+    }
+    countersLabel.attributedText = counters
+  }
+
+  private static func glyph(_ image: UIImage?, font: UIFont, color: UIColor) -> NSAttributedString {
+    guard let image, image.size.height > 0 else { return NSAttributedString() }
+    let height = ceil(font.capHeight)
+    let attachment = NSTextAttachment(image: image.withTintColor(color, renderingMode: .alwaysOriginal))
+    attachment.bounds = CGRect(x: 0, y: 0, width: height * image.size.width / image.size.height, height: height)
+    return NSAttributedString(attachment: attachment)
   }
 
   override func layoutSubviews() {
@@ -828,17 +879,23 @@ final class TVPageReviewContent: TVPageCardContent {
     let width = max(bounds.width - pad * 2, 1)
     let fit = CGSize(width: width, height: .greatestFiniteMagnitude)
 
-    let footerHeight = max(sentimentLabel.sizeThatFits(fit).height, dateLabel.sizeThatFits(fit).height)
-    let footerY = bounds.height - pad + 2 - footerHeight
-    let dateWidth = min(dateLabel.sizeThatFits(fit).width, width * 0.5)
-    dateLabel.frame = CGRect(x: bounds.width - pad - dateWidth, y: footerY, width: dateWidth, height: footerHeight)
-    sentimentLabel.frame = CGRect(x: pad, y: footerY, width: max(width - dateWidth - 12, 0), height: footerHeight)
+    let footerHeight = dateLabel.font.linePitch
+    let footerY = bounds.height - pad - footerHeight
+    let markSize = footerHeight
+    sourceView.frame = CGRect(x: pad, y: footerY, width: markSize, height: markSize)
+    let counterWidth = min(countersLabel.sizeThatFits(fit).width, width * 0.48)
+    countersLabel.frame = CGRect(x: pad + width - counterWidth, y: footerY,
+                                 width: counterWidth, height: footerHeight)
+    let dateX = sourceView.frame.maxX + 8
+    let dateWidth = max(countersLabel.frame.minX - dateX - 8, 0)
+    dateLabel.frame = CGRect(x: dateX, y: footerY, width: dateWidth, height: footerHeight)
 
-    let headlineHeight = headlineLabel.sizeThatFits(fit).height
-    headlineLabel.frame = CGRect(x: pad, y: pad - 4, width: width, height: headlineHeight)
+    let hasHeading = (headlineLabel.attributedText?.length ?? 0) > 0
+    let headlineHeight = hasHeading ? headlineLabel.sizeThatFits(fit).height : 0
+    headlineLabel.frame = CGRect(x: pad, y: pad, width: width, height: headlineHeight)
 
     // As many whole lines as fit between the headline and the foot.
-    let bodyTop = headlineLabel.frame.maxY + 8
+    let bodyTop = headlineLabel.frame.maxY + (hasHeading ? 8 : 0)
     let room = footerY - 10 - bodyTop
     let lineHeight = bodyLabel.font.linePitch
     let lines = max(Int(floor(room / lineHeight)), 1)

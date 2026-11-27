@@ -26,6 +26,7 @@ struct MediaItemTVPage: View {
 
   @State private var revealedFacts: Set<String> = []
   @State private var popup: Popup?
+  @State private var selectedReview: Review?
   @State private var showsGallery = false
 
   /// What the info popup holds. Content comes from the model at the moment of the tap, so
@@ -84,6 +85,7 @@ struct MediaItemTVPage: View {
         .padding(.bottom, 60)
     }
     .infoPopup(popupTitle, isPresented: popupBinding) { popupContent }
+    .mediaReviewSheet($selectedReview, item: model.mediaItem)
     .fullScreenCover(isPresented: $showsGallery) {
       StillsGallery(stills: model.externalMetadata.stills)
     }
@@ -129,8 +131,8 @@ struct MediaItemTVPage: View {
     case .scoreSummary(let summary):
       openRatingsAndReviews(summary.kind == .viewers ? .viewers : .critics)
 
-    case .review:
-      openRatingsAndReviews(.critics)
+    case .review(let review):
+      selectedReview = review.presentation.review
 
     case .fact(let fact):
       if fact.isHidden {

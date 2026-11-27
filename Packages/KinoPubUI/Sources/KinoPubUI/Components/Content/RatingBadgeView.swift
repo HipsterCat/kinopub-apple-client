@@ -249,7 +249,7 @@ public struct StarRatingRow: View {
     public var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<5, id: \.self) { index in
-                Image(systemName: symbol(at: index))
+                Image(systemName: Self.symbol(at: index, rating: value))
             }
         }
         .foregroundStyle(tint)
@@ -263,8 +263,8 @@ public struct StarRatingRow: View {
     /// Rounded to the nearest half so a star is full, half or empty — the three
     /// symbols the system draws. A continuous mask over five filled stars can paint
     /// 0.13 of a star, which is a fill percentage, not a rating.
-    private func symbol(at index: Int) -> String {
-        let halves = (clamped * 2).rounded()
+    static func symbol(at index: Int, rating: Double) -> String {
+        let halves = (min(max(rating, 0), 5) * 2).rounded()
         let filled = Double(index) * 2
         if halves >= filled + 2 { return "star.fill" }
         if halves >= filled + 1 { return "star.leadinghalf.filled" }

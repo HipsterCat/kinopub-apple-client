@@ -188,17 +188,21 @@ public final class TraktSource: MetadataSource, Sendable {
 
   static func review(from comment: TraktCommentDTO) -> Review {
     let author = comment.user?.name.flatMap { $0.isEmpty ? nil : $0 } ?? comment.user?.username ?? "Trakt"
+    let rating = [comment.userRating, comment.userStats?.rating].compactMap { $0 }
+      .first { (1...10).contains($0) }
     return Review(
       author: author,
       title: "",
       body: comment.comment.trimmingCharacters(in: .whitespacesAndNewlines),
-      sentiment: sentiment(forUserRating: comment.userRating),
+      sentiment: sentiment(forUserRating: rating),
       date: comment.createdAt,
       postedAt: comment.createdAt.flatMap(parseDate),
-      helpfulVotes: comment.likes ?? 0,
+      helpfulVotes: max(0, comment.likes ?? 0),
       sourceId: comment.id,
       source: .trakt,
-      language: comment.language
+      language: comment.language,
+      replyCount: max(0, comment.replies ?? 0),
+      authorRating: rating
     )
   }
 
@@ -361,6 +365,10 @@ struct TraktRatingsDTO: Decodable {
 }
 
 struct TraktCommentDTO: Decodable {
+  struct UserStats: Decodable {
+    let rating: Int?
+  }
+
   struct User: Decodable {
     let username: String?
     let name: String?
@@ -370,14 +378,17 @@ struct TraktCommentDTO: Decodable {
   let spoiler: Bool?
   let review: Bool?
   let likes: Int?
+  let replies: Int?
   let language: String?
   let userRating: Int?
+  let userStats: UserStats?
   let createdAt: String?
   let user: User?
 
   enum CodingKeys: String, CodingKey {
-    case id, comment, spoiler, review, likes, language, user
+    case id, comment, spoiler, review, likes, replies, language, user
     case userRating = "user_rating"
+    case userStats = "user_stats"
     case createdAt = "created_at"
   }
 }
