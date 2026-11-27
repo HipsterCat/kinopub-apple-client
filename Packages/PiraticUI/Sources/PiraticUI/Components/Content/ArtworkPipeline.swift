@@ -764,6 +764,11 @@ public enum Artwork {
 
 extension MediaCardContextPreviewSpec {
   func loadImage() async -> PlatformImage? {
+    if reusesShelfArtwork {
+      for url in artworkURLs {
+        if let image = Artwork.anyCachedImage(for: url) { return image }
+      }
+    }
     for url in artworkURLs {
       if Task.isCancelled { return nil }
       if let image = try? await Artwork.image(for: url, size: artSize, mode: .fit) {
@@ -976,7 +981,13 @@ enum WorkerArtwork {
           var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
           components.queryItems?.contains(where: { $0.name == "d" }) != true else { return url }
     let day = Int(now.timeIntervalSince1970 / refreshInterval)
-    components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "d", value: String(day))]
+    var query = components.queryItems ?? []
+    if !query.contains(where: { $0.name == "s" }), parts[1] == "poster" || parts[1] == "cover" {
+      // Retire bytes cached before worker covers used a single source at every size.
+      query.append(URLQueryItem(name: "art", value: "2"))
+    }
+    query.append(URLQueryItem(name: "d", value: String(day)))
+    components.queryItems = query
     return components.url ?? url
   }
 }

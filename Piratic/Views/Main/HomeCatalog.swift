@@ -1546,7 +1546,9 @@ class HomeCatalog: ObservableObject {
     // (`MediaCardView.showsMoreEpisodesCount`).
     let newCount = item.new.flatMap { $0 > 1 ? $0 - 1 : nil }
 
-    let posters = history?.item.posters ?? local?.item.posters ?? item.posters
+    let posters = detail?.posters ?? history?.item.posters ?? local?.item.posters ?? item.posters
+    let wide = MediaCard.titleWideArtwork(posters: posters)
+      ?? Self.landscapeImageURL(for: item, history: history, local: local)
     let presentation = MediaPresentationProfile(type: item.type, genres: detail?.genres ?? [])
     let localized = detail?.localizedTitle ?? item.localizedTitle
     let original = detail.flatMap { $0.originalTitle != $0.localizedTitle ? $0.originalTitle : nil }
@@ -1587,14 +1589,14 @@ class HomeCatalog: ObservableObject {
     let genres = detail.map { KinoPubMediaMapping.genres($0.genres, type: typeKey) } ?? []
     let year = detail.flatMap { $0.year > 0 ? $0.year : nil }
     var card = MediaCard(id: item.id,
-                     posterURL: item.posters.medium,
+                     posterURL: posters.medium.isEmpty ? item.posters.medium : posters.medium,
                      title: title,
                      subtitle: original,
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
-                     backdropURL: landscapeImageURL(for: item, history: history, local: local),
+                     backdropURL: wide,
                      hasSpecifiedWideArtwork: posters.hasSpecifiedWide,
-                     landscapeImageURL: landscapeImageURL(for: item, history: history, local: local),
+                     landscapeImageURL: wide,
                      overlayLabel: overlay,
                      offeredName: offeredVersion?.name,
                      hoverStillURL: hoverStill.flatMap { $0.isEmpty ? nil : $0 },
@@ -1612,7 +1614,7 @@ class HomeCatalog: ObservableObject {
                      durationSeconds: durationSeconds,
                      genres: genres,
                      primaryAction: .play,
-                     imdbID: detail?.imdb,
+                     imdbID: detail?.imdb ?? local?.item.imdb,
                      kinopoiskID: detail?.kinopoisk ?? item.kinopoisk,
                      originalTitle: presentation.hasBilingualTitle ? original : nil)
     card.continuePeekHint = Self.continuePeekHint(for: cardReason)

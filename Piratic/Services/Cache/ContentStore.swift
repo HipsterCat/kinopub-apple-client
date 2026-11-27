@@ -92,13 +92,23 @@ final class ContentStore {
       guard let viewer else { return Self.applyingSubscriptionChrome(card) }
       return Self.applyingSubscriptionChrome(
         card.withViewerState(viewer.state(for: ref, reported: record.reported)))
-    case .card(let card):
+    case .card(let storedCard):
+      let card = Self.withKnownArtworkIDs(storedCard)
       guard let viewer, !card.opensCollection, card.ref.kind == .title else {
         return Self.applyingSubscriptionChrome(card)
       }
       return Self.applyingSubscriptionChrome(
         card.withViewerState(viewer.state(for: card.ref, reported: card.reportedState)))
     }
+  }
+
+  /// Watching and history rows can omit IDs present in an already loaded title listing.
+  /// Use those hints so sparse rows and the catalogue can resolve the same worker cover.
+  private static func withKnownArtworkIDs(_ card: MediaCard) -> MediaCard {
+    guard !card.opensCollection, card.itemID > 0,
+          (card.imdbID ?? 0) <= 0 || (card.kinopoiskID ?? 0) <= 0,
+          let title = ListedItemCache.shared.item(id: card.itemID) else { return card }
+    return card.withArtworkIDs(imdb: title.imdb, kinopoisk: title.kinopoisk)
   }
 
   /// When a series is followed and `WatchingListCache` already holds its watching row,

@@ -155,8 +155,15 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let captionStats: [MediaCardCaptionStat]
   /// kino.pub's numeric IMDb and Kinopoisk ids, so a card can be looked up in external
   /// metadata (the Home banner's title logo) without fetching the item first.
-  public let imdbID: Int?
-  public let kinopoiskID: Int?
+  public private(set) var imdbID: Int?
+  public private(set) var kinopoiskID: Int?
+
+  public func withArtworkIDs(imdb: Int?, kinopoisk: Int?) -> MediaCard {
+    var card = self
+    if !(imdbID.map { $0 > 0 } ?? false) { card.imdbID = imdb }
+    if !(kinopoiskID.map { $0 > 0 } ?? false) { card.kinopoiskID = kinopoisk }
+    return card
+  }
 
   public var isLandscape: Bool { landscapeImageURL != nil }
 

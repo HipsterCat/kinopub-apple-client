@@ -27,17 +27,20 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
   /// Secondary line under the title — `2026 · Drama`, `В закладках`, `1h 55m`, …
   public let subtitle: String?
   public let time: String?
+  let reusesShelfArtwork: Bool
 
   public init(url: URL?, aspect: CardAspect, title: String, subtitle: String? = nil) {
     self.init(artworkURLs: [url].compactMap { $0 }, aspect: aspect, title: title,
-              subtitle: subtitle, time: nil)
+              subtitle: subtitle, time: nil, reusesShelfArtwork: false)
   }
 
-  private init(artworkURLs: [URL], aspect: CardAspect, title: String, subtitle: String?, time: String?) {
+  private init(artworkURLs: [URL], aspect: CardAspect, title: String, subtitle: String?,
+               time: String?, reusesShelfArtwork: Bool) {
     self.artworkURLs = artworkURLs
     self.aspect = aspect
     self.title = title
     self.time = time
+    self.reusesShelfArtwork = reusesShelfArtwork
     self.subtitle = subtitle.flatMap { line in
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       return trimmed.isEmpty ? nil : trimmed
@@ -95,7 +98,8 @@ public struct MediaCardContextPreviewSpec: Equatable, Sendable {
       title: card.title,
       subtitle: card.sneakPeekSubtitle(surface: surface),
       time: surface == .episodeRail || (surface == .shelf && card.isLandscape)
-        ? card.peekTime(language: .current) : nil
+        ? card.peekTime(language: .current) : nil,
+      reusesShelfArtwork: surface == .shelf && card.isLandscape && !card.isSeries
     )
   }
 }

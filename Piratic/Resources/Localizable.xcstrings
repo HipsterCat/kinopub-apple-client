@@ -17793,13 +17793,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In Russian, a title with a Kinopoisk id uses a Kinopoisk poster. In English, covers stay from kino.pub. Wide stills stay from kino.pub. The default follows the app language until you choose."
+            "value" : "Posters and wide covers prefer the selected language when available. The default follows the app language until you choose."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "«На русском» — постер Кинопоиска, если у тайтла есть его id. «На английском» — обложки kino.pub. Широкие кадры остаются от kino.pub. Пока не выберешь, как язык приложения."
+            "value" : "Постеры и широкие обложки подбираются на выбранном языке, если такой вариант есть. По умолчанию используется язык приложения."
           }
         }
       }

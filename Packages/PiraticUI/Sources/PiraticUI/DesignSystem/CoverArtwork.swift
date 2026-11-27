@@ -14,11 +14,9 @@
 //  The stored poster URL stays the kino.pub one, so switching back does not need
 //  a refetch.
 //
-//  With the worker configured (``CoverArtwork/configureWorker(_:pixelWidth:)``, done
-//  once at launch), every vertical kino.pub cover is asked of the worker's poster route
-//  instead: TMDB in the cover language, then kino.pub's file, then Kinopoisk, as WebP at
-//  the screen's poster width (Sasha, 2026-11-26, kino.pub's CDN was down). The direct
-//  Kinopoisk and kino.pub files stay as the ladder's later rungs for a worker outage.
+//  The configured worker selects the title's poster or wide cover in the preferred
+//  language and resizes the selected source to the requested width. A KinoPub file
+//  remains available during a worker outage.
 //
 
 import Foundation
@@ -168,9 +166,7 @@ public extension MediaCard {
   /// failed, with the plain plate under the wait — one picture per tile, the same
   /// ladder as tvOS (`TVUIKitMediaItemRail`, Sasha 2026-11-21).
   ///
-  /// A vertical card only ever draws vertical covers: the worker's poster, the Russian
-  /// cover, then kino.pub's own. The title's wide backdrop used to go up first while the Kinopoisk cover
-  /// loaded, cropped into the poster tile, and stayed when it failed (2026-11-23).
+  /// The vertical cover uses the same request wherever a title is shown.
   /// A wide card: unique still → kino.pub thumb on 404 (KP-23) → series backdrop.
   var artworkLadder: [URL] {
     isLandscape
@@ -178,10 +174,10 @@ public extension MediaCard {
       : coverLadder
   }
 
-  /// The vertical cover's rungs whatever the card's shape: worker poster, direct
-  /// Russian cover, kino.pub's file. Poster lockups (`TVUIKitPosterCell`, the banner).
+  /// Kinopoisk is resolved inside the worker, which excludes its no-poster image.
+  /// Without a worker, `coverURL` can still use the direct Russian cover.
   var coverLadder: [URL] {
-    Self.ladder([coverURL, directCoverURL, posterURL])
+    Self.ladder([coverURL, posterURL])
   }
 
   private static func ladder(_ strings: [String?]) -> [URL] {

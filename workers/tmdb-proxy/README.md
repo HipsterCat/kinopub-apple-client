@@ -97,8 +97,12 @@ account) is called by the app directly. Whatever answers, it lands in the app as
    other language (an English logo is sent when Russian was asked and only
    English exists). We store links, not files. **Stamped bytes** go through
    **[wsrv.nl](https://wsrv.nl/)** first (`w=`, `q=80`, `output=webp` by
-   default; optional `format=jpeg|png|webp` on the route). Logo / backdrop /
-   poster pass the durable original as `url=`. **Thumbnails** pass the TMDB
+   default; optional `format=jpeg|png|webp` on the route). For title posters and
+   wide cards, the worker checks the selected origin independently of `w`,
+   then gives wsrv.nl the original artwork URL and output width. All sizes
+   share the same source and carry its actual `Content-Language` (`ru`, `en`,
+   or `und`). A transform failure falls back to the same image. The render
+   cache includes the selected origin. **Thumbnails** pass the TMDB
    ladder URL when the still is from TMDB (face-crop tokens like
    `w454_and_h254_face` stay in that path — weserv only re-encodes), or the
    catalogue URL when the still is from kino.pub. Catalogue posters and stills

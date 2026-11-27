@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { RECHECK_MISSING_MS, RECHECK_NEW_MS, RECHECK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, kinopoiskHasPoster, resolveAndStore } from "./title.js";
+import { RECHECK_MISSING_MS, RECHECK_NEW_MS, RECHECK_STALE_MS, artworkRecheckDue, ensureKinopoiskId, handleImage, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -401,26 +401,25 @@ test("Russian poster with nothing Russian and kino.pub down falls back to an Eng
   globalThis.fetch = async (target) => {
     const url = String(target);
     fetched.push(url);
-    if (url.includes("%2Fposter%2Fitem%2F")) return new Response("down", { status: 502 });
+    if (url.includes("/poster/item/")) return new Response("down", { status: 502 });
     return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
   };
   try {
     const stamped = await handleImage(new Request(response.headers.get("location")), env, ctxSpy());
     assert.equal(stamped.status, 200);
     assert.equal(stamped.headers.get("content-language"), "en");
-    assert.equal(fetched.length, 6);
+    assert.equal(fetched.length, 7);
     assert.ok(fetched.at(-1).includes("poster-en.jpg"), fetched.at(-1));
   } finally {
     globalThis.fetch = restore;
   }
 });
 
-test("kino.pub poster mirrors keep the width and WebP transform on every attempt", async () => {
+test("kino.pub poster mirrors are checked before resizing the available source", async () => {
   const fetched = [];
   const restore = globalThis.fetch;
-  globalThis.fetch = async (target) => {
-    const transform = new URL(target);
-    fetched.push(transform);
+  globalThis.fetch = async (target, init) => {
+    fetched.push({ url: new URL(target), method: init?.method });
     if (fetched.length === 1) return new Response("blocked", { headers: { "content-type": "text/html" } });
     if (fetched.length === 2) throw new DOMException("deadline", "TimeoutError");
     if (fetched.length < 5) return new Response(null, { status: 503 });
@@ -431,15 +430,16 @@ test("kino.pub poster mirrors keep the width and WebP transform on every attempt
     const response = await handleImage(request, kvEnv(), ctxSpy());
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-kinopub-image-via"), "weserv");
-    assert.deepEqual(fetched.map((url) => new URL(url.searchParams.get("url")).hostname),
+    const checked = fetched.filter((entry) => entry.method === "HEAD").map(({ url }) => url);
+    assert.deepEqual(checked.map((url) => url.hostname),
       ["m.staticpop.net", "m.pushbr.com", "m.boramoraboom.ru", "m.alador.space", "media.service-kp.com"]);
-    for (const url of fetched) {
-      assert.equal(url.hostname, "wsrv.nl");
-      assert.equal(url.searchParams.get("w"), "584");
-      assert.equal(url.searchParams.get("output"), "webp");
-      assert.equal(url.searchParams.get("q"), "80");
-      assert.equal(new URL(url.searchParams.get("url")).pathname, "/poster/item/big/82852.jpg");
-    }
+    assert.ok(checked.every((url) => url.pathname === "/poster/item/big/82852.jpg"));
+    const { url } = fetched.at(-1);
+    assert.equal(url.hostname, "wsrv.nl");
+    assert.equal(url.searchParams.get("url"), checked.at(-1).href);
+    assert.equal(url.searchParams.get("w"), "584");
+    assert.equal(url.searchParams.get("output"), "webp");
+    assert.equal(url.searchParams.get("q"), "80");
   } finally {
     globalThis.fetch = restore;
   }
@@ -461,7 +461,8 @@ test("an explicit wide poster starts on its own host when weserv is disabled", a
     const response = await handleImage(new Request(redirect.headers.get("location")), env, ctxSpy());
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-kinopub-image-via"), "legacy");
-    assert.deepEqual(fetched, [source, "https://m.staticpop.net/poster/item/wide/82852.jpg?size=full"]);
+    const mirror = "https://m.staticpop.net/poster/item/wide/82852.jpg?size=full";
+    assert.deepEqual(fetched, [source, mirror, mirror]);
   } finally {
     globalThis.fetch = restore;
   }
@@ -499,9 +500,9 @@ test("Russian poster: kino.pub src is the last rung in the language", async () =
       noRu, ctxSpy(),
     );
     assert.equal(stamped.status, 200);
-    assert.equal(fetched.length, 1);
-    assert.ok(fetched[0].includes(encodeURIComponent(KINOPUB_POSTER)), fetched[0]);
-    assert.ok(fetched[0].startsWith("https://wsrv.nl/"));
+    assert.equal(fetched.length, 2);
+    assert.ok(fetched[1].includes(encodeURIComponent(KINOPUB_POSTER)), fetched[1]);
+    assert.ok(fetched[1].startsWith("https://wsrv.nl/"));
   } finally {
     globalThis.fetch = restore;
   }
@@ -524,10 +525,10 @@ test("stamped poster walks past a dead Kinopoisk file to kino.pub", async () => 
       env, ctxSpy(),
     );
     assert.equal(response.status, 200);
-    assert.equal(response.headers.get("content-language"), "ru");
-    // Kinopoisk's no-poster check, through weserv, direct, then kino.pub.
-    assert.equal(fetched.length, 4);
-    assert.ok(fetched[3].includes("staticpop"), fetched[3]);
+    assert.equal(response.headers.get("content-language"), "und");
+    // A failed origin check moves on before the resize.
+    assert.equal(fetched.length, 3);
+    assert.ok(fetched[2].includes("staticpop"), fetched[2]);
   } finally {
     globalThis.fetch = restore;
   }
@@ -1203,7 +1204,7 @@ test("wide card cover with src: language cover, then textless backdrop, then kin
     );
     assert.equal(stamped.status, 200);
     assert.equal(stamped.headers.get("content-language"), "und");
-    assert.ok(fetched[0].startsWith("https://wsrv.nl/") && fetched[0].includes("textless"), fetched[0]);
+    assert.ok(fetched[1].startsWith("https://wsrv.nl/") && fetched[1].includes("textless"), fetched[1]);
   } finally {
     globalThis.fetch = restore;
   }
@@ -1347,35 +1348,78 @@ test("wide=1 asks the wide-card chain with kino.pub's wide derived from the id",
   };
   try {
     await handleImage(new Request(response.headers.get("location")), bare, ctxSpy());
-    assert.ok(fetched[0].includes(encodeURIComponent("https://m.staticpop.net/poster/item/wide/82852.jpg")), fetched[0]);
+    assert.ok(fetched[1].includes(encodeURIComponent("https://m.staticpop.net/poster/item/wide/82852.jpg")), fetched[1]);
   } finally {
     globalThis.fetch = restore;
   }
 });
 
-test("Kinopoisk's no-poster GIF is a missing rung", async () => {
+test("Kinopoisk's no-poster GIF gets skipped before wsrv can turn it into a WebP", async () => {
   const restore = globalThis.fetch;
-  const hops = {
-    "https://kinopoiskapiunofficial.tech/images/posters/kp/14892763.jpg": "https://st.kp.yandex.net/images/film_big/14892763.jpg",
-    "https://st.kp.yandex.net/images/film_big/14892763.jpg": "https://st.kp.yandex.net/images/no-poster.gif",
-    "https://kinopoiskapiunofficial.tech/images/posters/kp/4915923.jpg": "https://st.kp.yandex.net/images/film_big/4915923.jpg",
-    "https://st.kp.yandex.net/images/film_big/4915923.jpg": "https://avatars.mds.yandex.net/get-kinopoisk-image/1/x1000",
-  };
   const fetched = [];
   globalThis.fetch = async (target, init) => {
-    const url = String(target);
-    fetched.push(url);
-    assert.equal(init?.redirect, "manual");
-    if (hops[url]) return new Response(null, { status: 302, headers: { location: hops[url] } });
-    return new Response(null, { status: 200, headers: { "content-type": "image/jpeg" } });
+    const url = new URL(target);
+    fetched.push({ url, method: init?.method });
+    if (url.hostname === "kinopoiskapiunofficial.tech") {
+      return new Response(null, { headers: { "content-type": "image/gif" } });
+    }
+    return new Response("img", { headers: { "content-type": "image/webp" } });
   };
   try {
-    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp/14892763.jpg"), false);
-    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp/4915923.jpg"), true);
-    const count = fetched.length;
-    // Remembered: no second walk for the same title.
-    assert.equal(await kinopoiskHasPoster("https://kinopoiskapiunofficial.tech/images/posters/kp_small/14892763.jpg"), false);
-    assert.equal(fetched.length, count);
+    const response = await handleImage(
+      new Request("https://example.test/img/poster/by/kinopub/129379/ru/poster.jpg?w=320&kinopoisk=14892763"),
+      kvEnv(), ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-kinopub-image-source"), "kinopub");
+    assert.equal(fetched[0].method, "HEAD");
+    assert.equal(fetched.filter(({ url }) => url.hostname === "kinopoiskapiunofficial.tech").length, 1);
+    assert.equal(fetched.at(-1).url.searchParams.get("url"),
+      "https://m.staticpop.net/poster/item/big/129379.jpg");
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("320px and 600px render the same Russian poster even when one wsrv resize fails", async () => {
+  const env = kvEnv({
+    "title:kinopub:128311": {
+      ids: { kinopoisk: { value: "14029992" } },
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru", width: 2000 }] },
+    },
+  });
+  const original = "https://image.tmdb.org/t/p/original/poster-ru.jpg";
+  const restore = globalThis.fetch;
+  const resizedAt = [];
+  globalThis.fetch = async (target, init) => {
+    const url = new URL(target);
+    if (url.hostname === "wsrv.nl") {
+      assert.equal(url.searchParams.get("url"), original);
+      assert.equal(url.searchParams.get("output"), "webp");
+      const width = url.searchParams.get("w");
+      resizedAt.push(width);
+      return width === "320"
+        ? new Response(null, { status: 503 })
+        : new Response("same poster", { headers: { "content-type": "image/webp" } });
+    }
+    assert.equal(url.hostname, "image.tmdb.org");
+    assert.ok(url.pathname.endsWith("/poster-ru.jpg"));
+    if (init?.method === "HEAD") assert.equal(url.href, original);
+    return new Response("same poster", { headers: { "content-type": "image/jpeg" } });
+  };
+  try {
+    for (const width of [320, 600]) {
+      const response = await handleImage(
+        new Request(`https://example.test/img/poster/by/kinopub/128311/ru/poster.jpg?w=${width}&kinopoisk=14029992`),
+        env, ctxSpy(),
+      );
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-language"), "ru");
+      assert.equal(response.headers.get("x-kinopub-image-source"), "tmdb");
+      assert.equal(response.headers.get("x-kinopub-image-via"), width === 320 ? "legacy" : "weserv");
+      assert.equal(await response.text(), "same poster");
+    }
+    assert.deepEqual(resizedAt, ["320", "600"]);
   } finally {
     globalThis.fetch = restore;
   }

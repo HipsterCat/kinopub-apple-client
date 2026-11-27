@@ -367,6 +367,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const started = Date.now();
   let stored = await readDocument(env, id);
   let asset = selectQueryAsset(stored, imageRequest, hints);
+  const canResolveTMDB = hints.imdb && (!stored || stored.pending === true);
   const vary = imageRequest.kind === "poster"
     || imageRequest.kind === "logo"
     || imageRequest.kind === "cover";
@@ -382,7 +383,9 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const fresh = imageRequest.s == null && artworkRecheckDue(stored, imageRequest.kind, imageRequest.lang);
   if (asset && fresh) refreshInBackground(env, ctx, id, hints, stored);
   let waitedMs = 0;
-  if (!asset && (!stored || stored.pending === true || fresh)) {
+  const coldArtworkWithIMDb = imageRequest.s == null && !!imageRequest.src
+    && canResolveTMDB && (!asset || asset.source === "kinopoisk");
+  if (coldArtworkWithIMDb || (!asset && (!stored || stored.pending === true || fresh))) {
     const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
     waitedMs = Date.now() - started;
     const posterFallback = waited.timedOut && imageRequest.src;
@@ -441,7 +444,7 @@ async function handleImageQuery(request, url, env, ctx, route) {
   // kino.pub's own file (client `src=`), then a poster in another language.
   // The stamped proxy walks the same chain, so a dead kino.pub CDN still ends
   // on a picture.
-  if (!asset && imageRequest.kind === "poster" && imageRequest.s == null) {
+  if (imageRequest.kind === "poster" && imageRequest.s == null) {
     asset = posterChain(stored, hints, imageRequest.lang || "ru", imageRequest.src)[0] || null;
   }
   // Wide title card (`src=` = kino.pub's wide): cover in the language → textless
@@ -1201,6 +1204,9 @@ function stampedURL(url, imageRequest, asset, rev) {
   if (imageRequest.kinopoisk && (imageRequest.kind === "poster" || imageRequest.kind === "cover")) {
     params.set("kinopoisk", imageRequest.kinopoisk);
   }
+  if (imageRequest.s == null && imageRequest.src && imageRequest.lang && imageRequest.lang !== lang) {
+    params.set("lang", imageRequest.lang);
+  }
   const qs = params.toString();
   return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
 }
@@ -1218,6 +1224,11 @@ function parseStampedPath(pathname) {
 async function proxyStamped(request, url, env, ctx, stamp) {
   const id = numericId(stamp.id);
   if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+  const season = readIndex(url, "s");
+  const chainSrc = season == null ? chainSource(url, stamp.kind, id) : null;
+  if (season == null && (stamp.kind === "poster" || (stamp.kind === "cover" && chainSrc))) {
+    return proxyTitleArtwork(url, env, ctx, stamp, id, chainSrc);
+  }
 
   // Edge-cache the stamped answer so repeat Home/detail hits never re-tax
   // wsrv.nl. Key is the stamped URL (kind/id/lang/file + w/s/e/format).
@@ -1239,27 +1250,11 @@ async function proxyStamped(request, url, env, ctx, stamp) {
     id,
     w: readWidth(url),
     lang: stamp.kind === "backdrop" ? null : (lang || "ru"),
-    s: readIndex(url, "s"),
+    s: season,
     e: readIndex(url, "e"),
   };
   const hints = readHints(url);
   const format = readOutputFormat(url, stamp.kind);
-  const chainSrc = imageRequest.s == null ? chainSource(url, stamp.kind, id) : null;
-  const chainKind = stamp.kind === "poster" && imageRequest.s == null ? "poster"
-    : stamp.kind === "cover" && chainSrc ? "cover" : null;
-  if (chainKind) {
-    const chain = chainKind === "poster"
-      ? posterChain(stored, hints, imageRequest.lang, chainSrc)
-      : coverChain(stored, lang, chainSrc);
-    for (const candidate of chain) {
-      const served = await fetchAsset(env, candidate, stamp.kind, imageRequest.w, format);
-      if (!served) continue;
-      const response = imageResponse(served, stamp.kind, format, langTag(candidate.lang));
-      if (cache && cacheKey && ctx?.waitUntil) ctx.waitUntil(cache.put(cacheKey, response.clone()));
-      return response;
-    }
-    return imageNotFound(missHint({ ...imageRequest, lang }));
-  }
   let asset = (stamp.kind === "thumbnail" || imageRequest.s != null)
     ? selectQueryAsset(stored, imageRequest, hints)
     : assetInLang(stored, stamp.kind, lang, hints);
@@ -1327,11 +1322,88 @@ async function proxyStamped(request, url, env, ctx, stamp) {
   return response;
 }
 
+// Choose a source before looking at the output size. The render cache is keyed
+// by that source, so stale cached bytes from a different poster cannot win.
+async function proxyTitleArtwork(url, env, ctx, stamp, id, chainSrc) {
+  const { kind } = stamp;
+  const lang = readLangQuery(url) || (stamp.lang === "und" ? "ru" : stamp.lang);
+  const fromStore = await readDocument(env, id);
+  const document = kind === "cover" ? await withCatalogCovers(env, id, fromStore, lang) : fromStore;
+  const chain = kind === "poster"
+    ? posterChain(document, readHints(url), lang, chainSrc)
+    : coverChain(document, lang, chainSrc);
+  const cache = edgeCache();
+  const width = readWidth(url);
+  const format = readOutputFormat(url, kind);
+  for (const asset of chain) {
+    const origin = await titleArtworkOrigin(asset, url.origin, cache, ctx);
+    if (!origin) continue;
+    const language = langTag(asset.source === "kinopub" ? null : asset.lang);
+    const key = artworkCacheKey(url.origin, `render/${kind}/${id}/${language}`, {
+      origin, width, format, revision: url.searchParams.get("v"),
+    });
+    const hit = await cache?.match(key);
+    if (hit) return hit;
+    const resized = weservEnabled(env) ? await fetchArtwork(weservURL(origin, width, format)) : null;
+    const direct = asset.source === "tmdb" ? resizeAsset({ ...asset, url: origin }, kind, width) : origin;
+    const rendered = resized ?? await fetchArtwork(direct)
+      ?? (direct !== origin ? await fetchArtwork(origin) : null);
+    if (!rendered) break;
+    const via = resized ? "weserv" : "legacy";
+    const response = imageResponse({ response: rendered, via }, kind, format, language);
+    response.headers.set("X-KinoPub-Image-Source", asset.source);
+    if (cache && ctx?.waitUntil) {
+      if (resized || !weservEnabled(env)) ctx.waitUntil(cache.put(key, response.clone()));
+      else response.headers.set("Cache-Control", "public, max-age=300");
+    }
+    return response;
+  }
+  return imageNotFound(missHint({ kind, lang }), false, { store: false });
+}
+
+function artworkCacheKey(origin, path, params) {
+  const key = new URL(`/img-cache/cover-source-v1/${path}`, origin);
+  for (const [name, value] of Object.entries(params)) {
+    if (value != null) key.searchParams.set(name, value);
+  }
+  return new Request(key);
+}
+
+async function titleArtworkOrigin(asset, workerOrigin, cache, ctx) {
+  const origin = durableOrigin(asset);
+  if (!origin) return null;
+  const mirrors = (asset.source === "kinopub" && kinopubArtworkOrigins(origin, KINOPUB_POSTER_PATH)) || [origin];
+  const key = artworkCacheKey(workerOrigin, "origin", { origin });
+  const hit = await cache?.match(key);
+  if (hit) return hit.text();
+  for (const mirror of mirrors) {
+    if (!await fetchArtwork(mirror, { method: "HEAD" })) continue;
+    if (cache && ctx?.waitUntil) {
+      ctx.waitUntil(cache.put(key, new Response(mirror, { headers: { "Cache-Control": "max-age=3600" } })));
+    }
+    return mirror;
+  }
+  return null;
+}
+
+async function fetchArtwork(url, options) {
+  try {
+    const response = await fetch(url, { ...timeoutSignal(CDN_MIRROR_TIMEOUT_MS), ...options });
+    const type = response.headers.get("content-type") || "";
+    const placeholder = response.url.toLowerCase().includes("/no-poster.");
+    if (response.ok && type.startsWith("image/") && !type.startsWith("image/gif") && !placeholder) {
+      return response;
+    }
+    await response.body?.cancel();
+  } catch {
+    // The source or resizer is temporarily unavailable.
+  }
+  return null;
+}
+
 /**
- * Title poster fallback chain for one language: pin → TMDB → tvoe → Kinopoisk
- * → kino.pub (`src`) → a poster in another language (Sasha, 2026-11-26). Sasha 2026-11-26: TMDB
- * first, then kino.pub, then Kinopoisk; kino.pub's CDN going down must not
- * leave a tile blank.
+ * Title poster: pin → TMDB in the requested language → textless TMDB → tvoe
+ * → Kinopoisk → kino.pub → another language.
  */
 function posterChain(document, hints, lang, kinopubSrc) {
   const chain = [];
@@ -1419,7 +1491,7 @@ function refreshInBackground(env, ctx, id, hints, stored) {
  * has none in `lang`. Read-only view: never written back to KV.
  */
 async function withCatalogCovers(env, id, document, lang) {
-  if (!env?.CATALOG || !document) return document;
+  if (!env?.CATALOG) return document;
   if (coverCandidates(document, lang).length) return document;
   try {
     const rows = await env.CATALOG.prepare(
@@ -1439,7 +1511,7 @@ async function withCatalogCovers(env, id, document, lang) {
     if (!extra.length) return document;
     return {
       ...document,
-      artwork: { ...document.artwork, cover: [...(document.artwork?.cover || []), ...extra] },
+      artwork: { ...document?.artwork, cover: [...(document?.artwork?.cover || []), ...extra] },
     };
   } catch {
     return document;
@@ -1516,74 +1588,6 @@ async function fetchTransformedKinopubThumbnail(origins, width, format) {
     }
   }
   return null;
-}
-
-/** One asset's bytes, WebP through wsrv.nl first, the source's own resizer next. */
-async function fetchAsset(env, asset, kind, w, format) {
-  const attempt = async (target, { timeout = POSTER_FETCH_TIMEOUT_MS, imageOnly = false } = {}) => {
-    if (!target) return null;
-    try {
-      const response = await fetch(target, timeoutSignal(timeout));
-      if (response.ok && (!imageOnly || response.headers.get("content-type")?.startsWith("image/"))) {
-        return { response, via: target.startsWith("https://wsrv.nl/") ? "weserv" : "legacy" };
-      }
-      await response.body?.cancel();
-    } catch {
-      // Move on after a transport error or timeout.
-    }
-    return null;
-  };
-  const origin = durableOrigin(asset);
-  const mirrors = asset.source === "kinopub" && kinopubArtworkOrigins(origin, KINOPUB_POSTER_PATH);
-  if (mirrors) {
-    const transform = weservEnabled(env);
-    for (const mirror of mirrors) {
-      const target = transform ? weservURL(mirror, w, format) : mirror;
-      const served = await attempt(target, { timeout: CDN_MIRROR_TIMEOUT_MS, imageOnly: true });
-      if (served) return served;
-    }
-    return null;
-  }
-  // Kinopoisk answers a title without a poster with a grey «K» GIF, which
-  // wsrv happily converts: skip the rung instead (129379, Sasha 2026-11-26).
-  if (asset.source === "kinopoisk" && !(await kinopoiskHasPoster(origin))) return null;
-  if (weservEnabled(env)) {
-    const served = origin ? await attempt(weservURL(origin, w, format)) : null;
-    if (served) return served;
-  }
-  // Let the client own the direct fallback when the configured transform fails.
-  if (asset.source === "kinopub" && weservEnabled(env)) return null;
-  return attempt(asset.source === "kinopub" ? safeHttpURL(asset.url) : resizeAsset(asset, kind, w));
-}
-
-// kinopoiskapiunofficial → st.kp.yandex.net → avatars (a poster) or
-// st.kp.yandex.net/images/no-poster.gif (none). Measured 2026-11-26.
-const kinopoiskPosterKnown = new Map();
-
-/** False only when Kinopoisk's redirects end on its no-poster GIF. */
-export async function kinopoiskHasPoster(origin) {
-  if (!origin) return false;
-  const key = origin.replace(/\/kp_small\//, "/kp/");
-  if (kinopoiskPosterKnown.has(key)) return kinopoiskPosterKnown.get(key);
-  let target = origin;
-  let verdict = true;
-  try {
-    for (let hop = 0; hop < 4; hop += 1) {
-      const response = await fetch(target, { method: "HEAD", redirect: "manual", ...timeoutSignal(POSTER_FETCH_TIMEOUT_MS) });
-      const location = response.headers.get("location");
-      if (response.status < 300 || response.status >= 400 || !location) {
-        verdict = !(response.headers.get("content-type") || "").includes("image/gif");
-        break;
-      }
-      if (/no-poster/i.test(location)) { verdict = false; break; }
-      target = new URL(location, target).toString();
-    }
-  } catch {
-    return true; // Unknown: let wsrv try, as before.
-  }
-  if (kinopoiskPosterKnown.size > 2000) kinopoiskPosterKnown.clear();
-  kinopoiskPosterKnown.set(key, verdict);
-  return verdict;
 }
 
 function timeoutSignal(ms) {

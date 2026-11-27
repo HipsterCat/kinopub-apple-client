@@ -140,13 +140,14 @@ final class WorkerPosterRouteTests: XCTestCase {
     }
   }
 
-  func testAPosterAsksTheWorkerFirstAndKeepsTheDirectCoversBehindIt() throws {
+  func testAPosterAsksTheWorkerAndUsesKinoPubDuringAnOutage() throws {
     CoverArtworkPreferences.set(.russian)
     let card = MediaCard(id: 1, posterURL: medium, title: "T", backdropURL: wide,
                          kinopoiskID: 16497)
     let ladder = card.artworkLadder.map(\.absoluteString)
-    XCTAssertEqual(ladder.count, 3)
-    XCTAssertEqual(Array(ladder.dropFirst()), [kinopoisk, medium])
+    XCTAssertEqual(ladder.count, 2)
+    XCTAssertEqual(Array(ladder.dropFirst()), [medium])
+    XCTAssertEqual(card.directCoverURL, kinopoisk)
     let worker = try XCTUnwrap(URLComponents(string: ladder[0]))
     XCTAssertEqual(worker.host, "worker.test")
     XCTAssertEqual(worker.path, "/img/poster/by/kinopub/1")
@@ -174,14 +175,21 @@ final class WorkerPosterRouteTests: XCTestCase {
 final class WorkerWideCardTests: XCTestCase {
   private let medium = "https://m.staticpop.net/poster/item/medium/1.jpg"
   private let wide = "https://m.staticpop.net/poster/item/wide/1.jpg"
+  private var savedCover: Any?
 
   override func setUp() {
+    savedCover = UserDefaults.standard.object(forKey: CoverArtworkPreferences.languageKey)
     CoverArtwork.configureWorker(TitleImageRoute(baseURL: URL(string: "https://worker.test")),
                                  pixelWidth: 780, widePixelWidth: 1280)
   }
 
   override func tearDown() {
     CoverArtwork.configureWorker(TitleImageRoute(baseURL: nil), pixelWidth: 0)
+    if let savedCover {
+      UserDefaults.standard.set(savedCover, forKey: CoverArtworkPreferences.languageKey)
+    } else {
+      UserDefaults.standard.removeObject(forKey: CoverArtworkPreferences.languageKey)
+    }
   }
 
   /// Sasha 2026-11-26: a wide title card is cover by language › backdrop › kino.pub wide.
@@ -202,5 +210,19 @@ final class WorkerWideCardTests: XCTestCase {
     let still = "https://example.com/still.jpg"
     let card = MediaCard(id: 1, posterURL: medium, title: "T", landscapeImageURL: still)
     XCTAssertEqual(card.landscapeArtworkURL, still)
+  }
+
+  func testFilmPreviewReusesTheSameRussianWorkerCoverAsTheShelf() throws {
+    CoverArtworkPreferences.set(.russian)
+    let card = MediaCard(id: 1, posterURL: medium, title: "Film", landscapeImageURL: wide,
+                         hoverStillURL: "https://m.staticpop.net/thumb/0/1/hash/still.jpg",
+                         video: 1, imdbID: 9042)
+    let peek = MediaCardContextPreviewSpec.from(card: card, surface: .shelf)
+    XCTAssertEqual(peek.artworkURLs, card.artworkLadder)
+    XCTAssertTrue(peek.reusesShelfArtwork)
+    let artwork = try XCTUnwrap(URLComponents(string: peek.url?.absoluteString ?? ""))
+    XCTAssertEqual(artwork.path, "/img/cover/by/kinopub/1")
+    XCTAssertTrue(artwork.queryItems?.contains(URLQueryItem(name: "lang", value: "ru")) == true)
+    XCTAssertTrue(artwork.queryItems?.contains(URLQueryItem(name: "imdb", value: "tt0009042")) == true)
   }
 }
