@@ -290,7 +290,7 @@ struct PiraticApp: App {
       }
 #endif
 #if os(macOS)
-      .frame(minWidth: WindowSize.macos.width, minHeight: WindowSize.macos.height)
+      .windowSizeIndependentOfContent(minimum: WindowSize.macos)
       .listedInWindowMenu()
 #endif
   }
@@ -453,3 +453,34 @@ private extension View {
   }
 }
 
+#if os(macOS)
+/// The library window's size limits are a fixed minimum, never a measurement of the page.
+///
+/// Performance limitation (Instruments, 2026-11-28, macOS 27.3): with a scene's
+/// `windowResizability` the window's `NSHostingView` recomputes its min / max size on every
+/// layout pass — `NSHostingView.minSize()` from `layout()` and `updateConstraints()` — and a
+/// `.frame(minWidth:minHeight:)` passes that zero-size proposal down to the whole page, scroll
+/// content included. Scrolling a title page spent ~20% of the main thread there.
+/// This layout answers the window's size questions itself (the minimum, or whatever the
+/// window offers above it) and lays the content out only at the size it really gets.
+private struct WindowSizeIndependentOfContent: Layout {
+  var minimum: CGSize
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    CGSize(width: max(proposal.width ?? minimum.width, minimum.width),
+           height: max(proposal.height ?? minimum.height, minimum.height))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for subview in subviews {
+      subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+  }
+}
+
+private extension View {
+  func windowSizeIndependentOfContent(minimum: CGSize) -> some View {
+    WindowSizeIndependentOfContent(minimum: minimum) { self }
+  }
+}
+#endif

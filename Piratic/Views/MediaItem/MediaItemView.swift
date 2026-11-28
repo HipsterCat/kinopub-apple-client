@@ -759,7 +759,8 @@ struct MediaItemView: View {
           // page, and Menu on a card fell to SwiftUI with no offset and closed the title.
           DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy, belowHero: true) })
         }
-#endif
+        // tvOS Menu reads it (`menuReturnsToHero`). Elsewhere nothing does, and a
+        // preference rewritten on every scrolled frame was pure per-frame graph work.
         .background {
           GeometryReader { geo in
             Color.clear.preference(
@@ -768,6 +769,7 @@ struct MediaItemView: View {
             )
           }
         }
+#endif
 //        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
       .background(Color.Piratic.background)

@@ -50,7 +50,7 @@ struct RootView: View {
       .focusDebugOverlay(isEnabled: showsFocusOverlay)
 #endif
       .task {
-        await authState.check()
+        if DebugLaunch.detailFixture == nil { await authState.check() }
       }
 #if os(macOS)
       .sheet(isPresented: macAuthSheetPresented) {
@@ -84,6 +84,8 @@ struct RootView: View {
     } else {
       phaseContent
     }
+#elseif DEBUG
+    if DetailFixture.isActive { DetailFixtureRoot() } else { phaseContent }
 #else
     phaseContent
 #endif
@@ -108,7 +110,7 @@ struct RootView: View {
   /// Sheet stays up for the whole signed-out phase; dismiss is auth success only.
   private var macAuthSheetPresented: Binding<Bool> {
     Binding(
-      get: { authState.phase == .signedOut },
+      get: { authState.phase == .signedOut && DebugLaunch.detailFixture == nil },
       set: { _ in }
     )
   }

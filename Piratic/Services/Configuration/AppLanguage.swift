@@ -46,8 +46,18 @@ final class AppLanguage {
     return code.hasPrefix("ru") ? "ru" : "en"
   }
 
+  /// `Locale.current` whenever it already speaks `code`, a constructed locale only after an
+  /// in-app switch (until the next launch re-pins the process).
+  ///
+  /// Performance limitation (measured 2026-11-28, macOS 27.3, Instruments + a `swiftc` probe):
+  /// a SwiftUI `\.locale` that differs from `Locale.current` sends every `Text(LocalizedStringKey)`
+  /// down `CFBundle`'s explicit-localization lookup, which re-reads and re-parses the whole
+  /// `Localizable.strings` table per label (~1.4 ms each, no cache) — 14% of the main thread
+  /// while scrolling a title page. A pinned `ru_RU` on a `ru_US` system was enough to trigger it.
   nonisolated static func locale(for code: String) -> Locale {
-    Locale(identifier: code == "ru" ? "ru_RU" : "en_US")
+    let current = Locale.current
+    if current.language.languageCode?.identifier == code { return current }
+    return Locale(identifier: code == "ru" ? "ru_RU" : "en_US")
   }
 
   /// Persist, flush language-sensitive caches, remount the shell.

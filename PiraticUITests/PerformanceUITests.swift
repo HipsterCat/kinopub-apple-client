@@ -348,6 +348,44 @@ final class PerformanceUITests: XCTestCase {
   // MARK: - Shared (iOS / Mac)
 
 #if os(iOS) || os(macOS)
+  @MainActor func testFilmVerticalScroll() { measureDetailScroll("film") }
+  @MainActor func testSeriesVerticalScroll() { measureDetailScroll("seasonStrip") }
+
+  @MainActor private func measureDetailScroll(_ fixture: String) {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-PIRATICDetailFixture", fixture, "-PIRATICMeasureDetailScroll"]
+    app.launch()
+#if os(macOS)
+    let scroll = app.windows.firstMatch
+#else
+    let scroll = app.scrollViews.firstMatch
+#endif
+    XCTAssertTrue(scroll.waitForExistence(timeout: 20), app.debugDescription)
+    measure(metrics: [XCTOSSignpostMetric.scrollingAndDecelerationMetric], options: measureOptions) {
+#if os(iOS)
+      scroll.swipeUp()
+      waitForScrollSettle()
+      recordScrollSample()
+      scroll.swipeDown()
+#else
+      scroll.scroll(byDeltaX: 0, deltaY: -650)
+      waitForScrollSettle()
+      recordScrollSample()
+      scroll.scroll(byDeltaX: 0, deltaY: 650)
+#endif
+      waitForScrollSettle()
+    }
+  }
+
+  @MainActor private func recordScrollSample() {
+    let reading = app.staticTexts["piratic.detail.scrollSample"]
+    let settled = NSPredicate(format: "label CONTAINS %@", "fps")
+    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: reading)], timeout: 4), .completed)
+    let sample = reading.label
+    XCTAssertTrue(sample.contains("fps"), sample)
+    XCTContext.runActivity(named: "Vertical scroll: " + sample) { _ in }
+  }
+
   private func launchWithSessionIfAny() {
     app = XCUIApplication()
     app.launchArguments += ["-ui-testing"]

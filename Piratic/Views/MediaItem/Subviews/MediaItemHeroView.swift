@@ -3161,6 +3161,15 @@ private struct HeroBandLayout: Layout {
       subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
   }
+
+  // The band fills its width and lines up with nothing by its contents. The default
+  // merges the subviews' guides, which lays the whole hero out again for every guide the
+  // page's stacks ask about.
+  func explicitAlignment(of guide: HorizontalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+                         subviews: Subviews, cache: inout ()) -> CGFloat? { nil }
+
+  func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+                         subviews: Subviews, cache: inout ()) -> CGFloat? { nil }
 }
 
 /// The Apple TV app's weight between its lines: the facts, scores and playback lines a

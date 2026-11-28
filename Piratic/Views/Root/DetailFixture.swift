@@ -1,4 +1,4 @@
-#if DEBUG && os(tvOS)
+#if DEBUG
 //
 //  DetailFixture.swift
 //  Piratic
@@ -19,7 +19,11 @@
 import Foundation
 import SwiftUI
 import Synchronization
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 import KinoPubBackend
 import PiraticMetadata
 import PiraticUI
@@ -352,9 +356,13 @@ enum DetailFixture: String, CaseIterable, Identifiable {
 
   /// Apple's sample stream as a kino.pub file, for `-PIRATICFixtureRealPlayer`.
   private static var sampleFile: [String: Any] {
+#if os(tvOS)
     let stream = TVChannelsFixture.sampleStream
     return ["codec": "h264", "w": 1920, "h": 1080, "quality": "1080p", "quality_id": 3,
             "url": ["http": stream, "hls": stream, "hls4": stream, "hls2": stream]]
+#else
+    return [:]
+#endif
   }
 
   private func video(number: Int, title: String, position: Int, duration: Int = 6000,
@@ -579,6 +587,7 @@ struct DetailFixtureRoot: View {
   }
 
   var body: some View {
+#if os(tvOS)
     if DebugLaunch.fixtureInTabs {
       // Under the real tab bar, as in the shipped app.
       TabView(selection: $tab) {
@@ -591,6 +600,11 @@ struct DetailFixtureRoot: View {
       stack
         .pageBackdropStage(front: Route.backdropFront(of: path), live: Route.backdropKeys(in: path))
     }
+#else
+    stack.overlay(alignment: .bottomTrailing) {
+      if ProcessInfo.processInfo.arguments.contains("-PIRATICMeasureDetailScroll") { DetailScrollMeter() }
+    }
+#endif
   }
 
   private var stack: some View {
@@ -622,6 +636,95 @@ struct DetailFixtureRoot: View {
   }
 }
 
+#if !os(tvOS)
+/// UI-test readout of distinct vertical offsets observed on display-link callbacks.
+/// Publish once per gesture, keeping observation out of the scrolling view hierarchy.
+struct DetailScrollMeter: View {
+  @State private var sampler = Sampler()
+
+  var body: some View {
+    Text(verbatim: sampler.result)
+      .font(.caption2.monospacedDigit())
+      .accessibilityIdentifier("piratic.detail.scrollSample")
+      .allowsHitTesting(false)
+      .onAppear { sampler.start() }
+      .onDisappear { sampler.stop() }
+  }
+
+  @MainActor @Observable
+  fileprivate final class Sampler: NSObject {
+    var result = "Waiting for vertical scroll"
+#if os(macOS)
+    typealias NativeView = NSView
+    typealias NativeScroll = NSScrollView
+#else
+    typealias NativeView = UIView
+    typealias NativeScroll = UIScrollView
+#endif
+    @ObservationIgnored private weak var scroll: NativeScroll?
+    private func verticalScroll(in view: NativeView) -> NativeScroll? {
+      if let scroll = view as? NativeScroll {
+#if os(macOS)
+        if (scroll.documentView?.bounds.height ?? 0) > scroll.contentView.bounds.height + 10 { return scroll }
+#else
+        if scroll.contentSize.height > scroll.bounds.height + 10 { return scroll }
+#endif
+      }
+      for child in view.subviews {
+        if let scroll = verticalScroll(in: child) { return scroll }
+      }
+      return nil
+    }
+    @ObservationIgnored private var link: CADisplayLink?
+    @ObservationIgnored private var previousY: CGFloat = 0
+    @ObservationIgnored private var first = 0.0
+    @ObservationIgnored private var last = 0.0
+    @ObservationIgnored private var changes = 0
+    @ObservationIgnored private var largestGap = 0.0
+
+    func start() {
+      stop()
+      scroll = nil
+#if os(macOS)
+      link = NSScreen.main?.displayLink(target: self, selector: #selector(sample(_:)))
+#else
+      link = CADisplayLink(target: self, selector: #selector(sample(_:)))
+#endif
+      link?.add(to: .main, forMode: .common)
+    }
+
+    func stop() { link?.invalidate(); link = nil }
+
+    @objc private func sample(_ link: CADisplayLink) {
+#if os(macOS)
+      if scroll == nil, let root = NSApp.keyWindow?.contentView { scroll = verticalScroll(in: root) }
+      guard let y = scroll?.contentView.bounds.origin.y else { return }
+#else
+      if scroll == nil, let root = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
+        scroll = verticalScroll(in: root)
+      }
+      guard let y = scroll?.contentOffset.y else { return }
+#endif
+      let now = link.timestamp
+      if y != previousY {
+        if changes == 0 { first = now; largestGap = 0 }
+        else { largestGap = max(largestGap, now - last) }
+        previousY = y
+        changes += 1
+        last = now
+      } else if changes > 0, now - last > 0.35 {
+        if changes > 1 {
+          result = String(format: "%.1f fps, %.1f ms maximum gap (%d updates)",
+                          Double(changes - 1) / (last - first), largestGap * 1000, changes)
+        }
+        changes = 0
+      }
+    }
+  }
+}
+#endif
+
+#if os(tvOS)
 // MARK: - Library
 
 /// `-PIRATICLibraryFixture YES`: the Library as a signed-in account has it — sidebar, the
@@ -871,6 +974,7 @@ struct DetailFixturePlayer: View {
     )
   }
 }
+#endif
 // MARK: - Art
 
 /// Artwork for the fixtures, drawn on first use into the temporary directory: a colour
@@ -912,6 +1016,15 @@ enum DetailFixtureArt {
   private static func draw(_ shape: Shape, seed: Int, label: String) -> Data {
     let size = shape.size
     let hue = CGFloat((seed * 47) % 360) / 360
+#if os(macOS)
+    let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+    NSColor(calibratedHue: hue, saturation: 0.62, brightness: 0.78, alpha: 1).setFill()
+    NSBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+    return bitmap.representation(using: .png, properties: [:])!
+#else
     let top = UIColor(hue: hue, saturation: 0.62, brightness: 0.78, alpha: 1)
     let bottom = UIColor(hue: (hue + 0.08).truncatingRemainder(dividingBy: 1), saturation: 0.8, brightness: 0.32, alpha: 1)
     let format = UIGraphicsImageRendererFormat()
@@ -933,6 +1046,7 @@ enum DetailFixtureArt {
                        width: size.width * 0.84, height: size.height * 0.34)
       (label as NSString).draw(with: box, options: [.usesLineFragmentOrigin], attributes: attributes, context: nil)
     }
+#endif
   }
 }
 #endif

@@ -211,8 +211,12 @@ struct AppContext: AppContextProtocol {
       DetailFixture.allCases.forEach { localProgressStore.clear(id: $0.itemID) }
     }
 #else
+#if DEBUG
+    let isFixtureRun = DetailFixture.isActive
+#else
     let isFixtureRun = false
-    let localProgressStore = LocalWatchProgressStore()
+#endif
+    let localProgressStore = isFixtureRun ? LocalWatchProgressStore(container: WatchLibrary.makeInMemoryContainer()) : LocalWatchProgressStore()
 #endif
     let libraryState = MediaLibraryStore(
       downloadManager: downloadManager,
@@ -269,11 +273,13 @@ struct AppContext: AppContextProtocol {
       localProgressStore: localProgressStore,
       libraryState: libraryState
     )
-#if DEBUG && os(tvOS)
+#if DEBUG
     // `-PIRATICDetailFixture`: the detail page against local stand-ins (UI tests).
     if DetailFixture.isActive {
       return DetailFixture.context(replacingServicesOf: context)
     }
+#endif
+#if DEBUG && os(tvOS)
     // `-PIRATICLibraryFixture`: the Library against a stand-in API.
     if LibraryFixture.isActive {
       return LibraryFixture.context(replacingServicesOf: context)
