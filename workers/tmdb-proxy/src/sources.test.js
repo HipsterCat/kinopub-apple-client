@@ -87,6 +87,24 @@ test("fanart, wikidata and our own rows join the logo list with a source each", 
   assert.equal(sources.tvoe.count, 1);
 });
 
+test("card rows in c2_image are named by their URL, TMDB copies are left out", async () => {
+  const env = memoryEnv();
+  env.CATALOG = {
+    prepare() {
+      return { bind() { return { async all() { return { results: [
+        { kind: "logo", lang: "ru", url: "https://avatars.mds.yandex.net/get-ott/1/2a/orig", source: "card" },
+        { kind: "logo", lang: "en", url: "https://image.tmdb.org/t/p/original/x.png", source: "card" },
+        { kind: "poster", lang: "ru", url: "https://static.cdn.tvoe.live/p.jpg", source: "card" },
+      ] }; } }; } };
+    },
+  };
+  const doc = { kind: "movie", ids: {}, artwork: {} };
+  const logos = await extraImageFiles(env, 3, doc, "logo", { fetch: routedFetch([]), keys: {} });
+  assert.deepEqual(logos.files.map((f) => [f.source, f.lang]), [["kinopoisk", "ru"]]);
+  const posters = await extraImageFiles(env, 3, doc, "poster", { fetch: routedFetch([]), keys: {} });
+  assert.deepEqual(posters.files.map((f) => f.source), ["tvoe"]);
+});
+
 test("TheTVDB logs in once, finds the series and keeps textless backgrounds for backdrops", async () => {
   let logins = 0;
   const fetchImpl = routedFetch([

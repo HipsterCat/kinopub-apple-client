@@ -124,9 +124,9 @@ async function storedFiles(env, id, stored, kind) {
   const files = [];
   const push = (asset, rowKind) => {
     if (!asset?.url) return;
-    // A link pin is stored as "admin"; name where the file came from when the URL says.
-    const source = (asset.source && asset.source !== "admin" ? asset.source : null)
-      || inferOwnSource(asset.url) || asset.source;
+    // The URL names the source best: a link pin is stored as "admin", and the card
+    // pipeline writes its Kinopoisk / tvoe picks to c2_image as source "card".
+    const source = inferOwnSource(asset.url) || asset.source;
     if (!OWN_SOURCES.has(source)) return;
     if (!sameKind(kind, rowKind, source, asset.lang)) return;
     files.push(file({
