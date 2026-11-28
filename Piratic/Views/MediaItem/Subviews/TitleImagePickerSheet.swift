@@ -2,14 +2,22 @@
 //  TitleImagePickerSheet.swift
 //  Piratic
 //
-//  "Change Images": which TMDB logo, cover and backdrop the worker serves for a
-//  title. Cover is the language-tagged TMDB backdrop; backdrop stays textless.
+//  "Change Images": which logo, poster, cover and backdrop the worker serves for a
+//  title. Cover is a wide picture with lettering; backdrop stays textless. Files come
+//  from TMDB, fanart.tv, TheTVDB, tvoe, Kinopoisk, Wikidata and the admin's own
+//  uploads (workers/tmdb-proxy/src/sources.js); chips filter the grid by source, the
+//  way Silo's Edit Metadata › Images does.
 //  The sheet, grid and toolbar policy are AniShelf's poster picker
 //  (`PosterSelectionView` / `PosterGridView`, github.com/samuelhe52/AniShelf); the
 //  per-language selection and the worker writes are ours.
 //
 
 import SwiftUI
+import ImageIO
+import UniformTypeIdentifiers
+#if !os(tvOS)
+import PhotosUI
+#endif
 import PiraticUI
 import PiraticMetadata
 
@@ -47,6 +55,15 @@ struct TitleImagePickerSheet: View {
   @State private var kind: WorkerImageAdminKind = .logo
   @State private var showsLinkEntry = false
   @State private var linkText = ""
+  @State private var showsKeyEntry = false
+  @State private var fanartKey = ""
+  @State private var tvdbKey = ""
+#if !os(tvOS)
+  @State private var photoItem: PhotosPickerItem?
+  @State private var showsFileImporter = false
+  /// A picture read and ready to upload, waiting for its language.
+  @State private var pendingUpload: TitleImageUpload?
+#endif
 
   init(target: TitleImagePickerTarget,
        images: TitleImageRoute,
@@ -84,6 +101,9 @@ struct TitleImagePickerSheet: View {
             .fixedSize()
 #endif
             Spacer(minLength: 0)
+#if !os(tvOS)
+            uploadMenu
+#endif
             Button {
               linkText = ""
               showsLinkEntry = true
@@ -92,6 +112,12 @@ struct TitleImagePickerSheet: View {
             }
             .disabled(model.isSaving)
           }
+#if os(iOS)
+          // Four segments and two buttons: on a phone the buttons keep only their symbols.
+          .labelStyle(TitleImagePickerToolbarLabelStyle())
+#endif
+
+          sourceChips
 
           content
             .frame(maxWidth: .infinity)
@@ -112,6 +138,37 @@ struct TitleImagePickerSheet: View {
 #endif
     }
     .task(id: kind) { await model.load(kind) }
+    .alert("Source Keys", isPresented: $showsKeyEntry) {
+      SecureField("fanart.tv API Key", text: $fanartKey)
+      SecureField("TheTVDB API Key", text: $tvdbKey)
+      Button("Save") { saveKeys() }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("Saved in the worker, so every device sees these sources. A personal key is free at fanart.tv and thetvdb.com.")
+    }
+#if !os(tvOS)
+    .onChange(of: photoItem) { _, item in
+      guard let item else { return }
+      photoItem = nil
+      Task { await readUpload { try await item.loadTransferable(type: Data.self) } }
+    }
+    .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.image]) { result in
+      guard case .success(let url) = result else { return }
+      Task {
+        await readUpload {
+          let scoped = url.startAccessingSecurityScopedResource()
+          defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+          return try Data(contentsOf: url)
+        }
+      }
+    }
+    .confirmationDialog("Upload For", isPresented: uploadLanguageBinding, titleVisibility: .visible) {
+      ForEach(model.languageOrder(for: kind), id: \.self) { language in
+        Button(language.pickerTitle) { upload(language: language) }
+      }
+      Button("Cancel", role: .cancel) { pendingUpload = nil }
+    }
+#endif
     .alert(linkAlertTitle, isPresented: $showsLinkEntry) {
       TextField("https://image.tmdb.org/t/p/original/…", text: $linkText)
 #if os(iOS)
@@ -174,6 +231,140 @@ struct TitleImagePickerSheet: View {
     }
   }
 
+  /// Source chips over the grid: All, then each source with its count. Sources that
+  /// need a key the worker lacks are offered under them.
+  @ViewBuilder
+  private var sourceChips: some View {
+    let chips = model.sourceChips(for: kind)
+    let missing = model.sourcesNeedingKey(for: kind)
+    if chips.count > 1 || !missing.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        if chips.count > 1 {
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+              chip(title: String(localized: "All"), count: chips.reduce(0) { $0 + $1.count },
+                   selected: model.sourceFilter(for: kind) == nil) {
+                model.setSourceFilter(nil, for: kind)
+              }
+              ForEach(chips) { item in
+                chip(title: TitleImageSource.name(item.source), count: item.count,
+                     selected: model.sourceFilter(for: kind) == item.source) {
+                  model.setSourceFilter(item.source, for: kind)
+                }
+              }
+            }
+#if os(tvOS)
+            .padding(.vertical, 20)
+#endif
+          }
+#if !os(tvOS)
+          .scrollClipDisabled()
+#endif
+        }
+        if !missing.isEmpty {
+          Button {
+            fanartKey = ""
+            tvdbKey = ""
+            showsKeyEntry = true
+          } label: {
+            Label {
+              Text("Add keys for \(missing.map(TitleImageSource.name).formatted(.list(type: .and)))")
+            } icon: {
+              Image(systemName: "key")
+            }
+            .font(.footnote)
+          }
+#if !os(tvOS)
+          .buttonStyle(.borderless)
+#endif
+        }
+      }
+    }
+  }
+
+  private func chip(title: String, count: Int, selected: Bool,
+                    action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      HStack(spacing: 4) {
+        Text(verbatim: title)
+        Text(verbatim: "\(count)")
+          .foregroundStyle(.secondary)
+          .monospacedDigit()
+      }
+#if !os(tvOS)
+      .font(.subheadline)
+#endif
+    }
+#if os(tvOS)
+    .buttonStyle(.bordered)
+#else
+    .buttonStyle(.bordered)
+    .buttonBorderShape(.capsule)
+    .tint(selected ? .accentColor : nil)
+#endif
+    .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+
+  private func saveKeys() {
+    var keys: [String: String] = [:]
+    let fanart = fanartKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    let tvdb = tvdbKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !fanart.isEmpty { keys["fanart"] = fanart }
+    if !tvdb.isEmpty { keys["tvdb"] = tvdb }
+    guard !keys.isEmpty else { return }
+    Task { await model.saveKeys(keys) }
+  }
+
+#if !os(tvOS)
+  private var uploadMenu: some View {
+    Menu {
+      PhotosPicker(selection: $photoItem, matching: .images) {
+        Label("Photo Library", systemImage: "photo.on.rectangle")
+      }
+      Button {
+        showsFileImporter = true
+      } label: {
+        Label("Choose File…", systemImage: "folder")
+      }
+    } label: {
+      Label("Upload", systemImage: "square.and.arrow.up")
+    }
+    .fixedSize()
+    .disabled(model.isSaving)
+  }
+
+  private var uploadLanguageBinding: Binding<Bool> {
+    Binding(get: { pendingUpload != nil && kind.picksPerLanguage },
+            set: { if !$0 { pendingUpload = nil } })
+  }
+
+  /// Reads the picture, then asks for its language (a backdrop has none) and uploads.
+  private func readUpload(_ read: @escaping () async throws -> Data?) async {
+    do {
+      guard let data = try await read(), let prepared = TitleImageUpload(data: data) else {
+        model.reportUploadError(String(localized: "This file is not a picture."))
+        return
+      }
+      pendingUpload = prepared
+      // A backdrop has no language: no question, straight up.
+      if !kind.picksPerLanguage { upload(language: .und) }
+    } catch {
+      model.reportUploadError(error.localizedDescription)
+    }
+  }
+
+  private func upload(language: WorkerArtworkLanguageTag) {
+    guard let prepared = pendingUpload else { return }
+    pendingUpload = nil
+    let kind = kind
+    Task {
+      if await model.upload(prepared, kind: kind, language: language) {
+        await onSaved()
+      }
+    }
+  }
+#endif
+
   private var closeButton: some View {
     Button {
       dismiss()
@@ -231,8 +422,13 @@ struct TitleImagePickerSheet: View {
         ContentUnavailableView(
           "No Images",
           systemImage: "photo.on.rectangle",
-          description: Text("TMDB has no images of this kind for this title.")
+          description: Text("No source has images of this kind for this title.")
         )
+        if let message = model.saveError {
+          Text(verbatim: message)
+            .font(.footnote)
+            .foregroundStyle(.red)
+        }
       } else {
         VStack(alignment: .leading, spacing: TitleImagePickerMetrics.sectionSpacing) {
           if let message = model.saveError {
@@ -267,7 +463,8 @@ struct TitleImagePickerSheet: View {
         spacing: TitleImagePickerMetrics.gridSpacing
       ) {
         ForEach(images) { image in
-          TitleImageTile(kind: image.kind, previewURL: image.previewURL, isSelected: false) {
+          TitleImageTile(kind: image.kind, previewURL: image.previewURL, isSelected: false,
+                         badge: image.source.map(TitleImageSource.badge)) {
             HStack(spacing: 6) {
               Text(verbatim: image.language.pickerTitle)
               Text(verbatim: "·")
@@ -329,14 +526,24 @@ private struct TitleImageGrid: View {
           onSelect(file)
         } label: {
           TitleImageTile(kind: kind, previewURL: file.previewURL(kind: kind),
-                         isSelected: file.url == selectedURL) {
+                         isSelected: file.url == selectedURL,
+                         badge: TitleImageSource.badge(file.source ?? "tmdb")) {
             HStack(spacing: 8) {
-              Label {
-                Text(file.voteLabel)
-              } icon: {
-                Image(systemName: "star.fill")
+              if let vote = file.vote {
+                Label {
+                  Text(vote.formatted(.number.precision(.fractionLength(1))))
+                } icon: {
+                  Image(systemName: "star.fill")
+                }
+                .labelStyle(TitleImageCaptionLabelStyle())
+              } else if let votes = file.votes, votes > 0 {
+                Label {
+                  Text(Int(votes).formatted())
+                } icon: {
+                  Image(systemName: "hand.thumbsup.fill")
+                }
+                .labelStyle(TitleImageCaptionLabelStyle())
               }
-              .labelStyle(TitleImageCaptionLabelStyle())
               Text(verbatim: file.sizeLabel)
               if file.isVector {
                 Text(verbatim: "SVG")
@@ -361,6 +568,8 @@ private struct TitleImageTile<Caption: View>: View {
   let isSelected: Bool
   /// The box the picture fills or fits; posters (title and season) are 2:3.
   var boxAspectRatio: CGFloat? = nil
+  /// Where the file comes from, on the picture's corner (TMDB, FANART, TVDB, …).
+  var badge: String? = nil
   @ViewBuilder let caption: () -> Caption
 
   private var shape: RoundedRectangle {
@@ -395,6 +604,18 @@ private struct TitleImageTile<Caption: View>: View {
           }
         }
         .overlay { shape.stroke(.white.opacity(0.18), lineWidth: 1) }
+        .overlay(alignment: .bottomTrailing) {
+          if let badge {
+            Text(verbatim: badge)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.white)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(.black.opacity(0.55), in: Capsule())
+              .padding(TitleImagePickerMetrics.sourceBadgeInset)
+              .accessibilityLabel(Text(verbatim: badge))
+          }
+        }
         .clipShape(shape)
         // Outside the clip, so the marks leave the picture uncovered; the inset ring
         // stays concentric with the corners.
@@ -438,6 +659,21 @@ private struct TitleImageTile<Caption: View>: View {
   }
 }
 
+#if os(iOS)
+/// Symbol only in a compact width, title and symbol otherwise.
+private struct TitleImagePickerToolbarLabelStyle: LabelStyle {
+  @Environment(\.horizontalSizeClass) private var sizeClass
+
+  func makeBody(configuration: Configuration) -> some View {
+    if sizeClass == .compact {
+      Label(configuration).labelStyle(.iconOnly)
+    } else {
+      Label(configuration)
+    }
+  }
+}
+#endif
+
 /// Icon and text a hair apart, the way a caption reads.
 private struct TitleImageCaptionLabelStyle: LabelStyle {
   func makeBody(configuration: LabelStyleConfiguration) -> some View {
@@ -476,6 +712,11 @@ private enum TitleImagePickerMetrics {
   static let selectionRingGap: CGFloat = 3.5
   static let selectionRingWidth: CGFloat = 3
   static let badgeOffset: CGFloat = 6
+#if os(tvOS)
+  static let sourceBadgeInset: CGFloat = 12
+#else
+  static let sourceBadgeInset: CGFloat = 6
+#endif
 }
 
 // MARK: - Season posters
@@ -581,6 +822,8 @@ struct TitleImagePickerCurrent: Identifiable {
   let language: WorkerArtworkLanguageTag
   let url: String
   let isPinned: Bool
+  /// The source of the matching file in the lists, when it is one of them.
+  var source: String? = nil
 
   var id: String { "\(kind.rawValue)-\(language.rawValue)" }
 
@@ -619,6 +862,9 @@ final class TitleImagePickerModel {
   private var pinned: [WorkerImageAdminKind: [WorkerArtworkLanguageTag: String]] = [:]
   /// What the worker serves now, per language: a pin, else its stored automatic file.
   private var current: [WorkerImageAdminKind: [TitleImagePickerCurrent]] = [:]
+
+  /// The source chip picked per kind; none = All.
+  private var sourceFilters: [WorkerImageAdminKind: String] = [:]
 
   private(set) var isSaving = false
   private(set) var saveError: String?
@@ -661,9 +907,76 @@ final class TitleImagePickerModel {
 
   func sections(for kind: WorkerImageAdminKind) -> [TitleImagePickerSection] {
     guard let catalog = catalogs[kind] else { return [] }
+    let filter = sourceFilter(for: kind)
     return languageOrder(for: kind).compactMap { language in
       let files = Self.ranked(catalog.bucket(language))
+        .filter { filter == nil || ($0.source ?? "tmdb") == filter }
       return files.isEmpty ? nil : TitleImagePickerSection(kind: kind, language: language, files: files)
+    }
+  }
+
+  func sourceFilter(for kind: WorkerImageAdminKind) -> String? {
+    sourceFilters[kind]
+  }
+
+  func setSourceFilter(_ source: String?, for kind: WorkerImageAdminKind) {
+    sourceFilters[kind] = source
+  }
+
+  /// The sources with files in this kind's lists, in the worker's order, with counts.
+  func sourceChips(for kind: WorkerImageAdminKind) -> [TitleImageSourceChip] {
+    guard let catalog = catalogs[kind] else { return [] }
+    var counts: [String: Int] = [:]
+    for language in languageOrder(for: kind) {
+      for file in catalog.bucket(language) { counts[file.source ?? "tmdb", default: 0] += 1 }
+    }
+    let order = catalog.sources.map(\.id)
+    let ranked = counts.keys.sorted { lhs, rhs in
+      let l = order.firstIndex(of: lhs) ?? .max, r = order.firstIndex(of: rhs) ?? .max
+      return l != r ? l < r : lhs < rhs
+    }
+    return ranked.map { TitleImageSourceChip(source: $0, count: counts[$0] ?? 0) }
+  }
+
+  /// Sources the worker could ask with a key it does not have.
+  func sourcesNeedingKey(for kind: WorkerImageAdminKind) -> [String] {
+    catalogs[kind]?.sources.filter(\.needsKey).map(\.id) ?? []
+  }
+
+  func saveKeys(_ keys: [String: String]) async {
+    guard let client else { return }
+    saveError = nil
+    do {
+      _ = try await client.saveSourceKeys(keys)
+      for kind in Array(catalogs.keys) { await load(kind, force: true) }
+    } catch {
+      saveError = error.localizedDescription
+    }
+  }
+
+  func reportUploadError(_ message: String) {
+    saveError = message
+  }
+
+  /// Uploads the picture to the worker and pins it for `language`, like a link.
+  func upload(_ image: TitleImageUpload,
+              kind: WorkerImageAdminKind,
+              language: WorkerArtworkLanguageTag) async -> Bool {
+    guard let client else { return false }
+    isSaving = true
+    saveError = nil
+    defer { isSaving = false }
+    do {
+      let pinLanguage: WorkerArtworkLanguageTag? = kind.picksPerLanguage ? language : nil
+      _ = try await client.upload(kinopubID: target.kinopubID, kind: kind, data: image.data,
+                                  contentType: image.contentType, language: pinLanguage,
+                                  width: image.width, height: image.height)
+      CoverArtwork.refreshTitle(target.kinopubID)
+      await load(kind, force: true)
+      return true
+    } catch {
+      saveError = error.localizedDescription
+      return false
     }
   }
 
@@ -699,7 +1012,8 @@ final class TitleImagePickerModel {
     phases[kind] = .loading
     do {
       let imdb = target.imdb.map { TMDBIDFormatter.imdbString(from: $0) }
-      let catalog = try await client.catalog(kinopubID: target.kinopubID, kind: kind, imdb: imdb)
+      let catalog = try await client.catalog(kinopubID: target.kinopubID, kind: kind, imdb: imdb,
+                                             sources: true)
       apply(catalog, kind: kind)
     } catch is CancellationError {
       return
@@ -787,10 +1101,10 @@ final class TitleImagePickerModel {
     catalogs[kind] = catalog
     let order = languageOrder(for: kind)
     // TMDB files by file name: the worker may hold a file as .png that TMDB lists as .svg.
-    var fileFor: [String: (language: WorkerArtworkLanguageTag, url: String)] = [:]
+    var fileFor: [String: (language: WorkerArtworkLanguageTag, url: String, source: String)] = [:]
     for language in order {
       for file in catalog.bucket(language) {
-        fileFor[Self.fileKey(file.url)] = (language, file.url)
+        fileFor[Self.fileKey(file.url)] = (language, file.url, file.source ?? "tmdb")
       }
     }
     let stored = (catalog.stored ?? []).filter { !Self.isKinopubArt($0.url) }
@@ -816,6 +1130,11 @@ final class TitleImagePickerModel {
                 ?? stored.first(where: { $0.lang == nil }) {
       now.append(TitleImagePickerCurrent(kind: kind, language: tag(asset.lang) ?? .und,
                                          url: asset.url, isPinned: asset.pinned == true))
+    }
+    now = now.map { item in
+      var item = item
+      item.source = fileFor[Self.fileKey(item.url)]?.source
+      return item
     }
     current[kind] = now
 
@@ -845,10 +1164,11 @@ final class TitleImagePickerModel {
     phases[kind] = .loaded
   }
 
-  /// `…/t/p/original/abc.svg` and `…/abc.png` are one TMDB file.
+  /// `…/t/p/original/abc.svg` and `…/abc.png` are one TMDB file. Other sources keep
+  /// the whole address: Kinopoisk's files all end in `/orig`.
   static func fileKey(_ url: String) -> String {
-    let name = URL(string: url)?.lastPathComponent ?? url
-    return (name as NSString).deletingPathExtension
+    guard let parsed = URL(string: url), parsed.host?.lowercased() == "image.tmdb.org" else { return url }
+    return (parsed.lastPathComponent as NSString).deletingPathExtension
   }
 
   private static func isKinopubArt(_ url: String) -> Bool {
@@ -856,11 +1176,13 @@ final class TitleImagePickerModel {
     return host.contains("kinopub") || host.contains("kino.pub") || host.contains("staticpop") || host.contains("kino.watch") || host.contains("pushbr") || host.contains("boramoraboom")
   }
 
-  /// Most votes first (usually the right one), then the larger file.
+  /// Most votes first (usually the right one), then likes, then the larger file.
   static func ranked(_ files: [WorkerImageAdminCandidate]) -> [WorkerImageAdminCandidate] {
     files.sorted { lhs, rhs in
       let lv = lhs.vote ?? 0, rv = rhs.vote ?? 0
       if lv != rv { return lv > rv }
+      let lc = lhs.votes ?? 0, rc = rhs.votes ?? 0
+      if lc != rc { return lc > rc }
       return (lhs.width ?? 0) > (rhs.width ?? 0)
     }
   }
@@ -883,7 +1205,9 @@ extension WorkerArtworkLanguageTag {
 
 extension WorkerImageAdminCandidate {
   /// TMDB serves every width for every kind; the grid asks for a small one, not `original`.
+  /// Other sources send their own small copy.
   func previewURL(kind: WorkerImageAdminKind) -> URL? {
+    if let preview, let url = URL(string: preview) { return url }
     let width = kind == .logo ? "w500" : "w780"
     return URL(string: url.replacingOccurrences(of: "/t/p/original/", with: "/t/p/\(width)/"))
   }
@@ -893,6 +1217,71 @@ extension WorkerImageAdminCandidate {
   }
 
   var isVector: Bool { from?.lowercased() == "svg" }
+}
+
+struct TitleImageSourceChip: Identifiable {
+  let source: String
+  let count: Int
+
+  var id: String { source }
+}
+
+/// What the picker calls each worker source.
+enum TitleImageSource {
+  static func name(_ source: String) -> String {
+    switch source {
+    case "tmdb": "TMDB"
+    case "fanart": "fanart.tv"
+    case "tvdb": "TheTVDB"
+    case "tvoe": "TVOE"
+    case "kinopoisk": String(localized: "Kinopoisk")
+    case "wikidata": "Wikidata"
+    case "upload": String(localized: "Uploaded")
+    case "admin": String(localized: "By Link")
+    default: source
+    }
+  }
+
+  /// The short mark on a tile's corner.
+  static func badge(_ source: String) -> String {
+    switch source {
+    case "fanart": "FANART"
+    case "tvdb": "TVDB"
+    default: name(source).uppercased()
+    }
+  }
+}
+
+/// A picture read for upload: PNG, JPEG and WebP go as they are, anything else
+/// (HEIC from Photos, TIFF, …) is re-encoded as JPEG, the formats the worker takes.
+struct TitleImageUpload {
+  let data: Data
+  let contentType: String
+  let width: Int?
+  let height: Int?
+
+  init?(data: Data) {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+          CGImageSourceGetCount(source) > 0 else { return nil }
+    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    width = properties?[kCGImagePropertyPixelWidth] as? Int
+    height = properties?[kCGImagePropertyPixelHeight] as? Int
+    let type = (CGImageSourceGetType(source) as String?).flatMap(UTType.init)
+    if let type, let mime = type.preferredMIMEType,
+       [UTType.png, .jpeg, .webP].contains(type) {
+      self.data = data
+      self.contentType = mime
+      return
+    }
+    guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+    let output = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(output as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+    else { return nil }
+    CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
+    guard CGImageDestinationFinalize(destination) else { return nil }
+    self.data = output as Data
+    self.contentType = "image/jpeg"
+  }
 }
 
 // MARK: - Menu items

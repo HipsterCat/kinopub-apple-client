@@ -40,11 +40,14 @@ enum ArtworkPixelWidth {
   /// is one URL and one cache entry. A poster is never wider than a fifth of the screen's
   /// long side (tvOS grid, Mac grid, the iPhone peek), snapped onto the worker buckets:
   /// 780 on Apple TV 4K and iPhone, 454 on a 1080p TV.
-  /// On a Mac the grid card is the slot (~150 pt, 2× Retina ≈ 300 px): a fifth of a
-  /// MacBook screen asked 780 for a 300 px tile (Sasha 2026-11-26).
+  /// On a Mac it is the widest grid card any window on this screen gets (the grid adds
+  /// a column as the window grows, so a card stays ~150–205 pt) × the Retina scale:
+  /// 410 px, not the 780 a fifth of a MacBook screen asked (Sasha 2026-11-26).
   static var poster: Int {
 #if os(macOS)
-    TitleImageRoute.bucketedWidth(.poster, pixels: Int((MediaCardView.cardWidth * 2).rounded(.up)))
+    TitleImageRoute.bucketedWidth(.poster, pixels: macCardPixels { width in
+      ShelfMetrics.posters(width: width, typeSize: .large)
+    })
 #else
     TitleImageRoute.bucketedWidth(.poster, pixels: screen / 5)
 #endif
@@ -55,7 +58,9 @@ enum ArtworkPixelWidth {
   /// On a Mac it is the wide card slot × 2, like ``poster``.
   static var wideCard: Int {
 #if os(macOS)
-    TitleImageRoute.bucketedWidth(.cover, pixels: Int((MediaCardView.landscapeWidth * 2).rounded(.up)))
+    TitleImageRoute.bucketedWidth(.cover, pixels: macCardPixels { width in
+      ShelfMetrics.landscape(width: width, typeSize: .large)
+    })
 #else
     TitleImageRoute.bucketedWidth(.cover, pixels: screen / 3)
 #endif
@@ -101,6 +106,17 @@ enum ArtworkPixelWidth {
   }()
 
 #if os(macOS)
+  /// Pixels of the widest card a shelf lays out in any window up to this screen's width.
+  private static func macCardPixels(_ metrics: (CGFloat) -> ShelfMetrics) -> Int {
+    let screen = NSScreen.main
+    let widest = max(screen?.frame.width ?? 1920, 520)
+    let scale = screen?.backingScaleFactor ?? 2
+    let points = stride(from: 520 as CGFloat, through: widest, by: 10)
+      .map { metrics($0).cardWidth(in: $0) }
+      .max() ?? MediaCardView.cardWidth
+    return Int((points * scale).rounded(.up))
+  }
+
   /// Worker `w=` for backdrops on Mac. MacBook panels (~286–360 mm wide) cap at 2400;
   /// iMac / Studio-class (≥ ~400 mm) keep native Retina width so a large desktop is not starved.
   private static let macBookBackdropCap = 2400

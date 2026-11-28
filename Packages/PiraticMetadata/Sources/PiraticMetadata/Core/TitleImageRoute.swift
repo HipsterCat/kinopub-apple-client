@@ -94,7 +94,7 @@ public struct TitleImageRoute: Sendable, Hashable {
   /// TMDB/worker size tokens the client asks for to avoid `/original`.
   /// Logos skip `w1920` — a wordmark slot is hundreds of points, not a 4K plate.
   public static let logoWidthBuckets = [780, 1280]
-  public static let imageWidthBuckets = [45, 92, 154, 185, 227, 300, 320, 342, 454, 500, 780, 1280, 1920, 2400]
+  public static let imageWidthBuckets = [45, 92, 154, 185, 227, 300, 320, 342, 410, 454, 500, 780, 1280, 1920, 2400]
 
   /// Smallest ladder step that covers `pixels`. Caps logos at 1280 and other
   /// kinds at 2400 (MacBook cap) so the worker does not serve `/original`.
