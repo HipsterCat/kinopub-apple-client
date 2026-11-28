@@ -50,6 +50,11 @@ final class SeasonsRailMemory {
   var hydratedSeasonIDs: Set<Int> = []
 }
 
+/// What the episode rail has on screen, kept out of SwiftUI's dependency tracking.
+final class RailVisibility {
+  var anchors: Set<String> = []
+}
+
 /// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
 enum KinoEpisodeGrid {
 
@@ -272,8 +277,11 @@ struct SeasonsRailView: View {
   /// mid-flight — S1 pressed, the rail jerked and stopped on S1E7 (Sasha, 2026-11-26).
   @State private var didRestorePosition = false
   /// Season plates and episode cards at least half on screen. A pill animates the
-  /// rail only when the season it is moving to is already in this set.
-  @State private var visibleRailAnchors: Set<String> = []
+  /// rail only when the season it is moving to is already in this set. Read only by
+  /// `selectTab`, so it lives in a reference the body does not depend on: as `@State`,
+  /// every visibility change (the rail scrolling, or the page scrolling it into and out
+  /// of view) re-ran this body and rebuilt every episode card (Sasha's trace, 2026-11-28).
+  @State private var railVisibility = RailVisibility()
   /// Bumps on every pill scroll so an older jump cannot scroll back over a newer one.
   @State private var tabScrollGeneration = 0
   /// The season whose «Подробности» are up.
@@ -1599,15 +1607,16 @@ struct SeasonsRailView: View {
       // updates once the destination is what is actually leading.
       let showsDestination = !isScrollingFromTab || leading.entry.tabID == selectedTabID
       if showsDestination {
-        visibleRailAnchors = Set(visible.map(\.anchor))
+        railVisibility.anchors = Set(visible.map(\.anchor))
       }
       // Hydrating a passed season would build every season between here and the
       // target, and adopting its tab would step the selection. `selectTab` already
       // wrote the target into the memory.
       guard !isScrollingFromTab else { return }
       let entry = leading.entry
-      rail.leadingEntryID = entry.id
-      rail.leadingAnchor = leading.anchor
+      // Observable writes notify even when the value is the same.
+      if rail.leadingEntryID != entry.id { rail.leadingEntryID = entry.id }
+      if rail.leadingAnchor != leading.anchor { rail.leadingAnchor = leading.anchor }
       if let season = entry.season {
         hydrate(around: season.id)
       }
@@ -1793,9 +1802,9 @@ struct SeasonsRailView: View {
     tabScrollGeneration += 1
     let generation = tabScrollGeneration
     let distance = Self.tabDistance(from: previousTabID, to: tabID, in: tabs)
-    let landingVisible = visibleRailAnchors.contains(anchor)
+    let landingVisible = railVisibility.anchors.contains(anchor)
     let shown = entries
-    let targetSeasonVisible = visibleRailAnchors.contains { candidate in
+    let targetSeasonVisible = railVisibility.anchors.contains { candidate in
       Self.anchor(candidate, belongsTo: tabID, entries: shown)
     }
     // The caller may ask for the short animation. A far jump never takes it: animating
