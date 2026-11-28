@@ -312,12 +312,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       "cast": "", "director": "", "genres": [Any](), "countries": [Any](),
       "duration": ["average": 7200, "total": 7200], "langs": 1, "quality": 1080, "plot": "",
       "kinopoisk_rating": 6.0 + Double(seed % 5) * 0.5, "kinopoisk_votes": 1200,
-      "posters": DebugLaunch.fixtureRealArt
-        ? ["small", "medium", "big", "wide"].reduce(into: [String: String]()) {
-            // `wide` is its own picture on the CDN, as a signed-in session gets it.
-          $0[$1] = "https://m.staticpop.net/poster/item/\($1 == "wide" ? "wide" : "big")/\(10681 + seed).jpg"
-          }
-        : DetailFixtureArt.posters(seed: seed, label: title),
+      "posters": DetailFixtureArt.posters(seed: seed, label: title),
       "finished": false, "in_watchlist": false, "subscribed": false
     ]
     do {
@@ -336,7 +331,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     let watched = seeded || DetailFixtureServer.shared.isWatched(item: itemID, season: season, video: number)
     // With the real player its Season and Up Next tabs draw these tiles.
     let real = DebugLaunch.fixtureRealPlayer
-    let thumbnail: String = real
+    let thumbnail: String = real || DebugLaunch.fixtureRealArt
       ? DetailFixtureArt.still(seed: season * 10 + number, label: "S\(season) E\(number)").absoluteString
       : ""
     let files: [Any] = real ? [Self.sampleFile] : []
@@ -387,6 +382,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   /// What TMDB says about the title, dated from today.
   var metadata: TitleMetadata {
     var meta = TitleMetadata()
+    meta.artwork.backdrop = DetailFixtureArt.backdrop(seed: 0)
     meta.attribution = [.tmdb]
     switch self {
     case .awaiting:
@@ -994,14 +990,32 @@ enum DetailFixtureArt {
     }
   }
 
-  /// A kino.pub `posters` object.
+  /// A kino.pub `posters` object. With `-PIRATICFixtureRealArt`, kino.pub's own CDN pictures
+  /// (500×750 posters, 1920×1080 `wide`, as a signed-in session gets them), so scrolling is
+  /// measured with real decode sizes rather than small drawn tiles.
   static func posters(seed: Int, label: String) -> [String: Any] {
+    if DebugLaunch.fixtureRealArt {
+      let poster = cdn(.poster, seed: seed).absoluteString
+      return ["small": poster, "medium": poster, "big": poster, "wide": cdn(.wide, seed: seed).absoluteString]
+    }
     let poster = url(.poster, seed: seed, label: label).absoluteString
     return ["small": poster, "medium": poster, "big": poster,
             "wide": url(.wide, seed: seed, label: label).absoluteString]
   }
 
-  static func still(seed: Int, label: String) -> URL { url(.still, seed: seed + 20, label: label) }
+  static func still(seed: Int, label: String) -> URL {
+    DebugLaunch.fixtureRealArt ? cdn(.wide, seed: seed + 20) : url(.still, seed: seed + 20, label: label)
+  }
+
+  /// The hero's backdrop: only with real art (the drawn page has none, as a title without
+  /// TMDB pictures).
+  static func backdrop(seed: Int) -> URL? {
+    DebugLaunch.fixtureRealArt ? cdn(.wide, seed: seed) : nil
+  }
+
+  private static func cdn(_ shape: Shape, seed: Int) -> URL {
+    URL(string: "https://m.staticpop.net/poster/item/\(shape == .poster ? "big" : "wide")/\(10681 + seed).jpg")!
+  }
 
   private static func url(_ shape: Shape, seed: Int, label: String) -> URL {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("piratic-fixture-art", isDirectory: true)
