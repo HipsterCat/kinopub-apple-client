@@ -934,6 +934,9 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(rows.count, ScoreSummary.rowLimit)
     XCTAssertEqual(rows.last?.id, "folded")
     XCTAssertGreaterThan(rows.last?.marks.count ?? 0, 1)
+    // Folded sources read as a percentage, never «/ 10» (Sasha, 2026-11-28).
+    XCTAssertEqual(rows.last?.value.hasSuffix("%"), true)
+    XCTAssertNil(rows.last?.scale)
     let all = RatingSources.summaries(for: fixture.makeItem(), metadata: metadata,
                                       likeCount: 145, dislikeCount: 19, rowLimit: nil)
     XCTAssertGreaterThan(all.viewers?.rows.count ?? 0, ScoreSummary.rowLimit, "the page lists every source")
