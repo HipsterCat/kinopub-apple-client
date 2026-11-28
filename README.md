@@ -70,7 +70,7 @@ API reference: [kinoapi.com](https://kinoapi.com) (verify load-bearing shapes ag
 - `Piratic` — app target
 - `PiraticUI` / `KinoPubBackend` / `PiraticKit` / `PiraticLogging` / `PiraticMetadata` — local packages
 
-Third-party today: KeychainAccess, PopupView, Reachability. No analytics or crash-reporting SDK —
+Third-party today: KeychainAccess, Reachability. No analytics or crash-reporting SDK —
 crashes come from TestFlight / Xcode Organizer; product analytics is a late-stage item.
 
 ## Contributing

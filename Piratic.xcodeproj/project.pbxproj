@@ -198,7 +198,6 @@
 		CC71E7062A6DD119004AFB3F /* PiraticKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC71E7052A6DD119004AFB3F /* PiraticKit */; };
 		CC71E7082A6DD119004AFB3F /* PiraticLogging in Frameworks */ = {isa = PBXBuildFile; productRef = CC71E7072A6DD119004AFB3F /* PiraticLogging */; };
 		CC71E70A2A6DD119004AFB3F /* PiraticUI in Frameworks */ = {isa = PBXBuildFile; productRef = CC71E7092A6DD119004AFB3F /* PiraticUI */; };
-		CC7FCE942A730DA400DFC0A9 /* PopupView in Frameworks */ = {isa = PBXBuildFile; productRef = CC7FCE932A730DA400DFC0A9 /* PopupView */; };
 		CC8203002A8657BA0041079A /* Reachability in Frameworks */ = {isa = PBXBuildFile; productRef = CC8202FF2A8657BA0041079A /* Reachability */; };
 		CCA200012D001001 /* PiraticMetadata in Frameworks */ = {isa = PBXBuildFile; productRef = CCA200012D001002 /* PiraticMetadata */; };
 		CCB5ABCCB26F8372874BCE70 /* DeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED2210210AFF0894B827EA6 /* DeviceService.swift */; };
@@ -666,7 +665,6 @@
 				CCA200012D001001 /* PiraticMetadata in Frameworks */,
 				CC71E70A2A6DD119004AFB3F /* PiraticUI in Frameworks */,
 				CCF388352A71C83500242581 /* KeychainAccess in Frameworks */,
-				CC7FCE942A730DA400DFC0A9 /* PopupView in Frameworks */,
 				CC8203002A8657BA0041079A /* Reachability in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1574,7 +1572,6 @@
 				CCA200012D001002 /* PiraticMetadata */,
 				CC71E7092A6DD119004AFB3F /* PiraticUI */,
 				CCF388342A71C83500242581 /* KeychainAccess */,
-				CC7FCE932A730DA400DFC0A9 /* PopupView */,
 				CC8202FF2A8657BA0041079A /* Reachability */,
 			);
 			productName = Piratic;
@@ -1630,7 +1627,6 @@
 			mainGroup = CC88E1D82A6586E600E9387F;
 			packageReferences = (
 				CCF388332A71C83500242581 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
-				CC7FCE922A730DA400DFC0A9 /* XCRemoteSwiftPackageReference "PopupView" */,
 				CC8202FE2A8657BA0041079A /* XCRemoteSwiftPackageReference "Reachability" */,
 			);
 			productRefGroup = CC88E1E22A6586E600E9387F /* Products */;
@@ -2447,14 +2443,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		CC7FCE922A730DA400DFC0A9 /* XCRemoteSwiftPackageReference "PopupView" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/exyte/PopupView.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
-			};
-		};
 		CC8202FE2A8657BA0041079A /* XCRemoteSwiftPackageReference "Reachability" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ashleymills/Reachability.swift";
@@ -2493,11 +2481,6 @@
 		CC71E7092A6DD119004AFB3F /* PiraticUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PiraticUI;
-		};
-		CC7FCE932A730DA400DFC0A9 /* PopupView */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CC7FCE922A730DA400DFC0A9 /* XCRemoteSwiftPackageReference "PopupView" */;
-			productName = PopupView;
 		};
 		CC8202FF2A8657BA0041079A /* Reachability */ = {
 			isa = XCSwiftPackageProductDependency;

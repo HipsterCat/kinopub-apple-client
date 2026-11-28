@@ -80,6 +80,13 @@ struct MainView: View {
         .task {
           cardMenu.bind(errorHandler: errorHandler)
           await catalog.fetch()
+#if DEBUG
+          // `-PIRATICDemoErrorToast "<text>"`: raise the error toast over a loaded Home
+          // for screenshots (with `-PIRATICStatusToastSeconds 60` to keep it up).
+          if let demo = UserDefaults.standard.string(forKey: "PIRATICDemoErrorToast") {
+            errorHandler.setMessage(demo)
+          }
+#endif
         }
         .onAppear {
           catalog.repaintFromLocalProgress()
