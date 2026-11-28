@@ -117,19 +117,28 @@ public enum ContinueWatchingOrder {
     public let activityDate: Date
   }
 
+  /// A play's date as the row counts it: within the window, and not a sample that never
+  /// cleared the entry floor and is older than ``barelyStartedAfter``. Nil when it does
+  /// not count. The fetch's ranking and Home's read-time overlay both go through this.
+  public static func qualifyingPlayDate(_ date: Date?,
+                                        position: Double?,
+                                        rules: Rules,
+                                        now: Date = Date()) -> Date? {
+    guard let date, date.isOnOrBefore(now), now.timeIntervalSince(date) <= rules.window else { return nil }
+    if let position, position < WatchProgress.enterContinueWatchingSeconds,
+       now.timeIntervalSince(date) > barelyStartedAfter {
+      return nil
+    }
+    return date
+  }
+
   private static func score(_ candidate: Candidate, rules: Rules, now: Date) -> Ranked? {
     func fresh(_ date: Date?) -> Date? {
       guard let date, date.isOnOrBefore(now), now.timeIntervalSince(date) <= rules.window else { return nil }
       return date
     }
 
-    var watched = fresh(candidate.lastSeen)
-    if watched != nil, let position = candidate.position,
-       position < WatchProgress.enterContinueWatchingSeconds,
-       let lastSeen = candidate.lastSeen,
-       now.timeIntervalSince(lastSeen) > barelyStartedAfter {
-      watched = nil
-    }
+    let watched = qualifyingPlayDate(candidate.lastSeen, position: candidate.position, rules: rules, now: now)
 
     var released: Date?
     if candidate.isSubscribed, candidate.item.hasNewEpisodes,

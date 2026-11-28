@@ -57,11 +57,34 @@ final class LocalWatchProgressStoreTests: XCTestCase {
     XCTAssertEqual(relaunched.allEntries().first?.episode, 4, "newest record per title")
   }
 
+  /// No payload, no card — but the play keeps its date and position, on disk too:
+  /// Continue Watching orders the row by it (2026-11-28, a title watched on the iPad
+  /// lost its place hours later).
   @MainActor
-  func testNothingIsWrittenWithoutAPayload() async {
+  func testAPlayWithoutAPayloadKeepsItsDateButDrawsNoCard() async {
     let store = LocalWatchProgressStore(container: container)
     store.recordProgress(mediaId: filmID, position: 600, duration: 6000, season: nil, episode: 1)
     XCTAssertNil(store.entry(forId: filmID, season: nil, episode: nil))
+    XCTAssertTrue(store.allEntries().isEmpty)
+    XCTAssertEqual(store.lastPlayedByItemID()[filmID]?.position, 600)
+    await store.flush()
+
+    let relaunched = LocalWatchProgressStore(container: container)
+    XCTAssertEqual(relaunched.lastPlayedByItemID()[filmID]?.position, 600)
+    relaunched.cacheItem(.mock(id: filmID, type: "movie"))
+    XCTAssertEqual(relaunched.entry(forId: filmID, season: nil, episode: nil)?.position, 600,
+                   "the card appears once the payload is known")
+  }
+
+  @MainActor
+  func testLastPlayedKeepsTheNewestEpisodePerTitle() async {
+    let store = LocalWatchProgressStore(container: container)
+    store.cacheItem(.mock(id: seriesID, type: "serial"))
+    store.recordProgress(mediaId: seriesID, position: 300, duration: 2400, season: 1, episode: 6)
+    store.recordFinished(mediaId: seriesID, duration: 2400, season: 1, episode: 7)
+    let played = store.lastPlayedByItemID()
+    XCTAssertEqual(played.count, 1)
+    XCTAssertEqual(played[seriesID]?.episode, 7, "a finished episode is still the newest play")
   }
 
   @MainActor

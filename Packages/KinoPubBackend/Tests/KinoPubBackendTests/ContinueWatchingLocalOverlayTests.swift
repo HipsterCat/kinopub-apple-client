@@ -166,6 +166,54 @@ final class ContinueWatchingLocalOverlayTests: XCTestCase {
     XCTAssertEqual(plan.order, [1, 2])
   }
 
+  /// A title already on the row keeps the place its play earned however old the
+  /// snapshot is: a refetch that came back without the play date (payload missing,
+  /// cache rebuilt) must not push a show watched today below yesterday's releases.
+  func testAPlayBeforeTheSnapshotStillOrdersATitleAlreadyOnTheRow() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 1, isSeries: true, season: 4, video: 4,
+                                        activityDate: Date(timeIntervalSince1970: 300)),
+      ContinueWatchingLocalOverlay.Card(itemID: 2, isSeries: true, season: 1, video: 2,
+                                        activityDate: Date(timeIntervalSince1970: 200)),
+      ContinueWatchingLocalOverlay.Card(itemID: 3, isSeries: true, season: 1, video: 7,
+                                        activityDate: Date(timeIntervalSince1970: 100))
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(
+      cards: cards,
+      locals: [],
+      snapshotTakenAt: Date(timeIntervalSince1970: 400),
+      playedAt: [3: Date(timeIntervalSince1970: 350)]
+    )
+    XCTAssertEqual(plan.order, [3, 1, 2])
+
+    let between = ContinueWatchingLocalOverlay.plan(
+      cards: cards,
+      locals: [],
+      snapshotTakenAt: Date(timeIntervalSince1970: 400),
+      playedAt: [3: Date(timeIntervalSince1970: 250)]
+    )
+    XCTAssertEqual(between.order, [1, 3, 2], "a play ranks by its date, not to the front")
+  }
+
+  /// Sasha's 2026-10-25 rule still holds for titles the row does not have: an old play
+  /// neither inserts nor lifts one.
+  func testAnOldPlayOfATitleNotOnTheRowIsNotInsertedOrLifted() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 1, isSeries: false, season: nil, video: 1,
+                                        activityDate: Date(timeIntervalSince1970: 300)),
+      ContinueWatchingLocalOverlay.Card(itemID: 2, isSeries: false, season: nil, video: 1,
+                                        activityDate: Date(timeIntervalSince1970: 200))
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(
+      cards: cards,
+      locals: [local(id: 99, progress: 0.3, isSeries: false, updatedAt: 350)],
+      snapshotTakenAt: Date(timeIntervalSince1970: 400),
+      playedAt: [99: Date(timeIntervalSince1970: 350)]
+    )
+    XCTAssertEqual(plan.order, [1, 2])
+    XCTAssertTrue(plan.insertIDs.isEmpty)
+  }
+
   func testFinishedFilmDoesNotHideADifferentCard() {
     let cards = [
       ContinueWatchingLocalOverlay.Card(itemID: 1, isSeries: false, season: nil, video: 1),

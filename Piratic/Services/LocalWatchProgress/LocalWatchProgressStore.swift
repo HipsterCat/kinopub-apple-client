@@ -78,6 +78,9 @@ final class LocalWatchProgressStore: Sendable {
     var persistedSnapshotIDs: Set<Int> = []
     /// One per episode (series) or per title (film), keyed by `WatchRecord.key`.
     var records: [String: WatchRecordValue] = [:]
+    /// Titles already logged as played without a payload, so the player's ~10s ticks
+    /// log it once, not on every write.
+    var loggedWithoutSnapshot: Set<Int> = []
 
     func entry(for record: WatchRecordValue) -> LocalWatchEntry? {
       guard let item = snapshots[record.itemID] else { return nil }
@@ -202,6 +205,21 @@ final class LocalWatchProgressStore: Sendable {
     }
   }
 
+  /// This device's newest play per title, straight from the resume points — finished
+  /// ones included, payload or not. Continue Watching dates its titles from this: a
+  /// play counts for the row's order even when the title's payload is not on disk, and
+  /// it cannot draw a card without one (that is `allEntries`).
+  func lastPlayedByItemID() -> [Int: WatchRecordValue] {
+    state.withLock { state in
+      var newest: [Int: WatchRecordValue] = [:]
+      for record in state.records.values where record.watch.state != .unwatched {
+        if let existing = newest[record.itemID], existing.updatedAt >= record.updatedAt { continue }
+        newest[record.itemID] = record
+      }
+      return newest
+    }
+  }
+
   /// One resume point by its key — what `ViewerStateReader` asks for every card it paints,
   /// so a lookup, not a scan. Finished ones included.
   func record(itemID: Int, season: Int?, episode: Int?) -> WatchRecordValue? {
@@ -284,9 +302,10 @@ final class LocalWatchProgressStore: Sendable {
   // MARK: - Writing
 
   /// Returns false when there is no payload to draw a card from — the same rule as before.
+  /// The resume point is kept either way: its date and position order Continue Watching
+  /// (`lastPlayedByItemID`), and dropping it lost a title's place on the row.
   private func write(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) -> Bool {
-    state.withLock { state in
-      guard state.snapshots[mediaId] != nil else { return false }
+    let (hasSnapshot, firstWithoutSnapshot) = state.withLock { state -> (Bool, Bool) in
       let value = WatchRecordValue(itemID: mediaId,
                                    season: season,
                                    episode: episode,
@@ -295,11 +314,20 @@ final class LocalWatchProgressStore: Sendable {
                                    updatedAt: Date())
       state.records[value.key] = value
       writes.yield(.record(value))
+      guard state.snapshots[mediaId] != nil else {
+        return (false, state.loggedWithoutSnapshot.insert(mediaId).inserted)
+      }
       if let payload = state.payloads[mediaId], state.persistedSnapshotIDs.insert(mediaId).inserted {
         writes.yield(.snapshot(itemID: mediaId, payload: payload))
       }
-      return true
+      return (true, false)
     }
+    if firstWithoutSnapshot {
+      Logger.app.info(
+        "LocalWatchProgressStore: played \(mediaId, privacy: .public) without a cached payload; kept the date, no card"
+      )
+    }
+    return hasSnapshot
   }
 
   // MARK: - Loading
@@ -310,12 +338,16 @@ final class LocalWatchProgressStore: Sendable {
     var state = State()
     let context = ModelContext(container)
     let decoder = JSONDecoder()
+    var undecodable: [Int] = []
     do {
       for snapshot in try context.fetch(FetchDescriptor<TitleSnapshot>()) {
-        if let item = try? decoder.decode(MediaItem.self, from: snapshot.payload) {
+        do {
+          let item = try decoder.decode(MediaItem.self, from: snapshot.payload)
           state.snapshots[snapshot.itemID] = item
           state.payloads[snapshot.itemID] = snapshot.payload
           state.persistedSnapshotIDs.insert(snapshot.itemID)
+        } catch {
+          undecodable.append(snapshot.itemID)
         }
       }
       for record in try context.fetch(FetchDescriptor<WatchRecord>()) {
@@ -327,6 +359,11 @@ final class LocalWatchProgressStore: Sendable {
                                      updatedAt: record.updatedAt)
         state.records[value.key] = value
       }
+      let titles = Set(state.records.values.map(\.itemID))
+      let withoutPayload = titles.subtracting(state.snapshots.keys).count
+      Logger.app.info(
+        "LocalWatchProgressStore: loaded \(state.records.count, privacy: .public) resume points for \(titles.count, privacy: .public) titles, \(state.snapshots.count, privacy: .public) payloads, \(withoutPayload, privacy: .public) titles without one, undecodable payloads: \(undecodable, privacy: .public)"
+      )
     } catch {
       Logger.app.error("LocalWatchProgressStore: load failed: \(error.localizedDescription)")
     }
