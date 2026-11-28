@@ -11907,6 +11907,23 @@
         }
       }
     },
+    "MediaItem_ReviewInsightsSourcePlain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summed up by Trakt from its comments."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сводка Trakt по комментариям."
+          }
+        }
+      }
+    },
     "MediaItem_ReviewInsightsTitle" : {
       "extractionState" : "manual",
       "localizations" : {

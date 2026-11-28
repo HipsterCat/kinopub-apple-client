@@ -2436,6 +2436,8 @@ struct MediaItemRatingSourceRows: View {
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
         .frame(width: Self.markColumn, alignment: .leading)
 
+      // The name is read first: it keeps its width, and a long status («Пока недостаточно
+      // оценок») wraps under itself instead of cutting both to «Tomato…» (Sasha, 2026-11-28).
       HStack(spacing: 6) {
         Text(score.id)
           .foregroundStyle(.secondary)
@@ -2444,19 +2446,22 @@ struct MediaItemRatingSourceRows: View {
             .foregroundStyle(.tertiary)
         }
       }
+      .layoutPriority(1)
 
       Spacer(minLength: 12)
 
-      if score.isPlaceholder {
-        Text("MediaItem_NoRatings")
-          .foregroundStyle(.secondary)
-      } else if let votes = score.votesGrouped {
-        Text(votes)
-          .foregroundStyle(.secondary)
-      } else {
-        Text("MediaItem_NotEnoughRatings")
-          .foregroundStyle(.secondary)
+      Group {
+        if score.isPlaceholder {
+          Text("MediaItem_NoRatings")
+        } else if let votes = score.votesGrouped {
+          Text(votes)
+        } else {
+          Text("MediaItem_NotEnoughRatings")
+        }
       }
+      .foregroundStyle(.secondary)
+      .multilineTextAlignment(.trailing)
+      .lineLimit(2)
     }
       .font(TypeScale.detailBody)
       .foregroundStyle(Color.Piratic.text)
