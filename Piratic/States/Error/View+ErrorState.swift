@@ -32,7 +32,7 @@ extension View {
 
 /// How long the error toast stays up. DEBUG `-PIRATICStatusToastSeconds N` holds it
 /// for screenshots.
-private var errorToastDuration: Duration {
+private var errorToastDuration: Swift.Duration {
 #if DEBUG
   let seconds = UserDefaults.standard.double(forKey: "PIRATICStatusToastSeconds")
   if seconds > 0 { return .seconds(seconds) }
