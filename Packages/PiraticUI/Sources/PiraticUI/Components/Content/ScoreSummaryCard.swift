@@ -502,7 +502,17 @@ public struct ScoreSummaryCardContent: View {
   /// pointer, the bare count in its place. A `Grid`, so the columns are columns.
   private var sourcesGrid: some View {
     let pitch = M.line + M.rowSpacing
-    return ZStack(alignment: .topLeading) {
+    // The highlight and the hover strips hang off the grid as background and overlay, so
+    // they never add to its height: in a ZStack the strips (one pitch per row) were a row
+    // gap taller than the grid, and that gap pushed the card past
+    // `ScoreSummaryMetrics.contentHeight` — the rail clipped its bottom corners
+    // (Sasha, 2026-11-28).
+    return Grid(alignment: .leading, horizontalSpacing: M.columnSpacing, verticalSpacing: M.rowSpacing) {
+      ForEach(summary.rows) { row in
+        sourceRow(row)
+      }
+    }
+    .background(alignment: .topLeading) {
       if let index = summary.rows.firstIndex(where: { $0.id == hoveredRow }) {
         RoundedRectangle(cornerRadius: M.line * 0.45, style: .continuous)
           .fill(.fill.secondary)
@@ -511,14 +521,11 @@ public struct ScoreSummaryCardContent: View {
           .padding(.horizontal, -M.columnSpacing)
           .offset(y: CGFloat(index) * pitch - M.rowSpacing / 2)
       }
-      Grid(alignment: .leading, horizontalSpacing: M.columnSpacing, verticalSpacing: M.rowSpacing) {
-        ForEach(summary.rows) { row in
-          sourceRow(row)
-        }
-      }
+    }
 #if !os(tvOS)
-      // The rows' hover areas, over the grid's gaps too, so the pointer never falls between
-      // two cells of one row.
+    // The rows' hover areas, over the grid's gaps too, so the pointer never falls between
+    // two cells of one row.
+    .overlay(alignment: .top) {
       VStack(spacing: 0) {
         ForEach(summary.rows) { row in
           Color.clear
@@ -532,9 +539,10 @@ public struct ScoreSummaryCardContent: View {
             }
         }
       }
+      .fixedSize(horizontal: false, vertical: true)
       .offset(y: -M.rowSpacing / 2)
-#endif
     }
+#endif
   }
 
   private func sourceRow(_ row: ScoreSummary.Row) -> some View {

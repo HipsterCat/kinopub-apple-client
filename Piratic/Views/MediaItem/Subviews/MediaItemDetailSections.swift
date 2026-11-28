@@ -506,11 +506,13 @@ extension RatingSources {
     let tail = Array(scores.dropFirst(limit - 1))
     let votes = tail.reduce(0) { $0 + ($1.votes ?? 0) }
     let mean = weightedMean(tail)
+    // A percentage, not «/ 10»: the folded sources are mostly percent ones (TMDB, the
+    // Popcornmeter, Plex), and a mix has no scale of its own (Sasha, 2026-11-28).
     let folded = ScoreSummary.Row(id: "folded",
                                   marks: tail.map(\.logo),
                                   name: nil,
-                                  value: mean.map { String(format: "%.1f", $0) } ?? "?",
-                                  scale: mean == nil ? nil : "/ 10",
+                                  value: mean.map { "\(Int(($0 * 10).rounded()))%" } ?? "?",
+                                  scale: nil,
                                   faint: tail.allSatisfy(\.drawsFaint),
                                   detail: votes > 0 ? votes.formatted(.number.grouping(.automatic)) : nil,
                                   share: share(votes))

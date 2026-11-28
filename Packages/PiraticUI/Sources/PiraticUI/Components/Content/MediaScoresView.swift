@@ -144,7 +144,7 @@ public struct MediaScoreLogo: View {
   /// `height × height` letterboxed the wide wordmarks down to nothing.
   public var body: some View {
     let image = Image(assetName, bundle: .module)
-      .renderingMode(style == .template ? .template : .original)
+      .renderingMode(drawsAsTemplate ? .template : .original)
     if style == .line, source.extraAssetName != nil {
       // The relayed sources have no 32 pt line PNGs: their vector card marks, at the
       // line's height (on iOS / macOS the row sizes them to the score's line height).
@@ -188,6 +188,13 @@ public struct MediaScoreLogo: View {
   /// IMDb/KP row and does not jump the layout (Sasha, 2026-11-26).
   nonisolated private var opticalHeight: CGFloat {
     source.opticalHeight(for: height, style: style)
+  }
+
+  /// kino.pub's small mark is one white shape: drawn as is it vanished on a light page.
+  /// As a template it takes the surrounding foreground — black on light, white on dark and
+  /// on the hero's scrim (Sasha, 2026-11-28).
+  private var drawsAsTemplate: Bool {
+    style == .template || assetName == "kinopub_small"
   }
 
   private var assetName: String {
