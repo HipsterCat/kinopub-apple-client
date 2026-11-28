@@ -55,9 +55,6 @@ struct TitleImagePickerSheet: View {
   @State private var kind: WorkerImageAdminKind = .logo
   @State private var showsLinkEntry = false
   @State private var linkText = ""
-  @State private var showsKeyEntry = false
-  @State private var fanartKey = ""
-  @State private var tvdbKey = ""
 #if !os(tvOS)
   @State private var photoItem: PhotosPickerItem?
   @State private var showsFileImporter = false
@@ -138,14 +135,6 @@ struct TitleImagePickerSheet: View {
 #endif
     }
     .task(id: kind) { await model.load(kind) }
-    .alert("Source Keys", isPresented: $showsKeyEntry) {
-      SecureField("fanart.tv API Key", text: $fanartKey)
-      SecureField("TheTVDB API Key", text: $tvdbKey)
-      Button("Save") { saveKeys() }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text("Saved in the worker, so every device sees these sources. A personal key is free at fanart.tv and thetvdb.com.")
-    }
 #if !os(tvOS)
     .onChange(of: photoItem) { _, item in
       guard let item else { return }
@@ -231,54 +220,32 @@ struct TitleImagePickerSheet: View {
     }
   }
 
-  /// Source chips over the grid: All, then each source with its count. Sources that
-  /// need a key the worker lacks are offered under them.
+  /// Source chips over the grid: All, then each source with its count. Source keys
+  /// are the worker's secrets (FANART_API_KEY, TVDB_API_KEY), not the app's.
   @ViewBuilder
   private var sourceChips: some View {
     let chips = model.sourceChips(for: kind)
-    let missing = model.sourcesNeedingKey(for: kind)
-    if chips.count > 1 || !missing.isEmpty {
-      VStack(alignment: .leading, spacing: 8) {
-        if chips.count > 1 {
-          ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-              chip(title: String(localized: "All"), count: chips.reduce(0) { $0 + $1.count },
-                   selected: model.sourceFilter(for: kind) == nil) {
-                model.setSourceFilter(nil, for: kind)
-              }
-              ForEach(chips) { item in
-                chip(title: TitleImageSource.name(item.source), count: item.count,
-                     selected: model.sourceFilter(for: kind) == item.source) {
-                  model.setSourceFilter(item.source, for: kind)
-                }
-              }
+    if chips.count > 1 {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          chip(title: String(localized: "All"), count: chips.reduce(0) { $0 + $1.count },
+               selected: model.sourceFilter(for: kind) == nil) {
+            model.setSourceFilter(nil, for: kind)
+          }
+          ForEach(chips) { item in
+            chip(title: TitleImageSource.name(item.source), count: item.count,
+                 selected: model.sourceFilter(for: kind) == item.source) {
+              model.setSourceFilter(item.source, for: kind)
             }
+          }
+        }
 #if os(tvOS)
-            .padding(.vertical, 20)
+        .padding(.vertical, 20)
 #endif
-          }
-#if !os(tvOS)
-          .scrollClipDisabled()
-#endif
-        }
-        if !missing.isEmpty {
-          Button {
-            fanartKey = ""
-            tvdbKey = ""
-            showsKeyEntry = true
-          } label: {
-            Label {
-              Text("Add keys for \(missing.map(TitleImageSource.name).formatted(.list(type: .and)))")
-            } icon: {
-              Image(systemName: "key")
-            }
-            .font(.footnote)
-          }
-#if !os(tvOS)
-          .buttonStyle(.borderless)
-#endif
-        }
       }
+#if !os(tvOS)
+      .scrollClipDisabled()
+#endif
     }
   }
 
@@ -303,16 +270,6 @@ struct TitleImagePickerSheet: View {
     .tint(selected ? .accentColor : nil)
 #endif
     .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
-  private func saveKeys() {
-    var keys: [String: String] = [:]
-    let fanart = fanartKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    let tvdb = tvdbKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !fanart.isEmpty { keys["fanart"] = fanart }
-    if !tvdb.isEmpty { keys["tvdb"] = tvdb }
-    guard !keys.isEmpty else { return }
-    Task { await model.saveKeys(keys) }
   }
 
 #if !os(tvOS)
@@ -937,22 +894,6 @@ final class TitleImagePickerModel {
       return l != r ? l < r : lhs < rhs
     }
     return ranked.map { TitleImageSourceChip(source: $0, count: counts[$0] ?? 0) }
-  }
-
-  /// Sources the worker could ask with a key it does not have.
-  func sourcesNeedingKey(for kind: WorkerImageAdminKind) -> [String] {
-    catalogs[kind]?.sources.filter(\.needsKey).map(\.id) ?? []
-  }
-
-  func saveKeys(_ keys: [String: String]) async {
-    guard let client else { return }
-    saveError = nil
-    do {
-      _ = try await client.saveSourceKeys(keys)
-      for kind in Array(catalogs.keys) { await load(kind, force: true) }
-    } catch {
-      saveError = error.localizedDescription
-    }
   }
 
   func reportUploadError(_ message: String) {

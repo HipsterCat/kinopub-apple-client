@@ -21850,70 +21850,6 @@
     "Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в ряд не попадает. Закладки — по дате добавления, не больше четырёх." : {
 
     },
-    "Source Keys" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Source Keys"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ключи источников"
-          }
-        }
-      }
-    },
-    "fanart.tv API Key" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "fanart.tv API Key"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ключ API fanart.tv"
-          }
-        }
-      }
-    },
-    "TheTVDB API Key" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TheTVDB API Key"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ключ API TheTVDB"
-          }
-        }
-      }
-    },
-    "Saved in the worker, so every device sees these sources. A personal key is free at fanart.tv and thetvdb.com." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved in the worker, so every device sees these sources. A personal key is free at fanart.tv and thetvdb.com."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ключи хранятся в воркере, поэтому источники видны на всех устройствах. Личный ключ бесплатно выдают на fanart.tv и thetvdb.com."
-          }
-        }
-      }
-    },
     "Photo Library" : {
       "localizations" : {
         "en" : {
@@ -21974,22 +21910,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Загрузить для"
-          }
-        }
-      }
-    },
-    "Add keys for %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add keys for %@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить ключи: %@"
           }
         }
       }
