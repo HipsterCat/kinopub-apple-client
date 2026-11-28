@@ -131,6 +131,16 @@ list is the system's — preferred languages for audio, caption languages (else 
 subtitles. The old *Default English subtitles* toggle was written into the subtitle list once, as
 English first, where it can now be seen and reordered.
 
+## A track with no language
+
+**prd** — kino.pub ships some original sounds as `und` («Неизвестный язык»). When that track is
+marked Original, is the only one, or sits beside dubs of a single language, it **is** the original
+(Sasha, 2026-11-28). TMDB's `original_language` names it when no track is in that language yet
+(Midnight Girls: Tagalog), and `spoken_languages` lists the rest under it, «Также звучат: японский
+и английский». Without TMDB it reads «На языке оригинала» with a grey «Язык не указан», and «Ориг»
+in the hero's three-letter list. Display only: the resolver and the player menu (AVKit's own while
+`rewritesStreamTrackMenus` is off) see the track as it came. Code: `AudioTracks.resolvingUnnamedLanguage`.
+
 ## Anime
 
 **prd** — `animePrefersOriginalAudio` is a global toggle: on an anime, original audio plus subtitles
