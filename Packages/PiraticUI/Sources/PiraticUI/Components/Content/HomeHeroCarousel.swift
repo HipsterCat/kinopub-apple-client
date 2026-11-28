@@ -57,6 +57,14 @@ public struct HomeHeroCarousel: View {
   /// The page the hero rests on — the source of truth; the scroll view is told.
   @State private var current: Slot
   @State private var displayedIndex: Int
+  /// The title the words block draws. It changes only while the words are faded out, so
+  /// the old logo is never drawn over the new picture (a removal transition did exactly
+  /// that: the leaving block faded back in to full opacity while it faded out, Sasha's
+  /// recording 2026-11-28).
+  @State private var wordsIndex: Int
+  /// The title whose picture the backdrop shows or is dissolving to. The words of a title
+  /// come up only with its own picture, as in the Apple TV app.
+  @State private var artworkID: Int?
   @State private var dwellReset = 0
   @State private var scroll: ScrollPosition
   /// The scroll reading changes only when the nearest page or alignment changes.
@@ -123,6 +131,7 @@ public struct HomeHeroCarousel: View {
     let slot = Slot(lap: 0, index: hero.features.indices.contains(start) ? start : 0)
     _current = State(initialValue: slot)
     _displayedIndex = State(initialValue: slot.index)
+    _wordsIndex = State(initialValue: slot.index)
     _scroll = State(initialValue: ScrollPosition(id: slot))
   }
 
@@ -186,6 +195,14 @@ public struct HomeHeroCarousel: View {
       && !isPaging && !isMenuOpen && isWindowKey
   }
 
+  /// The words stand only over their own title's picture and only while nothing turns.
+  private var wordsVisible: Bool {
+    guard !isPaging, wordsIndex == currentIndex, features.indices.contains(currentIndex) else {
+      return false
+    }
+    return artworkID == features[currentIndex].card.id
+  }
+
   private var isPaging: Bool {
     isScrolling || isTurning || current.index != displayedIndex
   }
@@ -247,24 +264,26 @@ public struct HomeHeroCarousel: View {
       if features.indices.contains(currentIndex) {
         HeroArtworkTransition(features: features, slots: slots, pager: pager,
                               settledIndex: currentIndex, isPaging: isPaging,
+                              presentedID: $artworkID,
                               width: size.width, height: size.height + topBleed,
                               topBleed: topBleed, isCompact: isCompact)
           .allowsHitTesting(false)
       }
     }
     .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
-      Group {
-        if features.indices.contains(currentIndex) {
-          wordsBlock(features[currentIndex])
-            .id(features[currentIndex].card.id)
-            .transition(.opacity)
-            .opacity(isPaging ? 0 : 1)
-            .allowsHitTesting(!isPaging)
-            .accessibilityHidden(isPaging)
-        }
+      // One block, never swapped while it shows: out fast as the turn starts, the next
+      // title's words put in while it is invisible, in again over the last part of the
+      // picture's dissolve — the Apple TV app's order (its recording, 2026-11-28).
+      if features.indices.contains(wordsIndex) {
+        // Only the opacity is animated: the content put in while hidden must not
+        // cross-fade with the content it replaces.
+        wordsBlock(features[wordsIndex])
+          .animation(reduceMotion ? nil : (wordsVisible ? Self.wordsIn : Self.wordsOut)) {
+            $0.opacity(wordsVisible ? 1 : 0)
+          }
+          .allowsHitTesting(wordsVisible)
+          .accessibilityHidden(!wordsVisible)
       }
-      .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isPaging)
-      .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: currentIndex)
     }
     .overlay(alignment: .bottom) {
       if features.count > 1 {
@@ -353,6 +372,13 @@ public struct HomeHeroCarousel: View {
     .onChange(of: displayedIndex) { _, index in
       if index != shownIndex { shownIndex = index }
     }
+    // The next title's words go in once the old ones have faded out.
+    .task(id: currentIndex) {
+      guard wordsIndex != currentIndex else { return }
+      if !reduceMotion { try? await Task.sleep(for: .seconds(Self.wordsOutDuration)) }
+      guard !Task.isCancelled else { return }
+      wordsIndex = currentIndex
+    }
     .onChange(of: current.index) { _, index in
       HomeHeroWarmup.warm(features, around: index, backdropSize: warmupBackdropSize)
     }
@@ -377,10 +403,20 @@ public struct HomeHeroCarousel: View {
   /// How long one title stays before the next — tvOS's `TVPageHeroCarousel.dwell`.
   static let dwell: TimeInterval = 8
 
+  /// The words' fades, from the Apple TV app on a Mac (its recording at 240 fps,
+  /// 2026-11-28): out in about 0.15 s before the picture moves, in over the last part
+  /// of its half-second dissolve.
+  static let wordsOutDuration: TimeInterval = 0.15
+  static let wordsOut = Animation.easeOut(duration: wordsOutDuration)
+  static let wordsIn = Animation.easeOut(duration: 0.3).delay(0.3)
+
   // MARK: Paging
 
   /// One title over: +1 forward, -1 back, both wrapping onto the next lap.
-  private func step(_ delta: Int, animated: Bool = true) {
+  /// Not animated by default: the pages are clear tap targets, so a scrolled turn showed
+  /// nothing but kept the words away for its whole ~0.8 s scroll (Sasha, 2026-11-28).
+  /// The picture dissolves and the words follow it, whatever turned the page.
+  private func step(_ delta: Int, animated: Bool = false) {
     // A turn already on its way finishes first: stepping from a `current` that has
     // moved ahead of the picture is what skipped a title.
     guard features.count > 1, !isPaging else {
@@ -403,7 +439,7 @@ public struct HomeHeroCarousel: View {
   /// A dot clicked: that title, on the lap the hero is on.
   private func go(to index: Int) {
     guard features.indices.contains(index), index != current.index else { return }
-    move(to: Slot(lap: current.lap, index: index), animated: true)
+    move(to: Slot(lap: current.lap, index: index), animated: false)
   }
 
   private func move(to slot: Slot, animated: Bool) {
@@ -725,6 +761,7 @@ private struct HeroArtworkTransition: View {
   let pager: HeroPager
   let settledIndex: Int
   let isPaging: Bool
+  @Binding var presentedID: Int?
   let width: CGFloat
   let height: CGFloat
   let topBleed: CGFloat
@@ -755,7 +792,10 @@ private struct HeroArtworkTransition: View {
       }
       HeroScrim(isCompact: isCompact)
     }
-    .onAppear { shown = current }
+    .onAppear {
+      shown = current
+      presentedID = current.card.id
+    }
     .onChange(of: target) { _, feature in
       if shown?.card.id == feature.card.id { shown = feature }
     }
@@ -765,7 +805,11 @@ private struct HeroArtworkTransition: View {
     guard let shown, feature.card.id != shown.card.id, feature.card.id == target.card.id,
           fading == nil else { return }
     fading = feature
-    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+    presentedID = feature.card.id
+    // A cross-dissolve as long as the Apple TV app's (about half a second). A code turn
+    // waits for the old words to fade first; a finger on the pager does not wait.
+    let dissolve = Animation.easeInOut(duration: 0.5)
+    withAnimation(reduceMotion ? nil : (isPaging ? dissolve : dissolve.delay(HomeHeroCarousel.wordsOutDuration))) {
       revealsIncoming = true
     } completion: {
       self.shown = feature
