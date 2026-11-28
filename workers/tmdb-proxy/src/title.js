@@ -1434,9 +1434,13 @@ async function titleArtworkOrigin(asset, workerOrigin, cache, ctx) {
   return null;
 }
 
+const ARTWORK_USER_AGENT = "PiraticImageWorker/1.0 (+https://github.com/HipsterCat/kinopub-apple-client)";
+
 async function fetchArtwork(url, options) {
   try {
-    const response = await fetch(url, { ...timeoutSignal(CDN_MIRROR_TIMEOUT_MS), ...options });
+    // Named: ThePosterDB's Cloudflare refuses a request without a User-Agent.
+    const headers = { "User-Agent": ARTWORK_USER_AGENT, ...(options?.headers || {}) };
+    const response = await fetch(url, { ...timeoutSignal(CDN_MIRROR_TIMEOUT_MS), ...options, headers });
     const type = response.headers.get("content-type") || "";
     const placeholder = response.url.toLowerCase().includes("/no-poster.");
     if (response.ok && type.startsWith("image/") && !type.startsWith("image/gif") && !placeholder) {

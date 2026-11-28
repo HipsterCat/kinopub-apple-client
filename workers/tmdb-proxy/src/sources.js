@@ -8,10 +8,15 @@
  *   fanart           fanart.tv v3. Needs a personal API key.
  *   tvdb             TheTVDB v4. Needs a project API key.
  *   wikidata         The logo statement (P154) of the title's Wikidata item. No key.
+ *   tpdb             ThePosterDB posters. No API and no key: the search page lists
+ *                    title pages (/posters/{mediaId}), a title page names its TMDB id
+ *                    (data-media-id) and its posters (data-poster-id), and
+ *                    /api/assets/{posterId} is the original file (rate limit 30).
  *
  * Keys come from Worker secrets (FANART_API_KEY, TVDB_API_KEY) or, without them,
  * from what an admin saved with `POST /admin/keys` (KV `config:source-keys`).
- * ThePosterDB has no API, so it is not a source here.
+ * ThePosterDB's Cloudflare refuses clients without a name, so every request names
+ * this worker (the same fix as Silo's netguard, Silo-Server/silo-server#4451).
  *
  * Every file is `{ url, preview, lang, source, width, height, vote, votes }`,
  * `lang` an iso 639-1 code or null for no language. One slow source never holds
@@ -25,11 +30,14 @@ const FANART_API = "https://webservice.fanart.tv/v3";
 const TVDB_API = "https://api4.thetvdb.com/v4";
 const WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData";
 const COMMONS_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath";
+const TPDB = "https://theposterdb.com";
+// Title pages a TPDB lookup opens at most, to stay well inside its rate limit.
+const TPDB_PAGES = 3;
 // Wikimedia asks every client to name itself.
 const USER_AGENT = "PiraticImageWorker/1.0 (+https://github.com/HipsterCat/kinopub-apple-client)";
 
 /** Display order of the source chips after TMDB. */
-export const SOURCE_ORDER = ["tmdb", "fanart", "tvdb", "tvoe", "kinopoisk", "wikidata", "upload", "admin"];
+export const SOURCE_ORDER = ["tmdb", "fanart", "tvdb", "tpdb", "tvoe", "kinopoisk", "wikidata", "upload", "admin"];
 
 export async function sourceKeys(env) {
   let saved = {};
@@ -76,12 +84,14 @@ export async function extraImageFiles(env, id, stored, kind, options = {}) {
     imdb: idString(ids.imdb?.value),
     tvdb: idString(ids.tvdb?.value),
     wikidata: idString(ids.wikidata?.value),
+    title: stored?.title?.original || stored?.title?.en || null,
   };
   const jobs = {
     stored: () => storedFiles(env, id, stored, kind),
     fanart: () => fanartFiles(context),
     tvdb: () => tvdbFiles(context),
     wikidata: () => wikidataFiles(context),
+    tpdb: () => tpdbFiles(context),
   };
   const names = Object.keys(jobs);
   const settled = await Promise.all(names.map((name) => withTimeout(jobs[name]())
@@ -118,7 +128,7 @@ export function urlKey(url) {
 
 // MARK: - Our own rows
 
-const OWN_SOURCES = new Set(["tvoe", "kinopoisk", "upload", "admin", "wikidata", "fanart", "tvdb"]);
+const OWN_SOURCES = new Set(["tvoe", "kinopoisk", "upload", "admin", "wikidata", "fanart", "tvdb", "tpdb"]);
 
 async function storedFiles(env, id, stored, kind) {
   const files = [];
@@ -172,6 +182,7 @@ function inferOwnSource(url) {
   if (/fanart\.tv/.test(url)) return "fanart";
   if (/thetvdb\.com/.test(url)) return "tvdb";
   if (/wikimedia\.org/.test(url)) return "wikidata";
+  if (/theposterdb\.com/.test(url)) return "tpdb";
   return null;
 }
 
@@ -335,6 +346,54 @@ async function wikidataFiles({ fetch: fetchImpl, wikidata, kind }) {
     }));
   }
   return { status: "ok", files };
+}
+
+// MARK: - ThePosterDB
+
+async function tpdbFiles({ fetch: fetchImpl, kind, tmdbId, isShow, title }) {
+  if (kind !== "poster") return { status: "ok", files: [] };
+  if (!tmdbId || !title) return { status: "no_id" };
+  const page = async (path) => {
+    const response = await fetchImpl(`${TPDB}${path}`, {
+      headers: { Accept: "text/html", "User-Agent": USER_AGENT },
+      cf: { cacheTtl: 60 * 60 * 24, cacheEverything: true },
+    });
+    return response.ok ? response.text() : null;
+  };
+  const section = isShow ? "shows" : "movies";
+  const search = await page(`/search?term=${encodeURIComponent(title)}&section=${section}`);
+  if (search == null) return { status: "failed" };
+  const mediaIds = [...new Set([...search.matchAll(/theposterdb\.com\/posters\/(\d+)/g)].map((m) => m[1]))];
+  for (const mediaId of mediaIds.slice(0, TPDB_PAGES)) {
+    const html = await page(`/posters/${mediaId}`);
+    if (!html) continue;
+    const source = html.match(/data-media-source=["']tmdb["'][^>]*data-media-id=["'](\d+)["']/);
+    if (source?.[1] !== String(tmdbId)) continue;
+    return { status: "ok", files: tpdbPosters(html) };
+  }
+  return { status: "ok", files: [] };
+}
+
+/** Poster ids in page order, each with the optimized JPEG that precedes the next id. */
+export function tpdbPosters(html) {
+  const files = [];
+  const marks = [...html.matchAll(/data-poster-id=["'](\d+)["']/g)];
+  let from = 0;
+  for (const mark of marks) {
+    // A tile's picture sits before its overlay: take the last thumbnail since the
+    // previous overlay, so a missing picture never shifts the rest.
+    const slice = html.slice(from, mark.index);
+    const thumbs = [...slice.matchAll(/https:\/\/images\.theposterdb\.com\/[^\s"',]+?\.jpg/g)];
+    from = mark.index + mark[0].length;
+    files.push(file({
+      url: `${TPDB}/api/assets/${mark[1]}`,
+      preview: thumbs.at(-1)?.[0] || null,
+      // The site is English: its posters carry English titles.
+      lang: "en",
+      source: "tpdb",
+    }));
+  }
+  return files;
 }
 
 // MARK: - Helpers

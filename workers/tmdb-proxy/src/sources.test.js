@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleAdmin } from "./admin.js";
-import { extraImageFiles, urlKey } from "./sources.js";
+import { extraImageFiles, tpdbPosters, urlKey } from "./sources.js";
 import { serveUpload } from "./uploads.js";
 
 function memoryEnv(initial = {}) {
@@ -210,4 +210,31 @@ test("keys are saved in KV, reported by name and removed with an empty string", 
   assert.equal(env.documents["config:source-keys"].fanart, "abc");
   const removed = await (await handleAdmin(admin("/admin/keys", { body: { tvdb: "" } }), env)).json();
   assert.deepEqual(removed.configured, ["fanart"]);
+});
+
+test("ThePosterDB: search, the page whose TMDB id matches, its posters with thumbnails", async () => {
+  const thumb = (n) => `<picture><source srcset="https://images.theposterdb.com/prod/public/images/posters/optimized/movies/633/h${n}.webp" type="image/webp"><img src="https://images.theposterdb.com/prod/public/images/posters/optimized/movies/633/h${n}.jpg"></picture>`;
+  const titlePage = `<div data-media-source="tmdb" data-media-id="603"></div>`
+    + `${thumb(1)}<div class="overlay" data-poster-id='147307' data-poster-type='movie'></div>`
+    + `<div class="overlay" data-poster-id='147308' data-poster-type='movie'></div>`
+    + `${thumb(3)}<div class="overlay" data-poster-id='147309' data-poster-type='movie'></div>`;
+  const agents = [];
+  const fetchImpl = routedFetch([
+    ["https://theposterdb.com/search?term=The%20Matrix&section=movies", (url, init) => {
+      agents.push(init.headers["User-Agent"]);
+      return new Response(`<a href="https://theposterdb.com/posters/9">x</a><a href="https://theposterdb.com/posters/633">y</a>`);
+    }],
+    ["https://theposterdb.com/posters/9", () => new Response(`<div data-media-source="tmdb" data-media-id="1"></div>`)],
+    ["https://theposterdb.com/posters/633", () => new Response(titlePage)],
+  ]);
+  const doc = { kind: "movie", title: { original: "The Matrix" }, ids: { tmdb: { value: "movie/603" } }, artwork: {} };
+  const { files, sources } = await extraImageFiles(memoryEnv(), 1, doc, "poster", { fetch: fetchImpl, keys: {} });
+  assert.deepEqual(files.map((f) => [f.url, f.preview?.split("/").at(-1) ?? null, f.lang]), [
+    ["https://theposterdb.com/api/assets/147307", "h1.jpg", "en"],
+    ["https://theposterdb.com/api/assets/147308", null, "en"],
+    ["https://theposterdb.com/api/assets/147309", "h3.jpg", "en"],
+  ]);
+  assert.deepEqual(sources.tpdb, { status: "ok", count: 3 });
+  assert.match(agents[0], /Piratic/);
+  assert.deepEqual(tpdbPosters("<p>nothing</p>"), []);
 });

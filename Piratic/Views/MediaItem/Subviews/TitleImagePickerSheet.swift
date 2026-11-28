@@ -4,7 +4,7 @@
 //
 //  "Change Images": which logo, poster, cover and backdrop the worker serves for a
 //  title. Cover is a wide picture with lettering; backdrop stays textless. Files come
-//  from TMDB, fanart.tv, TheTVDB, tvoe, Kinopoisk, Wikidata and the admin's own
+//  from TMDB, fanart.tv, TheTVDB, ThePosterDB, tvoe, Kinopoisk, Wikidata and the admin's own
 //  uploads (workers/tmdb-proxy/src/sources.js); chips filter the grid by source, the
 //  way Silo's Edit Metadata › Images does.
 //  The sheet, grid and toolbar policy are AniShelf's poster picker
@@ -1237,6 +1237,7 @@ enum TitleImageSource {
     case "tvoe": "TVOE"
     case "kinopoisk": String(localized: "Kinopoisk")
     case "wikidata": "Wikidata"
+    case "tpdb": "ThePosterDB"
     case "upload": String(localized: "Uploaded")
     case "admin": String(localized: "By Link")
     default: source
@@ -1248,6 +1249,7 @@ enum TitleImageSource {
     switch source {
     case "fanart": "FANART"
     case "tvdb": "TVDB"
+    case "tpdb": "TPDB"
     default: name(source).uppercased()
     }
   }
