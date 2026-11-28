@@ -848,6 +848,9 @@ public struct MediaCardView: View {
   @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
   @Environment(\.mediaCardTitleFont) private var titleFont
   @Environment(\.locale) private var locale
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var sizeClass
+#endif
   @Environment(\.titleImageRoute) private var titleImageRoute
   private var showCountry: Bool { displaySettings.showCountry }
   private var showBookmarkSymbol: Bool { displaySettings.showBookmarkSymbol }
@@ -1605,8 +1608,18 @@ public struct MediaCardView: View {
 
   /// Hidden rather than absent while unfocused, so neighbouring cards keep their
   /// baselines and the row does not jump as focus travels along it.
+  /// Title → line under it. A landscape card on the iPhone sits 3 pt tighter, the
+  /// rail and the Continue Watching page alike (Sasha, 2026-11-28).
+  private var captionLineSpacing: CGFloat {
+#if os(iOS)
+    card.isLandscape && sizeClass == .compact ? 1 : 4
+#else
+    4
+#endif
+  }
+
   private var captionBlock: some View {
-    VStack(alignment: .center, spacing: 4) {
+    VStack(alignment: .center, spacing: captionLineSpacing) {
       titleRow
 
       // History's "when did I watch this" line. Shown on landscape cards too, which

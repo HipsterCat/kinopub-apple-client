@@ -49,20 +49,26 @@ public struct MediaCardsListView: View {
 
   /// First card decides, as on `MediaPosterShelf`: a list is all stills or all posters,
   /// and `metrics` is read per cell, so no walk over the whole list here.
+  /// iOS / iPadOS only: the Mac and tvOS keep the poster grid as it was (Sasha,
+  /// 2026-11-28: the ask was the iPhone).
   private var isLandscapeGrid: Bool {
+#if os(iOS)
     (cards.first ?? sections.first?.cards.first)?.isLandscape == true
+#else
+    false
+#endif
   }
 
-  /// A still grid breathes more than a poster grid: two-line captions under wide
-  /// cards ran into the next row's stills at one gutter, and the columns read
-  /// tighter than the Home rail (Sasha, 2026-11-28). Three gutters between rows,
-  /// one and a half between columns; poster grids keep one gutter both ways.
+  /// A still grid on iOS breathes more than a poster grid: the columns read tighter
+  /// than the Home rail, and the rows ran into each other (Sasha, 2026-11-28).
+  /// 1.5 gutters between columns; between rows 3 gutters was too much, 30% less
+  /// (2.1). Poster grids keep one gutter both ways.
   private var columnSpacing: CGFloat {
     isLandscapeGrid ? metrics.gutter * 1.5 : metrics.gutter
   }
 
   private var rowSpacing: CGFloat {
-    isLandscapeGrid ? metrics.gutter * 3 : metrics.gutter
+    isLandscapeGrid ? metrics.gutter * 2.1 : metrics.gutter
   }
 
   private var gridColumns: [GridItem] {
