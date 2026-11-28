@@ -120,7 +120,8 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   in a `swiftc` probe, 14% of the main thread scrolling a title page (Instruments,
   2026-11-28, macOS 27.3). Right after an in-app switch the slow path is back until the
   next launch. Re-probe on the next SDK.
-- **`WindowSizeIndependentOfContent`** (macOS library window) — a scene's
+- **`SizeIndependentOfContent`** (macOS library window, each Mac tab, the sidebar shell's
+  detail column — each is a hosting view of its own) — a scene's
   `windowResizability` makes the window's `NSHostingView` ask the content for its min / max
   size on every layout pass; `.frame(minWidth:minHeight:)` passed that question down to the
   whole page, scroll content included (~20% of the main thread scrolling a title page,

@@ -290,7 +290,7 @@ struct PiraticApp: App {
       }
 #endif
 #if os(macOS)
-      .windowSizeIndependentOfContent(minimum: WindowSize.macos)
+      .sizeIndependentOfContent(minimum: WindowSize.macos)
       .listedInWindowMenu()
 #endif
   }
@@ -454,16 +454,20 @@ private extension View {
 }
 
 #if os(macOS)
-/// The library window's size limits are a fixed minimum, never a measurement of the page.
+/// A window's — or a tab's, or a split view column's — size limits are a fixed minimum,
+/// never a measurement of the page.
 ///
 /// Performance limitation (Instruments, 2026-11-28, macOS 27.3): with a scene's
 /// `windowResizability` the window's `NSHostingView` recomputes its min / max size on every
 /// layout pass — `NSHostingView.minSize()` from `layout()` and `updateConstraints()` — and a
 /// `.frame(minWidth:minHeight:)` passes that zero-size proposal down to the whole page, scroll
-/// content included. Scrolling a title page spent ~20% of the main thread there.
+/// content included. Scrolling a title page spent ~20% of the main thread there. The tabs of
+/// the Mac `TabView` and the sidebar shell's detail column are hosting views of their own
+/// and ask the same question (10% in a trace taken after the window root was wrapped), so
+/// each of those roots carries this too.
 /// This layout answers the window's size questions itself (the minimum, or whatever the
 /// window offers above it) and lays the content out only at the size it really gets.
-private struct WindowSizeIndependentOfContent: Layout {
+private struct SizeIndependentOfContent: Layout {
   var minimum: CGSize
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -478,9 +482,9 @@ private struct WindowSizeIndependentOfContent: Layout {
   }
 }
 
-private extension View {
-  func windowSizeIndependentOfContent(minimum: CGSize) -> some View {
-    WindowSizeIndependentOfContent(minimum: minimum) { self }
+extension View {
+  func sizeIndependentOfContent(minimum: CGSize = .zero) -> some View {
+    SizeIndependentOfContent(minimum: minimum) { self }
   }
 }
 #endif

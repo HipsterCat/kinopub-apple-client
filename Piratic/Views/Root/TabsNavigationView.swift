@@ -453,6 +453,9 @@ struct TabsNavigationView: View {
       // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
       // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
+        // The column is a hosting view of its own: answer its size questions without
+        // measuring the page (`SizeIndependentOfContent`).
+        .sizeIndependentOfContent()
         // From the page too: a sidebar collapsed in an earlier session is hidden, and its
         // own probe may never come back into a window to open it again.
         .background(MacFixedSidebar(width: Self.macSidebarWidth))
@@ -765,14 +768,25 @@ struct TabsNavigationView: View {
   private func browseTab(_ spec: TabSpec) -> some TabContent<NavigationTabs> {
     if spec.tab == .watchlist {
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
-        content(for: spec.tab)
+        tabRoot(spec.tab)
       }
       .badge(unwatchedEpisodesCount)
     } else {
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
-        content(for: spec.tab)
+        tabRoot(spec.tab)
       }
     }
+  }
+
+  /// On the Mac each tab is a hosting view of its own that asks its content for a minimum
+  /// size on every layout pass; answer that without measuring the page.
+  @ViewBuilder
+  private func tabRoot(_ tab: NavigationTabs) -> some View {
+#if os(macOS)
+    content(for: tab).sizeIndependentOfContent()
+#else
+    content(for: tab)
+#endif
   }
 #endif
 
