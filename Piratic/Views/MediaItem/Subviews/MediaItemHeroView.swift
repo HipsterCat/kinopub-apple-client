@@ -1445,7 +1445,7 @@ struct MediaItemHeroView: View {
       Color.Piratic.posterHeroPlate
         .opacity(usesAdaptivePosterHero ? 1 : 0)
 
-      if phase.isHeroOnScreen, let player = trailer.player, trailer.isReady {
+      if let player = trailer.player, trailer.isReady {
         TrailerVideoLayer(player: player)
           .allowsHitTesting(false)
           .transition(.opacity)

@@ -1037,87 +1037,80 @@ struct MediaItemView: View {
   /// tvOS it is the fallback behind `FeatureFlags.tvDetailSections`; elsewhere it is the page.
   @ViewBuilder
   private var infoSections: some View {
-#if os(tvOS)
-    VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) { infoRows }
-#else
-    LazyVStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) { infoRows }
-#endif
-  }
-
-  @ViewBuilder
-  private var infoRows: some View {
+    VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
 #if !os(tvOS)
-    // A concert's songs, first under its videos, as on tvOS (`MediaItemTVSections.make`).
-    MediaItemSetlistSection(tracks: SetlistTrack.tracks(of: itemModel.mediaItem))
+      // A concert's songs, first under its videos, as on tvOS (`MediaItemTVSections.make`).
+      MediaItemSetlistSection(tracks: SetlistTrack.tracks(of: itemModel.mediaItem))
 #endif
-    // The shipped ratings row, on every platform. It is the validated one; the
-    // block experiment below runs beside it, not instead of it.
-    MediaItemRatingsSection(mediaItem: itemModel.mediaItem,
-                            externalMetadata: itemModel.externalMetadata,
-                            likeCount: itemModel.likeCount,
-                            dislikeCount: itemModel.dislikeCount,
-                            myVote: itemModel.myVote,
-                            onVote: { itemModel.askToConfirmVote(up: $0) },
-                            showsHeader: true)
-#if !os(tvOS)
-    // Experiment: scores and opinions as one block section.
-    MediaItemRatingsAndReviewsSection(mediaItem: itemModel.mediaItem,
-                                      externalMetadata: itemModel.externalMetadata,
-                                      summary: itemModel.externalMetadata.reviewsSummary,
-                                      likeCount: itemModel.likeCount,
-                                      dislikeCount: itemModel.dislikeCount,
-                                      destination: ratingsAndReviewsDestination,
-                                      tabDestination: { ratingsAndReviewsDestination(tab: $0) })
-#else
-    // tvOS fallback SwiftUI stack: thumbs live on the TVUIKit card when that flag is on.
-    MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
-                                  dislikeCount: itemModel.dislikeCount,
-                                  myVote: itemModel.myVote,
-                                  onVote: { _ in itemModel.askToVote() })
-      .detailFocusSection()
-#endif
-    MediaItemCastSection(mediaItem: itemModel.mediaItem,
-                         linkProvider: itemModel.linkProvider,
-                         externalMetadata: itemModel.externalMetadata,
-                         destination: castAndCrewDestination)
-      .detailFocusSection()
-    MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
-      .detailFocusSection()
-    // Where to go next comes before the reading matter: the shelves are the page's
-    // recommendations, and stills and trivia are the tail you reach only if you are
-    // still here. Everything about *this* title (ratings and reviews, vote, cast,
-    // awards) stays above them. Reviews used to be in this tail; they moved up into
-    // the ratings block on the pointer platforms.
-    MediaItemRelatedRowsSection(rows: itemModel.relatedRows,
-                                relatedItem: { itemModel.relatedItem(forCardID: $0) },
-                                linkProvider: itemModel.linkProvider,
-                                cardMenu: relatedRowsMenu,
-                                pendingShelves: itemModel.pendingRelatedShelfTitles)
-      .detailFocusSection()
-    MediaItemPhotosSection(stills: itemModel.externalMetadata.stills)
-      .detailFocusSection()
-#if !os(tvOS)
-    MediaItemFactsSection(facts: itemModel.externalMetadata.facts)
-    // Both variants are on the page while the block experiment runs: the merged
-    // Ratings and Reviews block above, and the standalone Reviews section here,
-    // where it shipped. Comparing them needs both visible; one of them goes with
-    // this comment.
-    MediaItemReviewsSection(mediaItem: itemModel.mediaItem,
-                            reviews: itemModel.externalMetadata.reviews,
-                            summary: itemModel.externalMetadata.reviewsSummary,
-                            destination: ratingsAndReviewsDestination)
-    // Same rail shape as Facts/Reviews, for the two things worth a glance before
-    // the table below: what this release technically is, and whether it's OK for
-    // the room. `InfoFooter` (Uploaded / Last Update / source credit), inside
-    // `MediaItemInfoColumns`, is untouched.
-    MediaItemBadgeCardsSection(mediaItem: itemModel.mediaItem,
+      // The shipped ratings row, on every platform. It is the validated one; the
+      // block experiment below runs beside it, not instead of it.
+      MediaItemRatingsSection(mediaItem: itemModel.mediaItem,
                               externalMetadata: itemModel.externalMetadata,
-                              skipPreview: itemModel.skipPreview)
+                              likeCount: itemModel.likeCount,
+                              dislikeCount: itemModel.dislikeCount,
+                              myVote: itemModel.myVote,
+                              onVote: { itemModel.askToConfirmVote(up: $0) },
+                              showsHeader: true)
+#if !os(tvOS)
+      // Experiment: scores and opinions as one block section.
+      MediaItemRatingsAndReviewsSection(mediaItem: itemModel.mediaItem,
+                                        externalMetadata: itemModel.externalMetadata,
+                                        summary: itemModel.externalMetadata.reviewsSummary,
+                                        likeCount: itemModel.likeCount,
+                                        dislikeCount: itemModel.dislikeCount,
+                                        destination: ratingsAndReviewsDestination,
+                                        tabDestination: { ratingsAndReviewsDestination(tab: $0) })
+#else
+      // tvOS fallback SwiftUI stack: thumbs live on the TVUIKit card when that flag is on.
+      MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
+                                    dislikeCount: itemModel.dislikeCount,
+                                    myVote: itemModel.myVote,
+                                    onVote: { _ in itemModel.askToVote() })
+        .detailFocusSection()
 #endif
-    MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
-                         externalMetadata: itemModel.externalMetadata,
-                         metadataPath: MetadataPathSwitch(model: itemModel))
-      .detailFocusSection()
+      MediaItemCastSection(mediaItem: itemModel.mediaItem,
+                           linkProvider: itemModel.linkProvider,
+                           externalMetadata: itemModel.externalMetadata,
+                           destination: castAndCrewDestination)
+        .detailFocusSection()
+      MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
+        .detailFocusSection()
+      // Where to go next comes before the reading matter: the shelves are the page's
+      // recommendations, and stills and trivia are the tail you reach only if you are
+      // still here. Everything about *this* title (ratings and reviews, vote, cast,
+      // awards) stays above them. Reviews used to be in this tail; they moved up into
+      // the ratings block on the pointer platforms.
+      MediaItemRelatedRowsSection(rows: itemModel.relatedRows,
+                                  relatedItem: { itemModel.relatedItem(forCardID: $0) },
+                                  linkProvider: itemModel.linkProvider,
+                                  cardMenu: relatedRowsMenu,
+                                  pendingShelves: itemModel.pendingRelatedShelfTitles)
+        .detailFocusSection()
+      MediaItemPhotosSection(stills: itemModel.externalMetadata.stills)
+        .detailFocusSection()
+#if !os(tvOS)
+      MediaItemFactsSection(facts: itemModel.externalMetadata.facts)
+      // Both variants are on the page while the block experiment runs: the merged
+      // Ratings and Reviews block above, and the standalone Reviews section here,
+      // where it shipped. Comparing them needs both visible; one of them goes with
+      // this comment.
+      MediaItemReviewsSection(mediaItem: itemModel.mediaItem,
+                              reviews: itemModel.externalMetadata.reviews,
+                              summary: itemModel.externalMetadata.reviewsSummary,
+                              destination: ratingsAndReviewsDestination)
+      // Same rail shape as Facts/Reviews, for the two things worth a glance before
+      // the table below: what this release technically is, and whether it's OK for
+      // the room. `InfoFooter` (Uploaded / Last Update / source credit), inside
+      // `MediaItemInfoColumns`, is untouched.
+      MediaItemBadgeCardsSection(mediaItem: itemModel.mediaItem,
+                                externalMetadata: itemModel.externalMetadata,
+                                skipPreview: itemModel.skipPreview)
+#endif
+      MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
+                           externalMetadata: itemModel.externalMetadata,
+                           metadataPath: MetadataPathSwitch(model: itemModel))
+        .detailFocusSection()
+    }
   }
 
 #if os(tvOS)
