@@ -354,7 +354,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .focusSection()
 #else
     .pageContentMargins(fallback: metrics.inset)
-    .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
+    .modifier(LandscapeRailSnap(isEnabled: isLandscape))
 #endif
   }
 
@@ -473,3 +473,19 @@ private struct MediaPosterShelfFocusReporter: ViewModifier {
 }
 #endif
 
+#if !os(tvOS)
+/// Card-by-card snapping for landscape rails only, matching `scrollTargetLayout(isEnabled:)`:
+/// `.viewAligned` over a poster rail with no targets logs "No scroll targets were found"
+/// on every scroll.
+private struct LandscapeRailSnap: ViewModifier {
+  var isEnabled: Bool
+
+  func body(content: Content) -> some View {
+    if isEnabled {
+      content.scrollTargetBehavior(.viewAligned(limitBehavior: .never))
+    } else {
+      content
+    }
+  }
+}
+#endif
