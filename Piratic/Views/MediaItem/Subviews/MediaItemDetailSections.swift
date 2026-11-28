@@ -1089,7 +1089,7 @@ struct MediaItemCastSection: View {
 
   let mediaItem: MediaItem
   let linkProvider: NavigationLinkProvider
-  var externalMetadata: TitleMetadata = TitleMetadata()
+  let cast: MediaItemModel.CastSectionData
   /// Full cast & crew page. `nil` leaves the header plain — see `MediaItemSectionHeader`.
   var destination: (any Hashable)? = nil
 
@@ -1099,38 +1099,10 @@ struct MediaItemCastSection: View {
   @Environment(\.mediaNavigation) private var mediaNavigation
 #endif
 
-  /// Pushbr is not a last resort here, it is the *working* source, and waiting on TMDB
-  /// before asking for it left every face a monogram.
-  ///
-  /// `TitleMetadata.enrich` matches credits by normalized name, and normalizing only
-  /// folds diacritics — kino.pub returns "Реми Безансон" where TMDB returns
-  /// "Rémi Bezançon", so the two never meet and `photo` stays nil however many photos
-  /// the payload carried. Pushbr is keyed by the MD5 of the *kino.pub* name, which is
-  /// exactly what we hold, so it resolves on the first frame with no metadata at all.
-  /// This is what the person page has always done — see `PersonItemsView.hero`.
-  ///
-  /// The old ordering existed to avoid painting pushbr and then swapping to a sharper
-  /// TMDB copy. That swap is now free: `TVUIKitRemoteImage` keeps both decoded, so the
-  /// upgrade is a repaint rather than a blink back to initials.
-  private func photoURL(for member: CastMember) -> URL? {
-    member.photo ?? ActorImageProvider.photoURL(for: member.name)
-  }
-
-  /// Actors for the rail — `CastRanking.rail`, the same list tvOS shows: kino.pub's names
-  /// in kino.pub's order, then the metadata worker's regulars.
-  private var people: [(person: MediaPerson, member: CastMember)] {
-    CastRanking.rail(names: mediaItem.castMembers, metadata: externalMetadata,
-                     isEpisodic: mediaItem.isEpisodicType).map {
-      (MediaPerson.from($0, role: .actor, photoURL: photoURL(for: $0),
-                        sourceItemID: mediaItem.id), $0)
-    }
-  }
-
   /// Full company size for the header badge — rail may show a shorter ranked list.
   private var companyCount: String? {
-    let company = CastAndCrew.make(item: mediaItem, metadata: externalMetadata)
-    let total = company.cast.count + company.crew.count
-    let value = total > 0 ? total : people.count
+    let total = cast.members.count + cast.crew.count
+    let value = total > 0 ? total : cast.people.count
     return value > 0 ? value.formatted(.number.grouping(.automatic)) : nil
   }
 
@@ -1138,7 +1110,7 @@ struct MediaItemCastSection: View {
   /// anything animated lists the same names as a Credits card in the information table
   /// instead — one rule, in `MediaPresentationProfile`, not a type check here.
   var body: some View {
-    if mediaItem.presentation.showsCastPortraits, !people.isEmpty {
+    if !cast.people.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
         MediaItemSectionHeader(
           LocalizedStringKey(mediaItem.presentation.castSectionTitleKey),
@@ -1160,7 +1132,7 @@ struct MediaItemCastSection: View {
   /// Apple's own tvOS apps use, and the shape TVUIKit draws for people.
   private var monogramRail: some View {
     TVUIKitPersonCollection(
-      people: people.map { entry in
+      people: cast.people.map { entry in
         TVUIKitPerson(id: entry.person.id,
                       name: entry.person.name,
                       nameComponents: TVUIKitPerson.nameComponents(from: entry.person.name),
@@ -1168,7 +1140,7 @@ struct MediaItemCastSection: View {
                       photoURL: entry.person.photoURL)
       },
       onSelect: { person in
-        guard let entry = people.first(where: { $0.person.id == person.id }) else { return }
+        guard let entry = cast.people.first(where: { $0.person.id == person.id }) else { return }
         mediaNavigation?(linkProvider.person(for: entry.person))
       }
     )
@@ -1193,7 +1165,7 @@ struct MediaItemCastSection: View {
   private var portraitRail: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       LazyHStack(alignment: .top, spacing: Self.spacing) {
-        ForEach(people, id: \.person.id) { entry in
+        ForEach(cast.people, id: \.person.id) { entry in
           NavigationLink(value: linkProvider.person(for: entry.person)) {
             CastPortraitView(person: entry.person, member: entry.member)
           }

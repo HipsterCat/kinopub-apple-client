@@ -32,7 +32,36 @@ class MediaItemModel: ObservableObject {
   public var linkProvider: NavigationLinkProvider
   public var mediaItemId: Int
   
-  @Published public var mediaItem: MediaItem = MediaItem.mock()
+  @Published public var mediaItem: MediaItem = MediaItem.mock() {
+    didSet {
+      if mediaItem.id != oldValue.id || mediaItem.cast != oldValue.cast
+        || mediaItem.isEpisodicType != oldValue.isEpisodicType {
+        cachedCast = nil
+      }
+    }
+  }
+
+  struct CastSectionData {
+    let members: [CastMember]
+    let crew: [CastMember]
+    let people: [(person: MediaPerson, member: CastMember)]
+  }
+
+  private var cachedCast: CastSectionData?
+
+  var castSection: CastSectionData {
+    if let cachedCast { return cachedCast }
+    let listed = TitleMetadata.enrich(names: mediaItem.castMembers, roleDepartment: "Acting", from: externalMetadata)
+    let others = CastRanking.unlisted(externalMetadata.cast, besides: listed)
+    let ranked = CastRanking.ranked(listed: listed, others: others, isEpisodic: mediaItem.isEpisodicType)
+    let data = CastSectionData(members: listed + others, crew: externalMetadata.crew, people: ranked.map { member in
+      let photo = member.photo ?? ActorImageProvider.photoURL(for: member.name)
+      return (MediaPerson.from(member, role: .actor, photoURL: photo, sourceItemID: mediaItem.id), member)
+    })
+    cachedCast = data
+    return data
+  }
+
   @Published public var itemLoaded: Bool = false
   /// True after `fetchDetails` fails. The page says so where the details would have
   /// been: under a hero painted from the card (`hasPaintedItem`), or over the whole
@@ -117,7 +146,13 @@ class MediaItemModel: ObservableObject {
 
   /// TMDB (and later other sources) overlay. Empty when the proxy is unset or the
   /// title has no IMDb id — the page then draws exactly as before.
-  @Published public var externalMetadata: TitleMetadata = TitleMetadata()
+  @Published public var externalMetadata: TitleMetadata = TitleMetadata() {
+    didSet {
+      if externalMetadata.cast != oldValue.cast || externalMetadata.crew != oldValue.crew {
+        cachedCast = nil
+      }
+    }
+  }
 
   /// The title page's YouTube videos: `TrailerRef.forTitlePage`'s languages and order,
   /// without the removed ones (`YouTubeThumbnailProbe`). Empty until they are checked, so

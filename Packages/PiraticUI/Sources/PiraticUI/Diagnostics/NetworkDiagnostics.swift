@@ -116,9 +116,16 @@ public enum NetworkDiagnostics {
       "*.mds.yandex.net"     // Kinopoisk stills, via the proxy
     ])
     configuration.excludedURLs = [
+      "*/img/*",
       "*.jpg*", "*.jpeg*", "*.png*", "*.webp*", "*.gif*", "*.avif*",
       "*.m3u8*", "*.ts*", "*.mp4*", "*.mkv*", "*.m4s*"
     ]
+    configuration.willHandleEvent = { event in
+      guard case .networkTaskCompleted(var task) = event,
+            task.response?.contentType?.isImage == true else { return event }
+      task.responseBody = nil
+      return .networkTaskCompleted(task)
+    }
     return configuration
   }
 

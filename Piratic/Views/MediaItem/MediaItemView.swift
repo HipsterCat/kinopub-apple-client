@@ -1068,11 +1068,13 @@ struct MediaItemView: View {
                                     onVote: { _ in itemModel.askToVote() })
         .detailFocusSection()
 #endif
-      MediaItemCastSection(mediaItem: itemModel.mediaItem,
-                           linkProvider: itemModel.linkProvider,
-                           externalMetadata: itemModel.externalMetadata,
-                           destination: castAndCrewDestination)
-        .detailFocusSection()
+      if itemModel.mediaItem.presentation.showsCastPortraits {
+        MediaItemCastSection(mediaItem: itemModel.mediaItem,
+                             linkProvider: itemModel.linkProvider,
+                             cast: itemModel.castSection,
+                             destination: castAndCrewDestination)
+          .detailFocusSection()
+      }
       MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
         .detailFocusSection()
       // Where to go next comes before the reading matter: the shelves are the page's
@@ -1125,9 +1127,8 @@ struct MediaItemView: View {
 #if os(tvOS)
     nil
 #else
-    itemModel.linkProvider.castAndCrew(
-      CastAndCrew.make(item: itemModel.mediaItem, metadata: itemModel.externalMetadata)
-    )
+    let cast = itemModel.castSection
+    return itemModel.linkProvider.castAndCrew(CastAndCrew(item: itemModel.mediaItem, cast: cast.members, crew: cast.crew))
 #endif
   }
 
