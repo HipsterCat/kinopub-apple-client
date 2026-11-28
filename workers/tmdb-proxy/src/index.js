@@ -8,6 +8,7 @@
 import { handleAdmin } from "./admin.js";
 import { handleDouban } from "./douban.js";
 import { handleSeasons } from "./seasons.js";
+import { serveUpload } from "./uploads.js";
 import { handleImage, handleTitle, handleTitleV2 } from "./title.js";
 
 const TMDB_API = "https://api.themoviedb.org";
@@ -49,6 +50,10 @@ export default {
 
     if (url.pathname.startsWith("/v1/douban/")) {
       return handleDouban(url, env, ctx);
+    }
+
+    if (url.pathname.startsWith("/img/upload/")) {
+      return serveUpload(request, env);
     }
 
     if (url.pathname.startsWith("/img/")) {

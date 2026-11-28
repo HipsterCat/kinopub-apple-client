@@ -19,8 +19,30 @@ public struct WorkerImageAdminCandidate: Sendable, Codable, Identifiable, Hashab
   public let height: Int?
   public let vote: Double?
   public let pick: Bool?
+  /// Where the file comes from (`tmdb`, `fanart`, `tvdb`, `tvoe`, `kinopoisk`,
+  /// `wikidata`, `upload`, `admin`). Sent when the catalog was asked with sources.
+  public let source: String?
+  /// A small copy for the grid, when the source has one.
+  public let preview: String?
+  /// Likes / score for sources without TMDB's average vote.
+  public let votes: Double?
 
   public var id: String { url }
+
+  public init(url: String, lang: String?, from: String?, width: Int?, height: Int?,
+              vote: Double?, pick: Bool?, source: String? = nil, preview: String? = nil,
+              votes: Double? = nil) {
+    self.url = url
+    self.lang = lang
+    self.from = from
+    self.width = width
+    self.height = height
+    self.vote = vote
+    self.pick = pick
+    self.source = source
+    self.preview = preview
+    self.votes = votes
+  }
 
   public var sizeLabel: String {
     guard let width, let height else { return "—" }
@@ -38,6 +60,23 @@ public struct WorkerImageAdminStoredAsset: Sendable, Codable, Identifiable, Hash
   public var id: String { url }
 }
 
+/// One image source of a catalog asked with sources: how many files it gave and why
+/// it gave none (`no_key`, `bad_key`, `no_id`, `failed`).
+public struct WorkerImageSourceStatus: Sendable, Codable, Hashable, Identifiable {
+  public let id: String
+  public let count: Int
+  public let status: String
+
+  public init(id: String, count: Int, status: String) {
+    self.id = id
+    self.count = count
+    self.status = status
+  }
+
+  /// A key the admin can add (`POST /admin/keys`) would bring this source in.
+  public var needsKey: Bool { status == "no_key" || status == "bad_key" }
+}
+
 public struct WorkerImageAdminCatalog: Sendable, Codable {
   public let ok: Bool
   public let id: String
@@ -49,6 +88,8 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
   public let stored: [WorkerImageAdminStoredAsset]?
   /// TMDB files bucketed by other iso codes (`de`, `fr`, …) — not ru / en / und.
   public let extra: [String: [WorkerImageAdminCandidate]]
+  /// Every source asked, in the worker's order; empty from a worker without sources.
+  public let sources: [WorkerImageSourceStatus]
 
   public init(
     ok: Bool,
@@ -59,7 +100,8 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
     en: [WorkerImageAdminCandidate],
     und: [WorkerImageAdminCandidate],
     stored: [WorkerImageAdminStoredAsset]?,
-    extra: [String: [WorkerImageAdminCandidate]] = [:]
+    extra: [String: [WorkerImageAdminCandidate]] = [:],
+    sources: [WorkerImageSourceStatus] = []
   ) {
     self.ok = ok
     self.id = id
@@ -70,6 +112,7 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
     self.und = und
     self.stored = stored
     self.extra = extra
+    self.sources = sources
   }
 
   public init(from decoder: Decoder) throws {
@@ -86,10 +129,12 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
     en = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: WorkerImageAdminJSONKey("en")) ?? []
     und = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: WorkerImageAdminJSONKey("und")) ?? []
     stored = try container.decodeIfPresent([WorkerImageAdminStoredAsset].self, forKey: WorkerImageAdminJSONKey("stored"))
-    let known = Set(["ok", "id", "kind", "tmdb", "ru", "en", "und", "stored"])
+    sources = (try? container.decodeIfPresent([WorkerImageSourceStatus].self,
+                                               forKey: WorkerImageAdminJSONKey("sources"))) ?? []
+    let known = Set(["ok", "id", "kind", "tmdb", "ru", "en", "und", "stored", "sources"])
     var extras: [String: [WorkerImageAdminCandidate]] = [:]
     for key in container.allKeys where !known.contains(key.stringValue) {
-      if let files = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: key) {
+      if let files = try? container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: key) {
         extras[key.stringValue] = files
       }
     }
@@ -150,6 +195,10 @@ public struct WorkerImageAdminActionResponse: Sendable, Codable {
   public let picked: [String: String]?
   public let error: String?
   public let hint: String?
+  /// `upload`: where the worker now serves the file.
+  public let url: String?
+  /// `keys`: the sources that have a key now.
+  public let configured: [String]?
 }
 
 /// POST routes on the TMDB proxy (`/admin/…`). Without a valid `Authorization: Bearer`
@@ -190,13 +239,17 @@ public struct WorkerImageAdminClient: Sendable {
     return try await post(path: "admin/kinopub/\(kinopubID)/refresh", query: query)
   }
 
+  /// `sources`: also fanart.tv, TheTVDB, tvoe, Kinopoisk, Wikidata and uploads, each
+  /// file with its `source`; a title TMDB does not know then still answers.
   public func catalog(
     kinopubID: Int,
     kind: WorkerImageAdminKind,
-    imdb: String?
+    imdb: String?,
+    sources: Bool = false
   ) async throws -> WorkerImageAdminCatalog {
     var query = [URLQueryItem(name: "kind", value: kind.rawValue)]
     if let imdb, !imdb.isEmpty { query.append(URLQueryItem(name: "imdb", value: imdb)) }
+    if sources { query.append(URLQueryItem(name: "sources", value: "1")) }
     let data = try await postData(path: "admin/kinopub/\(kinopubID)/images", query: query)
     return try JSONDecoder().decode(WorkerImageAdminCatalog.self, from: data)
   }
@@ -232,6 +285,31 @@ public struct WorkerImageAdminClient: Sendable {
     if let height, height > 0 { body["\(kind.rawValue)_height"] = height }
     let data = try JSONSerialization.data(withJSONObject: body)
     return try await post(path: "admin/kinopub/\(kinopubID)/pick", body: data)
+  }
+
+  /// `POST /admin/kinopub/{id}/upload`: stores the bytes in the worker (KV) and pins
+  /// them like `pick`. PNG, JPEG or WebP, up to 20 MB.
+  public func upload(kinopubID: Int,
+                     kind: WorkerImageAdminKind,
+                     data: Data,
+                     contentType: String,
+                     language: WorkerArtworkLanguageTag?,
+                     width: Int?,
+                     height: Int?) async throws -> WorkerImageAdminActionResponse {
+    var query = [URLQueryItem(name: "kind", value: kind.rawValue)]
+    if let language, language != .und { query.append(URLQueryItem(name: "lang", value: language.rawValue)) }
+    if let width, width > 0 { query.append(URLQueryItem(name: "width", value: String(width))) }
+    if let height, height > 0 { query.append(URLQueryItem(name: "height", value: String(height))) }
+    let response = try await postData(path: "admin/kinopub/\(kinopubID)/upload", query: query,
+                                      body: data, contentType: contentType)
+    return try JSONDecoder().decode(WorkerImageAdminActionResponse.self, from: response)
+  }
+
+  /// `POST /admin/keys`: saves source API keys in the worker. A `nil` key is left as
+  /// it is, an empty one removed. Answers which sources have a key.
+  public func saveSourceKeys(_ keys: [String: String]) async throws -> [String] {
+    let data = try JSONSerialization.data(withJSONObject: keys)
+    return try await post(path: "admin/keys", body: data).configured ?? []
   }
 
   /// What the worker stores for the title now. A public read, no token needed.
@@ -291,7 +369,8 @@ public struct WorkerImageAdminClient: Sendable {
   private func postData(
     path: String,
     query: [URLQueryItem] = [],
-    body: Data? = nil
+    body: Data? = nil,
+    contentType: String = "application/json"
   ) async throws -> Data {
     let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
     guard var components = URLComponents(
@@ -309,7 +388,7 @@ public struct WorkerImageAdminClient: Sendable {
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     if let body {
       request.httpBody = body
-      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      request.setValue(contentType, forHTTPHeaderField: "Content-Type")
     }
 
     let activity = NetworkActivity.begin(request)

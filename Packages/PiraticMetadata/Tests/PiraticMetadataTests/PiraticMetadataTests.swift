@@ -442,6 +442,22 @@ final class WorkerImageAdminCatalogDecodingTests: XCTestCase {
     let catalog = try JSONDecoder().decode(WorkerImageAdminCatalog.self, from: Data(json.utf8))
     XCTAssertEqual(catalog.extra["de"]?.count, 1)
   }
+
+  func testDecodesSourcesWithoutTakingThemForABucket() throws {
+    let json = """
+    {"ok":true,"id":"7","kind":"poster","tmdb":null,"ru":[{"url":"https://assets.fanart.tv/fanart/a.jpg",\
+    "lang":"ru","source":"fanart","preview":"https://assets.fanart.tv/preview/a.jpg","votes":4}],"en":[],"und":[],\
+    "sources":[{"id":"tmdb","count":0,"status":"no_id"},{"id":"fanart","count":1,"status":"ok"},\
+    {"id":"tvdb","count":0,"status":"no_key"}]}
+    """
+    let catalog = try JSONDecoder().decode(WorkerImageAdminCatalog.self, from: Data(json.utf8))
+    XCTAssertNil(catalog.tmdb)
+    XCTAssertEqual(catalog.ru.first?.source, "fanart")
+    XCTAssertEqual(catalog.ru.first?.preview, "https://assets.fanart.tv/preview/a.jpg")
+    XCTAssertEqual(catalog.sources.map(\.id), ["tmdb", "fanart", "tvdb"])
+    XCTAssertEqual(catalog.sources.filter(\.needsKey).map(\.id), ["tvdb"])
+    XCTAssertTrue(catalog.extra.isEmpty)
+  }
 }
 
 final class TitleCardMappingTests: XCTestCase {

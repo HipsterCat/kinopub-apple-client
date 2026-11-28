@@ -1417,6 +1417,9 @@ function artworkCacheKey(origin, path, params) {
 async function titleArtworkOrigin(asset, workerOrigin, cache, ctx) {
   const origin = durableOrigin(asset);
   if (!origin) return null;
+  // Our own upload: wsrv.nl reads it from the public URL; a HEAD from here would be
+  // the Worker calling itself.
+  if (asset.source === "upload") return origin;
   const mirrors = (asset.source === "kinopub" && kinopubArtworkOrigins(origin, KINOPUB_POSTER_PATH)) || [origin];
   const key = artworkCacheKey(workerOrigin, "origin", { origin });
   const hit = await cache?.match(key);
