@@ -251,6 +251,15 @@ xcodebuild -scheme Piratic -destination 'platform=tvOS Simulator,name=Apple TV' 
   `-PIRATICLibraryFixture YES`, `-PIRATICTVChannelsFixture YES`, `-PIRATICFixtureInTabs YES`. A
   live UI run can rotate the token and kill the dev session. Run tvOS checks on both simulator
   runtimes, 27.2 and 26.5 — they differ.
+- **Scratch output is yours to clean up; the disk is shared.** Per-thread `-derivedDataPath`
+  dirs (1–3 GB each per platform), `.xcresult`, `.trace`, recordings and screenshot dumps filled
+  `/private/tmp` to 59 GB by 2026-11-28. Reuse the default DerivedData (or one fixed
+  `/tmp/kp-dd-<platform>` shared by all threads) instead of a fresh dir per check; write
+  xcresults, traces, logs and shots into your session scratchpad, not bare `/tmp`; when you
+  hand over, delete what you created and say so. Instruments/xctrace stage multi-GB `*.ktrace`
+  in `$TMPDIR` and a `path_manager/xrtmp__<pid>` copy in `$TMPDIR/../C/com.apple.dt.Instruments*`
+  for as long as the recording or export process lives — quit Instruments and let `xctrace
+  export` finish (or kill it) when done.
 - The simulator window lives in Device Hub; arrows + Return are the D-pad, Escape is **not** Menu.
 - Focus bugs do not show in previews and a screenshot shows no animation — say "not verified on
   device" when it was not.

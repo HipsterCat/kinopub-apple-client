@@ -199,6 +199,11 @@ xcrun xctrace export --input /tmp/kinopub-hitches.trace --xpath \
 
 Prefer reading the `.trace` in Instruments; the XML is a fallback.
 
+Agents: put `--output` in your session scratchpad rather than `/tmp`, and delete the
+`.trace`/`.xml` once the numbers are pasted. A full-app trace is 0.2–1 GB, and while Instruments
+or `xctrace export` is running it also holds multi-GB `*.ktrace` and `path_manager` copies under
+`$TMPDIR` — quit it when done (see *Build, run, verify* in [AGENTS.md](../../AGENTS.md)).
+
 ## 6. XCTest UI performance tests
 
 `PiraticUITests/PerformanceUITests.swift`.
