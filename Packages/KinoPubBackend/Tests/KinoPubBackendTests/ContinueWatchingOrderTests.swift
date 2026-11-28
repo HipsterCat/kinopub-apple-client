@@ -139,6 +139,37 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked([recent]), [1])
   }
 
+  /// Home on 2026-11-28: Tulsa King, Dig, Yaga, Blade Runner 2099 all had new episodes
+  /// out over the last days, and Yaga and Blade Runner were played on this device today.
+  /// The plays lead, newest first, ahead of releases that are older than them.
+  func testFreshLocalPlaysOutrankOlderSubscriptionReleases() {
+    let tulsa = ContinueWatchingOrder.Candidate(item: item(1, new: 4), isSubscribed: true,
+                                                updatedAt: daysAgo(1))
+    let dig = ContinueWatchingOrder.Candidate(item: item(2, new: 1), isSubscribed: true,
+                                              updatedAt: daysAgo(1.2))
+    let yaga = ContinueWatchingOrder.Candidate(item: item(3, new: 2), lastSeen: daysAgo(0.1),
+                                               position: 1_360, isSubscribed: true,
+                                               updatedAt: daysAgo(1.3))
+    let bladeRunner = ContinueWatchingOrder.Candidate(item: item(4, new: 1), lastSeen: daysAgo(0.2),
+                                                      position: 2_400, isSubscribed: true,
+                                                      updatedAt: daysAgo(2))
+
+    XCTAssertEqual(ranked([tulsa, dig, yaga, bladeRunner]), [3, 4, 1, 2])
+  }
+
+  func testQualifyingPlayDateFollowsTheWindowAndTheSampleRule() {
+    XCTAssertEqual(ContinueWatchingOrder.qualifyingPlayDate(daysAgo(1), position: 30, rules: rules, now: now),
+                   daysAgo(1))
+    XCTAssertNil(ContinueWatchingOrder.qualifyingPlayDate(daysAgo(15), position: 30, rules: rules, now: now),
+                 "a two-week-old sample does not count")
+    XCTAssertEqual(ContinueWatchingOrder.qualifyingPlayDate(daysAgo(15), position: 1_200, rules: rules, now: now),
+                   daysAgo(15))
+    XCTAssertNil(ContinueWatchingOrder.qualifyingPlayDate(daysAgo(Double(rules.weeks * 7 + 1)), position: 1_200,
+                                                          rules: rules, now: now),
+                 "outside the window")
+    XCTAssertNil(ContinueWatchingOrder.qualifyingPlayDate(nil, position: nil, rules: rules, now: now))
+  }
+
   // MARK: - Bookmarks
 
   func testBookmarksMixInByDateAdded() {

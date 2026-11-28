@@ -905,6 +905,13 @@ class HomeCatalog: ObservableObject {
                                            localProgressStore: LocalWatchProgressStore) -> [MediaCard] {
     let stored = store.cards(.continueWatching)
     let entries = localProgressStore.allEntries()
+    // Every play this device made, payload or not, under the fetch's own rules — a title
+    // already on the row ranks by it no matter how old the snapshot is.
+    let rules = ContinueWatchingPreferences.rules
+    let now = Date()
+    let playedAt = localProgressStore.lastPlayedByItemID().compactMapValues { record in
+      ContinueWatchingOrder.qualifyingPlayDate(record.updatedAt, position: record.position, rules: rules, now: now)
+    }
     let locals = entries.map { entry in
       ContinueWatchingLocalOverlay.Local(
         itemID: entry.id,
@@ -930,8 +937,11 @@ class HomeCatalog: ObservableObject {
                                           progress: $0.progress)
       },
       locals: locals,
-      snapshotTakenAt: store.fetchedAt(.continueWatching)
+      snapshotTakenAt: store.fetchedAt(.continueWatching),
+      playedAt: playedAt
     )
+    Self.logOverlay(plan: plan, stored: stored, playedAt: playedAt,
+                    snapshotTakenAt: store.fetchedAt(.continueWatching))
     let storedByID = Dictionary(stored.map { ($0.itemID, $0) }, uniquingKeysWith: { _, last in last })
     let entryByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
     return Array(plan.order.compactMap { id -> MediaCard? in
@@ -1202,7 +1212,10 @@ class HomeCatalog: ObservableObject {
     let unfinishedIDs = Set(movies.map(\.id) + serials.map(\.id))
     let localEntries = localProgressStore.allEntries()
     let localByID = Dictionary(uniqueKeysWithValues: localEntries.map { ($0.id, $0) })
-    let lastSeen = localByID.mapValues { Date(timeIntervalSince1970: $0.updatedAt) }
+    // Dates and play heads straight from the resume points: a play counts for the order
+    // even when the title's payload is missing (it just cannot draw a card from it).
+    let plays = localProgressStore.lastPlayedByItemID()
+    let lastSeen = plays.mapValues(\.updatedAt)
     let cached = store.cards(.continueWatching)
     let cachedByID = Dictionary(cached.map { ($0.itemID, $0) }, uniquingKeysWith: { _, last in last })
 
@@ -1241,7 +1254,7 @@ class HomeCatalog: ObservableObject {
     // Refresh the details payload when the server's counts or local viewing activity change.
     func version(_ item: WatchingItem) -> String {
       [item.watched, item.total, item.new,
-       localByID[item.id].map { Int($0.updatedAt) }]
+       plays[item.id].map { Int($0.updatedAt.timeIntervalSince1970) }]
         .map { $0.map(String.init) ?? "-" }.joined(separator: "/")
     }
 
@@ -1257,7 +1270,7 @@ class HomeCatalog: ObservableObject {
       ContinueWatchingOrder.Candidate(
         item: item,
         lastSeen: lastSeen[item.id],
-        position: localByID[item.id]?.position,
+        position: plays[item.id]?.position,
         isSubscribed: watchlistIDs.contains(item.id),
         updatedAt: details[item.id].flatMap { $0.updatedAt > 0 ? Date(timeIntervalSince1970: TimeInterval($0.updatedAt)) : nil },
         bookmarkedAt: bookmarkedAt[item.id],
@@ -1269,6 +1282,7 @@ class HomeCatalog: ObservableObject {
     // such titles at the top left the row at 11 (2026-10-25). Payloads are asked for a
     // batch at a time, so a full row costs no more than it did.
     let ranked = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: pool.count)
+    Self.logRanking(ranked, plays: plays)
     var cards: [MediaCard] = []
     var next = 0
     var rounds = 0
@@ -1296,6 +1310,47 @@ class HomeCatalog: ObservableObject {
     }
     return Array(cards.prefix(cap))
   }
+
+  /// One line per fetch: why each title ranks where it does, and whether its play date is
+  /// this device's. Public, so a pasted Pulse / Console log answers "why is this first".
+  private static func logRanking(_ ranked: [ContinueWatchingOrder.Ranked], plays: [Int: WatchRecordValue]) {
+    let entries = ranked.map { entry -> String in
+      let reason: String
+      switch entry.reason {
+      case .watched: reason = "watched"
+      case .released: reason = "released"
+      case .bookmarked: reason = "bookmarked"
+      case .unfinished: reason = "unfinished"
+      }
+      let activity = entry.activityDate == .distantPast ? "-" : String(Int(entry.activityDate.timeIntervalSince1970))
+      let local = plays[entry.item.id].map { String(Int($0.updatedAt.timeIntervalSince1970)) } ?? "-"
+      return "\(entry.item.id):\(reason)@\(activity) local=\(local)"
+    }.joined(separator: " ")
+    Logger.app.info("ContinueWatching fetch: \(entries, privacy: .public)")
+  }
+
+  /// One line per read-time overlay: the snapshot's age, this device's play dates for the
+  /// titles on the row, and the order that comes out.
+  private static func logOverlay(plan: ContinueWatchingLocalOverlay.Plan,
+                                 stored: [MediaCard],
+                                 playedAt: [Int: Date],
+                                 snapshotTakenAt: Date?) {
+    let onRow = Set(stored.map(\.itemID))
+    let plays = playedAt.filter { onRow.contains($0.key) }
+      .sorted { $0.value > $1.value }
+      .map { "\($0.key)@\(Int($0.value.timeIntervalSince1970))" }
+      .joined(separator: " ")
+    let snapshot = snapshotTakenAt.map { String(Int($0.timeIntervalSince1970)) } ?? "-"
+    let order = plan.order.map(String.init).joined(separator: ",")
+    let inserted = plan.insertIDs.map(String.init).joined(separator: ",")
+    let line = "snapshot=\(snapshot) plays=[\(plays)] order=[\(order)] inserted=[\(inserted)]"
+    // The overlay runs on every assemble and every player tick: log a change, not a repeat.
+    guard line != lastOverlayLog else { return }
+    lastOverlayLog = line
+    Logger.app.info("ContinueWatching overlay: \(line, privacy: .public)")
+  }
+
+  private static var lastOverlayLog = ""
 
   /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.
   private static let spareCards = 4

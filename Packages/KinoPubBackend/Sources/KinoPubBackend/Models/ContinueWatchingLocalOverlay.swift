@@ -98,11 +98,20 @@ public enum ContinueWatchingLocalOverlay {
     }
   }
 
-  /// - Parameter snapshotTakenAt: when the cached row was fetched. Only a play after
-  ///   it moves a title to the front: the fetch already ranked every older one, and
-  ///   lifting every title ever played on this device put weeks-old samples above new
-  ///   episodes (Sasha, 2026-10-25). Nil lifts every local title.
-  public static func plan(cards: [Card], locals: [Local], snapshotTakenAt: Date? = nil) -> Plan {
+  /// - Parameters:
+  ///   - snapshotTakenAt: when the cached row was fetched. Only a play after it moves a
+  ///     ``Local`` to the front: lifting every title ever played on this device put
+  ///     weeks-old samples above new episodes (Sasha, 2026-10-25). Nil lifts every local title.
+  ///   - playedAt: this device's newest qualifying play per title, read from the resume
+  ///     points themselves (no title payload needed) and already past the
+  ///     ``ContinueWatchingOrder/qualifyingPlayDate(_:position:rules:now:)`` rules. A card
+  ///     already on the row ranks by the later of its saved date and this, whatever the
+  ///     snapshot's age: a refetch that lost the play date can never push a title just
+  ///     watched below the ones it was ahead of. Titles not on the row are not touched.
+  public static func plan(cards: [Card],
+                          locals: [Local],
+                          snapshotTakenAt: Date? = nil,
+                          playedAt: [Int: Date] = [:]) -> Plan {
     let cardByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.itemID, $0) })
     let recents = locals.sorted { $0.updatedAt > $1.updatedAt }
 
@@ -164,8 +173,11 @@ public enum ContinueWatchingLocalOverlay {
     let liftedAfter = snapshotTakenAt?.timeIntervalSince1970 ?? -.infinity
     for local in recents where local.updatedAt > liftedAfter {
       let id = local.itemID
-      let playedAt = Date(timeIntervalSince1970: local.updatedAt)
-      activityDates[id] = max(activityDates[id] ?? .distantPast, playedAt)
+      let localPlay = Date(timeIntervalSince1970: local.updatedAt)
+      activityDates[id] = max(activityDates[id] ?? .distantPast, localPlay)
+    }
+    for (id, date) in playedAt where cardByID[id] != nil {
+      activityDates[id] = max(activityDates[id] ?? .distantPast, date)
     }
     let order = (cards.map(\.itemID) + insertIDs).filter { !hidden.contains($0) }.sorted {
       (activityDates[$0] ?? .distantPast) > (activityDates[$1] ?? .distantPast)
