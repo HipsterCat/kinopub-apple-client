@@ -37,9 +37,20 @@ public struct MediaCardsListView: View {
   static var cardCaption: MediaCardCaption { .always }
 #endif
 
-  /// Same column count as `ContentItemsListView` / Movies — landscape tiles are just shorter.
+  /// Poster cards: the same columns as `ContentItemsListView` / Movies. A grid of
+  /// landscape stills (Continue Watching, History) takes the landscape shelf's columns
+  /// instead, so a card here is the size of the same card on the Home rail: two
+  /// across on an iPhone, not three postage stamps (Sasha, 2026-11-28).
   private var metrics: ShelfMetrics {
-    .posters(width: containerWidth, typeSize: dynamicTypeSize)
+    isLandscapeGrid
+      ? .landscape(width: containerWidth, typeSize: dynamicTypeSize)
+      : .posters(width: containerWidth, typeSize: dynamicTypeSize)
+  }
+
+  /// First card decides, as on `MediaPosterShelf`: a list is all stills or all posters,
+  /// and `metrics` is read per cell, so no walk over the whole list here.
+  private var isLandscapeGrid: Bool {
+    (cards.first ?? sections.first?.cards.first)?.isLandscape == true
   }
 
   private var gridColumns: [GridItem] {

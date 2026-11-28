@@ -664,7 +664,8 @@ private struct TitleImageTile<Caption: View>: View {
 private struct TitleImagePickerToolbarLabelStyle: LabelStyle {
   @Environment(\.horizontalSizeClass) private var sizeClass
 
-  func makeBody(configuration: Configuration) -> some View {
+  @ViewBuilder
+  func makeBody(configuration: LabelStyleConfiguration) -> some View {
     if sizeClass == .compact {
       Label(configuration).labelStyle(.iconOnly)
     } else {
