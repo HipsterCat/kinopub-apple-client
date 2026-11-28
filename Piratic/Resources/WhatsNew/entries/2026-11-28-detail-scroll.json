@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-28",
+  "ru": ["На iPhone, iPad и Mac нижние разделы страницы фильма или сериала появляются по мере прокрутки. На Mac при прокрутке фонового трейлера возвращается обложка."],
+  "en": ["Movie and series detail pages load lower sections as you scroll on iPhone, iPad and Mac. On Mac, scrolling past the background trailer brings back the artwork."]
+}
