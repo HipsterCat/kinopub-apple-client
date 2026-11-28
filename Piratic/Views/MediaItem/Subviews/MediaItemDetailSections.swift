@@ -2436,32 +2436,20 @@ struct MediaItemRatingSourceRows: View {
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
         .frame(width: Self.markColumn, alignment: .leading)
 
-      // The name is read first: it keeps its width, and a long status («Пока недостаточно
-      // оценок») wraps under itself instead of cutting both to «Tomato…» (Sasha, 2026-11-28).
-      HStack(spacing: 6) {
-        Text(score.id)
-          .foregroundStyle(.secondary)
-        if score.url != nil {
-          Image(systemName: "arrow.up.right")
-            .foregroundStyle(.tertiary)
+      // The name and the status on one line when they fit; otherwise the status goes under
+      // the name, whole — never «Tomato… Пока недост…» (Sasha, 2026-11-28).
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 12) {
+          name(score).fixedSize()
+          Spacer(minLength: 12)
+          status(score)?.fixedSize()
         }
-      }
-      .layoutPriority(1)
-
-      Spacer(minLength: 12)
-
-      Group {
-        if score.isPlaceholder {
-          Text("MediaItem_NoRatings")
-        } else if let votes = score.votesGrouped {
-          Text(votes)
-        } else {
-          Text("MediaItem_NotEnoughRatings")
+        VStack(alignment: .leading, spacing: 2) {
+          name(score)
+          status(score)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .foregroundStyle(.secondary)
-      .multilineTextAlignment(.trailing)
-      .lineLimit(2)
     }
       .font(TypeScale.detailBody)
       .foregroundStyle(Color.Piratic.text)
@@ -2480,6 +2468,34 @@ struct MediaItemRatingSourceRows: View {
     } else {
       content
     }
+  }
+
+  private func name(_ score: RatingSources.Score) -> some View {
+    HStack(spacing: 6) {
+      Text(score.id)
+        .foregroundStyle(.secondary)
+      if score.url != nil {
+        Image(systemName: "arrow.up.right")
+          .foregroundStyle(.tertiary)
+      }
+    }
+  }
+
+  /// The turnout; «Нет оценок» / «Пока недостаточно оценок» only when there is no score.
+  /// A score that came without its count (Metacritic, Rotten Tomatoes) says nothing here:
+  /// «74 — not enough ratings» read as a contradiction (Sasha, 2026-11-28).
+  private func status(_ score: RatingSources.Score) -> Text? {
+    let text: Text?
+    if score.isPlaceholder {
+      text = Text("MediaItem_NoRatings")
+    } else if let votes = score.votesGrouped {
+      text = Text(votes)
+    } else if score.value == nil {
+      text = Text("MediaItem_NotEnoughRatings")
+    } else {
+      text = nil
+    }
+    return text?.foregroundStyle(.secondary)
   }
 
   /// Same columns as the card's table, one step wider — the page has the room, and
