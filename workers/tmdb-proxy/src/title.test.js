@@ -1425,37 +1425,162 @@ test("320px and 600px render the same Russian poster even when one wsrv resize f
   }
 });
 
-test("a textless TMDB poster comes before an empty Kinopoisk one in Russian", async () => {
-  const restore = globalThis.fetch;
-  const fetched = [];
-  globalThis.fetch = async (target) => {
+function recordingFetch(fetched, { dead = [] } = {}) {
+  return async (target, init) => {
     const url = String(target);
     fetched.push(url);
     if (url.includes("kinopoiskapiunofficial")) {
-      return new Response(null, { status: 302, headers: { location: "https://st.kp.yandex.net/images/no-poster.gif" } });
+      // Kinopoisk's "no poster": the redirect chain ends on its grey GIF.
+      const response = new Response("gif", { status: 200, headers: { "content-type": "image/gif" } });
+      Object.defineProperty(response, "url", { value: "https://st.kp.yandex.net/images/no-poster.gif" });
+      return response;
     }
-    return new Response("img", { status: 200, headers: { "content-type": "image/webp" } });
+    if (dead.some((part) => url.includes(part))) return new Response("down", { status: 502 });
+    return new Response(init?.method === "HEAD" ? null : "img", { status: 200, headers: { "content-type": "image/webp" } });
   };
-  try {
-    const env = kvEnv({
-      "title:kinopub:129379": {
-        ids: { kinopoisk: { value: "77777001" } },
-        artwork: {
-          poster: [
-            { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/en.jpg", lang: "en", width: 2000, height: 3000 },
-            { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/textless.jpg", lang: null, width: 2000, height: 3000 },
-            { source: "kinopoisk", url: "https://kinopoiskapiunofficial.tech/images/posters/kp/77777001.jpg", lang: "ru" },
-          ],
+}
+
+function recordingD1(statements) {
+  const rows = [];
+  return {
+    rows,
+    prepare(sql) {
+      return {
+        bind(...args) {
+          return {
+            sql, args,
+            async first() {
+              statements.push({ sql, args });
+              return /^SELECT 1/.test(sql) && rows.some((r) => r.url === args[2] && r.kind === args[1]) ? { 1: 1 } : null;
+            },
+            async all() { return { results: [] }; },
+          };
         },
-      },
-    });
+      };
+    },
+    async batch(list) {
+      for (const st of list) {
+        statements.push({ sql: st.sql, args: st.args });
+        if (/^INSERT/.test(st.sql)) {
+          const [kinopub_id, kind, lang, url, source] = st.args;
+          rows.push({ kinopub_id, kind, lang, url, source });
+        }
+      }
+    },
+  };
+}
+
+const TMDB_POSTERS = [
+  { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/en.jpg", lang: "en", width: 2000, height: 3000 },
+  { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/textless.jpg", lang: null, width: 2000, height: 3000 },
+  { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/ko.jpg", lang: "ko", width: 2000, height: 3000 },
+];
+
+test("a Russian poster walks ru, then en, then the textless one (Sasha 2026-11-28)", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  // Kinopoisk has only its grey «K» and kino.pub's CDN is down: the next step is English.
+  globalThis.fetch = recordingFetch(fetched, { dead: ["/poster/item/"] });
+  try {
+    const env = kvEnv({ "title:kinopub:129379": { ids: { kinopoisk: { value: "77777001" } }, artwork: { poster: TMDB_POSTERS } } });
     const response = await handleImage(
       new Request("https://example.test/img/poster/by/kinopub/129379/ru/poster.jpg?w=300&kinopoisk=77777001"),
       env, ctxSpy(),
     );
     assert.equal(response.status, 200);
-    assert.ok(fetched[0].includes("textless.jpg"), fetched[0]);
-    assert.ok(!fetched.some((u) => u.includes("kinopoisk")), fetched.join("\n"));
+    const served = fetched.filter((u) => u.includes("image.tmdb.org"));
+    assert.ok(served[0].includes("en.jpg"), served.join("\n"));
+    assert.ok(!fetched.some((u) => u.includes("textless.jpg") || u.includes("ko.jpg")), fetched.join("\n"));
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("an English poster walks en, then ru, then the textless one", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = recordingFetch(fetched);
+  try {
+    const env = kvEnv({ "title:kinopub:5": { artwork: { poster: [
+      { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/ru.jpg", lang: "ru", width: 2000, height: 3000 },
+      ...TMDB_POSTERS.filter((a) => a.lang !== "en"),
+    ] } } });
+    const response = await handleImage(
+      new Request("https://example.test/img/poster/by/kinopub/5/en/poster.jpg?w=300&lang=en"), env, ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.ok(fetched.find((u) => u.includes("image.tmdb.org")).includes("ru.jpg"), fetched.join("\n"));
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("only the textless poster is left after ru and en", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = recordingFetch(fetched, { dead: ["/poster/item/"] });
+  try {
+    const env = kvEnv({ "title:kinopub:6": { artwork: { poster: TMDB_POSTERS.filter((a) => a.lang !== "en") } } });
+    const response = await handleImage(
+      new Request("https://example.test/img/poster/by/kinopub/6/ru/poster.jpg?w=300"), env, ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.ok(fetched.find((u) => u.includes("image.tmdb.org")).includes("textless.jpg"), fetched.join("\n"));
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("a wide card with no Russian cover takes the English one before the textless backdrop", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = recordingFetch(fetched);
+  try {
+    const env = kvEnv({ "title:kinopub:7": { artwork: { backdrop: [
+      { source: "tmdb", url: "https://image.tmdb.org/t/p/w1280/plain.jpg", lang: null, width: 3840, height: 2160 },
+      { source: "tmdb", url: "https://image.tmdb.org/t/p/w1280/cover-en.jpg", lang: "en", width: 3840, height: 2160 },
+    ] } } });
+    const response = await handleImage(
+      new Request("https://example.test/img/cover/by/kinopub/7/ru/cover.jpg?w=780&wide=1"), env, ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.ok(fetched.find((u) => u.includes("image.tmdb.org")).includes("cover-en.jpg"), fetched.join("\n"));
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
+
+test("the poster a request was served is kept in D1, once, replacing that source's older pick", async () => {
+  const restore = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = recordingFetch(fetched);
+  try {
+    const statements = [];
+    const db = recordingD1(statements);
+    db.rows.push({ kinopub_id: 8, kind: "poster", lang: "ru", url: "https://image.tmdb.org/t/p/original/old-ru.jpg", source: "tmdb" });
+    const env = {
+      ...kvEnv({ "title:kinopub:8": { artwork: { poster: [
+        { source: "tmdb", url: "https://image.tmdb.org/t/p/w780/new-ru.jpg", lang: "ru", width: 2000, height: 3000 },
+      ] } } }),
+      CATALOG: db,
+    };
+    const ctx = ctxSpy();
+    const response = await handleImage(
+      new Request("https://example.test/img/poster/by/kinopub/8/ru/poster.jpg?w=300"), env, ctx,
+    );
+    assert.equal(response.status, 200);
+    await Promise.all(ctx.pending);
+    const insert = statements.find((st) => /^INSERT INTO c2_image/.test(st.sql));
+    assert.deepEqual(insert.args.slice(0, 5),
+      [8, "poster", "ru", "https://image.tmdb.org/t/p/original/new-ru.jpg", "tmdb"]);
+    const clear = statements.find((st) => /^DELETE FROM c2_image/.test(st.sql));
+    assert.deepEqual(clear.args, [8, "poster", "ru", "tmdb"]);
+    // A second request for the same file writes nothing.
+    const before = statements.length;
+    const again = ctxSpy();
+    await handleImage(new Request("https://example.test/img/poster/by/kinopub/8/ru/poster.jpg?w=454"), env, again);
+    await Promise.all(again.pending);
+    assert.equal(statements.filter((st, i) => i >= before && !/^SELECT/.test(st.sql)).length, 0);
   } finally {
     globalThis.fetch = restore;
   }
