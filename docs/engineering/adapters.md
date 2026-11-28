@@ -113,3 +113,15 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   loader + root remount used by language change and launch-time feature flags
   (`FeatureFlag.applyPending`). Re-probe if a future SDK exposes a public
   process-locale refresh.
+- **`AppLanguage.locale(for:)` hands SwiftUI `Locale.current`** whenever it already speaks the
+  chosen language. Any other `\.locale` (a pinned `ru_RU` on a `ru_US` Mac was enough) sends
+  every `Text(LocalizedStringKey)` through `CFBundle`'s explicit-localization lookup, which
+  re-reads and re-parses the whole `Localizable.strings` per label, uncached: ~1.4 ms a label
+  in a `swiftc` probe, 14% of the main thread scrolling a title page (Instruments,
+  2026-11-28, macOS 27.3). Right after an in-app switch the slow path is back until the
+  next launch. Re-probe on the next SDK.
+- **`WindowSizeIndependentOfContent`** (macOS library window) — a scene's
+  `windowResizability` makes the window's `NSHostingView` ask the content for its min / max
+  size on every layout pass; `.frame(minWidth:minHeight:)` passed that question down to the
+  whole page, scroll content included (~20% of the main thread scrolling a title page,
+  2026-11-28). The layout answers with the fixed minimum itself. Re-probe on the next SDK.

@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-28",
+  "ru": ["Страница фильма или сериала прокручивается плавнее на Mac, iPhone и iPad: подписи больше не перечитывают таблицу перевода на каждом кадре, а окно на Mac не пересчитывает всю страницу ради своего минимального размера."],
+  "en": ["Movie and series pages scroll more smoothly on Mac, iPhone and iPad: labels no longer reload the translation table on every frame, and the Mac window no longer measures the whole page for its minimum size."]
+}
