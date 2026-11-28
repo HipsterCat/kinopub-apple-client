@@ -98,19 +98,57 @@ struct MediaItemRatingsAndReviewsPage: View {
       if !audience.isEmpty {
         MediaItemRatingSourceRows(scores: audience)
       }
-      if let trakt = traktScore, !payload.traktDistribution.isEmpty {
-        TraktDistributionCard(score: trakt, distribution: payload.traktDistribution)
+      // One card per source, in the list's order above — by turnout (Sasha, 2026-11-28).
+      ForEach(sourceCards(order: audience.map(\.logo)), id: \.self) { card in
+        sourceCard(card)
       }
+    }
+  }
+
+  /// The sources with a card of their own on the viewers' side.
+  private enum SourceCard: Hashable {
+    case trakt, douban, myShows
+
+    var logo: MediaScoreLogo.Source {
+      switch self {
+      case .trakt: .trakt
+      case .douban: .douban
+      case .myShows: .myShows
+      }
+    }
+  }
+
+  private func sourceCards(order: [MediaScoreLogo.Source]) -> [SourceCard] {
+    var cards: [SourceCard] = []
+    if traktScore != nil && (!payload.traktDistribution.isEmpty || payload.audienceStats != nil) {
+      cards.append(.trakt)
+    }
+    if payload.externalRatings.contains(where: { $0.kind == .douban }) { cards.append(.douban) }
+    if payload.externalRatings.contains(where: { $0.kind == .myShows }) { cards.append(.myShows) }
+    func rank(_ card: SourceCard) -> Int { order.firstIndex(of: card.logo) ?? order.count }
+    return cards.enumerated()
+      .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
+      .map(\.element)
+  }
+
+  @ViewBuilder
+  private func sourceCard(_ card: SourceCard) -> some View {
+    switch card {
+    case .trakt:
+      if let trakt = traktScore {
+        TraktDistributionCard(score: trakt,
+                              distribution: payload.traktDistribution,
+                              stats: payload.audienceStats,
+                              afterCredits: payload.hasAfterCreditsScene == true,
+                              duringCredits: payload.hasDuringCreditsScene == true)
+      }
+    case .douban:
       if let douban = payload.externalRatings.first(where: { $0.kind == .douban }) {
         DoubanStatsCard(score: douban, stats: payload.doubanStats)
       }
+    case .myShows:
       if let myShows = payload.externalRatings.first(where: { $0.kind == .myShows }) {
         MyShowsStatsCard(score: myShows, stats: payload.myShowsStats)
-      }
-      if let stats = payload.audienceStats {
-        AudienceStatsCard(stats: stats,
-                          afterCredits: payload.hasAfterCreditsScene == true,
-                          duringCredits: payload.hasDuringCreditsScene == true)
       }
     }
   }
@@ -151,8 +189,12 @@ struct MediaItemRatingsAndReviewsPage: View {
         }
         // Trakt's side of the title: how its votes fall, what its users do with it, and
         // what its reviews praise and fault (Sasha, 2026-11-09).
-        if let trakt = traktScore, !payload.traktDistribution.isEmpty {
-          TraktDistributionCard(score: trakt, distribution: payload.traktDistribution)
+        if let trakt = traktScore, !payload.traktDistribution.isEmpty || payload.audienceStats != nil {
+          TraktDistributionCard(score: trakt,
+                                distribution: payload.traktDistribution,
+                                stats: payload.audienceStats,
+                                afterCredits: payload.hasAfterCreditsScene == true,
+                                duringCredits: payload.hasDuringCreditsScene == true)
         }
         if let douban = payload.externalRatings.first(where: { $0.kind == .douban }) {
           DoubanStatsCard(score: douban, stats: payload.doubanStats)
@@ -160,7 +202,7 @@ struct MediaItemRatingsAndReviewsPage: View {
         if let myShows = payload.externalRatings.first(where: { $0.kind == .myShows }) {
           MyShowsStatsCard(score: myShows, stats: payload.myShowsStats)
         }
-        if let stats = payload.audienceStats {
+        if traktScore == nil, let stats = payload.audienceStats {
           AudienceStatsCard(stats: stats,
                             afterCredits: payload.hasAfterCreditsScene == true,
                             duringCredits: payload.hasDuringCreditsScene == true)
@@ -401,6 +443,11 @@ private struct MediaReviewReader: View {
 struct TraktDistributionCard: View {
   let score: ExternalRating
   let distribution: [Int: Int]
+  /// What Trakt's users did with the title, under the score as Douban's are — one card
+  /// per source (Sasha, 2026-11-28).
+  var stats: AudienceStats? = nil
+  var afterCredits = false
+  var duringCredits = false
 
   /// Trakt's ten scores folded into five bars.
   private var buckets: [Double] {
@@ -414,8 +461,12 @@ struct TraktDistributionCard: View {
     RatingDistributionCard(title: "MediaItem_TraktRatingTitle",
                            score: "\(Int((score.value * 10).rounded()))%",
                            votes: score.votes,
-                           buckets: buckets,
-                           tint: .purple)
+                           buckets: distribution.isEmpty ? [] : buckets,
+                           tint: .purple) {
+      if let stats {
+        AudienceStatsTiles(stats: stats, afterCredits: afterCredits, duringCredits: duringCredits)
+      }
+    }
   }
 
   nonisolated static func unit(_ votes: Int) -> String {
@@ -504,8 +555,9 @@ struct MyShowsStatsCard: View {
   private var counts: [(symbol: String, title: LocalizedStringKey, value: Int)] {
     guard let stats else { return [] }
     let list: [(String, LocalizedStringKey, Int)] = [
+      // Not `watchingTotal`: it is the same ~1M on every show — MyShows' own user count,
+      // not the title's (Sasha, 2026-11-28).
       ("play.circle", "MediaItem_MyShowsWatching", stats.watching),
-      ("person.2", "MediaItem_MyShowsWatchingTotal", stats.watchingTotal),
     ]
     return list.filter { $0.2 > 0 }.map { (symbol: $0.0, title: $0.1, value: $0.2) }
   }
@@ -606,8 +658,27 @@ struct DoubanStatsCard: View {
 }
 
 /// What Trakt's users did with the title: played it, watched it, listed it, loved it.
-/// And whether there is something after the credits, which Trakt's users mark.
+/// And whether there is something after the credits, which Trakt's users mark. On its own
+/// card only when Trakt sent no score; otherwise under the score (`TraktDistributionCard`).
 struct AudienceStatsCard: View {
+  let stats: AudienceStats
+  var afterCredits = false
+  var duringCredits = false
+
+  var body: some View {
+    BlockCard {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("MediaItem_TraktStatsTitle")
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(.secondary)
+        AudienceStatsTiles(stats: stats, afterCredits: afterCredits, duringCredits: duringCredits)
+      }
+    }
+  }
+}
+
+/// Trakt's counts as tiles, and the credits scene line.
+struct AudienceStatsTiles: View {
   let stats: AudienceStats
   var afterCredits = false
   var duringCredits = false
@@ -626,35 +697,30 @@ struct AudienceStatsCard: View {
   }
 
   var body: some View {
-    BlockCard {
-      VStack(alignment: .leading, spacing: 12) {
-        Text("MediaItem_TraktStatsTitle")
-          .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(.secondary)
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12, alignment: .leading)],
-                  alignment: .leading, spacing: 12) {
-          ForEach(tiles, id: \.symbol) { tile in
-            VStack(alignment: .leading, spacing: 4) {
-              Image(systemName: tile.symbol)
-                .foregroundStyle(.secondary)
-              Text(tile.title)
-                .foregroundStyle(.secondary)
-              Text(verbatim: CompactCountFormat.string(tile.value))
-                .font(TypeScale.detailBody.weight(.semibold))
-                .foregroundStyle(Color.Piratic.text)
-            }
-            .font(TypeScale.detailBody)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+    VStack(alignment: .leading, spacing: 12) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12, alignment: .leading)],
+                alignment: .leading, spacing: 12) {
+        ForEach(tiles, id: \.symbol) { tile in
+          VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: tile.symbol)
+              .foregroundStyle(.secondary)
+            Text(tile.title)
+              .foregroundStyle(.secondary)
+            Text(verbatim: CompactCountFormat.string(tile.value))
+              .font(TypeScale.detailBody.weight(.semibold))
+              .foregroundStyle(Color.Piratic.text)
           }
+          .font(TypeScale.detailBody)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .accessibilityElement(children: .combine)
         }
-        if afterCredits || duringCredits {
-          Label(afterCredits ? LocalizedStringKey("MediaItem_AfterCreditsScene")
-                             : LocalizedStringKey("MediaItem_DuringCreditsScene"),
-                systemImage: "sparkles")
-            .font(TypeScale.detailBody)
-            .foregroundStyle(Color.Piratic.text)
-        }
+      }
+      if afterCredits || duringCredits {
+        Label(afterCredits ? LocalizedStringKey("MediaItem_AfterCreditsScene")
+                           : LocalizedStringKey("MediaItem_DuringCreditsScene"),
+              systemImage: "sparkles")
+          .font(TypeScale.detailBody)
+          .foregroundStyle(Color.Piratic.text)
       }
     }
   }
@@ -673,11 +739,11 @@ struct ReviewInsightsCard: View {
           .foregroundStyle(.secondary)
         group("MediaItem_ReviewInsightsGood", symbol: "plus.circle.fill", tint: .green, points: insights.good)
         group("MediaItem_ReviewInsightsBad", symbol: "minus.circle.fill", tint: .red, points: insights.bad)
-        if insights.commentCount > 0 {
-          Text(String(format: "MediaItem_ReviewInsightsSource".localized, insights.commentCount))
-            .font(TypeScale.detailBody)
-            .foregroundStyle(.secondary)
-        }
+        // Where it comes from, without Trakt's `comment_count`: it reads 100 000 on titles
+        // nowhere near that many people watched (Sasha, 2026-11-28).
+        Text("MediaItem_ReviewInsightsSourcePlain")
+          .font(TypeScale.detailBody)
+          .foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
