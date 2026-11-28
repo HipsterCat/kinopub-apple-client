@@ -36,7 +36,7 @@ semantic component is fine; two components for one idea on one platform is a def
   through `Localizable.xcstrings`. Asana tasks are in Russian.
 - **Repo:** `Piratic/` (app), `PiraticTopShelf/` (extension),
   `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`, `workers/` (Cloudflare), `tools/`.
-- **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability` (app target); `Nuke`, `Pulse`
+- **Third-party SPM:** `KeychainAccess`, `Reachability` (app target); `Nuke`, `Pulse`
   (`PiraticUI`). See [Dependencies](#dependencies).
 
 ### Where things live

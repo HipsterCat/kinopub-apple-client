@@ -26,8 +26,6 @@ enum OpenSourceLicenses {
                       copyright: "Copyright (c) 2014 kishikawa katsumi"),
     OpenSourceLicense(name: "Nuke", url: "github.com/kean/Nuke",
                       copyright: "Copyright (c) 2015-2026 Alexander Grebenyuk"),
-    OpenSourceLicense(name: "PopupView", url: "github.com/exyte/PopupView",
-                      copyright: "Copyright (c) 2019 exyte <info@exyte.com>"),
     OpenSourceLicense(name: "Pulse", url: "github.com/kean/Pulse",
                       copyright: "Copyright (c) 2020-2024 Alexander Grebenyuk"),
     OpenSourceLicense(name: "Reachability.swift", url: "github.com/ashleymills/Reachability.swift",

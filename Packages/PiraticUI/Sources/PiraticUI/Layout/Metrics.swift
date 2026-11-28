@@ -41,6 +41,15 @@ public enum Metrics {
   public static let hudGlyphPointSize: CGFloat = 56
   public static let hudGlyphTitleSpacing: CGFloat = 16
   public static let hudContentInset: CGFloat = 28
+  /// Bottom status toast (`StatusToast`), Plozz's tvOS metrics.
+  public static let toastCornerRadius: CGFloat = 18
+  public static let toastVerticalInset: CGFloat = 16
+  public static let toastHorizontalInset: CGFloat = 24
+  public static let toastGlyphSpacing: CGFloat = 12
+  public static let toastBottomInset: CGFloat = 48
+  public static let toastScreenInset: CGFloat = 80
+  public static let toastExitOffset: CGFloat = 30
+  public static let toastContrastBorder: CGFloat = 2
 #else
   public static let cardCaptionSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 36
@@ -57,5 +66,14 @@ public enum Metrics {
   public static let hudGlyphPointSize: CGFloat = 44
   public static let hudGlyphTitleSpacing: CGFloat = 12
   public static let hudContentInset: CGFloat = 20
+  /// Bottom status toast (`StatusToast`).
+  public static let toastCornerRadius: CGFloat = 14
+  public static let toastVerticalInset: CGFloat = 10
+  public static let toastHorizontalInset: CGFloat = 16
+  public static let toastGlyphSpacing: CGFloat = 8
+  public static let toastBottomInset: CGFloat = 16
+  public static let toastScreenInset: CGFloat = 16
+  public static let toastExitOffset: CGFloat = 20
+  public static let toastContrastBorder: CGFloat = 1.5
 #endif
 }
