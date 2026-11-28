@@ -1,0 +1,904 @@
+Test Case '-[PiraticTests.AgeRatingPresentationTests testBothOffHidesForeignSource]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testBothOffHidesForeignSource]' passed (0.005 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testConvertAndForeignShowBoth]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testConvertAndForeignShowBoth]' passed (0.003 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testConvertOnlyShowsLocal]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testConvertOnlyShowsLocal]' passed (0.003 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testForeignOnlyShowsMPA]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testForeignOnlyShowsMPA]' passed (0.003 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testInfoStripHonorsMasterOff]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testInfoStripHonorsMasterOff]' passed (0.004 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testLocalAgeUnchanged]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testLocalAgeUnchanged]' passed (0.004 seconds).
+Test Case '-[PiraticTests.AgeRatingPresentationTests testLocalEquivalents]' started.
+Test Case '-[PiraticTests.AgeRatingPresentationTests testLocalEquivalents]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testABulletAddedToTheSameVersionPromptsOnce]' started.
+Test Case '-[PiraticTests.AppChangelogTests testABulletAddedToTheSameVersionPromptsOnce]' passed (0.009 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testBundledCatalogAndEveryFragmentHaveBothLanguages]' started.
+Test Case '-[PiraticTests.AppChangelogTests testBundledCatalogAndEveryFragmentHaveBothLanguages]' passed (0.015 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testFragmentCreatesVersionMissingFromLegacy]' started.
+Test Case '-[PiraticTests.AppChangelogTests testFragmentCreatesVersionMissingFromLegacy]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testFragmentsMergeAheadOfLegacyAndSortByDate]' started.
+Test Case '-[PiraticTests.AppChangelogTests testFragmentsMergeAheadOfLegacyAndSortByDate]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testFreshInstallMarksEverythingSeenAndDoesNotPrompt]' started.
+Test Case '-[PiraticTests.AppChangelogTests testFreshInstallMarksEverythingSeenAndDoesNotPrompt]' passed (0.005 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testInstallWithOnlyALastSeenVersionSeesEverything]' started.
+Test Case '-[PiraticTests.AppChangelogTests testInstallWithOnlyALastSeenVersionSeesEverything]' passed (0.055 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testLoadFragmentsFromDirectoryUsesFilenameAsID]' started.
+Test Case '-[PiraticTests.AppChangelogTests testLoadFragmentsFromDirectoryUsesFilenameAsID]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AppChangelogTests testNewestFirstOrdersByVersion]' started.
+Test Case '-[PiraticTests.AppChangelogTests testNewestFirstOrdersByVersion]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testBackgroundPollSuccessNotifiesInBackgroundAndEndsBackgroundTask]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testBackgroundPollSuccessNotifiesInBackgroundAndEndsBackgroundTask]' passed (0.011 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testCodeExpiresAfterFiveMinutesAndRequiresExplicitRefresh]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testCodeExpiresAfterFiveMinutesAndRequiresExplicitRefresh]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioA_FastSafariActivationCompletesInBackgroundWhileInSafari]' started.
+OSStatus error:[-34018] Internal error when a required entitlement isn't present, client has neither application-identifier nor keychain-access-groups entitlements.Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioA_FastSafariActivationCompletesInBackgroundWhileInSafari]' passed (0.005 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioB_SlowSafariActivationAfterBackgroundTaskExpiresCompletesImmediatelyOnReturn]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioB_SlowSafariActivationAfterBackgroundTaskExpiresCompletesImmediatelyOnReturn]' passed (0.007 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioC_MultipleSafariBouncesPreserveCodeAndKeepFastPollingCadence]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testHumanScenarioC_MultipleSafariBouncesPreserveCodeAndKeepFastPollingCadence]' passed (0.002 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testImmediatePollOnForegroundReturnCompletesAuthorizationAndFiresHaptics]' started.
+OSStatus error:[-34018] Internal error when a required entitlement isn't presenTest Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testImmediatePollOnForegroundReturnCompletesAuthorizationAndFiresHaptics]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testKeychainStorageMigratesLocalTokenToSynchronizableStoreAndFallsBackGracefully]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testKeychainStorageMigratesLocalTokenToSynchronizableStoreAndFallsBackGracefully]' passed (0.003 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testNetworkErrorVsPendingVsExpiredAndManualRetry]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testNetworkErrorVsPendingVsExpiredAndManualRetry]' passed (0.048 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testRefreshTokenAdoptsNewerKeychainTokenWithoutCallingOAuthEndpoint]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testRefreshTokenAdoptsNewerKeychainTokenWithoutCallingOAuthEndpoint]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testRefreshTokenRecoversWhenAnotherDeviceUpdatesKeychainDuringInFlight400]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testRefreshTokenRecoversWhenAnotherDeviceUpdatesKeychainDuringInFlight400]' passed (0.003 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testSmartPollingIntervalScalesWithElapsedTimeAndResetsOnInteraction]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testSmartPollingIntervalScalesWithElapsedTimeAndResetsOnInteraction]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testUnexpiredDeviceCodeIsPreservedAcrossBackgroundAndForegroundTransitions]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testUnexpiredDeviceCodeIsPreservedAcrossBackgroundAndForegroundTransitions]' passed (0.001 seconds).
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testUniversalDeviceCapabilitiesAlwaysKeepMaximumPlaybackProfile]' started.
+Test Case '-[PiraticTests.AuthFlowAndKeychainSyncTests testUniversalDeviceCapabilitiesAlwaysKeepMaximumPlaybackProfile]' passed (0.001 seconds).
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testFallsBackWhenHLS4Missing]' started.
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testFallsBackWhenHLS4Missing]' passed (0.001 seconds).
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testPrefersHighestResolutionHLS4]' started.
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testPrefersHighestResolutionHLS4]' passed (0.001 seconds).
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testSkipsEmptyHLS4Rungs]' started.
+Test Case '-[PiraticTests.BestVideoQualityFinderTests testSkipsEmptyHLS4Rungs]' passed (0.001 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testAFollowingCardKeepsItsUnwatchedCountWhenTheViewerStateIsLaidOver]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testAFollowingCardKeepsItsUnwatchedCountWhenTheViewerStateIsLaidOver]' passed (0.013 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testAnInvalidateDuringFetchDiscardsTheStaleWriteAndRetries]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testAnInvalidateDuringFetchDiscardsTheStaleWriteAndRetries]' passed (0.005 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testATitleOnTwoRowsIsOneRecordAndPaintsTheNewestPayload]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testATitleOnTwoRowsIsOneRecordAndPaintsTheNewestPayload]' passed (0.025 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testATitleRowPaintsTheSameCardTheCatalogueBuilds]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testATitleRowPaintsTheSameCardTheCatalogueBuilds]' passed (0.002 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testCardsThatAreNotOnTheModelStayCards]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testCardsThatAreNotOnTheModelStayCards]' passed (0.002 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testCatalogInvalidateDoesNotPostAWatchNotification]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testCatalogInvalidateDoesNotPostAWatchNotification]' passed (0.214 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testContinueWatchingKeyInvalidatePostsAWatchNotification]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testContinueWatchingKeyInvalidatePostsAWatchNotification]' passed (0.003 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testLibraryWatchRowInvalidateDoesNotPostAWatchNotification]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testLibraryWatchRowInvalidateDoesNotPostAWatchNotification]' passed (0.210 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testRowsAndRecordsSurviveARelaunchAndOrphansAreDropped]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testRowsAndRecordsSurviveARelaunchAndOrphansAreDropped]' passed (0.005 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testRowsWrittenBeforeRefsStillPaint]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testRowsWrittenBeforeRefsStillPaint]' passed (0.004 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testTheDetailPagesPayloadRefreshesATitleARowShows]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testTheDetailPagesPayloadRefreshesATitleARowShows]' passed (0.004 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testTheViewersStateIsLaidOverAtReadTime]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testTheViewersStateIsLaidOverAtReadTime]' passed (0.002 seconds).
+Test Case '-[PiraticTests.ContentStoreRecordTests testWatchInvalidatePostsANotification]' started.
+Test Case '-[PiraticTests.ContentStoreRecordTests testWatchInvalidatePostsANotification]' passed (0.002 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testBookmarkedSeriesKeepsItsCardWhileDetailsAreUnavailable]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testBookmarkedSeriesKeepsItsCardWhileDetailsAreUnavailable]' passed (0.002 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testConcertWithoutSlashUsesReasonSubtitle]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testConcertWithoutSlashUsesReasonSubtitle]' passed (0.013 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testFilmSubtitleIsReasonForBookmarksUnfinishedAndLocalWatch]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testFilmSubtitleIsReasonForBookmarksUnfinishedAndLocalWatch]' passed (0.001 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testLocalOverlayPreservesNonSeriesSubtitle]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testLocalOverlayPreservesNonSeriesSubtitle]' passed (0.005 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testMultiVersionFilmShowsOfferedVersionName]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testMultiVersionFilmShowsOfferedVersionName]' passed (0.003 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testSeriesSubtitleUsesBookmarkReasonOnlyForBookmarkOnlyTitles]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testSeriesSubtitleUsesBookmarkReasonOnlyForBookmarkOnlyTitles]' passed (0.001 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testSingleVideoConcertSplitsShowIntoSubtitle]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testSingleVideoConcertSplitsShowIntoSubtitle]' passed (0.001 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testStaysUntilEverySetIsWatched]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testStaysUntilEverySetIsWatched]' passed (0.027 seconds).
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testTheNextSetInOrderNotTheLongest]' started.
+Test Case '-[PiraticTests.ContinueWatchingVersionsTests testTheNextSetInOrderNotTheLongest]' passed (0.001 seconds).
+Test Case '-[PiraticTests.DevSessionMirrorTests testOnlyACompleteTokenIsWritable]' started.
+Test Case '-[PiraticTests.DevSessionMirrorTests testOnlyACompleteTokenIsWritable]' passed (0.001 seconds).
+Test Case '-[PiraticTests.DevSessionMirrorTests testTheLogCarriesFingerprintsNotTokens]' started.
+Test Case '-[PiraticTests.DevSessionMirrorTests testTheLogCarriesFingerprintsNotTokens]' passed (0.002 seconds).
+Test Case '-[PiraticTests.DevSessionMirrorTests testUnitTestsNeverReachTheSharedSessionFile]' started.
+Test Case '-[PiraticTests.DevSessionMirrorTests testUnitTestsNeverReachTheSharedSessionFile]' passed (0.001 seconds).
+Test Case '-[PiraticTests.EPGServiceTests testCacheAndStaleOnFailure]' started.
+Test Case '-[PiraticTests.EPGServiceTests testCacheAndStaleOnFailure]' passed (0.061 seconds).
+Test Case '-[PiraticTests.EPGServiceTests testDecodeChainsStopsFromTheNextStart]' started.
+Test Case '-[PiraticTests.EPGServiceTests testDecodeChainsStopsFromTheNextStart]' passed (0.001 seconds).
+Test Case '-[PiraticTests.EPGServiceTests testSharedGuideChannelIsFetchedOnce]' started.
+Test Case '-[PiraticTests.EPGServiceTests testSharedGuideChannelIsFetchedOnce]' passed (0.002 seconds).
+Test Case '-[PiraticTests.EPGServiceTests testShippedTableSharesOnlyFor4KCopies]' started.
+Test Case '-[PiraticTests.EPGServiceTests testShippedTableSharesOnlyFor4KCopies]' passed (0.001 seconds).
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeGridRefreshesNamesWhenTheScheduleKeepsTheSameSlots]' started.
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeGridRefreshesNamesWhenTheScheduleKeepsTheSameSlots]' passed (0.003 seconds).
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeRailMenuHasPlayAndInfoWithoutLibraryOrHide]' started.
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeRailMenuHasPlayAndInfoWithoutLibraryOrHide]' passed (0.003 seconds).
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeRailUsesEnglishNameWhenRussianScheduleOnlyHasANumber]' started.
+Test Case '-[PiraticTests.EpisodeRailContextMenuTests testEpisodeRailUsesEnglishNameWhenRussianScheduleOnlyHasANumber]' passed (0.001 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testDefaultMovesToTheBestTrack]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testDefaultMovesToTheBestTrack]' passed (0.007 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testDuplicateLabelsAreUniqued]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testDuplicateLabelsAreUniqued]' passed (0.002 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testLabelsMatchTracksByTheLeadingNumber]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testLabelsMatchTracksByTheLeadingNumber]' passed (0.002 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testLanguageOrderIsTheFallbackWhenNamesHaveNoNumber]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testLanguageOrderIsTheFallbackWhenNamesHaveNoNumber]' passed (0.010 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testPerQualityCopiesCollapseIntoOneAudioGroup]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testPerQualityCopiesCollapseIntoOneAudioGroup]' passed (0.003 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testPerQualitySubtitleCopiesCollapseIntoOneGroup]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testPerQualitySubtitleCopiesCollapseIntoOneGroup]' passed (0.003 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testSubtitleNamesBecomeCleanLanguageLabels]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testSubtitleNamesBecomeCleanLanguageLabels]' passed (0.002 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testUnmatchedSurvivorKeepsItsCDNName]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testUnmatchedSurvivorKeepsItsCDNName]' passed (0.004 seconds).
+Test Case '-[PiraticTests.HLSAudioLabelerTests testWithoutAPITracksTheCDNDefaultSurvives]' started.
+Test Case '-[PiraticTests.HLSAudioLabelerTests testWithoutAPITracksTheCDNDefaultSurvives]' passed (0.003 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testClearingTheFieldResetsTheScope]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testClearingTheFieldResetsTheScope]' passed (0.809 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testEditingTheQueryKeepsTheScope]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testEditingTheQueryKeepsTheScope]' passed (0.809 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testForceRevalidateRefreshesEvenWhenFresh]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testForceRevalidateRefreshesEvenWhenFresh]' passed (0.002 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSearchStartsAtTheThirdLetter]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSearchStartsAtTheThirdLetter]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSilentRevalidateAppliesOnlyAChangedFirstPage]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSilentRevalidateAppliesOnlyAChangedFirstPage]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSilentRevalidateKeepsItemsAndSkipsWhenFresh]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testSilentRevalidateKeepsItemsAndSkipsWhenFresh]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testTabReentryRespectsStaleAfter]' started.
+Test Case '-[PiraticTests.LibraryCatalogSearchTests testTabReentryRespectsStaleAfter]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAFilterThatEmptiesThePaneSaysSo]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAFilterThatEmptiesThePaneSaysSo]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAFolderHeaderPutsEllipsisBeforeSort]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAFolderHeaderPutsEllipsisBeforeSort]' passed (0.003 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAnEmptyPaneSaysWhatBelongsThere]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testAnEmptyPaneSaysWhatBelongsThere]' passed (0.002 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testASectionHeaderIsOneLabel]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testASectionHeaderIsOneLabel]' passed (0.002 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testATypeFilterKeepsOnlySeries]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testATypeFilterKeepsOnlySeries]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testContinueCardForASeriesIsTheWideTitleAndPlays]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testContinueCardForASeriesIsTheWideTitleAndPlays]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testContinueLeavesOutSubscriptions]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testContinueLeavesOutSubscriptions]' passed (0.004 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingAllOmitsAnEmptySide]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingAllOmitsAnEmptySide]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingCaughtUpHasNoUnwatchedCount]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingCaughtUpHasNoUnwatchedCount]' passed (0.000 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingHeaderCountsUnwatchedEpisodes]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingHeaderCountsUnwatchedEpisodes]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingHeaderUsesUnwatchedAllInsteadOfType]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingHeaderUsesUnwatchedAllInsteadOfType]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingSubtitleIsTheUnwatchedCount]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingSubtitleIsTheUnwatchedCount]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingUnwatchedCountHasNoLeadingPlusBadge]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingUnwatchedCountHasNoLeadingPlusBadge]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingUnwatchedHidesCaughtUpSeries]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testFollowingUnwatchedHidesCaughtUpSeries]' passed (0.001 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testHistoryCardPlaysUsesWideArtAndWordsTheEpisode]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testHistoryCardPlaysUsesWideArtAndWordsTheEpisode]' failed (0.397 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testHistoryGroupsByDayWithTodayYesterdayAndTheDate]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testHistoryGroupsByDayWithTodayYesterdayAndTheDate]' passed (0.003 seconds).
+Test Case '-[PiraticTests.LibrarySectionCardsTests testSidebarOrderIsSubscriptionsContinueAllBookmarksThenHistory]' started.
+Test Case '-[PiraticTests.LibrarySectionCardsTests testSidebarOrderIsSubscriptionsContinueAllBookmarksThenHistory]' passed (0.000 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testAPlayWithoutAPayloadKeepsItsDateButDrawsNoCard]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testAPlayWithoutAPayloadKeepsItsDateButDrawsNoCard]' passed (0.007 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testClearRemovesEveryRecordOfTheTitle]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testClearRemovesEveryRecordOfTheTitle]' passed (0.013 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testConcurrentWritesLandInMemoryOrder]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testConcurrentWritesLandInMemoryOrder]' passed (0.098 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testEachEpisodeKeepsItsOwnRecord]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testEachEpisodeKeepsItsOwnRecord]' passed (0.006 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testFilmResumePointSurvivesRelaunch]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testFilmResumePointSurvivesRelaunch]' passed (0.014 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testLastPlayedKeepsTheNewestEpisodePerTitle]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testLastPlayedKeepsTheNewestEpisodePerTitle]' passed (0.003 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testPositionsAreLaidOverTheRightEpisode]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testPositionsAreLaidOverTheRightEpisode]' passed (0.005 seconds).
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testUpdatingTheSnapshotChangesWhatThePlayerReads]' started.
+Test Case '-[PiraticTests.LocalWatchProgressStoreTests testUpdatingTheSnapshotChangesWhatThePlayerReads]' passed (0.003 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testAlreadyWatchedStaysFlatMarkAsNew]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testAlreadyWatchedStaysFlatMarkAsNew]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testArtDisplaySizeHugsBitmapWithoutLetterbox]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testArtDisplaySizeHugsBitmapWithoutLetterbox]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testContinuePeekHintForReasons]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testContinuePeekHintForReasons]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testFilmContinueWatchingKeepsWideCoverAndAddsRemainingTimeToCaption]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testFilmContinueWatchingKeepsWideCoverAndAddsRemainingTimeToCaption]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testPreviewSpecUsesCoverURLForPortraitWhenRussian]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testPreviewSpecUsesCoverURLForPortraitWhenRussian]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testPreviewSpecUsesPosterAspectAndYearGenre]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testPreviewSpecUsesPosterAspectAndYearGenre]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesContinueWatchingUsesWatchedSubmenu]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesContinueWatchingUsesWatchedSubmenu]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesPeekPrefersWorkerEpisodeStill]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesPeekPrefersWorkerEpisodeStill]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesPreviewKeepsEpisodeCaptionAndDuration]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testSeriesPreviewKeepsEpisodeCaptionAndDuration]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testUnfinishedHintDoesNotReplaceEpisodeCaption]' started.
+Test Case '-[PiraticTests.MediaCardContextMenuWatchedTests testUnfinishedHintDoesNotReplaceEpisodeCaption]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testActionsStayInteractableWhenNotLoading]' started.
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testActionsStayInteractableWhenNotLoading]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testEntryControlIsFollowWhenItLeadsElsePlay]' started.
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testEntryControlIsFollowWhenItLeadsElsePlay]' passed (0.005 seconds).
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testFocusTargetClassificationKeepsPlotOutOfActionRow]' started.
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testFocusTargetClassificationKeepsPlotOutOfActionRow]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testInteractableAPIDoesNotTakeFocus]' started.
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testInteractableAPIDoesNotTakeFocus]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testLoadingControlIsNotInteractable]' started.
+Test Case '-[PiraticTests.MediaItemHeroActionAvailabilityTests testLoadingControlIsNotInteractable]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACardNamesThePersonItStandsFor]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACardNamesThePersonItStandsFor]' passed (0.503 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACardWithoutAHeaderIsShorterThanOneWith]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACardWithoutAHeaderIsShorterThanOneWith]' passed (0.005 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACollectionIsCoversOnlyWithNoSeeAllTile]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testACollectionIsCoversOnlyWithNoSeeAllTile]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAConcertHasNoFacesButItsPeopleAreTextUnderTheTable]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAConcertHasNoFacesButItsPeopleAreTextUnderTheTable]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testADirectorOpensAFilmsRowThenTheCast]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testADirectorOpensAFilmsRowThenTheCast]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testADubIsNamedByItsKindAndItsStudiosInWords]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testADubIsNamedByItsKindAndItsStudiosInWords]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAFilmHasNoTextCreditsUnderItsTable]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAFilmHasNoTextCreditsUnderItsTable]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAFilmKeepsKinoPubsListAndFillsByBilling]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAFilmKeepsKinoPubsListAndFillsByBilling]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAGroupHoldsTenCoversAtMostAndTakesThemFromWhatIsLeft]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAGroupHoldsTenCoversAtMostAndTakesThemFromWhatIsLeft]' passed (1.353 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAKinoPubNameTheWorkerCannotMatchIsStillOnTheRail]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAKinoPubNameTheWorkerCannotMatchIsStillOnTheRail]' passed (0.003 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAMissingColumnLeavesItsWidthEmpty]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAMissingColumnLeavesItsWidthEmpty]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnActorWithNoCharacterHasNoCaptionAtAll]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnActorWithNoCharacterHasNoCaptionAtAll]' passed (0.006 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnAwardIsAFactCardAndNeverAWarning]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnAwardIsAFactCardAndNeverAWarning]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnEmptyShelfLeavesItsGroupAndAnEmptyRowLeavesTheSection]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAnEmptyShelfLeavesItsGroupAndAnEmptyRowLeavesTheSection]' passed (0.014 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAPersonCardIdPrefersTMDBWhenItHasOne]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAPersonCardIdPrefersTMDBWhenItHasOne]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testARepeatedNameInTheCreditsIsOneCard]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testARepeatedNameInTheCreditsIsOneCard]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAScoreCardIsLowerThanTheCardsBesideIt]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAScoreCardIsLowerThanTheCardsBesideIt]' passed (0.004 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASeriesHasAStatusAYearRangeAndHowMuchOfItThereIs]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASeriesHasAStatusAYearRangeAndHowMuchOfItThereIs]' passed (0.003 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASeriesSaysHowLongAnEpisodeIsAndHowLongTheWholeRun]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASeriesSaysHowLongAnEpisodeIsAndHowLongTheWholeRun]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAShowsCreatorsClosTheRowBehindTheActors]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAShowsCreatorsClosTheRowBehindTheActors]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASourceWithVotersButNoScoreHasNoNumberAndSaysHowManyVoted]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASourceWithVotersButNoScoreHasNoNumberAndSaysHowManyVoted]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASpoilerStaysHiddenUntilItIsAskedFor]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testASpoilerStaysHiddenUntilItIsAskedFor]' passed (0.021 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testATitleOnTwoShelvesIsUnderTheFirstGroupThatHasIt]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testATitleOnTwoShelvesIsUnderTheFirstGroupThatHasIt]' passed (0.009 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAudioAndSubtitlesSayTheyAreNoneWhenTheTitleReportsNone]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAudioAndSubtitlesSayTheyAreNoneWhenTheTitleReportsNone]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAudioKeepsTheViewersLanguagesOpenAndFoldsTheRest]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testAudioKeepsTheViewersLanguagesOpenAndFoldsTheRest]' passed (0.037 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testBondarchukStaysTopThreeInHardToBeAGod]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testBondarchukStaysTopThreeInHardToBeAGod]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testCastAndCrewIsOneHeadingOverOneRowOfPeople]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testCastAndCrewIsOneHeadingOverOneRowOfPeople]' passed (0.014 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testDexterLeadIsPresentWhenTmdbCannotMatchHim]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testDexterLeadIsPresentWhenTmdbCannotMatchHim]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testEmptyPartsAreSimplyAbsent]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testEmptyPartsAreSimplyAbsent]' passed (0.005 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testGenreAndCountryLabelsFollowTheirNumber]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testGenreAndCountryLabelsFollowTheirNumber]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinopubOnlyHidesViewersCard]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinopubOnlyHidesViewersCard]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinoPubsListComesFirstThenTheTopByEpisodes]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinoPubsListComesFirstThenTheTopByEpisodes]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinoPubWithNoVotesIsStillACard]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testKinoPubWithNoVotesIsStillACard]' passed (0.011 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testLongSourceListsFoldIntoOneRow]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testLongSourceListsFoldIntoOneRow]' passed (0.004 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testNamesAreNeverCutACardTakesTheLinesTheyNeed]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testNamesAreNeverCutACardTakesTheLinesTheyNeed]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testOnlyAnItemThatDoesSomethingOnSelectCanTakeFocus]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testOnlyAnItemThatDoesSomethingOnSelectCanTakeFocus]' passed (0.043 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testRatingsAndReviewsLeadWithViewersAndCritics]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testRatingsAndReviewsLeadWithViewersAndCritics]' passed (0.025 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testReviewCardsCarryTheReviewSelectedInTheSheet]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testReviewCardsCarryTheReviewSelectedInTheSheet]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testRowsOfTwoAreOneStripOfTitledGroups]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testRowsOfTwoAreOneStripOfTitledGroups]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testScoresAreOrderedByAudienceAndKinoPubCarriesItsThumbs]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testScoresAreOrderedByAudienceAndKinoPubCarriesItsThumbs]' passed (0.013 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSectionsComeInTheOrderOfTheDesign]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSectionsComeInTheOrderOfTheDesign]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSeveralDirectorsShareTheOneRowWithTheCast]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSeveralDirectorsShareTheOneRowWithTheCast]' passed (0.012 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testShelvesStillInFlightHoldTheirPlaceAsSkeletonPosters]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testShelvesStillInFlightHoldTheirPlaceAsSkeletonPosters]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSimilarIsOneHeadingOverThreeGroupsOfPosters]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSimilarIsOneHeadingOverThreeGroupsOfPosters]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testStathamLeadsMutinyEvenWhenTmdbBillsHimTenth]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testStathamLeadsMutinyEvenWhenTmdbBillsHimTenth]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSubtitlesAreOneLineOfLanguagesTwoSpacesApart]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSubtitlesAreOneLineOfLanguagesTwoSpacesApart]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSummaryScoreIsOutOfAHundredAndColouredByIt]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testSummaryScoreIsOutOfAHundredAndColouredByIt]' passed (0.002 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheAirBetweenItemsIsHalfTheAirBetweenBlocks]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheAirBetweenItemsIsHalfTheAirBetweenBlocks]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheCastCardAlwaysHasAnExpandLinkThatOpensEveryone]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheCastCardAlwaysHasAnExpandLinkThatOpensEveryone]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheCrewFixtureKeepsKinoPubsWholeListInItsOrder]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheCrewFixtureKeepsKinoPubsWholeListInItsOrder]' passed (0.021 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheGenreFloorStandsInForSimilar]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheGenreFloorStandsInForSimilar]' passed (0.009 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheScoresRowEndsInACardThatCountsTheReviews]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheScoresRowEndsInACardThatCountsTheReviews]' passed (0.014 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheTableIsThreeStackedColumnsOfCardsThatShareTheWidthEqually]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheTableIsThreeStackedColumnsOfCardsThatShareTheWidthEqually]' passed (0.009 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheThirdColumnSaysWhatTheTitleIsAnItemToACard]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheThirdColumnSaysWhatTheTitleIsAnItemToACard]' passed (0.008 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheWorkerFillsUpToADozenButKinoPubsListIsNeverCut]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testTheWorkerFillsUpToADozenButKinoPubsListIsNeverCut]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testVideoSaysHowBigThenHowLong]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testVideoSaysHowBigThenHowLong]' passed (0.007 seconds).
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testWithNoSummaryTheCountIsWhatWeHold]' started.
+Test Case '-[PiraticTests.MediaItemTVSectionsTests testWithNoSummaryTheCountIsWhatWeHold]' passed (0.006 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAbsoluteDateShowsTheYearOnlyWhenItIsNotThisYear]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAbsoluteDateShowsTheYearOnlyWhenItIsNotThisYear]' passed (0.006 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAiredEpisodeHasNoDateInTheCornerOnlyTheLock]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAiredEpisodeHasNoDateInTheCornerOnlyTheLock]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAwaitedEpisodeIsTheNextOneInTheSchedule]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAwaitedEpisodeIsTheNextOneInTheSchedule]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAwaitedEpisodeMayHaveAiredAlready]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testAwaitedEpisodeMayHaveAiredAlready]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNextEpisodeAnswersBeforeTheScheduleLoads]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNextEpisodeAnswersBeforeTheScheduleLoads]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNextSeasonDoesNotCount]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNextSeasonDoesNotCount]' passed (0.000 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNoDateNoAwaitedEpisode]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testNoDateNoAwaitedEpisode]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testSelectSaysClockForWhatIsComingAndLockForWhatKinoPubLacks]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testSelectSaysClockForWhatIsComingAndLockForWhatKinoPubLacks]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testStatesByCalendarDay]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testStatesByCalendarDay]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testTodayIsTheCalendarDayNotTwentyFourHours]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testTodayIsTheCalendarDayNotTwentyFourHours]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUndatedEpisodeSaysLater]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUndatedEpisodeSaysLater]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUpcomingBadgeFarAheadHasNoYearThisYear]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUpcomingBadgeFarAheadHasNoYearThisYear]' passed (0.001 seconds).
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUpcomingBadgeStartsWithACapital]' started.
+Test Case '-[PiraticTests.MissingEpisodeAirStateTests testUpcomingBadgeStartsWithACapital]' passed (0.004 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testCompleteListingEmitsOutsideWindow]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testCompleteListingEmitsOutsideWindow]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testFutureTitleHasNoNotOnKinopubBadge]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testFutureTitleHasNoNotOnKinopubBadge]' passed (0.008 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testLocalizedTitleMatchAvoidsFalseUnavailable]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testLocalizedTitleMatchAvoidsFalseUnavailable]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testMatchedKinopubPosterUsesWorkerViaWeserv]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testMatchedKinopubPosterUsesWorkerViaWeserv]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testMergedTimelineInterleavesByYear]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testMergedTimelineInterleavesByYear]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testNonYearSortWaitsUntilComplete]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testNonYearSortWaitsUntilComplete]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PersonFilmographyTests testYearWindowWithholdsOlderCreditsUntilLoaded]' started.
+Test Case '-[PiraticTests.PersonFilmographyTests testYearWindowWithholdsOlderCreditsUntilLoaded]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testAMovieHasNoEpisodeList]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testAMovieHasNoEpisodeList]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testAnnouncedEpisodesStandInTheirPlace]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testAnnouncedEpisodesStandInTheirPlace]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testASeriesWithoutSeasonsHasNoList]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testASeriesWithoutSeasonsHasNoList]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testASingleSeasonIsStillAList]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testASingleSeasonIsStillAList]' passed (0.003 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testSeasonsAndEpisodesAreInReadingOrder]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testSeasonsAndEpisodesAreInReadingOrder]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testThePlayingEpisodeSelectsItsSeason]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testThePlayingEpisodeSelectsItsSeason]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testTheSeasonTabHoldsTheSeasonPlayingAlone]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testTheSeasonTabHoldsTheSeasonPlayingAlone]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackEpisodesTests testTheSeasonTabReadsWatchedFromTheViewerNotTheSnapshot]' started.
+Test Case '-[PiraticTests.PlaybackEpisodesTests testTheSeasonTabReadsWatchedFromTheViewerNotTheSnapshot]' passed (0.005 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAFilmIsJustItsTitle]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAFilmIsJustItsTitle]' passed (0.006 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnAnimeAlsoReadsItsBucket]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnAnimeAlsoReadsItsBucket]' passed (0.005 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnEmptyAnswerIsNotKept]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnEmptyAnswerIsNotKept]' passed (0.003 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnEpisodeReadsTheWholeChain]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnEpisodeReadsTheWholeChain]' passed (0.010 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnOverriddenMenuIsWhatGetsDecidedOver]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnOverriddenMenuIsWhatGetsDecidedOver]' passed (0.194 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnUnresolvedItemHasNoScopes]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAnUnresolvedItemHasNoScopes]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testAPlanIsRebuiltWhenTheHistoryChanges]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testAPlanIsRebuiltWhenTheHistoryChanges]' passed (0.006 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testASingleTrackIsNotWorthNaming]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testASingleTrackIsNotWorthNaming]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testLinksAreAskedOnceAndReachEveryCopy]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testLinksAreAskedOnceAndReachEveryCopy]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testNoTracksIsNotWorthNaming]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testNoTracksIsNotWorthNaming]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheDecisionFollowsTheLadderWithNoHistory]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheDecisionFollowsTheLadderWithNoHistory]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheDecisionFollowsWhatTheSeriesLearned]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheDecisionFollowsWhatTheSeriesLearned]' passed (0.003 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testThePlanCarriesTheScopesItWasDecidedFrom]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testThePlanCarriesTheScopesItWasDecidedFrom]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheProvisionalPlanIsNotServedToThePlayer]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheProvisionalPlanIsNotServedToThePlayer]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheSummaryNamesTheDubThatWillPlay]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testTheSummaryNamesTheDubThatWillPlay]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testTwoAsksGiveTheSamePlan]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testTwoAsksGiveTheSamePlan]' passed (0.002 seconds).
+Test Case '-[PiraticTests.PlaybackPreflightTests testWarmingAnythingButAnEpisodeCostsNoRequest]' started.
+Test Case '-[PiraticTests.PlaybackPreflightTests testWarmingAnythingButAnEpisodeCostsNoRequest]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testAFilmIsOfferedClosingCreditsThatFinishTheTitle]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testAFilmIsOfferedClosingCreditsThatFinishTheTitle]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testAppleStyleDoesNotPressTheButton]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testAppleStyleDoesNotPressTheButton]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testAutomaticSkipUsesTheChosenDelayAndNeverFiresAtOnce]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testAutomaticSkipUsesTheChosenDelayAndNeverFiresAtOnce]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testClosingCreditsGiveWayToTheNextEpisode]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testClosingCreditsGiveWayToTheNextEpisode]' passed (0.004 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownClockRoundsUp]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownClockRoundsUp]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownRunsOnPlaybackTime]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownRunsOnPlaybackTime]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownSuspendsWhenSkipWouldBeHidden]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testCountdownSuspendsWhenSkipWouldBeHidden]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testMacChipStaysWithTheChromeAndNeverOverAMenu]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testMacChipStaysWithTheChromeAndNeverOverAMenu]' passed (0.005 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testNormalSkipUsesForwardFillSymbol]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testNormalSkipUsesForwardFillSymbol]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testNothingBetweenSegmentsOrInTheirLastSeconds]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testNothingBetweenSegmentsOrInTheirLastSeconds]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testOffersTheSegmentPlayingAndJumpsToItsEnd]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testOffersTheSegmentPlayingAndJumpsToItsEnd]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testOpenEndedCreditsRunToTheEndOfTheStream]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testOpenEndedCreditsRunToTheEndOfTheStream]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testPhoneAndPadChipTakesThePlaceOfTheChrome]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testPhoneAndPadChipTakesThePlaceOfTheChrome]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testTransportMenuHeuristicsCoverSpeedAndTrackMenus]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testTransportMenuHeuristicsCoverSpeedAndTrackMenus]' passed (0.001 seconds).
+Test Case '-[PiraticTests.PlaybackSkipTests testTVSkipIsActionableOnlyWithChromeDownAndNoMenu]' started.
+Test Case '-[PiraticTests.PlaybackSkipTests testTVSkipIsActionableOnlyWithChromeDownAndNoMenu]' passed (0.000 seconds).
+Test Case '-[PiraticTests.PlayerLiveModeTests testInfoPanelIsTheChannelName]' started.
+Test Case '-[PiraticTests.PlayerLiveModeTests testInfoPanelIsTheChannelName]' passed (0.042 seconds).
+Test Case '-[PiraticTests.PlayerLiveModeTests testOpensTheChannelsStreamAsIs]' started.
+Test Case '-[PiraticTests.PlayerLiveModeTests testOpensTheChannelsStreamAsIs]' passed (0.005 seconds).
+Test Case '-[PiraticTests.PlayerLiveModeTests testSystemPlayerGetsNoTitleChrome]' started.
+Test Case '-[PiraticTests.PlayerLiveModeTests testSystemPlayerGetsNoTitleChrome]' passed (0.052 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testADownloadMarkerReadsAsSeasonAndEpisode]' started.
+2026-11-Test Case '-[PiraticTests.PlayerTrackSelectionTests testADownloadMarkerReadsAsSeasonAndEpisode]' passed (0.032 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAlwaysEnabledPutsThemOnARussianDub]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAlwaysEnabledPutsThemOnARussianDub]' passed (0.011 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAnEpisodeCarriesItsSeriesIntoTheInfoPanel]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAnEpisodeCarriesItsSeriesIntoTheInfoPanel]' passed (0.009 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAPickIsNotDisplacedByANewDubOnTheNextEpisode]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testAPickIsNotDisplacedByANewDubOnTheNextEpisode]' passed (0.024 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testARememberedChoiceIsWhatThePlayerOpensWith]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testARememberedChoiceIsWhatThePlayerOpensWith]' passed (0.015 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testARememberedOffOpensWithoutSubtitles]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testARememberedOffOpensWithoutSubtitles]' passed (0.011 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testATickSettlesWhateverIsShowing]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testATickSettlesWhateverIsShowing]' passed (0.007 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testATrailerChoosesNothingAndTeachesNothing]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testATrailerChoosesNothingAndTeachesNothing]' passed (0.007 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testEveryKinoPubSubtitleLanguageResolvesToSomething]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testEveryKinoPubSubtitleLanguageResolvesToSomething]' passed (0.019 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testMachineTranslatedRussianIsItsOwnLanguageOnThisPlatform]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testMachineTranslatedRussianIsItsOwnLanguageOnThisPlatform]' passed (0.009 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testManuallySelectedOpensBareEvenInTheOriginal]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testManuallySelectedOpensBareEvenInTheOriginal]' passed (0.011 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testShownWithForeignAudioFollowsTheDub]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testShownWithForeignAudioFollowsTheDub]' passed (0.010 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testSubtitlesAndDubPickedInOneEpisodeAreWhatTheNextOneOpensWith]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testSubtitlesAndDubPickedInOneEpisodeAreWhatTheNextOneOpensWith]' passed (0.016 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheDecidedTrackFindsItsRenditionOnThisPlatform]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheDecidedTrackFindsItsRenditionOnThisPlatform]' passed (0.008 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheFirstListedSubtitleLanguageAnEpisodeHasWins]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheFirstListedSubtitleLanguageAnEpisodeHasWins]' passed (0.010 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheItemsSubtitlesAreCataloguedWhereverThePlayerRuns]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheItemsSubtitlesAreCataloguedWhereverThePlayerRuns]' passed (0.007 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheOpeningSubtitleIsWhateverThePreflightDecided]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTheOpeningSubtitleIsWhateverThePreflightDecided]' passed (0.008 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testThePickHoldsForTheRestOfTheSeason]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testThePickHoldsForTheRestOfTheSeason]' passed (0.017 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTurningSubtitlesBackOffIsAlsoCarried]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testTurningSubtitlesBackOffIsAlsoCarried]' passed (0.016 seconds).
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testWhatCountsAsAPick]' started.
+Test Case '-[PiraticTests.PlayerTrackSelectionTests testWhatCountsAsAPick]' passed (0.007 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testEmptyHydrationFallsBackToPreferredOpeningTab]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testEmptyHydrationFallsBackToPreferredOpeningTab]' passed (0.002 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testExpandingTowardEndAddsNextSeasonOnly]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testExpandingTowardEndAddsNextSeasonOnly]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testExpandingTowardStartAddsPreviousSeason]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testExpandingTowardStartAddsPreviousSeason]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testFarSeasonJumpDoesNotAnimate]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testFarSeasonJumpDoesNotAnimate]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testMissingCurrentTabDoesNotAnimate]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testMissingCurrentTabDoesNotAnimate]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborAlreadyOnScreenAnimates]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborAlreadyOnScreenAnimates]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborOffScreenDoesNotAnimate]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborOffScreenDoesNotAnimate]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborRadiusAtEdgesDoesNotInventSeasons]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testNeighborRadiusAtEdgesDoesNotInventSeasons]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testPersistedHydrationWinsOverSeed]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testPersistedHydrationWinsOverSeed]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testSameSeasonAnimatesOnlyWhenLandingIsVisible]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testSameSeasonAnimatesOnlyWhenLandingIsVisible]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testSeedWindowIsOpeningSeasonPlusNeighbors]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testSeedWindowIsOpeningSeasonPlusNeighbors]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonRailPagingTests testTabDistanceCountsStripStops]' started.
+Test Case '-[PiraticTests.SeasonRailPagingTests testTabDistanceCountsStripStops]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonTabStripTests testASeasonIsItsNumberAndARunIsItsEnds]' started.
+Test Case '-[PiraticTests.SeasonTabStripTests testASeasonIsItsNumberAndARunIsItsEnds]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonTabStripTests testOnlySeasonsNotOnKinoPubCarryAGlyph]' started.
+Test Case '-[PiraticTests.SeasonTabStripTests testOnlySeasonsNotOnKinoPubCarryAGlyph]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonTabStripTests testSoonPillCounterThenShortDate]' started.
+Test Case '-[PiraticTests.SeasonTabStripTests testSoonPillCounterThenShortDate]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SeasonTabStripTests testTheSpokenLabelNamesTheStatusOfWhatCannotBeWatched]' started.
+Test Case '-[PiraticTests.SeasonTabStripTests testTheSpokenLabelNamesTheStatusOfWhatCannotBeWatched]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testAnEpisodeMarkReachesThePageAndThePlayersCopy]' started.
+Test Case '-[PiraticTests.SectionStateTests testAnEpisodeMarkReachesThePageAndThePlayersCopy]' passed (0.017 seconds).
+Test Case '-[PiraticTests.SectionStateTests testBackOnTheShownSectionStillPops]' started.
+Test Case '-[PiraticTests.SectionStateTests testBackOnTheShownSectionStillPops]' passed (0.003 seconds).
+Test Case '-[PiraticTests.SectionStateTests testBackStaysInItsSection]' started.
+Test Case '-[PiraticTests.SectionStateTests testBackStaysInItsSection]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testLeavingASectionKeepsItsStack]' started.
+Test Case '-[PiraticTests.SectionStateTests testLeavingASectionKeepsItsStack]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testReselectPopsThenScrollsToTop]' started.
+Test Case '-[PiraticTests.SectionStateTests testReselectPopsThenScrollsToTop]' passed (0.002 seconds).
+Test Case '-[PiraticTests.SectionStateTests testScrollMemoryLivesInTheModel]' started.
+Test Case '-[PiraticTests.SectionStateTests testScrollMemoryLivesInTheModel]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testSectionModelIsMadeOnce]' started.
+Test Case '-[PiraticTests.SectionStateTests testSectionModelIsMadeOnce]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testTitleModelLivesWhileOnTheStack]' started.
+Test Case '-[PiraticTests.SectionStateTests testTitleModelLivesWhileOnTheStack]' passed (0.001 seconds).
+Test Case '-[PiraticTests.SectionStateTests testTitlePageStateLivesInTheCachedModel]' started.
+Test Case '-[PiraticTests.SectionStateTests testTitlePageStateLivesInTheCachedModel]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testBundledLogosUseFullCards]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testBundledLogosUseFullCards]' passed (0.013 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testChannelTileKeepsProgramWhenFocused]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testChannelTileKeepsProgramWhenFocused]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testDiskCacheUsesInjectedURL]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testDiskCacheUsesInjectedURL]' passed (0.005 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testFetchDropsChannelsWithoutAStream]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testFetchDropsChannelsWithoutAStream]' passed (0.284 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testFreshnessIsOneHour]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testFreshnessIsOneHour]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testGuideUsesTheChannelsAlreadyShown]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testGuideUsesTheChannelsAlreadyShown]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testLiveIsNotMediaPlayback]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testLiveIsNotMediaPlayback]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testOpensOnTheBakedGrid]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testOpensOnTheBakedGrid]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testRefreshOnlyWhenStale]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testRefreshOnlyWhenStale]' passed (0.003 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testScheduleFillsNowPlaying]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testScheduleFillsNowPlaying]' passed (0.003 seconds).
+Test Case '-[PiraticTests.TVChannelsModelTests testServerListKeepsTheBakedOrder]' started.
+Test Case '-[PiraticTests.TVChannelsModelTests testServerListKeepsTheBakedOrder]' passed (1.336 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testAHeadingOnlyStripStandsItsCardsUnderTheHeaderLikeARail]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testAHeadingOnlyStripStandsItsCardsUnderTheHeaderLikeARail]' passed (0.011 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testAnItemOfTheTableHasNoFocusRoom]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testAnItemOfTheTableHasNoFocusRoom]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testAStripIsFindableByItem]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testAStripIsFindableByItem]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testASubheadingIsSmallerThanARowTitle]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testASubheadingIsSmallerThanARowTitle]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testASubheadingSitsOnItsFirstCoversArtWithRoomToLiftBelowIt]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testASubheadingSitsOnItsFirstCoversArtWithRoomToLiftBelowIt]' passed (0.008 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testATitleHoldsTheSideInsetWhileItsGroupScrollsUnderIt]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testATitleHoldsTheSideInsetWhileItsGroupScrollsUnderIt]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testATitleLeavesWithItsGroupAndTheNextOneTakesTheLine]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testATitleLeavesWithItsGroupAndTheNextOneTakesTheLine]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testCardsOfAGroupAreHalfAGutterApartAndGroupsHalfAGapApart]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testCardsOfAGroupAreHalfAGutterApartAndGroupsHalfAGapApart]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testColumnsOfOneTableShareOneHeight]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testColumnsOfOneTableShareOneHeight]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testEveryCardOfARowStartsOnTheSameLine]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testEveryCardOfARowStartsOnTheSameLine]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testEveryTitleLiftsByOneAmount]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testEveryTitleLiftsByOneAmount]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testNoTitleMovesWhileTheRowIsAtRest]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testNoTitleMovesWhileTheRowIsAtRest]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testOneFramePerItemTitlesIncluded]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testOneFramePerItemTitlesIncluded]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testPillsKeepTheirOwnSpacingAndWidths]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testPillsKeepTheirOwnSpacingAndWidths]' passed (0.043 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testPostersAreTheRailsPosterAtTheRailsGutterAcrossGroupsToo]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testPostersAreTheRailsPosterAtTheRailsGutterAcrossGroupsToo]' passed (0.008 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testStackedColumnsStandOneUnderTheOtherAndLeaveAnEmptySlotEmpty]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testStackedColumnsStandOneUnderTheOtherAndLeaveAnEmptySlotEmpty]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testStillsFillThePlatterWhateverTheirNumber]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testStillsFillThePlatterWhateverTheirNumber]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheCountOfReviewsIsAScoresHeightAndAsWideAsItsWordsNeed]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheCountOfReviewsIsAScoresHeightAndAsWideAsItsWordsNeed]' passed (0.024 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheFirstCardsArtLandsOnTheSideInset]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheFirstCardsArtLandsOnTheSideInset]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheNextRowsTitleIsATitledRowGapBelowTheArt]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheNextRowsTitleIsATitledRowGapBelowTheArt]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheRowIsExactlyAsTallAsItsTallestCell]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheRowIsExactlyAsTallAsItsTallestCell]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheSameNestingHasTheSameGeometryWhateverTheStackIsMadeOf]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTheSameNestingHasTheSameGeometryWhateverTheStackIsMadeOf]' passed (0.010 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testTitlesSitOnTheirGroupsFirstCard]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testTitlesSitOnTheirGroupsFirstCard]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPageStripPlanTests testWithoutTonesTheCountIsAScoresWidth]' started.
+Test Case '-[PiraticTests.TVPageStripPlanTests testWithoutTonesTheCountIsAScoresWidth]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsFocusedByItsOwnCellAndNoLongerWhenFocusLeaves]' started.
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsFocusedByItsOwnCellAndNoLongerWhenFocusLeaves]' passed (0.166 seconds).
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsNotFocusedByAnotherCell]' started.
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsNotFocusedByAnotherCell]' passed (0.054 seconds).
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsNotFocusedByAViewThatOnlyContainsIt]' started.
+Test Case '-[PiraticTests.TVPosterArtFocusTests testAPostersArtIsNotFocusedByAViewThatOnlyContainsIt]' passed (0.044 seconds).
+Test Case '-[PiraticTests.TVPosterArtFocusTests testArtOfNothingTheGuardOwnsIsUntouched]' started.
+Test Case '-[PiraticTests.TVPosterArtFocusTests testArtOfNothingTheGuardOwnsIsUntouched]' passed (0.044 seconds).
+Test Case '-[PiraticTests.TVPosterArtFocusTests testUIKitReadsAContainerAsFocusOnThisOS]' started.
+Test Case '-[PiraticTests.TVPosterArtFocusTests testUIKitReadsAContainerAsFocusOnThisOS]' passed (0.031 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testACaptionedRecipeIsTheBareCoverPlusTwoLines]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testACaptionedRecipeIsTheBareCoverPlusTwoLines]' passed (0.439 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testEveryCaptionedCoverHasTwoLinesUnderItsArt]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testEveryCaptionedCoverHasTwoLinesUnderItsArt]' passed (0.638 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testEveryCoverOfARowIsTheArtTheRecipePromised]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testEveryCoverOfARowIsTheArtTheRecipePromised]' passed (1.261 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testNoCoverHasAFooterToTakeHeightFromItsArt]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testNoCoverHasAFooterToTakeHeightFromItsArt]' passed (1.284 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testOnlyATitleThatDoesNotFitScrolls]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testOnlyATitleThatDoesNotFitScrolls]' passed (0.003 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testRailsHaveNoCaptionsAndGridsNameEveryCover]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testRailsHaveNoCaptionsAndGridsNameEveryCover]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testReusedCellsKeepTheirArtAndTheirTwoLines]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testReusedCellsKeepTheirArtAndTheirTwoLines]' passed (1.955 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testTheCaptionDropsWithTheCover]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testTheCaptionDropsWithTheCover]' passed (0.008 seconds).
+Test Case '-[PiraticTests.TVPosterCoverTests testTheLineUnderACover]' started.
+Test Case '-[PiraticTests.TVPosterCoverTests testTheLineUnderACover]' passed (0.003 seconds).
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testArtworkIsFourBytesAPixel]' started.
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testArtworkIsFourBytesAPixel]' passed (0.068 seconds).
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testLetterboxedLogoKeepsThePictureAndExtendsItsEdges]' started.
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testLetterboxedLogoKeepsThePictureAndExtendsItsEdges]' passed (0.011 seconds).
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testPosterViewTakesThePlaceholder]' started.
+Test Case '-[PiraticTests.TVUIKitTileArtworkTests testPosterViewTakesThePlaceholder]' passed (0.062 seconds).
+Test Case '-[PiraticTests.TopShelfLinkTests testForeignAndMalformedURLsAreIgnored]' started.
+Test Case '-[PiraticTests.TopShelfLinkTests testForeignAndMalformedURLsAreIgnored]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TopShelfLinkTests testLinksRoundTripThroughTheirURL]' started.
+Test Case '-[PiraticTests.TopShelfLinkTests testLinksRoundTripThroughTheirURL]' passed (0.001 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAnAnimeAlsoTeachesTheAnimeBucket]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAnAnimeAlsoTeachesTheAnimeBucket]' passed (0.004 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAnEmptyChainWritesNothing]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAnEmptyChainWritesNothing]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAPlayTeachesEveryScopeInTheChain]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testAPlayTeachesEveryScopeInTheChain]' passed (0.003 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testEveryScopeInTheChainIsReturnedEvenWhenEmpty]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testEveryScopeInTheChainIsReturnedEvenWhenEmpty]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testForgettingOneScopeLeavesTheOthers]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testForgettingOneScopeLeavesTheOthers]' passed (0.010 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLedgersSurviveANewStoreOverTheSameDefaults]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLedgersSurviveANewStoreOverTheSameDefaults]' passed (0.004 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLegacySubtitleChoicesAreMigratedOnce]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLegacySubtitleChoicesAreMigratedOnce]' passed (0.006 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLegacySubtitlesOffMigratesAsOff]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testLegacySubtitlesOffMigratesAsOff]' passed (0.004 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testMigrationDoesNotOverwriteALedgerThatAlreadyExists]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testMigrationDoesNotOverwriteALedgerThatAlreadyExists]' passed (0.004 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testTheMenuIsRecordedEvenWhenNothingIsChosen]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testTheMenuIsRecordedEvenWhenNothingIsChosen]' passed (0.002 seconds).
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testWeightAccumulatesAcrossEpisodesOfOneSeries]' started.
+Test Case '-[PiraticTests.TrackPreferenceStoreTests testWeightAccumulatesAcrossEpisodesOfOneSeries]' passed (0.003 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testAnUnchangedListKeepsTheRevisionAndClearDropsTheBadge]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testAnUnchangedListKeepsTheRevisionAndClearDropsTheBadge]' passed (0.007 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testCachedItemReadsWarmSubscribedSerialWithoutFetch]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testCachedItemReadsWarmSubscribedSerialWithoutFetch]' passed (0.001 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testCacheHitSkipsSecondNetworkCall]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testCacheHitSkipsSecondNetworkCall]' passed (0.001 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testContentStorePaintsUnwatchedCountFromWarmWatchingCache]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testContentStorePaintsUnwatchedCountFromWarmWatchingCache]' passed (0.003 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testContentStoreWatchInvalidateClearsWatchingCache]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testContentStoreWatchInvalidateClearsWatchingCache]' passed (0.003 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testFollowedListFetchReportsItsIDs]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testFollowedListFetchReportsItsIDs]' passed (0.001 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testFollowingASeriesMovesTheBadgeAndTheSubtitleAtOnce]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testFollowingASeriesMovesTheBadgeAndTheSubtitleAtOnce]' passed (0.002 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testForceBypassesWarmCache]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testForceBypassesWarmCache]' passed (0.001 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testInFlightCallsCoalesce]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testInFlightCallsCoalesce]' passed (0.128 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testInvalidateForcesRefetch]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testInvalidateForcesRefetch]' passed (0.001 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testNewEpisodesBadgeSubtitleAndCoversAgree]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testNewEpisodesBadgeSubtitleAndCoversAgree]' passed (0.003 seconds).
+Test Case '-[PiraticTests.WatchingListCacheTests testServerFollowReplacesAStaleLocalMark]' started.
+Test Case '-[PiraticTests.WatchingListCacheTests testServerFollowReplacesAStaleLocalMark]' passed (0.002 seconds).
+Test Case '-[PiraticUITests.LaunchUITests testSomethingIsOnScreenAfterLaunch]' started.
+Test Case '-[PiraticUITests.LaunchUITests testSomethingIsOnScreenAfterLaunch]' passed (6.457 seconds).
+Test Case '-[PiraticUITests.LaunchUITests testTheAppLaunches]' started.
+Test Case '-[PiraticUITests.LaunchUITests testTheAppLaunches]' passed (4.966 seconds).
+Test Case '-[PiraticUITests.PerformanceUITests testHeroCarouselPaging]' started.
+Test Case '-[PiraticUITests.PerformanceUITests testHeroCarouselPaging]' passed (38.231 seconds).
+Test Case '-[PiraticUITests.PerformanceUITests testHomeShelfScroll]' started.
+Test Case '-[PiraticUITests.PerformanceUITests testHomeShelfScroll]' passed (57.589 seconds).
+Test Case '-[PiraticUITests.PerformanceUITests testSearchTabFirstPaint]' started.
+Test Case '-[PiraticUITests.PerformanceUITests testSearchTabFirstPaint]' passed (18.038 seconds).
+Test Case '-[PiraticUITests.PerformanceUITests testSeasonRailScroll]' started.
+Test Case '-[PiraticUITests.PerformanceUITests testSeasonRailScroll]' passed (85.993 seconds).
+Test Case '-[PiraticUITests.PerformanceUITests testTitlePageOpen]' started.
+Test Case '-[PiraticUITests.PerformanceUITests testTitlePageOpen]' passed (31.037 seconds).
+Test Case '-[PiraticUITests.PlayerTabsUITests testEpisodesOpenInTheMiddleOfASeason]' started.
+Test Case '-[PiraticUITests.PlayerTabsUITests testEpisodesOpenInTheMiddleOfASeason]' passed (69.903 seconds).
+Test Case '-[PiraticUITests.PlayerTabsUITests testGoToShowClosesThePanelFirst]' started.
+Test Case '-[PiraticUITests.PlayerTabsUITests testGoToShowClosesThePanelFirst]' passed (40.293 seconds).
+Test Case '-[PiraticUITests.PlayerTabsUITests testInfoLeadsTheStripOnAnEarlyDown]' started.
+Test Case '-[PiraticUITests.PlayerTabsUITests testInfoLeadsTheStripOnAnEarlyDown]' failed (28.000 seconds).
+Test Case '-[PiraticUITests.PlayerTabsUITests testInfoTabArrivesWithLateMetadata]' started.
+Test Case '-[PiraticUITests.PlayerTabsUITests testInfoTabArrivesWithLateMetadata]' passed (29.578 seconds).
+Test Case '-[PiraticUITests.PlayerTabsUITests testTabsOfASeriesEpisode]' started.
+Test Case '-[PiraticUITests.PlayerTabsUITests testTabsOfASeriesEpisode]' passed (55.009 seconds).
+Test Case '-[PiraticUITests.PlayerUpNextTabUITests testUpNextTabDoesNotGrowWhenReentered]' started.
+Test Case '-[PiraticUITests.TVChannelsUITests testGridFocusAndScroll]' started.
+Test Case '-[PiraticUITests.TVChannelsUITests testGridFocusAndScroll]' passed (69.623 seconds).
+Test Case '-[PiraticUITests.TVChannelsUITests testRealLogosShots]' started.
+Test Case '-[PiraticUITests.TVChannelsUITests testRealLogosShots]' passed (24.831 seconds).
+Test Case '-[PiraticUITests.TVChannelsUITests testRealPlayerPlaysAndMenuReturns]' started.
+Test Case '-[PiraticUITests.TVChannelsUITests testRealPlayerPlaysAndMenuReturns]' passed (33.959 seconds).
+Test Case '-[PiraticUITests.TVChannelsUITests testSelectPlaysChannelAndMenuReturns]' started.
+Test Case '-[PiraticUITests.TVChannelsUITests testSelectPlaysChannelAndMenuReturns]' passed (19.973 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testAGridScrolledFarKeepsEveryCoverTheSame]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testAGridScrolledFarKeepsEveryCoverTheSame]' passed (132.589 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testAStripOfPostersMovesFromOneGroupToTheNext]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testAStripOfPostersMovesFromOneGroupToTheNext]' passed (52.273 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testATitleOpenedFromACardPaintsBeforeItsDetails]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testATitleOpenedFromACardPaintsBeforeItsDetails]' passed (33.777 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testATitleWhoseDetailsFailKeepsItsHeroAndOffersRetry]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testATitleWhoseDetailsFailKeepsItsHeroAndOffersRetry]' passed (25.212 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmRowsInOrder]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmRowsInOrder]' passed (38.114 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmSelectingCards]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmSelectingCards]' passed (71.840 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmSimilarIsOneRowOfGroupsOfCovers]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmSimilarIsOneRowOfGroupsOfCovers]' passed (37.616 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmStripsMoveSideways]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmStripsMoveSideways]' passed (33.284 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmUpwardsReturnsToTheHero]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFilmUpwardsReturnsToTheHero]' passed (44.390 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFocusReturnsAfterPopup]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testFocusReturnsAfterPopup]' passed (25.488 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testGoToTitleFromAContextMenuClosesItFirst]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testGoToTitleFromAContextMenuClosesItFirst]' passed (30.824 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testLibraryFollowingSaysHowManyEpisodesAreLeft]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testLibraryFollowingSaysHowManyEpisodesAreLeft]' passed (13.581 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testLibraryRemoteWalk]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testLightAppearanceBehindEveryPage]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testLightAppearanceBehindEveryPage]' failed (37.179 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testMenuReturnsToEachHeroBeforeClosingTheTitle]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testMenuReturnsToEachHeroBeforeClosingTheTitle]' passed (110.108 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testOpeningATitleFromATabRoot]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testOpeningATitleFromATabRoot]' passed (33.905 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testReviewOnTheTitleOpensItsFullTextAndRestoresFocus]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testReviewOnTheTitleOpensItsFullTextAndRestoresFocus]' passed (30.416 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonLineOfAOneSeasonShowIsJustTheWord]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonLineOfAOneSeasonShowIsJustTheWord]' passed (13.885 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonRailFocusWalk]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonRailFocusWalk]' passed (27.295 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonRailPlayGlyphOnFocus]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeasonRailPlayGlyphOnFocus]' passed (18.961 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeriesKeepsItsRailAboveTheNewSections]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeriesKeepsItsRailAboveTheNewSections]' passed (28.443 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeveralDirectorsShareTheRowAndTheCastIsRanked]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testSeveralDirectorsShareTheRowAndTheCastIsRanked]' passed (24.908 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTemplatesGalleryStripsAreReachable]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTemplatesGalleryStripsAreReachable]' passed (46.817 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheBackdropCrossfadesBetweenTitles]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheBackdropCrossfadesBetweenTitles]' passed (34.865 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheBackdropFollowsTitleAfterTitle]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheBackdropFollowsTitleAfterTitle]' passed (116.267 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheDetailsLeaveThePictureInBothAppearances]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheDetailsLeaveThePictureInBothAppearances]' failed (32.653 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheHeroIsWholeAfterTheDetailsAndBack]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheHeroIsWholeAfterTheDetailsAndBack]' failed (29.825 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheTableTakesFocusOnlyWhereSelectDoesSomething]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testTheTableTakesFocusOnlyWhereSelectDoesSomething]' passed (37.015 seconds).
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testUpFromTheRightEndOfTheFirstRowLandsOnPlay]' started.
+Test Case '-[PiraticUITests.TVDetailLayoutUITests testUpFromTheRightEndOfTheFirstRowLandsOnPlay]' failed (24.631 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testCaughtUpSeriesOpensOnFollow]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testCaughtUpSeriesOpensOnFollow]' passed (10.502 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testConcertMoreVideosTakesFocusToTheRail]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testConcertMoreVideosTakesFocusToTheRail]' passed (23.793 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testFilmDownReachesTheBottomOfThePage]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testFilmDownReachesTheBottomOfThePage]' passed (52.615 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testFilmSynopsisOpensInfoCard]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testFilmSynopsisOpensInfoCard]' passed (14.663 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testFollowHasFocusAfterWatchingTheLastEpisode]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testFollowHasFocusAfterWatchingTheLastEpisode]' passed (19.323 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testMissingEpisodesInTheRail]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testMissingEpisodesInTheRail]' passed (36.705 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testMultiVersionFilmOpensChooserFromSinglePlay]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testMultiVersionFilmOpensChooserFromSinglePlay]' passed (12.881 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testReplayHasFocusOnOpeningAndAfterThePlayer]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testReplayHasFocusOnOpeningAndAfterThePlayer]' passed (17.382 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testSeasonRailDownKeepsFocusOnScreen]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testSeasonRailDownKeepsFocusOnScreen]' passed (19.939 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testSeasonRailDownReachesTheBottomOfThePage]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testSeasonRailDownReachesTheBottomOfThePage]' passed (52.897 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testTrailerKeepsFocusAfterThePlayer]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testTrailerKeepsFocusAfterThePlayer]' passed (20.096 seconds).
+Test Case '-[PiraticUITests.TVDetailPageUITests testUnnamedMultiVersionFilmUsesSinglePlay]' started.
+Test Case '-[PiraticUITests.TVDetailPageUITests testUnnamedMultiVersionFilmUsesSinglePlay]' passed (14.143 seconds).
+Test Case '-[PiraticUITests.TVHomeBannerUITests testBannerFocusWalk]' started.
+Test Case '-[PiraticUITests.TVHomeBannerUITests testBannerFocusWalk]' passed (55.045 seconds).
+Test Case '-[PiraticUITests.TVHomeHeroUITests testHeroFocusAndPaging]' started.
+Test Case '-[PiraticUITests.TVHomeHeroUITests testHeroFocusAndPaging]' passed (53.137 seconds).
+Test Case '-[PiraticUITests.TVHomeHeroUITests testUpFromScrolledRowReturnsToTheButtonFocusLeft]' started.
+Test Case '-[PiraticUITests.TVHomeHeroUITests testUpFromScrolledRowReturnsToTheButtonFocusLeft]' passed (20.099 seconds).
+Test Case '-[PiraticUITests.TVHomeHeroUITests testUpThroughTheRowUnderTheHeroKeepsEachStageInPlace]' started.
+Test Case '-[PiraticUITests.TVHomeHeroUITests testUpThroughTheRowUnderTheHeroKeepsEachStageInPlace]' passed (23.138 seconds).
+Test Case '-[PiraticUITests.TVLanguageListEditingUITests testDeleteThenCancelRestoresTheList]' started.
+Test Case '-[PiraticUITests.TVLanguageListEditingUITests testReorderWithTheHandleAndDone]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryDownFromBarAfterSectionSwitch]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryDownFromBarAfterSectionSwitch]' passed (50.779 seconds).
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryTabBarWholeAfterSectionSwitches]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryTabBarWholeAfterSectionSwitches]' passed (98.681 seconds).
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryTabBarWholeWithScrollingSidebar]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testLibraryTabBarWholeWithScrollingSidebar]' passed (128.500 seconds).
+Test Case '-[PiraticUITests.TVMenuBackUITests testMenuFromDeepShelfReturnsToTopThenTabBar]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testMenuFromDeepShelfReturnsToTopThenTabBar]' passed (19.535 seconds).
+Test Case '-[PiraticUITests.TVMenuBackUITests testSettingsLeftWithoutMenuReopensAtItsFirstLevel]' started.
+Test Case '-[PiraticUITests.TVMenuBackUITests testTabBarStaysHiddenOnTitleAndPlayerOpenedTwiceFromTheHero]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testCollectionPageFromHomeRow]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testFocusReturnsToThePosterAfterDetail]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testLibraryLayout]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testLibrarySidebarSelection]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testLibrarySidebarSelection]' passed (18.103 seconds).
+Test Case '-[PiraticUITests.TVPageGeometryUITests testMoviesTabPaintsPostersAtFinalSizeOnFirstFrame]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testPersonPageFromCastRail]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testRapidTabSwitchingStrandsNoPosters]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchAndLibraryShots]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchFilterRow]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchFiltersPersist]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchFocusDownAfterReturning]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchFocusRoundTrip]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchLargeText]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchLayoutDebug]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchLettersKeepFilters]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchQueryMode]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchQueryShots]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchScrollEdges]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchTabDownFromTabBar]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testSearchTypingScopeAndScroll]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testTabBarHidesOnScrollDown]' started.
+Test Case '-[PiraticUITests.TVPageGeometryUITests testTemplatesGalleryWalk]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testAPersonAmongTheTopCardsIsTheCastCard]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testAPersonAmongTheTopCardsIsTheCastCard]' passed (14.794 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardHidesWhileResultsHaveFocus]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardHidesWhileResultsHaveFocus]' passed (25.518 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardKeepsTheTabBarAboveTheFieldAfterTheResults]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardKeepsTheTabBarAboveTheFieldAfterTheResults]' passed (34.464 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardKeepsTheTabBarAboveTheField]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardKeepsTheTabBarAboveTheField]' passed (30.944 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardResultsStayBesideIt]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardResultsStayBesideIt]' passed (10.673 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardStaysBesideTheResultsAndTheChromeStays]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardStaysBesideTheResultsAndTheChromeStays]' passed (33.639 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardUpFromTheResultsReachesTheTab]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testGridKeyboardUpFromTheResultsReachesTheTab]' passed (21.161 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testLinearKeyboardResultsSpanTheScreen]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testLinearKeyboardResultsSpanTheScreen]' passed (10.498 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testMenuFromDeepInTheGridReturnsToTheTopRow]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testMenuFromDeepInTheGridReturnsToTheTopRow]' passed (58.877 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testSearchTabChromeAppearsWhenOpenedFromWatchNow]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testSearchTabChromeAppearsWhenOpenedFromWatchNow]' passed (11.272 seconds).
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testUpFromTheKeyboardReturnsToTheTab]' started.
+Test Case '-[PiraticUITests.TVSearchLayoutUITests testUpFromTheKeyboardReturnsToTheTab]' passed (12.690 seconds).
+Test Case '-[PiraticUITests.WatchNowHigShotsUITests testDarkHotMoviesCaptionShot]' started.
+Test Case '-[PiraticUITests.WatchNowHigShotsUITests testLightHotMoviesCaptionShot]' started.
+Test Case '-[PiraticUITests.WatchNowHigShotsUITests testPlayPauseOpensMenuOnVerticalPoster]' started.
