@@ -53,9 +53,21 @@ public struct MediaCardsListView: View {
     (cards.first ?? sections.first?.cards.first)?.isLandscape == true
   }
 
+  /// A still grid breathes more than a poster grid: two-line captions under wide
+  /// cards ran into the next row's stills at one gutter, and the columns read
+  /// tighter than the Home rail (Sasha, 2026-11-28). Twice the gutter between rows,
+  /// one and a half between columns; poster grids keep one gutter both ways.
+  private var columnSpacing: CGFloat {
+    isLandscapeGrid ? metrics.gutter * 1.5 : metrics.gutter
+  }
+
+  private var rowSpacing: CGFloat {
+    isLandscapeGrid ? metrics.gutter * 2 : metrics.gutter
+  }
+
   private var gridColumns: [GridItem] {
     Array(
-      repeating: GridItem(.flexible(), spacing: metrics.gutter, alignment: .top),
+      repeating: GridItem(.flexible(), spacing: columnSpacing, alignment: .top),
       count: metrics.columns
     )
   }
@@ -123,7 +135,7 @@ public struct MediaCardsListView: View {
 #endif
 
   private func grid(of cards: [MediaCard]) -> some View {
-    LazyVGrid(columns: gridColumns, spacing: metrics.gutter) {
+    LazyVGrid(columns: gridColumns, spacing: rowSpacing) {
       ForEach(cards) { card in
         cardCell(card)
           .onAppear { onLoadMoreContent(card) }
