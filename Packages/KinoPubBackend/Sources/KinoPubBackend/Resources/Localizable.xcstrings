@@ -1,6 +1,24 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Also spoken: %@": {
+      "comment": "Under the original language: the other languages spoken in the title (TMDB spoken_languages), a list.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also spoken: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Также звучат: %@"
+          }
+        }
+      }
+    },
     "Author's": {
       "comment": "Audio dub kind: author's / AVO.",
       "extractionState": "manual",
@@ -73,6 +91,24 @@
         }
       }
     },
+    "Language not specified": {
+      "comment": "Grey line under «Original language»: kino.pub did not say which language it is.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language not specified"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Язык не указан"
+          }
+        }
+      }
+    },
     "Multi-voice": {
       "comment": "Audio dub kind: multi-voice over (MVO).",
       "extractionState": "manual",
@@ -123,6 +159,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Оригинал"
+          }
+        }
+      }
+    },
+    "Original language": {
+      "comment": "Audio row for a track with no language that is the title's original sound.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original language"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На языке оригинала"
+          }
+        }
+      }
+    },
+    "Original language (short)": {
+      "comment": "Three-letter hero form of «Original language», beside «Рус», «Eng».",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orig"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ориг"
           }
         }
       }

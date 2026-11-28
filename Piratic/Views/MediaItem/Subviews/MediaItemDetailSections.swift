@@ -83,6 +83,14 @@ func mediaItemPreferredLanguages() -> [String] {
   return languages
 }
 
+extension TitleMetadata {
+  /// What TMDB knows of the title's languages, for the audio rows: it names the original
+  /// sound kino.pub left without a language (`AudioTracks.resolvingUnnamedLanguage`).
+  var titleLanguages: TitleLanguages {
+    TitleLanguages(original: originalLanguage, spoken: spokenLanguages)
+  }
+}
+
 func mediaItemAdvisories(_ mediaItem: MediaItem) -> [String] {
   var result: [String] = []
   if mediaItem.advert { result.append("MediaItem_ContainsAds".localized) }
@@ -2567,7 +2575,8 @@ struct MediaItemBadgeCardsSection: View {
 
   private var preferredLanguages: [String] { mediaItemPreferredLanguages() }
   private var audioGroups: [MediaLanguageGroup] {
-    mediaItem.audioLanguageGroups(preferredLanguages: preferredLanguages)
+    mediaItem.audioLanguageGroups(preferredLanguages: preferredLanguages,
+                                  languages: externalMetadata.titleLanguages)
   }
   private var subtitleGroups: [MediaLanguageGroup] {
     mediaItem.subtitleLanguageGroups(preferredLanguages: preferredLanguages)
@@ -3541,7 +3550,8 @@ struct MediaItemInfoColumns: View {
   }
 
   private var audioGroups: [MediaLanguageGroup] {
-    mediaItem.audioLanguageGroups(preferredLanguages: preferredLanguages)
+    mediaItem.audioLanguageGroups(preferredLanguages: preferredLanguages,
+                                  languages: externalMetadata.titleLanguages)
   }
 
   private var subtitleGroups: [MediaLanguageGroup] {
@@ -4843,7 +4853,8 @@ struct MediaItemSynopsisPopupContent: View {
 
   /// Every language, preferred ones first, each with the dubs and voice-overs it comes in.
   private var audioGroups: [MediaLanguageGroup] {
-    item.audioLanguageGroups(preferredLanguages: preferredLanguages)
+    item.audioLanguageGroups(preferredLanguages: preferredLanguages,
+                             languages: metadata.titleLanguages)
   }
 
   private var subtitleNames: [String] {

@@ -242,11 +242,20 @@ public extension MediaItem {
     return AudioTracks.catalog(episodeAudios)
   }
 
-  /// Audio grouped by language for the Languages column.
-  func audioLanguageGroups(preferredLanguages: [String] = Locale.preferredLanguages)
+  /// The same, with a track kino.pub left without a language named after the title's
+  /// original one when it is the original sound (`AudioTracks.resolvingUnnamedLanguage`).
+  func detailAudioTracks(languages: TitleLanguages) -> [AudioTrackInfo] {
+    AudioTracks.resolvingUnnamedLanguage(detailAudioTracks, languages: languages)
+  }
+
+  /// Audio grouped by language for the Languages column. `languages` is what TMDB knows —
+  /// it names the original sound kino.pub left without a language.
+  func audioLanguageGroups(preferredLanguages: [String] = Locale.preferredLanguages,
+                           languages: TitleLanguages = TitleLanguages())
   -> [MediaLanguageGroup] {
     AudioTracks.languageGroups(for: detailAudioTracks,
-                               preferredLanguages: preferredLanguages)
+                               preferredLanguages: preferredLanguages,
+                               languages: languages)
   }
 
   var audioLanguageGroups: [MediaLanguageGroup] {

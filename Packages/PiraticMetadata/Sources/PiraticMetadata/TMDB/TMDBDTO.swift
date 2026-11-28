@@ -85,6 +85,8 @@ struct TMDBTitleDetails: Codable, Sendable {
   /// ISO 639-1 of the original production («ko», «ja»): the third language the title's
   /// videos are asked in, after the app's and English.
   let originalLanguage: String?
+  /// Every language spoken in it, `original_language` among them.
+  let spokenLanguages: [TMDBSpokenLanguage]?
 
   /// TV-only: alternate orderings (Production / Cours / Absolute…). List only — episodes
   /// need `/tv/episode_group/{id}`.
@@ -93,6 +95,7 @@ struct TMDBTitleDetails: Codable, Sendable {
   enum CodingKeys: String, CodingKey {
     case id, overview, tagline, homepage, status, genres, budget, revenue, networks, type
     case originalLanguage = "original_language"
+    case spokenLanguages = "spoken_languages"
     case credits, images, videos, keywords
     case inProduction = "in_production"
     case productionCompanies = "production_companies"
@@ -111,6 +114,14 @@ struct TMDBTitleDetails: Codable, Sendable {
     case voteAverage = "vote_average"
     case voteCount = "vote_count"
     case episodeGroups = "episode_groups"
+  }
+}
+
+struct TMDBSpokenLanguage: Codable, Sendable {
+  let iso6391: String?
+
+  enum CodingKeys: String, CodingKey {
+    case iso6391 = "iso_639_1"
   }
 }
 

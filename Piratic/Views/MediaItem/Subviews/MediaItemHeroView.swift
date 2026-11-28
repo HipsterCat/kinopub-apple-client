@@ -2155,14 +2155,23 @@ struct MediaItemHeroView: View {
   }
 
   /// The viewer's languages among the sound tracks, each by the first three letters of
-  /// its own name: «Рус», «Eng», «Укр».
+  /// its own name: «Рус», «Eng», «Укр». An original sound kino.pub left without a language
+  /// is named by TMDB («Tag») or reads «Ориг», never «Неи» (Sasha, 2026-11-28).
   private var audioLanguageCodes: [String] {
-    let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
+    let languages = externalMetadata.titleLanguages
+    let unnamedWasOriginal = AudioTracks.unnamedIsOriginal(mediaItem.detailAudioTracks)
+    let tracks = mediaItem.detailAudioTracks(languages: languages).filter { !$0.isAudioDescription }
+    let unnamedIsOriginal = AudioTracks.unnamedIsOriginal(tracks)
     // The viewer's languages, then the original sound's — «Рус, Eng» — and for a title
     // with neither (a concert's one track), whatever language its first track is in.
     let originals = tracks
-      .filter { $0.typeId.flatMap(VoiceType.init(rawValue:)) == .original }
-      .map { SubtitleTracks.languageKey($0.lang) }
+      .map { (track: $0, key: SubtitleTracks.languageKey($0.lang)) }
+      .filter { track, key in
+        track.typeId.flatMap(VoiceType.init(rawValue:)) == .original
+          || (unnamedIsOriginal && AudioTracks.isUnnamedLanguage(key))
+          || (unnamedWasOriginal && key == languages.originalKey)
+      }
+      .map(\.key)
     var seen = Set<String>()
     var keys = (viewerLanguages + originals).filter { key in
       !key.isEmpty && tracks.contains { SubtitleTracks.languageKey($0.lang) == key } && seen.insert(key).inserted
@@ -2171,6 +2180,9 @@ struct MediaItemHeroView: View {
       keys = [first]
     }
     return keys.prefix(Self.phoneLanguageLimit).compactMap { key -> String? in
+      if unnamedIsOriginal && AudioTracks.isUnnamedLanguage(key) {
+        return AudioTracks.originalLanguageShortName
+      }
       let own = Locale(identifier: key).localizedString(forLanguageCode: key) ?? languageName(key)
       guard let own, !own.isEmpty else { return nil }
       let short = own.prefix(3)
@@ -2213,7 +2225,8 @@ struct MediaItemHeroView: View {
   }
 
   private func languageName(_ key: String) -> String? {
-    let groups = mediaItem.audioLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
+    let groups = mediaItem.audioLanguageGroups(preferredLanguages: mediaItemPreferredLanguages(),
+                                               languages: externalMetadata.titleLanguages)
       + mediaItem.subtitleLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
     guard let name = groups.first(where: { $0.key == key })?.name, !name.isEmpty else { return nil }
     return name.prefix(1).uppercased() + name.dropFirst()

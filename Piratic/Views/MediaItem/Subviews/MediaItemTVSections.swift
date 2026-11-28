@@ -614,12 +614,18 @@ enum MediaItemTVSections {
   /// the rest fold into "N more languages" (`LanguageListVisibility`, the one rule).
   private static func audioRows(_ input: Input) -> [TVPageInfoCard.Spec.Row] {
     let item = input.mediaItem
-    let groups = item.audioLanguageGroups(preferredLanguages: input.preferredLanguages)
+    let languages = input.metadata.titleLanguages
+    let groups = item.audioLanguageGroups(preferredLanguages: input.preferredLanguages,
+                                          languages: languages)
     guard !groups.isEmpty else {
       return [.init(id: "audio.none", text: "MediaItem_SpecNoAudio".localized, style: .value)]
     }
-    let tracks = AudioTracks.sort(item.detailAudioTracks, preferredLanguages: input.preferredLanguages)
+    let resolved = item.detailAudioTracks(languages: languages)
+    let tracks = AudioTracks.sort(resolved, preferredLanguages: input.preferredLanguages)
     let tracksByLanguage = Dictionary(grouping: tracks) { SubtitleTracks.languageKey($0.lang) }
+    // kino.pub's original sound with no language, which TMDB could not name either: the row
+    // reads «На языке оригинала», and the note beside it says the language is not given.
+    let unnamedIsOriginal = AudioTracks.unnamedIsOriginal(resolved)
 
     let partition = visibleLanguages(groups, input)
     var rows: [TVPageInfoCard.Spec.Row] = []
@@ -627,10 +633,15 @@ enum MediaItemTVSections {
       let dubs = dubRows(for: tracksByLanguage[group.key] ?? [], language: group.key)
       // A language with nothing but the original track says so beside its name.
       let isOriginalOnly = dubs.isEmpty
-      rows.append(.init(id: "audio.\(group.key)", text: group.name,
-                        secondary: isOriginalOnly ? AudioTracks.localizedKindLabel(rank: 5) : nil,
-                        style: .language))
+      let note = unnamedIsOriginal && AudioTracks.isUnnamedLanguage(group.key)
+        ? AudioTracks.languageNotSpecified
+        : (isOriginalOnly ? AudioTracks.localizedKindLabel(rank: 5) : nil)
+      rows.append(.init(id: "audio.\(group.key)", text: group.name, secondary: note, style: .language))
       rows.append(contentsOf: dubs)
+      if group.key == languages.originalKey,
+         let spoken = AudioTracks.alsoSpokenLine(languages, besides: group.key) {
+        rows.append(.init(id: "audio.\(group.key).spoken", text: spoken, style: .detail))
+      }
     }
     if partition.hiddenCount > 0 {
       rows.append(moreLanguagesRow(partition.hiddenCount, id: "audio.more"))

@@ -793,6 +793,9 @@ public struct TitleMetadata: Sendable {
   public var trailers: [TrailerRef] = []
   /// ISO 639-1 of the original production, when the source says.
   public var originalLanguage: String?
+  /// ISO 639-1 of every language spoken in it, the original among them (TMDB
+  /// `spoken_languages`): Midnight Girls is Tagalog, with Japanese and English.
+  public var spokenLanguages: [String] = []
   public var tagline: String?
   public var homepage: URL?
   /// Movie-only; both nil for series (TMDB doesn't report box office for TV).
@@ -909,6 +912,7 @@ public struct TitleMetadata: Sendable {
     if keywords.isEmpty { keywords = other.keywords }
     if trailers.isEmpty { trailers = other.trailers }
     if originalLanguage == nil { originalLanguage = other.originalLanguage }
+    if spokenLanguages.isEmpty { spokenLanguages = other.spokenLanguages }
     if tagline == nil { tagline = other.tagline }
     if homepage == nil { homepage = other.homepage }
     if budget == nil { budget = other.budget }

@@ -645,6 +645,7 @@ public final class TMDBSource: MetadataSource, Sendable {
 
     meta.trailers = (details.videos?.results ?? []).compactMap(Self.trailer(from:))
     meta.originalLanguage = details.originalLanguage
+    meta.spokenLanguages = (details.spokenLanguages ?? []).compactMap(\.iso6391).filter { !$0.isEmpty }
 
     meta.ageRating = Self.pickAgeRating(
       releaseDates: details.releaseDates,

@@ -63,6 +63,36 @@ public struct AudioTrackInfo: Hashable, Sendable {
   }
 }
 
+public extension AudioTrackInfo {
+  /// The same rendition in another language — for a track kino.pub left without one.
+  func withLanguage(_ code: String) -> AudioTrackInfo {
+    AudioTrackInfo(lang: code, typeId: typeId, typeTitle: typeTitle, typeShortTitle: typeShortTitle,
+                   authorTitle: authorTitle, channels: channels, codec: codec, index: index,
+                   isAudioDescription: isAudioDescription)
+  }
+}
+
+/// What a metadata source (TMDB) knows about a title's languages: the one it was made in and
+/// every one spoken in it. kino.pub does not say, and sometimes ships the original sound with
+/// no language at all.
+public struct TitleLanguages: Hashable, Sendable {
+  /// ISO 639-1 of the original production («tl», «ko»).
+  public var original: String?
+  /// Every language spoken in it, the original among them.
+  public var spoken: [String]
+
+  public init(original: String? = nil, spoken: [String] = []) {
+    self.original = original
+    self.spoken = spoken
+  }
+
+  public var originalKey: String? {
+    guard let original else { return nil }
+    let key = SubtitleTracks.languageKey(original)
+    return key.isEmpty || AudioTracks.isUnnamedLanguage(key) ? nil : key
+  }
+}
+
 /// Shared sort ladder for the detail-page Audio column and the player's default pick.
 ///
 /// Preferred languages first (system order), then the rest A–Z; within a language
@@ -166,10 +196,18 @@ public enum AudioTracks {
 
   /// Languages in sort order, each with kind lines like
   /// `Дубляж (2), Кубик в Кубе, Мосфильм`.
+  ///
+  /// A track kino.pub left without a language is named by `languages` when it is the original
+  /// sound (`resolvingUnnamedLanguage`), and otherwise reads «На языке оригинала · Язык не
+  /// указан» rather than «Неизвестный язык». The original language lists the others spoken in
+  /// the title under it.
   public static func languageGroups(for tracks: [AudioTrackInfo],
-                                    preferredLanguages: [String] = Locale.preferredLanguages)
+                                    preferredLanguages: [String] = Locale.preferredLanguages,
+                                    languages: TitleLanguages = TitleLanguages())
   -> [MediaLanguageGroup] {
-    let sorted = sort(tracks, preferredLanguages: preferredLanguages)
+    let resolved = resolvingUnnamedLanguage(tracks, languages: languages)
+    let originalIsUnnamed = unnamedIsOriginal(resolved)
+    let sorted = sort(resolved, preferredLanguages: preferredLanguages)
     var order: [String] = []
     var byLanguage: [String: [AudioTrackInfo]] = [:]
     for track in sorted {
@@ -179,10 +217,89 @@ public enum AudioTracks {
     }
     return order.compactMap { key in
       guard let group = byLanguage[key], let first = group.first else { return nil }
+      if originalIsUnnamed && isUnnamedLanguage(key) {
+        // «Оригинал» under «На языке оригинала» says the same thing twice.
+        let voiced = group.filter { kindRank(of: $0) != originalKindRank }
+        return MediaLanguageGroup(key: key,
+                                  name: originalLanguageName,
+                                  detailLines: kindSummaryLines(for: voiced) + [languageNotSpecified])
+      }
+      var lines = kindSummaryLines(for: group)
+      if key == languages.originalKey, let spoken = alsoSpokenLine(languages, besides: key) {
+        lines.append(spoken)
+      }
       return MediaLanguageGroup(key: key,
                                 name: LanguageNames.name(for: first.lang),
-                                detailLines: kindSummaryLines(for: group))
+                                detailLines: lines)
     }
+  }
+
+  // MARK: - Tracks with no language
+
+  /// What kino.pub and the CDN write where they do not know the language. ISO 639-2 `und`
+  /// (undetermined) is the usual one; Foundation names it «Неизвестный язык».
+  private static let unnamedLanguageCodes: Set<String> = ["", "und", "unk", "mis", "zxx", "xx", "xxx"]
+
+  public static func isUnnamedLanguage(_ code: String) -> Bool {
+    unnamedLanguageCodes.contains(LanguageNames.canonicalCode(code))
+  }
+
+  private static var originalKindRank: Int { VoiceType.original.preferenceRank }
+
+  private static func kindRank(of track: AudioTrackInfo) -> Int {
+    kindRank(typeId: track.typeId, typeTitle: track.typeTitle, typeShortTitle: track.typeShortTitle)
+  }
+
+  /// Whether the tracks with no language are the title's original sound (Sasha, 2026-11-28):
+  /// kino.pub marks one as the original, or it sits beside the dubs of a single language — a
+  /// Russian voice-over and the original, or a concert's one track. Never when a named track
+  /// already is the original.
+  public static func unnamedIsOriginal(_ tracks: [AudioTrackInfo]) -> Bool {
+    let regular = tracks.filter { !$0.isAudioDescription }
+    let unnamed = regular.filter { isUnnamedLanguage($0.lang) }
+    guard !unnamed.isEmpty else { return false }
+    if unnamed.contains(where: { kindRank(of: $0) == originalKindRank }) { return true }
+    let named = regular.filter { !isUnnamedLanguage($0.lang) }
+    if named.contains(where: { kindRank(of: $0) == originalKindRank }) { return false }
+    return Set(named.map { SubtitleTracks.languageKey($0.lang) }).count <= 1
+  }
+
+  /// The unnamed original sound in the language the title was made in, when a metadata source
+  /// knows it and no track is in that language already. Everything else as it came.
+  public static func resolvingUnnamedLanguage(_ tracks: [AudioTrackInfo],
+                                              languages: TitleLanguages) -> [AudioTrackInfo] {
+    guard let original = languages.originalKey,
+          unnamedIsOriginal(tracks),
+          !tracks.contains(where: { SubtitleTracks.languageKey($0.lang) == original })
+    else { return tracks }
+    return tracks.map { isUnnamedLanguage($0.lang) ? $0.withLanguage(original) : $0 }
+  }
+
+  /// «На языке оригинала» — the unnamed original sound's row.
+  public static var originalLanguageName: String {
+    String(localized: "Original language", bundle: .module)
+  }
+
+  /// «Ориг» — the same in the hero's three-letter language list.
+  public static var originalLanguageShortName: String {
+    String(localized: "Original language (short)", bundle: .module)
+  }
+
+  /// «Язык не указан», grey under `originalLanguageName`.
+  public static var languageNotSpecified: String {
+    String(localized: "Language not specified", bundle: .module)
+  }
+
+  /// «Также звучат: японский и английский» — the other languages spoken in the title.
+  public static func alsoSpokenLine(_ languages: TitleLanguages, besides key: String) -> String? {
+    var seen: Set<String> = [key]
+    let others = languages.spoken
+      .map(SubtitleTracks.languageKey)
+      .filter { !$0.isEmpty && !isUnnamedLanguage($0) && seen.insert($0).inserted }
+      .compactMap { Locale.current.localizedString(forLanguageCode: $0) }
+    guard !others.isEmpty else { return nil }
+    let list = others.formatted(.list(type: .and))
+    return String(localized: "Also spoken: \(list)", bundle: .module)
   }
 
   /// One line per dub kind within a language: kind, optional count, studios.

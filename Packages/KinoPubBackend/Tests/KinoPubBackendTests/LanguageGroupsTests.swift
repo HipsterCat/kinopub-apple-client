@@ -55,6 +55,55 @@ final class LanguageGroupsTests: XCTestCase {
     XCTAssertFalse(lines[0].contains(","))
   }
 
+  // MARK: - The original sound with no language (Midnight Girls, TMDB 1473592)
+
+  private var midnightGirls: [AudioTrackInfo] {
+    [track(lang: "rus", typeId: 2, typeTitle: "Многоголосый", index: 1),
+     track(lang: "und", typeId: 6, typeTitle: "Оригинал", index: 2)]
+  }
+
+  func testUnnamedTrackBesideOneDubLanguageIsTheOriginal() {
+    XCTAssertTrue(AudioTracks.unnamedIsOriginal(midnightGirls))
+    // A concert's one track, kind unknown.
+    XCTAssertTrue(AudioTracks.unnamedIsOriginal([track(lang: "und", typeId: -1, typeTitle: "", index: 1)]))
+    // Dubs in two languages and a track of unknown kind: nothing says it is the original.
+    XCTAssertFalse(AudioTracks.unnamedIsOriginal([
+      track(lang: "rus", typeId: 2, typeTitle: "Многоголосый", index: 1),
+      track(lang: "ukr", typeId: 2, typeTitle: "Многоголосый", index: 2),
+      track(lang: "und", typeId: -1, typeTitle: "", index: 3)
+    ]))
+    // A named original is already there.
+    XCTAssertFalse(AudioTracks.unnamedIsOriginal([
+      track(lang: "eng", typeId: 6, typeTitle: "Оригинал", index: 1),
+      track(lang: "und", typeId: -1, typeTitle: "", index: 2)
+    ]))
+  }
+
+  func testUnnamedOriginalReadsOriginalLanguageNotUnknown() {
+    let groups = AudioTracks.languageGroups(for: midnightGirls, preferredLanguages: preferredRUThenEN)
+    XCTAssertEqual(groups.map(\.key), ["ru", "und"])
+    XCTAssertEqual(groups[1].name, AudioTracks.originalLanguageName)
+    XCTAssertEqual(groups[1].detailLines, [AudioTracks.languageNotSpecified])
+  }
+
+  func testTMDBNamesTheUnnamedOriginalAndListsTheOtherSpokenLanguages() {
+    let languages = TitleLanguages(original: "tl", spoken: ["tl", "ja", "en"])
+    let groups = AudioTracks.languageGroups(for: midnightGirls, preferredLanguages: preferredRUThenEN,
+                                            languages: languages)
+    XCTAssertEqual(groups.map(\.key), ["ru", "tl"])
+    XCTAssertEqual(groups[1].name, LanguageNames.name(for: "tl"))
+    XCTAssertEqual(groups[1].detailLines.count, 2)
+    XCTAssertEqual(groups[1].detailLines[1],
+                   AudioTracks.alsoSpokenLine(languages, besides: "tl"))
+  }
+
+  func testTMDBOriginalAlreadyOnTheMenuLeavesTheUnnamedTrackAlone() {
+    let tracks = [track(lang: "rus", typeId: 6, typeTitle: "Оригинал", index: 1),
+                  track(lang: "und", typeId: -1, typeTitle: "", index: 2)]
+    let resolved = AudioTracks.resolvingUnnamedLanguage(tracks, languages: TitleLanguages(original: "ru"))
+    XCTAssertEqual(resolved.map(\.lang), ["rus", "und"])
+  }
+
   // MARK: - Visibility
 
   func testPreferredAndEnglishStayVisibleOthersCollapse() {
