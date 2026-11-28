@@ -826,58 +826,38 @@ public struct MediaCardView: View {
   @State private var artworkWidth: CGFloat?
   @State private var coverRevision = 0
 
-  @AppStorage(MediaCardDisplayPreferences.ratingPlacementKey)
-  private var ratingPlacementRaw = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
-  @AppStorage(MediaCardDisplayPreferences.ratingSourceKey)
-  private var ratingSourceRaw = MediaCardDisplayPreferences.defaultRatingSource.rawValue
-  @AppStorage(MediaCardDisplayPreferences.ratingVisibilityKey)
-  private var ratingVisibilityRaw = MediaCardDisplayPreferences.defaultRatingVisibility.rawValue
-  @AppStorage(MediaCardDisplayPreferences.showVoteCountKey)
-  private var showVoteCount = MediaCardDisplayPreferences.defaultShowVoteCount
-  @AppStorage(MediaCardDisplayPreferences.showIMDbRatingKey)
-  private var showIMDbRating = MediaCardDisplayPreferences.defaultShowIMDbRating
-  @AppStorage(MediaCardDisplayPreferences.showKinopoiskRatingKey)
-  private var showKinopoiskRating = MediaCardDisplayPreferences.defaultShowKinopoiskRating
-  @AppStorage(MediaCardDisplayPreferences.sortRatingsByVotesKey)
-  private var sortRatingsByVotes = MediaCardDisplayPreferences.defaultSortRatingsByVotes
-  @AppStorage(MediaCardDisplayPreferences.fadedRatingIconsKey)
-  private var fadedRatingIcons = MediaCardDisplayPreferences.defaultFadedRatingIcons
-  @AppStorage(MediaCardDisplayPreferences.capabilityPlacementKey)
-  private var capabilityPlacementRaw = MediaCardDisplayPreferences.defaultCapabilityPlacement.rawValue
-  @AppStorage(MediaCardDisplayPreferences.show4KKey)
-  private var show4K = MediaCardDisplayPreferences.defaultShow4K
-  @AppStorage(MediaCardDisplayPreferences.showHDRKey)
-  private var showHDR = MediaCardDisplayPreferences.defaultShowHDR
-  @AppStorage(MediaCardDisplayPreferences.showHDKey)
-  private var showHD = MediaCardDisplayPreferences.defaultShowHD
-  @AppStorage(MediaCardDisplayPreferences.show3DKey)
-  private var show3D = MediaCardDisplayPreferences.defaultShow3D
-  @AppStorage(MediaCardDisplayPreferences.showCCKey)
-  private var showCC = MediaCardDisplayPreferences.defaultShowCC
-  @AppStorage(MediaCardDisplayPreferences.editorialPlacementKey)
-  private var editorialPlacementRaw = MediaCardDisplayPreferences.defaultEditorialPlacement.rawValue
-  @AppStorage(MediaCardDisplayPreferences.showOriginalTitleKey)
-  private var showOriginalTitle = MediaCardDisplayPreferences.defaultShowOriginalTitle
-  @AppStorage(MediaCardDisplayPreferences.showYearKey)
-  private var showYear = MediaCardDisplayPreferences.defaultShowYear
-  @AppStorage(MediaCardDisplayPreferences.showDurationKey)
-  private var showDuration = MediaCardDisplayPreferences.defaultShowDuration
-  @AppStorage(MediaCardDisplayPreferences.showGenreKey)
-  private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
+  private var ratingPlacementRaw: String { displaySettings.ratingPlacementRaw }
+  private var ratingSourceRaw: String { displaySettings.ratingSourceRaw }
+  private var ratingVisibilityRaw: String { displaySettings.ratingVisibilityRaw }
+  private var showVoteCount: Bool { displaySettings.showVoteCount }
+  private var showIMDbRating: Bool { displaySettings.showIMDbRating }
+  private var showKinopoiskRating: Bool { displaySettings.showKinopoiskRating }
+  private var sortRatingsByVotes: Bool { displaySettings.sortRatingsByVotes }
+  private var fadedRatingIcons: Bool { displaySettings.fadedRatingIcons }
+  private var capabilityPlacementRaw: String { displaySettings.capabilityPlacementRaw }
+  private var show4K: Bool { displaySettings.show4K }
+  private var showHDR: Bool { displaySettings.showHDR }
+  private var showHD: Bool { displaySettings.showHD }
+  private var show3D: Bool { displaySettings.show3D }
+  private var showCC: Bool { displaySettings.showCC }
+  private var editorialPlacementRaw: String { displaySettings.editorialPlacementRaw }
+  private var showOriginalTitle: Bool { displaySettings.showOriginalTitle }
+  private var showYear: Bool { displaySettings.showYear }
+  private var showDuration: Bool { displaySettings.showDuration }
+  private var showGenre: Bool { displaySettings.showGenre }
   @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
   @Environment(\.mediaCardTitleFont) private var titleFont
   @Environment(\.locale) private var locale
   @Environment(\.titleImageRoute) private var titleImageRoute
-  @AppStorage(MediaCardDisplayPreferences.showCountryKey)
-  private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
-  @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
-  private var showBookmarkSymbol = MediaCardDisplayPreferences.defaultShowBookmarkSymbol
+  private var showCountry: Bool { displaySettings.showCountry }
+  private var showBookmarkSymbol: Bool { displaySettings.showBookmarkSymbol }
   @Environment(\.hidesMediaCardBookmarkSymbol) private var hidesBookmarkSymbol
-  @AppStorage(MediaCardDisplayPreferences.progressVisibilityKey)
-  private var progressVisibilityRaw = MediaCardDisplayPreferences.defaultProgressVisibility.rawValue
-  @AppStorage(MediaCardDisplayPreferences.watchedStyleKey)
-  private var watchedStyleRaw = MediaCardDisplayPreferences.defaultWatchedStyle.rawValue
-  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
+  private var progressVisibilityRaw: String { displaySettings.progressVisibilityRaw }
+  private var watchedStyleRaw: String { displaySettings.watchedStyleRaw }
+  private var coverLanguage: String { displaySettings.coverLanguage }
+  /// One shared snapshot of the card settings instead of an `@AppStorage` per setting per
+  /// card (`MediaCardDisplaySettings`).
+  private var displaySettings: MediaCardDisplaySettings.Snapshot { MediaCardDisplaySettings.shared.snapshot }
 
   private var ratingPlacement: MediaCardChromePlacement {
     MediaCardChromePlacement(rawValue: ratingPlacementRaw)
