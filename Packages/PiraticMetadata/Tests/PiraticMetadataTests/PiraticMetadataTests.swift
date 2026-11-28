@@ -424,6 +424,19 @@ final class TitleImageRouteTests: XCTestCase {
   }
 }
 
+final class TitleImageRouteConcertTests: XCTestCase {
+  func testConcertArtistGoesOnLogoAndBackdropOnlyWithoutIMDb() {
+    let route = TitleImageRoute(baseURL: URL(string: "https://worker.example"))
+    XCTAssertEqual(TitleImageRoute.concertArtist(fromTitle: "Metallica / S&M2"), "Metallica")
+    XCTAssertEqual(TitleImageRoute.concertArtist(fromTitle: "Kylie Minogue: Glastonbury"), "Kylie Minogue")
+    XCTAssertNil(TitleImageRoute.concertArtist(fromTitle: "Live"))
+    let logo = route.logo(kinopubID: 1, imdb: nil, width: nil, artist: "AC/DC")?.absoluteString ?? ""
+    XCTAssertTrue(logo.contains("artist=AC/DC") || logo.contains("artist=AC%2FDC"), logo)
+    XCTAssertFalse(route.logo(kinopubID: 1, imdb: 133093, width: nil, artist: "X")?.absoluteString
+      .contains("artist=") ?? true)
+  }
+}
+
 final class WorkerImageAdminCatalogDecodingTests: XCTestCase {
   func testDecodesWhenOnlyEnglishBucketPresent() throws {
     let json = """

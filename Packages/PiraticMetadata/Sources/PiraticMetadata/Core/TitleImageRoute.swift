@@ -116,10 +116,12 @@ public struct TitleImageRoute: Sendable, Hashable {
   ///   - kinopoisk: Kinopoisk id, so a cold title still has its Kinopoisk poster rung.
   ///   - wideChain: with `.cover`, `wide=1`: cover › textless backdrop › kino.pub's wide
   ///     (the worker builds kino.pub's file from the id).
+  ///   - artist: a concert's artist, for a concert with no IMDb id: the worker finds
+  ///     the artist's fanart.tv logo and background by name.
   public func url(_ kind: Kind, kinopubID: Int, imdb: Int?, width: Int?,
                   season: Int? = nil, episode: Int? = nil,
                   kinopubThumb: String? = nil, kinopoisk: Int? = nil,
-                  wideChain: Bool = false) -> URL? {
+                  wideChain: Bool = false, artist: String? = nil) -> URL? {
     guard let baseURL, kinopubID > 0 else { return nil }
     var components = URLComponents(
       url: baseURL.appendingPathComponent("img/\(kind.rawValue)/by/kinopub/\(kinopubID)"),
@@ -151,6 +153,9 @@ public struct TitleImageRoute: Sendable, Hashable {
     }
     if kind == .cover, wideChain {
       query.append(URLQueryItem(name: "wide", value: "1"))
+    }
+    if imdb == nil || imdb == 0, let artist, !artist.isEmpty, kind == .logo || kind == .backdrop {
+      query.append(URLQueryItem(name: "artist", value: artist))
     }
     components?.queryItems = query.isEmpty ? nil : query
     return components?.url
@@ -198,13 +203,24 @@ public struct TitleImageRoute: Sendable, Hashable {
   }
 
   /// Title logo, drawn at `width` pixels.
-  public func logo(kinopubID: Int, imdb: Int?, width: Int?) -> URL? {
-    url(.logo, kinopubID: kinopubID, imdb: imdb, width: width)
+  public func logo(kinopubID: Int, imdb: Int?, width: Int?, artist: String? = nil) -> URL? {
+    url(.logo, kinopubID: kinopubID, imdb: imdb, width: width, artist: artist)
   }
 
   /// Textless backdrop, drawn at `width` pixels.
-  public func backdrop(kinopubID: Int, imdb: Int?, width: Int?) -> URL? {
-    url(.backdrop, kinopubID: kinopubID, imdb: imdb, width: width)
+  public func backdrop(kinopubID: Int, imdb: Int?, width: Int?, artist: String? = nil) -> URL? {
+    url(.backdrop, kinopubID: kinopubID, imdb: imdb, width: width, artist: artist)
+  }
+
+  /// The artist of a kino.pub concert title: «Artist / Show», «Artist – Show»,
+  /// «Artist: Show». `nil` when the title has no such split.
+  public static func concertArtist(fromTitle title: String) -> String? {
+    for separator in [" / ", " – ", " — ", ": "] {
+      guard let range = title.range(of: separator) else { continue }
+      let artist = title[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+      if !artist.isEmpty { return artist }
+    }
+    return nil
   }
 
   /// Language-tagged TMDB backdrop (`images.backdrops` with `iso_639_1`), drawn at

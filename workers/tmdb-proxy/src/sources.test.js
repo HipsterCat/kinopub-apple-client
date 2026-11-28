@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleAdmin } from "./admin.js";
-import { extraImageFiles, tpdbPosters, urlKey } from "./sources.js";
+import { extraImageFiles, tpdbPosters, urlKey, withMusicArtwork } from "./sources.js";
 import { serveUpload } from "./uploads.js";
 
 function memoryEnv(initial = {}) {
@@ -237,4 +237,41 @@ test("ThePosterDB: search, the page whose TMDB id matches, its posters with thum
   assert.deepEqual(sources.tpdb, { status: "ok", count: 3 });
   assert.match(agents[0], /Piratic/);
   assert.deepEqual(tpdbPosters("<p>nothing</p>"), []);
+});
+
+test("a concert gets its artist's fanart.tv logo and background by name", async () => {
+  const mbid = "65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab";
+  let searches = 0;
+  const fetchImpl = routedFetch([
+    ["https://musicbrainz.org/ws/2/artist/", (url, init) => {
+      searches += 1;
+      assert.match(init.headers["User-Agent"], /Piratic/);
+      assert.match(decodeURIComponent(url), /artist:"Metallica"/);
+      return jsonResponse({ artists: [
+        { id: "x", name: "Metallica Tribute", score: 95 },
+        { id: mbid, name: "Metallica", score: 100 },
+      ] });
+    }],
+    [`https://webservice.fanart.tv/v3/music/${mbid}`, {
+      hdmusiclogo: [{ url: "https://assets.fanart.tv/fanart/music/m/hdmusiclogo/a.png", likes: "4" }],
+      artistbackground: [{ url: "https://assets.fanart.tv/fanart/music/m/artistbackground/b.jpg", likes: "2" }],
+    }],
+  ]);
+  const draft = { ids: {}, artwork: { logo: [], backdrop: [] } };
+  const next = await withMusicArtwork(memoryEnv(), draft, "Metallica", { fetch: fetchImpl, keys: { fanart: "k" }, now: 1 });
+  assert.equal(next.ids.musicbrainz.value, mbid);
+  assert.deepEqual(next.artwork.logo.map((a) => [a.source, a.lang, a.width]), [["fanart", null, 800]]);
+  assert.deepEqual(next.artwork.backdrop.map((a) => a.width), [1920]);
+  // The picker lists the same artist's files for a document with that id.
+  const picker = await extraImageFiles(memoryEnv(), 1, { ids: next.ids, artwork: {} }, "backdrop", {
+    fetch: fetchImpl, keys: { fanart: "k" },
+  });
+  assert.deepEqual(picker.files.map((f) => f.source), ["fanart"]);
+
+  // An unknown artist is remembered for a week.
+  const unknown = routedFetch([["https://musicbrainz.org/", () => { searches += 1; return jsonResponse({ artists: [] }); }]]);
+  const missed = await withMusicArtwork(memoryEnv(), draft, "Nobody", { fetch: unknown, keys: { fanart: "k" }, now: 10 });
+  assert.equal(missed.music_checked, 10);
+  assert.equal(await withMusicArtwork(memoryEnv(), missed, "Nobody", { fetch: unknown, keys: { fanart: "k" }, now: 20 }), null);
+  assert.equal(searches, 2);
 });

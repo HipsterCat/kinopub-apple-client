@@ -31,6 +31,9 @@ const TVDB_API = "https://api4.thetvdb.com/v4";
 const WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData";
 const COMMONS_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath";
 const TPDB = "https://theposterdb.com";
+const MUSICBRAINZ = "https://musicbrainz.org/ws/2";
+// A concert with no fanart.tv artist is asked again after a week, not on every open.
+export const MUSIC_RECHECK_MS = 7 * 24 * 3600 * 1000;
 // Title pages a TPDB lookup opens at most, to stay well inside its rate limit.
 const TPDB_PAGES = 3;
 // Wikimedia asks every client to name itself.
@@ -85,6 +88,7 @@ export async function extraImageFiles(env, id, stored, kind, options = {}) {
     tvdb: idString(ids.tvdb?.value),
     wikidata: idString(ids.wikidata?.value),
     title: stored?.title?.original || stored?.title?.en || null,
+    musicbrainz: idString(ids.musicbrainz?.value),
   };
   const jobs = {
     stored: () => storedFiles(env, id, stored, kind),
@@ -211,8 +215,14 @@ const FANART_SIZE = {
   moviethumb: [1000, 562], tvthumb: [500, 281],
 };
 
-async function fanartFiles({ keys, fetch: fetchImpl, isShow, tmdbId, imdb, tvdb, kind }) {
+async function fanartFiles({ keys, fetch: fetchImpl, isShow, tmdbId, imdb, tvdb, kind, musicbrainz }) {
   if (!keys.fanart) return { status: "no_key" };
+  // A concert: the artist's logos and backgrounds (fanart.tv music, by MusicBrainz id).
+  if (musicbrainz && !tmdbId && !imdb) {
+    const music = await fanartMusic(keys.fanart, musicbrainz, fetchImpl);
+    if (!music) return { status: "failed" };
+    return { status: "ok", files: music[kind] || [] };
+  }
   const path = isShow ? (tvdb && `tv/${tvdb}`) : ((tmdbId || imdb) && `movies/${tmdbId || imdb}`);
   if (!path) return { status: "no_id" };
   const response = await fetchImpl(`${FANART_API}/${path}?api_key=${encodeURIComponent(keys.fanart)}`, {
@@ -239,6 +249,94 @@ async function fanartFiles({ keys, fetch: fetchImpl, isShow, tmdbId, imdb, tvdb,
     }
   }
   return { status: "ok", files: sortByVotes(files) };
+}
+
+const FANART_MUSIC = {
+  logo: [["hdmusiclogo", 800, 310], ["musiclogo", 400, 155]],
+  backdrop: [["artistbackground", 1920, 1080]],
+};
+
+/** `{ logo: [...], backdrop: [...] }` for a MusicBrainz artist, or null when fanart.tv failed. */
+export async function fanartMusic(apiKey, mbid, fetchImpl = fetch) {
+  const response = await fetchImpl(`${FANART_API}/music/${encodeURIComponent(mbid)}?api_key=${encodeURIComponent(apiKey)}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 404) return { logo: [], backdrop: [] };
+  if (!response.ok) return null;
+  const body = await response.json();
+  const out = {};
+  for (const [kind, fields] of Object.entries(FANART_MUSIC)) {
+    out[kind] = [];
+    for (const [field, width, height] of fields) {
+      for (const item of body?.[field] || []) {
+        if (!item?.url) continue;
+        out[kind].push(file({
+          url: item.url,
+          preview: item.url.replace("assets.fanart.tv/fanart/", "assets.fanart.tv/preview/"),
+          // A band's logo is its name: no language. Backgrounds are photos.
+          lang: null, source: "fanart", width, height, votes: Number(item.likes) || 0,
+        }));
+      }
+    }
+    sortByVotes(out[kind]);
+  }
+  return out;
+}
+
+/**
+ * The MusicBrainz artist named exactly `name` (case and accents aside), best score
+ * first. MusicBrainz asks for a named client and one request a second.
+ */
+export async function musicBrainzArtist(name, fetchImpl = fetch) {
+  const wanted = foldName(name);
+  if (!wanted) return null;
+  const query = encodeURIComponent(`artist:"${name.replace(/"/g, "")}"`);
+  const response = await fetchImpl(`${MUSICBRAINZ}/artist/?query=${query}&fmt=json&limit=5`, {
+    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    cf: { cacheTtl: 60 * 60 * 24 * 7, cacheEverything: true },
+  });
+  if (!response.ok) return null;
+  const body = await response.json();
+  for (const artist of body?.artists || []) {
+    if ((artist.score ?? 0) < 90) continue;
+    const names = [artist.name, artist["sort-name"], ...(artist.aliases || []).map((a) => a.name)];
+    if (names.some((candidate) => foldName(candidate) === wanted)) return { id: artist.id, name: artist.name };
+  }
+  return null;
+}
+
+function foldName(raw) {
+  return String(raw || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/^the\s+/, "").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/**
+ * Concert artwork by the artist's name, for a title nothing else identifies: the
+ * MusicBrainz id is stored on the document (ids.musicbrainz) and fanart.tv's logos
+ * and backgrounds join its artwork. Returns the document to write, or null when
+ * nothing changed. A miss is remembered for a week (`music_checked`).
+ */
+export async function withMusicArtwork(env, document, artist, options = {}) {
+  const fetchImpl = options.fetch || fetch;
+  const now = options.now ?? Date.now();
+  const keys = options.keys || await sourceKeys(env);
+  if (!keys.fanart || !artist) return null;
+  const known = document?.ids?.musicbrainz?.value;
+  if (!known && document?.music_checked && now - document.music_checked < MUSIC_RECHECK_MS) return null;
+  const found = known ? { id: known } : await musicBrainzArtist(artist, fetchImpl);
+  const next = { ...document, ids: { ...(document.ids || {}) }, artwork: { ...(document.artwork || {}) },
+    music_checked: now };
+  if (!found) return next;
+  next.ids.musicbrainz = { value: found.id, confidence: 0.9, method: "musicbrainz:name" };
+  const music = await fanartMusic(keys.fanart, found.id, fetchImpl);
+  if (!music) return next;
+  for (const kind of ["logo", "backdrop"]) {
+    const kept = (next.artwork[kind] || []).filter((asset) => asset?.source !== "fanart");
+    next.artwork[kind] = [...kept, ...music[kind].slice(0, 6).map((f) => ({
+      source: "fanart", url: f.url, lang: null, width: f.width, height: f.height, votes: f.votes,
+    }))];
+  }
+  return next;
 }
 
 function fanartLang(raw) {

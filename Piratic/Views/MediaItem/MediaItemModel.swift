@@ -205,7 +205,8 @@ class MediaItemModel: ObservableObject {
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.titleLogoURL }
     return latchedHeroURL("logo") {
-      images.logo(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.logo)
+      images.logo(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.logo,
+                  artist: heroImageArtist)
     }
   }
 
@@ -215,7 +216,8 @@ class MediaItemModel: ObservableObject {
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.backdropURL }
     return latchedHeroURL("backdrop") {
-      images.backdrop(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.backdrop)
+      images.backdrop(kinopubID: mediaItemId, imdb: heroImageIMDb, width: ArtworkPixelWidth.backdrop,
+                      artist: heroImageArtist)
     }
   }
 
@@ -290,6 +292,17 @@ class MediaItemModel: ObservableObject {
   private var heroURLs: [String: URL] = [:]
 
   private var heroImageIMDb: Int? { hasPaintedItem ? mediaItem.imdb : nil }
+
+  /// A concert's artist, so the worker can find a concert with no IMDb id on fanart.tv.
+  private var heroImageArtist: String? {
+    guard hasPaintedItem else { return nil }
+    return Self.concertArtist(of: mediaItem)
+  }
+
+  private static func concertArtist(of item: MediaItem) -> String? {
+    guard item.type.trimmingCharacters(in: .whitespaces).lowercased() == "concert" else { return nil }
+    return TitleImageRoute.concertArtist(fromTitle: item.title)
+  }
 
   private func latchedHeroURL(_ kind: String, make: () -> URL?) -> URL? {
     if let url = heroURLs[kind] { return url }
@@ -805,11 +818,13 @@ class MediaItemModel: ObservableObject {
       add(video.thumbnail)
     }
     let images = metadataService.images
-    if let logo = images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo) {
+    let artist = Self.concertArtist(of: mediaItem)
+    if let logo = images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo,
+                              artist: artist) {
       urls.append(logo)
     }
     if let backdrop = images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb,
-                                      width: ArtworkPixelWidth.backdrop) {
+                                      width: ArtworkPixelWidth.backdrop, artist: artist) {
       urls.append(backdrop)
     }
     if let logo = externalMetadata.titleLogoURL { urls.append(logo) }

@@ -38,6 +38,7 @@
 
 import { tmdbGenres } from "./genres.js";
 import { findKinopubId, handleCard, json as cardJson, publishCard } from "./card.js";
+import { withMusicArtwork } from "./sources.js";
 import { applySeasonLocale, ensureEpisodeStill, loadSeasons } from "./seasons.js";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
@@ -367,6 +368,17 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const started = Date.now();
   let stored = await readDocument(env, id);
   let asset = selectQueryAsset(stored, imageRequest, hints);
+  // A concert nothing else identifies (no IMDb): fanart.tv's logo and background for
+  // its artist, found by name on MusicBrainz (Sasha 2026-11-28).
+  if (!asset && hints.artist && !hints.imdb && imageRequest.s == null
+      && (imageRequest.kind === "logo" || imageRequest.kind === "backdrop")) {
+    const withMusic = await withMusicArtwork(env, stored || draftDocument(id, hints), hints.artist);
+    if (withMusic) {
+      await writeDocument(env, id, withMusic);
+      stored = withMusic;
+      asset = selectQueryAsset(stored, imageRequest, hints);
+    }
+  }
   const canResolveTMDB = hints.imdb && (!stored || stored.pending === true);
   const vary = imageRequest.kind === "poster"
     || imageRequest.kind === "logo"
@@ -488,6 +500,8 @@ function readHints(url) {
     type: get("type"),
     runtime: get("runtime"),
     kinopub: get("kinopub"),
+    // A concert's artist (the part of kino.pub's title before « / »), for fanart.tv.
+    artist: get("artist"),
   };
 }
 
