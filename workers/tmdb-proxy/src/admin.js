@@ -15,12 +15,23 @@
  *        all backdrops. Cover lists/picks language-tagged TMDB backdrops
  *        (`images.backdrops` with iso_639_1). The pin is also written to D1
  *        c2_image. Any https URL is accepted, not only TMDB's.
+ *   POST /admin/kinopub/{id}/upload?kind=logo|backdrop|cover|poster&lang=ru&width=&height=
+ *        body: PNG / JPEG / WebP bytes. Stored in KV (src/uploads.js), served from
+ *        /img/upload/{sha256}.{ext}, pinned like a pick and listed in `uploads[]`.
+ *   POST /admin/keys { "fanart": "…", "tvdb": "…" }
+ *        Saves source API keys in KV when the Worker has no secret for them; an
+ *        empty string removes one. Answers which sources have a key, never the keys.
  *   POST /admin/kinopub/{id}/link
  *        { "imdb": "tt…", "kinopoisk": "123", "tmdb": "tv/123", "myshows": "123", "kind": "show" }
  *        Pins ids kino.pub never sent. A bare tmdb number needs kind show or movie.
  *        Does not download. The next open of a stub fills from these ids.
  *
- * images asks TMDB once for this title and returns the ru / en / und files.
+ * images asks TMDB once for this title and returns the ru / en / und files. With
+ * `sources=1` every file carries `source` and `preview`, the other sources of
+ * src/sources.js (fanart.tv, TheTVDB, tvoe, Kinopoisk, Wikidata, uploads) join the
+ * same language buckets, `sources` lists each source with its count and status, and
+ * a title TMDB does not know still answers (TMDB empty). Older apps send no flag and
+ * get the TMDB-only shape they decode.
  * The url in that list is what pick expects. pick pins that file until forget.
  * forget drops that kind and bumps art_rev, so the next image URL is new.
  * refresh asks TMDB again and stores the result on the same KV document.
@@ -30,6 +41,8 @@ import {
   artworkFromTmdb, freshImageLanguages, imageStats, readDocument, resolveAndStore,
   stitchDocument, writeDocument,
 } from "./title.js";
+import { SOURCE_ORDER, extraImageFiles, saveSourceKeys, urlKey } from "./sources.js";
+import { isUploadURL, storeUpload } from "./uploads.js";
 
 const KINDS = new Set(["logo", "backdrop", "cover", "poster"]);
 
@@ -39,7 +52,8 @@ export async function handleAdmin(request, env) {
 
   const url = new URL(request.url);
   if (url.pathname === "/admin/stats") return json({ ok: true, ...(await imageStats(env)) });
-  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images|link)$/);
+  if (url.pathname === "/admin/keys") return keys(request, env);
+  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images|link|upload)$/);
   if (!match) return json({ error: "not_found" }, 404);
   const id = match[1];
   const action = match[2];
@@ -47,6 +61,7 @@ export async function handleAdmin(request, env) {
   if (action === "images") return images(env, id, url);
   if (action === "pick") return pick(request, env, id);
   if (action === "link") return link(request, env, id);
+  if (action === "upload") return upload(request, env, id, url);
   const kind = url.searchParams.get("kind") || "logo";
   if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|cover|poster" }, 400);
   if (action === "forget") return forget(env, id, kind);
@@ -106,28 +121,33 @@ async function refresh(env, id, kind, url) {
 async function images(env, id, url) {
   const kind = url.searchParams.get("kind") || "logo";
   if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|cover|poster" }, 400);
+  const withSources = url.searchParams.get("sources") === "1";
   const stored = await readDocument(env, id);
   const imdb = url.searchParams.get("imdb") || stored?.ids?.imdb?.value;
   const located = await locateTmdb(env, stored, imdb);
-  if (!located) return json({ error: "bad_request", hint: "pass ?imdb=tt… or open the title once" }, 400);
+  if (!located && !withSources) {
+    return json({ error: "bad_request", hint: "pass ?imdb=tt… or open the title once" }, 400);
+  }
   // ru / en / textless only, past TMDB's gateway cache: see freshImageLanguages.
   const languages = encodeURIComponent(freshImageLanguages());
-  const payload = await tmdbGet(
-    env, `/3/${located.type}/${located.tmdbId}/images?include_image_language=${languages}`,
-  );
-  if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
+  const fetched = located
+    ? await tmdbGet(env, `/3/${located.type}/${located.tmdbId}/images?include_image_language=${languages}`)
+    : null;
+  if (!fetched && !withSources) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
+  const tmdbStatus = !located ? "no_id" : fetched ? "ok" : "failed";
+  const payload = fetched || {};
   // Cover and backdrop both list TMDB `backdrops`. Cover's automatic set is the
   // language-tagged rows already stored on artwork.backdrop.
   const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
   const storeKind = kind === "cover" ? "backdrop" : kind;
   // The list is fresh from TMDB, so the stored automatic choice follows it now: a
   // file uploaded to TMDB a minute ago is served without a refresh. Pins stay.
-  const adopted = stored
+  const adopted = stored && fetched
     ? await adoptTmdbFiles(env, id, stored, storeKind, payload[field])
     : [];
   const storedArt = kind === "cover"
     ? (stored?.artwork?.cover || [])
-    : adopted;
+    : (fetched ? adopted : (stored?.artwork?.[storeKind] || []));
   const grouped = {};
   for (const file of payload[field] || []) {
     const bucket = langBucket(file.iso_639_1);
@@ -135,7 +155,7 @@ async function images(env, id, url) {
     // still lists them under und).
     if (kind === "cover" && bucket === "und") continue;
     if (!grouped[bucket]) grouped[bucket] = [];
-    grouped[bucket].push(presentFile(file, bucket));
+    grouped[bucket].push(presentFile(file, bucket, withSources));
   }
   for (const bucket of Object.keys(grouped)) {
     grouped[bucket].sort((a, b) => compareRank(rankOf(storeKind, a), rankOf(storeKind, b)));
@@ -148,11 +168,27 @@ async function images(env, id, url) {
       grouped[bucket][0].pick = true;
     }
   }
+  let sources = null;
+  if (withSources) {
+    const tmdbFiles = Object.values(grouped).flat();
+    const extra = await extraImageFiles(env, id, stored, kind, {
+      exclude: tmdbFiles.map((file) => urlKey(file.url)),
+    });
+    for (const file of extra.files) {
+      const bucket = langBucket(file.lang);
+      if (kind === "cover" && bucket === "und") continue;
+      if (!grouped[bucket]) grouped[bucket] = [];
+      grouped[bucket].push({ ...file, lang: bucket });
+    }
+    const all = { tmdb: { status: tmdbStatus, count: tmdbFiles.length }, ...extra.sources };
+    sources = SOURCE_ORDER.filter((name) => all[name])
+      .map((name) => ({ id: name, count: all[name].count || 0, status: all[name].status }));
+  }
   const body = {
     ok: true,
     id,
     kind,
-    tmdb: `${located.type}/${located.tmdbId}`,
+    tmdb: located ? `${located.type}/${located.tmdbId}` : null,
     ru: grouped.ru || [],
     en: grouped.en || [],
     und: grouped.und || [],
@@ -165,6 +201,8 @@ async function images(env, id, url) {
     if (key === "ru" || key === "en" || key === "und") continue;
     body[key] = list;
   }
+  // After the language buckets: an older decoder reads unknown keys as buckets.
+  if (sources) body.sources = sources;
   return json(body);
 }
 
@@ -211,12 +249,12 @@ function langBucket(iso) {
   return tag;
 }
 
-function presentFile(file, lang) {
+function presentFile(file, lang, withSource = false) {
   const path = file.file_path || "";
   const from = (path.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
   const original = `https://image.tmdb.org/t/p/original${path}`;
   const url = from === "svg" ? original.replace(/\.svg$/i, ".png") : original;
-  return {
+  const presented = {
     url,
     lang,
     from: from || null,
@@ -225,6 +263,11 @@ function presentFile(file, lang) {
     vote: file.vote_average ?? null,
     votes: file.vote_count ?? null,
   };
+  if (withSource) {
+    presented.source = "tmdb";
+    presented.preview = url.replace("/t/p/original/", "/t/p/w780/");
+  }
+  return presented;
 }
 
 // Most votes first — the same order title.js uses for its automatic choice. Logos
@@ -262,6 +305,33 @@ async function pick(request, env, id) {
   let body;
   try { body = await request.json(); } catch { body = null; }
   if (!body || typeof body !== "object") return json({ error: "bad_request" }, 400);
+  const result = await pin(env, id, body);
+  return result.error ? json({ error: "bad_request", hint: result.error }, 400) : json(result);
+}
+
+async function upload(request, env, id, url) {
+  const kind = url.searchParams.get("kind") || "poster";
+  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|cover|poster" }, 400);
+  const stored = await storeUpload(request, env);
+  if (stored.error) return json({ error: "bad_request", hint: stored.error }, stored.status || 400);
+  const lang = kind === "backdrop" ? null : languageTag(url.searchParams.get("lang"));
+  const width = positiveInt(url.searchParams.get("width"));
+  const height = positiveInt(url.searchParams.get("height"));
+  const body = { [kind]: stored.url, [`${kind}_lang`]: lang, [`${kind}_width`]: width, [`${kind}_height`]: height };
+  const result = await pin(env, id, body, { kind, url: stored.url, lang, width, height });
+  if (result.error) return json({ error: "bad_request", hint: result.error }, 400);
+  return json({ ...result, url: stored.url });
+}
+
+async function keys(request, env) {
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const result = await saveSourceKeys(env, body && typeof body === "object" ? body : {});
+  return result.error ? json({ error: "bad_request", hint: result.error }, 500) : json({ ok: true, ...result });
+}
+
+/** Pins the files of `body`; `uploaded` is also kept in the document's `uploads[]`. */
+async function pin(env, id, body, uploaded = null) {
   const stored = (await readDocument(env, id)) || {
     version: 2, ids: { kinopub: { value: id, confidence: 1, method: "admin" } },
     artwork: { poster: [], backdrop: [], cover: [], logo: [] }, pending: false,
@@ -273,10 +343,10 @@ async function pick(request, env, id) {
     const raw = body[kind];
     if (raw == null || raw === "") continue;
     const safe = safeURL(raw);
-    if (!safe) return json({ error: "bad_request", hint: `${kind} must be an https URL` }, 400);
+    if (!safe) return { error: `${kind} must be an https URL` };
     const lang = languageTag(body[`${kind}_lang`]);
     const pin = {
-      source: "admin",
+      source: isUploadURL(safe) ? "upload" : "admin",
       url: safe,
       lang,
       pinned: true,
@@ -296,13 +366,15 @@ async function pick(request, env, id) {
     pins.push([kind, pin]);
     picked[kind] = safe;
   }
-  if (!Object.keys(picked).length) {
-    return json({ error: "bad_request", hint: "pass logo, backdrop, cover, or poster" }, 400);
-  }
+  if (!Object.keys(picked).length) return { error: "pass logo, backdrop, cover, or poster" };
   const next = { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1, pending: false };
+  if (uploaded) {
+    const uploads = (stored.uploads || []).filter((item) => item?.url !== uploaded.url);
+    next.uploads = [...uploads, uploaded];
+  }
   await writeDocument(env, id, next);
   for (const [kind, pin] of pins) await storeImageRow(env, id, kind, pin);
-  return json({ ok: true, id, art_rev: next.art_rev, picked });
+  return { ok: true, id, art_rev: next.art_rev, picked };
 }
 
 function positiveInt(raw) {
