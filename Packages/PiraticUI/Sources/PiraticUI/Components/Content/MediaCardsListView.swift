@@ -55,14 +55,14 @@ public struct MediaCardsListView: View {
 
   /// A still grid breathes more than a poster grid: two-line captions under wide
   /// cards ran into the next row's stills at one gutter, and the columns read
-  /// tighter than the Home rail (Sasha, 2026-11-28). Twice the gutter between rows,
+  /// tighter than the Home rail (Sasha, 2026-11-28). Three gutters between rows,
   /// one and a half between columns; poster grids keep one gutter both ways.
   private var columnSpacing: CGFloat {
     isLandscapeGrid ? metrics.gutter * 1.5 : metrics.gutter
   }
 
   private var rowSpacing: CGFloat {
-    isLandscapeGrid ? metrics.gutter * 2 : metrics.gutter
+    isLandscapeGrid ? metrics.gutter * 3 : metrics.gutter
   }
 
   private var gridColumns: [GridItem] {
