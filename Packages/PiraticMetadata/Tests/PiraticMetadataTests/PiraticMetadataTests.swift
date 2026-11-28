@@ -331,7 +331,8 @@ final class TitleImageRouteTests: XCTestCase {
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 2400), 2400)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 3840), 2400)
     XCTAssertEqual(TitleImageRoute.bucketedWidth(.backdrop, pixels: 5120), 2400)
-    XCTAssertEqual(TitleImageRoute.bucketedWidth(.poster, pixels: 400), 454)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.poster, pixels: 400), 410)
+    XCTAssertEqual(TitleImageRoute.bucketedWidth(.poster, pixels: 411), 454)
   }
 
   func testNoWidthAsksForOriginal() {

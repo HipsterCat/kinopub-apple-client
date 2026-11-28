@@ -1352,6 +1352,7 @@ async function proxyTitleArtwork(url, env, ctx, stamp, id, chainSrc) {
     const via = resized ? "weserv" : "legacy";
     const response = imageResponse({ response: rendered, via }, kind, format, language);
     response.headers.set("X-KinoPub-Image-Source", asset.source);
+    if (ctx?.waitUntil) ctx.waitUntil(rememberServedImage(env, id, kind, asset));
     if (cache && ctx?.waitUntil) {
       if (resized || !weservEnabled(env)) ctx.waitUntil(cache.put(key, response.clone()));
       else response.headers.set("Cache-Control", "public, max-age=300");
@@ -1360,6 +1361,50 @@ async function proxyTitleArtwork(url, env, ctx, stamp, id, chainSrc) {
   }
   return imageNotFound(missHint({ kind, lang }), false, { store: false });
 }
+
+// The title poster / cover a request was actually served, kept in D1 c2_image
+// next to the admin picks and the offline covers (Sasha 2026-11-28: "убедись что
+// лежат в базе"). One row per title, kind, language and source: a newer pick
+// from the same source replaces the old one; other sources' rows stay.
+// kino.pub's own file is not kept (it is derived from the id), nor a textless
+// backdrop served for a wide card (that is a backdrop, not a cover).
+const remembered = new Set();
+
+export async function rememberServedImage(env, id, kind, asset) {
+  if (!env?.CATALOG || (kind !== "poster" && kind !== "cover")) return false;
+  if (!asset?.url || asset.source === "kinopub" || isKinopubHost(asset.url)) return false;
+  if (kind === "cover" && (asset.lang ?? null) === null) return false;
+  const url = durableOrigin(asset) || asset.url;
+  const key = `${id}|${kind}|${url}`;
+  if (remembered.has(key)) return false;
+  const db = env.CATALOG;
+  const kinopubId = Number(id);
+  const lang = asset.lang ?? null;
+  const source = asset.source || inferSource(url);
+  try {
+    const known = await db.prepare(
+      `SELECT 1 FROM c2_image WHERE kinopub_id = ? AND kind = ? AND url = ? AND ${TITLE_IMAGE_ROW} LIMIT 1`,
+    ).bind(kinopubId, kind, url).first();
+    if (!known) {
+      await db.batch([
+        db.prepare(
+          `DELETE FROM c2_image WHERE kinopub_id = ? AND kind = ? AND lang IS ? AND source IS ? AND ${TITLE_IMAGE_ROW}`,
+        ).bind(kinopubId, kind, lang, source),
+        db.prepare(
+          "INSERT INTO c2_image (kinopub_id, kind, lang, url, source, width, height) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).bind(kinopubId, kind, lang, url, source, asset.width ?? null, asset.height ?? null),
+      ]);
+    }
+    if (remembered.size > 5000) remembered.clear();
+    remembered.add(key);
+    return !known;
+  } catch (error) {
+    console.warn("c2_image served", id, kind, error?.message || error);
+    return false;
+  }
+}
+
+const TITLE_IMAGE_ROW = "person_id IS NULL AND season IS NULL AND episode IS NULL";
 
 function artworkCacheKey(origin, path, params) {
   const key = new URL(`/img-cache/cover-source-v1/${path}`, origin);
@@ -1404,35 +1449,39 @@ async function fetchArtwork(url, options) {
   return null;
 }
 
+/** Languages a title picture walks (Sasha 2026-11-28): ru → en, en → ru; no-language last. */
+function languageOrder(lang) {
+  const order = [lang || "ru"];
+  for (const other of ["ru", "en"]) if (!order.includes(other)) order.push(other);
+  return order;
+}
+
 /**
- * Title poster: pin → TMDB in the requested language → textless TMDB → tvoe
- * → Kinopoisk → kino.pub → another language.
+ * Title poster, language by language (ru → en → none for Russian, en → ru →
+ * none for English). Within a language: pin → TMDB → tvoe → Kinopoisk →
+ * kino.pub (kino.pub's file belongs to the Russian step). Then a textless
+ * TMDB poster, then anything in a third language.
  */
 function posterChain(document, hints, lang, kinopubSrc) {
   const chain = [];
   const push = (asset) => {
     if (asset?.url && !chain.some((item) => item.url === asset.url)) chain.push(asset);
   };
-  push(pinnedAssetForLang(document, "poster", lang));
-  const inLang = posterCandidates(document, hints, lang);
-  const from = (source) => inLang.filter((a) => (source === "tmdb"
-    ? a.source !== "kinopoisk" && a.source !== "tvoe" : a.source === source));
-  push(bestAsset(from("tmdb"), "poster", lang, { strict: true }));
-  // A textless TMDB poster (no language) suits every language and beats a
-  // Kinopoisk or kino.pub plate (129379: TMDB had en + textless, no ru).
-  if (lang) {
-    const textless = (document?.artwork?.poster || []).map(normalizeAsset)
-      .filter((a) => a && a.lang == null && a.source !== "kinopoisk" && a.source !== "tvoe"
-        && a.source !== "kinopub" && !isKinopubHost(a.url));
-    push(bestAsset(textless, "poster", null));
+  for (const step of languageOrder(lang)) {
+    push(pinnedAssetForLang(document, "poster", step));
+    const inLang = posterCandidates(document, hints, step);
+    const from = (source) => inLang.filter((a) => (source === "tmdb"
+      ? a.source !== "kinopoisk" && a.source !== "tvoe" : a.source === source));
+    push(bestAsset(from("tmdb"), "poster", step, { strict: true }));
+    push(bestAsset(from("tvoe"), "poster", step, { strict: true }));
+    push(bestAsset(from("kinopoisk"), "poster", step, { strict: true }));
+    if (step === "ru" && kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang: "ru", width: null, height: null });
   }
-  push(bestAsset(from("tvoe"), "poster", lang, { strict: true }));
-  push(bestAsset(from("kinopoisk"), "poster", lang, { strict: true }));
-  if (kinopubSrc) push({ source: "kinopub", url: kinopubSrc, lang, width: null, height: null });
-  const others = (document?.artwork?.poster || [])
+  const rest = (document?.artwork?.poster || [])
     .map(normalizeAsset)
-    .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url) && (a.lang ?? null) !== lang);
-  push(bestAsset(others, "poster", lang));
+    .filter((a) => a && a.source !== "kinopub" && !isKinopubHost(a.url));
+  push(bestAsset(rest.filter((a) => a.lang == null), "poster", null));
+  push(bestAsset(rest.filter((a) => a.lang != null && !languageOrder(lang).includes(a.lang)), "poster", null));
   return chain;
 }
 
@@ -1522,8 +1571,8 @@ async function withCatalogCovers(env, id, document, lang) {
 }
 
 /**
- * Wide title card chain (Sasha 2026-11-26): pin / TMDB cover in the language →
- * textless backdrop → kino.pub's wide (`src`). Only when the client sends `src`.
+ * Wide title card chain: cover in the language, then in the other one (ru ↔ en,
+ * Sasha 2026-11-28) → textless backdrop → kino.pub's wide. Only with `wide=1`.
  */
 function coverChain(document, lang, kinopubSrc) {
   const chain = [];
@@ -1531,8 +1580,10 @@ function coverChain(document, lang, kinopubSrc) {
     if (asset?.url && !chain.some((item) => item.url === asset.url)) chain.push(asset);
   };
   if (lang) {
-    push(pinnedAssetForLang(document, "cover", lang));
-    push(bestAsset(coverCandidates(document, lang), "cover", lang, { strict: true }));
+    for (const step of languageOrder(lang)) {
+      push(pinnedAssetForLang(document, "cover", step));
+      push(bestAsset(coverCandidates(document, step), "cover", step, { strict: true }));
+    }
   }
   push(pinnedAsset(document, "backdrop"));
   if (document) push(bestAsset(textlessBackdrops(document), "backdrop", null));
