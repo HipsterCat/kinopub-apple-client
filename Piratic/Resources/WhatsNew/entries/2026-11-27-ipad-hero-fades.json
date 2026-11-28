@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "date": "2026-11-27",
+  "ru": ["Баннер Главной плавно меняет кадр уже во время свайпа. На iPad метаданные, бейдж сезона и имена актёров набраны в размере описания."],
+  "en": ["Home hero artwork fades as you swipe. On iPad, metadata, season badges and cast names match the synopsis text size."]
+}

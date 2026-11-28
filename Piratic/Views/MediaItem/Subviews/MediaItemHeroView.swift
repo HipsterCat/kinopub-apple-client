@@ -991,7 +991,7 @@ struct MediaItemHeroView: View {
         // Over the logo, never between it and the facts (Sasha, 2026-11-16).
         if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
           TitleStatusBadge(status.text)
-            .font(Self.secondaryFont)
+            .font(heroMetadataFont)
             // Half the gap to the logo it would have (Sasha, 2026-11-16).
             .padding(.bottom, -Self.phoneBadgeGapCut)
         }
@@ -1583,7 +1583,7 @@ struct MediaItemHeroView: View {
       // switch puts it back first in the line.
       if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
         TitleStatusBadge(status.text)
-          .font(Self.secondaryFont)
+          .font(heroMetadataFont)
           .padding(.bottom, Self.contentSpacing / 2)
       }
       factsLine
@@ -1727,13 +1727,13 @@ struct MediaItemHeroView: View {
         .truncationMode(.middle)
         .contentTransition(.interpolate)
         .animation(.smooth, value: caption)
-        .font(Self.phoneMetaFont)
+        .font(heroCaptionFont)
         .foregroundStyle(heroSecondaryForeground)
         .shadow(color: .black.opacity(titleShadowOpacity), radius: 8, x: 0, y: 2)
     } else if let line = supplementaryUnderTitle {
       Text(line)
         .lineLimit(tabletHeroLineLimit)
-        .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
+        .font(heroCaptionFont)
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(columnTextAlignment)
         .fixedSize(horizontal: false, vertical: true)
@@ -1835,7 +1835,7 @@ struct MediaItemHeroView: View {
             .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
         }
       }
-      .font(Self.secondaryFont)
+      .font(heroMetadataFont)
       .foregroundStyle(heroMetaForeground)
     }
   }
@@ -1896,7 +1896,7 @@ struct MediaItemHeroView: View {
       }
     }
     .animation(.smooth, value: factBlocks(place: false))
-    .font(Self.phoneMetaFont)
+    .font(heroCaptionFont)
     .foregroundStyle(heroMetaForeground)
     .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
   }
@@ -2101,7 +2101,7 @@ struct MediaItemHeroView: View {
         phonePlaybackRow(runtime: nil, quality: quality, languages: Array(languages.prefix(1)),
                          voicing: nil, captions: captions, ageAssets: ageAssets, typedRatings: typedRatings, views: 0)
       }
-      .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
+      .font(heroCaptionFont)
       .foregroundStyle(heroMetaForeground)
       .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
     }
@@ -2279,7 +2279,7 @@ struct MediaItemHeroView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .font(Self.secondaryFont)
+    .font(heroMetadataFont)
     .multilineTextAlignment(.leading)
   }
 
@@ -2990,6 +2990,17 @@ struct MediaItemHeroView: View {
   /// is the same size the ratings captions and the information table use further down
   /// the page. See `TypeScale.detailBody`, which is where that decision lives.
   static let secondaryFont: Font = TypeScale.detailBody
+
+  private var heroMetadataFont: Font {
+#if os(iOS)
+    if UIDevice.current.userInterfaceIdiom == .pad { return TypeScale.tabletHeroSynopsis }
+#endif
+    return Self.secondaryFont
+  }
+  private var heroCaptionFont: Font {
+    centersColumn && tabletHeroLineLimit == nil ? Self.phoneMetaFont : heroMetadataFont
+  }
+
   /// The phone's lines around the title and Play: the Home banner's size, so the same
   /// facts read the same on both (Sasha, 2026-11-16).
   static let phoneMetaFont: Font = TypeScale.heroSecondary

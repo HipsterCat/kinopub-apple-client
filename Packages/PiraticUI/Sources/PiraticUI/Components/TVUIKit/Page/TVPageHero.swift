@@ -82,7 +82,9 @@ final class TVPageHeroCarousel {
   }
 
   /// Auto-advance runs only while someone is looking at the hero.
-  var advances: Bool { isPageVisible && stage == .hero && features.count > 1 }
+  var advances: Bool {
+    isPageVisible && stage == .hero && features.count > 1 && backdrop?.isWaitingForTurn != true
+  }
 
   /// New titles, or new facts about them (details, a logo, a backdrop). The title on
   /// screen stays on screen when it is still in the list.
@@ -96,7 +98,7 @@ final class TVPageHeroCarousel {
       index = 0
     }
     TVUIKitRemoteImage.prefetch(features.map { $0.backdropCandidates.first })
-    backdrop?.show(current, direction: 0, next: next)
+    backdrop?.show(current, next: next)
     warmNeighbours()
     cell?.render(direction: 0)
   }
@@ -127,10 +129,12 @@ final class TVPageHeroCarousel {
       return
     }
     let turned = index
-    backdrop.show(current, direction: direction, next: next) { [weak self] in
+    backdrop.show(current, next: next) { [weak self] in
       guard let self, self.index == turned else { return }
       self.cell?.render(direction: direction)
+      self.cell?.updateTimer()
     }
+    cell?.updateTimer()
   }
 
   /// How far into its recede the hero is, 0 (page at the top) to 1, as the page scrolls.
@@ -207,20 +211,17 @@ private final class FollowerTarget: NSObject {
 final class TVPageHeroBackdropView: UIView {
   /// Everything that moves and fades together as the hero recedes.
   private let stageView = UIView()
-  private var front = UIImageView()
-  private var back = UIImageView()
+  private let front = UIImageView()
   private let texture = UIImageView()
   private let dim = UIView()
   private let fade = CAGradientLayer()
 
   private var shownID: Int?
-  private var pending: (feature: TVPageFeature?, direction: Int, next: TVPageFeature?, turned: (() -> Void)?)?
-  /// Called when the fronted title's picture starts to show — or right away when it
-  /// cannot (no picture, or it is slow: `turnPatience`).
+  private var pending: (feature: TVPageFeature?, next: TVPageFeature?, turned: (() -> Void)?)?
+  /// Called when the requested title reveals its artwork or exhausts its candidates.
   private var turned: (() -> Void)?
-  private static let turnPatience: TimeInterval = 0.8
+  var isWaitingForTurn: Bool { turned != nil || pending?.turned != nil }
   private var loadTask: Task<Void, Never>?
-  private var transitionID = 0
   private var recede: CGFloat = 0
   private var pageInterval: PerfInterval?
 
@@ -246,11 +247,9 @@ final class TVPageHeroBackdropView: UIView {
     accessibilityElementsHidden = true
 
     addSubview(stageView)
-    for view in [back, front] {
-      view.contentMode = .scaleAspectFill
-      view.clipsToBounds = true
-      stageView.addSubview(view)
-    }
+    front.contentMode = .scaleAspectFill
+    front.clipsToBounds = true
+    stageView.addSubview(front)
     texture.contentMode = .scaleToFill
     texture.image = HeroLegibilityTexture.templateUIImage()
     texture.tintColor = .black
@@ -274,7 +273,7 @@ final class TVPageHeroBackdropView: UIView {
     stageView.transform = .identity
     stageView.frame = bounds
     stageView.transform = transform
-    for view in [back, front, texture, dim] where view.layer.animationKeys()?.isEmpty ?? true {
+    for view in [front, texture, dim] where view.layer.animationKeys()?.isEmpty ?? true {
       let viewTransform = view.transform
       view.transform = .identity
       view.frame = stageView.bounds
@@ -287,38 +286,33 @@ final class TVPageHeroBackdropView: UIView {
     if recede > 0 { apply(recede: recede) }
     if let pending {
       self.pending = nil
-      show(pending.feature, direction: pending.direction, next: pending.next, turned: pending.turned)
+      show(pending.feature, next: pending.next, turned: pending.turned)
     }
   }
 
-  /// Front `feature`. The same title again only fills in a picture that has not
-  /// loaded yet; another title slides in from `direction` (0 dissolves).
-  func show(_ feature: TVPageFeature?, direction: Int, next: TVPageFeature?,
-            turned: (() -> Void)? = nil) {
-    fireTurned()
+  /// Retain the displayed frame until the requested title's artwork is ready.
+  func show(_ feature: TVPageFeature?, next: TVPageFeature?, turned: (() -> Void)? = nil) {
     guard bounds.width > 0, bounds.height > 0 else {
-      pending = (feature, direction, next, turned)
+      let waiting = pending?.feature?.card.id == feature?.card.id ? pending?.turned : nil
+      pending = (feature, next, turned ?? waiting)
+      return
+    }
+    if let feature, feature.card.id == shownID, loadTask != nil {
+      if let turned { self.turned = turned }
       return
     }
     self.turned = turned
     guard let feature, feature.card.id > 0 else {
       shownID = nil
       loadTask?.cancel()
-      finishTransition()
+      loadTask = nil
       front.image = nil
       fireTurned()
       return
     }
-    let sameTitle = feature.card.id == shownID
-    if sameTitle, front.image != nil {
+    if feature.card.id == shownID, front.image != nil {
       fireTurned()
       return
-    }
-    if turned != nil {
-      DispatchQueue.main.asyncAfter(deadline: .now() + Self.turnPatience) { [weak self] in
-        guard let self, self.shownID == feature.card.id else { return }
-        self.fireTurned()
-      }
     }
     let previousID = shownID ?? 0
     shownID = feature.card.id
@@ -332,7 +326,7 @@ final class TVPageHeroBackdropView: UIView {
     }
     for url in urls {
       if let hit = TVUIKitRemoteImage.cached(url: url, size: size) {
-        present(hit, direction: sameTitle ? 0 : direction, url: url)
+        present(hit, url: url)
         return
       }
     }
@@ -347,7 +341,7 @@ final class TVPageHeroBackdropView: UIView {
           ArtworkLog.source("hero.backdrop", id: feature.card.itemID, asked: url,
                             answered: loaded.answered, tier: loaded.tier,
                             candidate: index, of: urls.count)
-          self.present(loaded.image, direction: direction, url: url)
+          self.present(loaded.image, url: url)
           return
         }
       }
@@ -355,7 +349,7 @@ final class TVPageHeroBackdropView: UIView {
       ArtworkLog.exhausted("hero.backdrop", id: feature.card.itemID, tried: urls)
       // Never the portrait poster (cropped it is the wrong picture): an empty
       // backdrop under the shading reads better than a wrong one.
-      self.present(nil, direction: 0, url: nil)
+      self.present(nil)
     }
   }
 
@@ -365,69 +359,22 @@ final class TVPageHeroBackdropView: UIView {
     call?()
   }
 
-  private func present(_ image: UIImage?, direction: Int, url: URL? = nil) {
+  private func present(_ image: UIImage?, url: URL? = nil) {
+    loadTask = nil
     if let image, let url {
       Artwork.noteDisplayed(image, url: url, size: bounds.size)
     }
     pageInterval?.end(image == nil ? "empty" : "presented")
     pageInterval = nil
-    finishTransition()
-    defer { fireTurned() }
-    guard front.image != nil, image != nil, direction != 0,
-          !UIAccessibility.isReduceMotionEnabled else {
-      UIView.transition(with: front, duration: 0.45, options: [.transitionCrossDissolve, .allowUserInteraction]) {
+    if UIAccessibility.isReduceMotionEnabled || front.image == nil {
+      front.image = image
+    } else {
+      UIView.transition(with: front, duration: 0.22,
+                        options: [.transitionCrossDissolve, .allowUserInteraction, .beginFromCurrentState]) {
         self.front.image = image
       }
-      return
     }
-    // The Apple TV move: the new picture is wiped in from the side it comes from,
-    // drifting in a little, while the old one drifts the other way under it.
-    transitionID += 1
-    let id = transitionID
-    let width = stageView.bounds.width
-    let drift = width * 0.08 * CGFloat(direction)
-    let incoming = back
-    incoming.image = image
-    incoming.frame = stageView.bounds
-    incoming.transform = CGAffineTransform(translationX: drift, y: 0)
-    // A soft edge, not a seam: the mask is opaque with a feathered leading side, and
-    // it starts wholly outside the picture on the side the title comes from.
-    let height = stageView.bounds.height
-    let feather = (width * 0.25).rounded()
-    let wipe = TVPageHeroWipeMask(feather: feather, fromTrailing: direction > 0)
-    wipe.frame = direction > 0
-      ? CGRect(x: width, y: 0, width: width + feather, height: height)
-      : CGRect(x: -width - feather, y: 0, width: width + feather, height: height)
-    incoming.mask = wipe
-    stageView.insertSubview(incoming, aboveSubview: front)
-    UIView.animate(withDuration: 0.9, delay: 0, options: [.curveEaseInOut, .allowUserInteraction]) {
-      wipe.frame.origin.x = direction > 0 ? -feather : 0
-      incoming.transform = .identity
-      self.front.transform = CGAffineTransform(translationX: -drift, y: 0)
-    } completion: { [weak self] _ in
-      guard let self, self.transitionID == id else { return }
-      self.settle()
-    }
-  }
-
-  /// The incoming picture becomes the front one.
-  private func settle() {
-    let incoming = back
-    back = front
-    front = incoming
-    front.mask = nil
-    front.transform = .identity
-    back.transform = .identity
-    back.image = nil
-    stageView.insertSubview(back, belowSubview: front)
-  }
-
-  /// A page turn while the last one is still moving: jump it to its end.
-  private func finishTransition() {
-    guard back.mask != nil else { return }
-    transitionID += 1
-    [back, front, back.mask].compactMap { $0 }.forEach { $0.layer.removeAllAnimations() }
-    settle()
+    fireTurned()
   }
 
   /// Follows the page's scroll frame by frame, never animated on its own.
@@ -754,6 +701,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// Paint the carousel's current title. `direction` != 0 is a page turn.
   func render(direction: Int) {
     guard let carousel else { return }
+    if renderedID != nil, carousel.backdrop?.isWaitingForTurn == true { return }
     let features = carousel.features
     if pageControl.numberOfPages != features.count { pageControl.numberOfPages = features.count }
     if pageControl.currentPage != carousel.index { pageControl.currentPage = carousel.index }
@@ -895,7 +843,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     playButton.configuration = play
     playButton.accessibilityIdentifier = "piratic.hero.play"
     playButton.addAction(UIAction { [weak self] _ in
-      guard let self, let feature = self.carousel?.current else { return }
+      guard let self, let feature = self.shownFeature else { return }
       self.onPlay?(feature)
     }, for: .primaryActionTriggered)
 
@@ -918,7 +866,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     bookmarkButton.showsMenuAsPrimaryAction = true
     bookmarkButton.menu = UIMenu(children: [
       UIDeferredMenuElement.uncached { [weak self] completion in
-        guard let self, let feature = self.carousel?.current else { return completion([]) }
+        guard let self, let feature = self.shownFeature else { return completion([]) }
         completion(self.bookmarkMenuElements(for: feature))
       }
     ])
@@ -928,7 +876,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     detailsButton.configuration = details
     detailsButton.accessibilityIdentifier = "piratic.hero.details"
     detailsButton.addAction(UIAction { [weak self] _ in
-      guard let self, let feature = self.carousel?.current else { return }
+      guard let self, let feature = self.shownFeature else { return }
       self.onDetails?(feature)
     }, for: .primaryActionTriggered)
 
@@ -1058,7 +1006,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   private func apply(_ labels: TVPageHero.Labels) {
     guard labels != appliedLabels else { return }
     appliedLabels = labels
-    applyPlay(carousel?.current?.play)
+    applyPlay(shownFeature?.play)
     detailsButton.configuration?.title = labels.details
     bookmarkButton.accessibilityLabel = labels.bookmark
     nextButton.accessibilityLabel = labels.next
@@ -1149,48 +1097,16 @@ final class TVPageHeroCell: UICollectionViewCell {
 }
 
 extension TVPageHeroCell: @MainActor UIPageControlTimerProgressDelegate {
-  /// The dwell ran out: the carousel moves, the control draws the new page itself.
+  /// The carousel commits the dot when the new artwork is ready.
   func pageControlTimerProgress(_ progress: UIPageControlTimerProgress, shouldAdvanceToPage page: Int) -> Bool {
     guard let carousel, carousel.advances else { return false }
     carousel.move(to: page, direction: 1)
-    return true
+    return false
   }
 }
 #endif
 
 #if os(tvOS)
-/// The wipe's mask: opaque, with a gradient on the side that leads into the picture.
-@MainActor
-private final class TVPageHeroWipeMask: UIView {
-  override class var layerClass: AnyClass { CAGradientLayer.self }
-
-  init(feather: CGFloat, fromTrailing: Bool) {
-    super.init(frame: .zero)
-    let gradient = layer as! CAGradientLayer // swiftlint:disable:this force_cast
-    gradient.startPoint = CGPoint(x: 0, y: 0.5)
-    gradient.endPoint = CGPoint(x: 1, y: 0.5)
-    featherWidth = feather
-    leadsFromTrailing = fromTrailing
-    gradient.colors = fromTrailing
-      ? [UIColor.clear.cgColor, UIColor.black.cgColor, UIColor.black.cgColor]
-      : [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  private var featherWidth: CGFloat = 0
-  private var leadsFromTrailing = true
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    let gradient = layer as! CAGradientLayer // swiftlint:disable:this force_cast
-    let share = bounds.width > 0 ? featherWidth / bounds.width : 0
-    gradient.locations = leadsFromTrailing
-      ? [0, NSNumber(value: Double(share)), 1]
-      : [0, NSNumber(value: Double(1 - share)), 1]
-  }
-}
-
 private extension UIView {
   /// `isHidden` written only when it changes. A stack view counts every `isHidden = true`
   /// made inside an animation block, and one `false` then no longer shows the view: the

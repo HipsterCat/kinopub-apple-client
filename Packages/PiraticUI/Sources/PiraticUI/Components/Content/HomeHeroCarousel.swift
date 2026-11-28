@@ -38,6 +38,7 @@ public struct HomeHeroCarousel: View {
   private let isActive: Bool
   @Binding private var shownIndex: Int
   @Environment(\.heroStepRequest) private var heroStepRequest
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   /// The page's side margins where it measured them (`PageMargins`).
   @Environment(\.pageMargins) private var pageMargins
 
@@ -199,7 +200,7 @@ public struct HomeHeroCarousel: View {
 
   public var body: some View {
     ScrollView(.horizontal) {
-      LazyHStack(spacing: 0) {
+      HStack(spacing: 0) {
         ForEach(slots, id: \.self) { _ in
           Color.clear
             .frame(width: size.width, height: size.height)
@@ -215,7 +216,7 @@ public struct HomeHeroCarousel: View {
     }
     .id(generation)
     .scrollIndicators(.hidden)
-    .scrollTargetBehavior(HeroOnePage())
+    .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
     .onScrollGeometryChange(for: HeroPager.Reading.self) { geometry in
       HeroPager.Reading(geometry)
@@ -244,19 +245,26 @@ public struct HomeHeroCarousel: View {
     .frame(width: size.width, height: size.height)
     .background(alignment: .bottom) {
       if features.indices.contains(currentIndex) {
-        let feature = features[currentIndex]
-        HeroPagePicture(feature: feature, width: size.width, height: size.height + topBleed,
-                        topBleed: topBleed, isCompact: isCompact)
-          .id(feature.card.id)
-          .transition(.identity)
+        HeroArtworkTransition(features: features, slots: slots, pager: pager,
+                              settledIndex: currentIndex, isPaging: isPaging,
+                              width: size.width, height: size.height + topBleed,
+                              topBleed: topBleed, isCompact: isCompact)
           .allowsHitTesting(false)
       }
     }
     .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
-      if !isPaging, features.indices.contains(currentIndex) {
-        wordsBlock(features[currentIndex])
-          .transition(.identity)
+      Group {
+        if features.indices.contains(currentIndex) {
+          wordsBlock(features[currentIndex])
+            .id(features[currentIndex].card.id)
+            .transition(.opacity)
+            .opacity(isPaging ? 0 : 1)
+            .allowsHitTesting(!isPaging)
+            .accessibilityHidden(isPaging)
+        }
       }
+      .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isPaging)
+      .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: currentIndex)
     }
     .overlay(alignment: .bottom) {
       if features.count > 1 {
@@ -267,7 +275,7 @@ public struct HomeHeroCarousel: View {
                          advances: advances,
                          dwellReset: dwellReset,
                          dwell: Self.dwell,
-                         onAdvance: { step(1) },
+                         onAdvance: { step(1, animated: false) },
                          onSelect: { go(to: $0) })
           .padding(.bottom, Metrics.dotsBottom)
       }
@@ -372,7 +380,7 @@ public struct HomeHeroCarousel: View {
   // MARK: Paging
 
   /// One title over: +1 forward, -1 back, both wrapping onto the next lap.
-  private func step(_ delta: Int) {
+  private func step(_ delta: Int, animated: Bool = true) {
     // A turn already on its way finishes first: stepping from a `current` that has
     // moved ahead of the picture is what skipped a title.
     guard features.count > 1, !isPaging else {
@@ -389,7 +397,7 @@ public struct HomeHeroCarousel: View {
       next = Slot(lap: current.lap - 1, index: features.count - 1)
     }
     guard slots.contains(next) else { return }
-    move(to: next, animated: true)
+    move(to: animated ? next : Slot(lap: 0, index: next.index), animated: animated)
   }
 
   /// A dot clicked: that title, on the lap the hero is on.
@@ -709,13 +717,72 @@ final class HeroPager {
   var page: Int { reading.page }
 }
 
-/// One stationary picture with its legibility scrim.
+/// The incoming frame stays transparent until its bitmap is ready. Only the old
+/// frame and one incoming frame are mounted, even when the gesture changes direction.
+private struct HeroArtworkTransition: View {
+  let features: [HomeHeroFeature]
+  let slots: [HomeHeroCarousel.Slot]
+  let pager: HeroPager
+  let settledIndex: Int
+  let isPaging: Bool
+  let width: CGFloat
+  let height: CGFloat
+  let topBleed: CGFloat
+  let isCompact: Bool
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var shown: HomeHeroFeature?
+  @State private var fading: HomeHeroFeature?
+  @State private var revealsIncoming = false
+
+  private var target: HomeHeroFeature {
+    if isPaging, pager.reading.isMeasured, slots.indices.contains(pager.page) {
+      return features[slots[pager.page].index]
+    }
+    return features[settledIndex]
+  }
+
+  var body: some View {
+    let current = shown ?? target
+    let desired = fading ?? target
+    let incoming = desired.card.id == current.card.id ? nil : desired
+    ZStack {
+      ForEach([current] + (incoming.map { [$0] } ?? []), id: \.card.id) { feature in
+        HeroPagePicture(feature: feature, width: width, height: height, topBleed: topBleed,
+                        isCompact: isCompact, onReady: { present(feature) })
+          .opacity(feature.card.id == current.card.id || revealsIncoming ? 1 : 0)
+          .transition(.identity)
+      }
+      HeroScrim(isCompact: isCompact)
+    }
+    .onAppear { shown = current }
+    .onChange(of: target) { _, feature in
+      if shown?.card.id == feature.card.id { shown = feature }
+    }
+  }
+
+  private func present(_ feature: HomeHeroFeature) {
+    guard let shown, feature.card.id != shown.card.id, feature.card.id == target.card.id,
+          fading == nil else { return }
+    fading = feature
+    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+      revealsIncoming = true
+    } completion: {
+      self.shown = feature
+      fading = nil
+      revealsIncoming = false
+    }
+  }
+}
+
+/// One stationary picture.
 private struct HeroPagePicture: View {
   let feature: HomeHeroFeature
   let width: CGFloat
   let height: CGFloat
   let topBleed: CGFloat
   let isCompact: Bool
+  let onReady: () -> Void
   /// Leading cover from `PageMargins` (iPad sidebar). Shifts the fill so the subject
   /// sits in the content column, not under the glass.
   @Environment(\.pageMargins) private var pageMargins
@@ -737,7 +804,6 @@ private struct HeroPagePicture: View {
     ZStack(alignment: .top) {
       Color.black
       picture
-      HeroScrim(isCompact: isCompact)
     }
     .frame(width: width, height: height)
   }
@@ -755,15 +821,17 @@ private struct HeroPagePicture: View {
                          height: height, topBleed: topBleed,
                          stillHeight: min((width * CompactHeroStill.tallness).rounded(),
                                           max(height - topBleed, 0)),
-                         fromTop: true)
+                         fromTop: true, onLoaded: onReady, onFailed: onReady)
     } else {
       WideHeroPicture(urls: feature.backdropCandidates, width: width, height: height,
-                      coveredLeading: pageMargins?.coveredLeading ?? 0)
+                      coveredLeading: pageMargins?.coveredLeading ?? 0,
+                      onLoaded: onReady, onFailed: onReady)
     }
 #else
     FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill,
                         size: CGSize(width: width, height: height),
-                        resizeMode: .fillTop, paintsFromMemory: true)
+                        resizeMode: .fillTop, paintsFromMemory: true,
+                        onLoaded: onReady, onFailed: onReady)
       .frame(width: width, height: height, alignment: .top)
       .clipped()
 #endif
@@ -1245,24 +1313,6 @@ private struct WindowSheetProbe: NSViewRepresentable {
     isolated deinit {
       observers.forEach(NotificationCenter.default.removeObserver)
     }
-  }
-}
-#endif
-
-#if !os(tvOS)
-/// Paging that moves one title per gesture at most (Sasha, 2026-11-10): a fling on the
-/// trackpad ran past several pages, and every page it crossed loaded and drew its
-/// picture. The system's paging picks the page, then it is held to the neighbours of
-/// the page the gesture began on.
-struct HeroOnePage: ScrollTargetBehavior {
-  func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-    PagingScrollTargetBehavior().updateTarget(&target, context: context)
-    let width = context.containerSize.width
-    guard width > 0 else { return }
-    let start = (context.originalTarget.rect.minX / width).rounded()
-    let page = (target.rect.minX / width).rounded()
-    let held = min(max(page, start - 1), start + 1)
-    if held != page { target.rect.origin.x = held * width }
   }
 }
 #endif
